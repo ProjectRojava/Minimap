@@ -1,6 +1,6 @@
 # 01 — Data model and activity log
 
-Status: Draft · Milestone: M1 · Priority: Must
+Status: Done · Milestone: M1 · Priority: Must
 Depends on: —
 
 ## Goal
@@ -31,15 +31,23 @@ Persist every node type, the typed edges table and the activity log, behind repo
 - All SQL parameterized; no string formatting.
 
 ## Acceptance criteria
-- [ ] Migrations apply on an empty DB and on a DB at schema v1.
-- [ ] Every repo write produces exactly one activity row (plus one per archived edge).
-- [ ] Hard delete of a non-archived node fails with a typed error.
-- [ ] `cargo test -p minimap-store` covers create/update/archive/delete for every node type.
+- [x] Migrations apply on an empty DB and on a DB at schema v1.
+- [x] Every repo write produces exactly one activity row (plus one per archived edge).
+- [x] Hard delete of a non-archived node fails with a typed error.
+- [x] `cargo test -p minimap-store` covers create/update/archive/delete for every node type.
 
 ## Tests
 - Unit tests per repository against an in-memory DB.
 - Proptest: random sequence of create/update/archive → activity count matches writes.
 
 ## Open questions
-- Keep a separate `unarchive` action in the activity log, or record it as `updated`?
-- Should hard delete exist in the MVP at all?
+- ~~Separate `unarchive` action?~~ **Yes**: `unarchived`, plus `deleted` for hard deletes (history survives, so the delete itself must be recorded). `CLAUDE.md` §4.3 lists the original five actions; this adds two (ADR-0003).
+- ~~Hard delete in the MVP?~~ **Yes**, via `nodes::delete`, only after archive.
+
+## Implementation notes
+- Types: `minimap-types` (`enums`, `nodes`, `edges`, `activity`, `patch`, `timefmt`). Nullable fields in `Update*` use `Patch<T>` (`keep` / `set` / `clear`).
+- Store API: `minimap_store::{objectives,projects,tasks,people,teams,notes,decisions,waiting_on}::{create,get,list,update}`, generic `nodes::{archive,unarchive,delete}`, `edges::{add,remove,get,list_for_node,list_active}`, `activity::{list_for_node,list_recent,count}`.
+- Edge activity rows attach to the edge's `from` node. `edges::add` revives an archived edge with the same (type, from, to).
+- `unarchive` restores edges archived with the node (same timestamp) unless the other endpoint is still archived.
+- `tasks::update` sets/clears `completed_at` when status moves to/from `done`.
+- Not here (later specs): edge matrix and cycle rules (07), blocking self-archive/delete (03).

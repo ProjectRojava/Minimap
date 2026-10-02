@@ -9,3 +9,6 @@
 - [ ] `cargo tauri dev` shows "pong" (needs Linux system deps: webkit2gtk-4.1, libsoup3, etc.)
 - [ ] `cargo tauri build` produces an installer
 - [ ] README, ADRs
+
+## M1 progress
+- [x] 01 Data model and activity log (store + types; no UI/commands yet)
