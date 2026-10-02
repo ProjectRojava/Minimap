@@ -5,7 +5,7 @@ Local-first, private desktop app: a command center for CTOs/CXOs/PMs. Models obj
 ## 1. Hard constraints (never violate)
 - **No Node.js, npm, yarn, pnpm, bun or Electron** in build, tooling or runtime. If a library assumes npm, find another way.
 - **Local-first, single user.** No server, accounts or login. People are records, not users.
-- **No network access by default.** No telemetry/analytics/auto-update. Future importers (Jira, Linear, GitHub) must be explicit, user-initiated, opt-in.
+- **No telemetry or analytics.** Network features (e.g. Google Drive backup, importers) are allowed; user data only leaves the device to a destination the user has connected. See ADR-0002.
 - **All data in one SQLite file** in the OS app-data dir, with an encryption option (SQLCipher).
 - **Rust everywhere.** Backend, domain logic, frontend (WASM).
 
@@ -87,14 +87,14 @@ decision "Postgres over Mongo" affects:#api-launch
 `@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO) · `est:` (3d, 4h) · `blocks:`/`for:`/`affects:` edges to a named node.
 
 ## 8. Storage, encryption, backup
-DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random passphrase in OS keychain via `keyring`, `PRAGMA rekey`; optional user passphrase. `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). Migrations run on startup in a transaction after a pre-migration backup.
+DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random passphrase in OS keychain via `keyring`, `PRAGMA rekey`; optional user passphrase. `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). **Google Drive backup**: user connects a Google account (desktop OAuth: loopback redirect + PKCE, `drive.file` scope only, refresh token in OS keychain via `keyring`); backups are encrypted before upload; upload/list/restore/retention (keep last N) from Settings; network calls happen in the Rust backend, never the webview. Migrations run on startup in a transaction after a pre-migration backup.
 
 ## 9. Milestones (one at a time; each ends with tests passing, `cargo clippy --workspace -- -D warnings` clean, working `cargo tauri dev`)
 - **M0 Scaffold**: workspace, Tauri 2 + Leptos + Trunk + Tailwind; `ping` command shown in UI; SQLite opens + first migration; app-data path on Win/macOS/Linux; README w/ prerequisites (no npm). Done when `cargo tauri dev` shows "pong" and `cargo tauri build` produces an installer.
 - **M1 Core data**: all node tables, edges, activity, repos + tests; CRUD commands + list/detail screens; sidebar, detail pane; self person on first run.
 - **M2 Graph engine**: cycle detection w/ readable UI error; CPM, critical path, dependency graph view; impact analysis. Done when the seeded demo (3 projects, ~40 tasks, cross-project blocks) highlights the critical path correctly and a 5-day slip shows right downstream changes; `insta` snapshots.
 - **M3 People & exec layer**: capacity + heatmap; health with reasons + Overview; waiting-on, notes with `@`, decisions; command palette + quick-add (all section-7 examples work).
-- **M4 Review, export, security**: weekly review + Markdown export; SQLCipher w/ keychain key, backup + auto-backup; Settings. Done when encrypting an existing DB loses no data, a backup restores, and the review exports a readable report.
+- **M4 Review, export, security**: weekly review + Markdown export; SQLCipher w/ keychain key, backup + auto-backup, Google Drive backup; Settings. Done when encrypting an existing DB loses no data, a backup (local and from Drive) restores, and the review exports a readable report.
 - **Later (do not build)**: PDF export (Typst), holidays, Jira/Linear/GitHub read-only importers, sync, shared snapshots, local AI summary.
 
 ## 10. Demo data
@@ -121,4 +121,4 @@ cargo fmt --all
 Linux also needs Tauri system deps (webkit2gtk-4.1 etc.).
 
 ## 13. Working agreement
-Start each session by reading this file and `docs/progress.md`. One milestone at a time; don't start the next until "Done when" passes. If a section-1 constraint blocks something, stop and explain the trade-off. Check official docs when unsure of Tauri 2 / Leptos / Trunk APIs.
+Start each session by reading this file and `docs/progress.md`. Feature specs live in `docs/features/` (index in its README); implement only specs marked `Status: Ready`, and when one conflicts with this file, follow the spec and record an ADR. One milestone at a time; don't start the next until "Done when" passes. If a section-1 constraint blocks something, stop and explain the trade-off. Check official docs when unsure of Tauri 2 / Leptos / Trunk APIs.
