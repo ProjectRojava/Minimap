@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="WEB_MODULE" version="4">
   <component name="NewModuleRootManager">
-    <content url="file://$MODULE_DIR$" />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/crates/minimap-core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/minimap-store/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/minimap-store/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/minimap-types/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src-tauri/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ui/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+    </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>

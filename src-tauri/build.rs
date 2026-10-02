@@ -1,5 +1,10 @@
 /// Commands exposed to the frontend. Keep in sync with `invoke_handler` in main.rs.
-const COMMANDS: &[&str] = &["ping"];
+const COMMANDS: &[&str] = &[
+    "ping",
+    "get_node_summary",
+    "list_edges_for",
+    "list_activity_for",
+];
 
 fn main() {
     tauri_build::try_build(

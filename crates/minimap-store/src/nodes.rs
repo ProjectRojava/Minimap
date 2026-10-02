@@ -1,6 +1,6 @@
 //! Operations that work the same for every node type: archive, unarchive, hard delete.
 
-use minimap_types::{timefmt::fmt_ts, ActivityAction, NodeRef};
+use minimap_types::{timefmt::fmt_ts, ActivityAction, NodeRef, NodeSummary, NodeType};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::json;
 
@@ -147,4 +147,37 @@ pub fn delete(conn: &mut Connection, node: NodeRef) -> Result<()> {
     )?;
     tx.commit()?;
     Ok(())
+}
+
+/// Column holding the human-readable name of each node type.
+fn label_column(node_type: NodeType) -> &'static str {
+    match node_type {
+        NodeType::Person | NodeType::Team => "name",
+        NodeType::WaitingOn => "description",
+        _ => "title",
+    }
+}
+
+/// Label and archived state of any node, for lists, links and the detail pane header.
+pub fn summary(conn: &Connection, node: NodeRef) -> Result<NodeSummary> {
+    conn.query_row(
+        &format!(
+            "SELECT {}, archived_at IS NOT NULL FROM {} WHERE id = ?1",
+            label_column(node.node_type),
+            table(node.node_type)
+        ),
+        [id_s(node.id)],
+        |r| {
+            Ok(NodeSummary {
+                node,
+                label: r.get(0)?,
+                archived: r.get(1)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_or(StoreError::NotFound {
+        node_type: node.node_type,
+        id: node.id,
+    })
 }

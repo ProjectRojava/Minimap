@@ -19,6 +19,14 @@ pub struct NodeRef {
     pub id: Uuid,
 }
 
+/// A node reduced to what lists and links need: what it is, what to call it, whether it's archived.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NodeSummary {
+    pub node: NodeRef,
+    pub label: String,
+    pub archived: bool,
+}
+
 impl NodeRef {
     pub fn new(node_type: NodeType, id: Uuid) -> Self {
         Self { node_type, id }

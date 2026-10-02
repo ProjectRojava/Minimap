@@ -12,3 +12,4 @@
 
 ## M1 progress
 - [x] 01 Data model and activity log (store + types; no UI/commands yet)
+- [x] 02 App shell and navigation (implemented; manual click-through pending, see spec)
