@@ -35,12 +35,15 @@ fn main() {
             let conn = minimap_store::open(&db_path)
                 .map_err(|e| anyhow::anyhow!("open database {}: {e}", db_path.display()))?;
             tracing::info!(path = %db_path.display(), "database opened");
-            app.manage(AppState {
-                db: Mutex::new(conn),
-            });
+            app.manage(AppState::new(conn));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![commands::system::ping])
+        .invoke_handler(tauri::generate_handler![
+            commands::system::ping,
+            commands::nodes::get_node_summary,
+            commands::nodes::list_edges_for,
+            commands::nodes::list_activity_for,
+        ])
         .run(tauri::generate_context!());
     if let Err(e) = result {
         eprintln!("error while running Minimap: {e}");

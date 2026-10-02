@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{EdgeType, NodeRef, NodeType};
+use crate::{EdgeType, NodeRef, NodeSummary, NodeType};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Edge {
@@ -41,4 +41,13 @@ pub struct NewEdge {
 
 fn empty_attrs() -> serde_json::Value {
     serde_json::Value::Object(Default::default())
+}
+
+/// An edge as seen from one node: which way it points and what is on the other end.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EdgeLink {
+    pub edge: Edge,
+    /// True when the queried node is the `from` end.
+    pub outgoing: bool,
+    pub other: NodeSummary,
 }

@@ -177,10 +177,46 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the get_node_summary command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-node-summary",
+          "markdownDescription": "Enables the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_activity_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-activity-for",
+          "markdownDescription": "Enables the list_activity_for command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_edges_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-edges-for",
+          "markdownDescription": "Enables the list_edges_for command without any pre-configured scope."
+        },
+        {
           "description": "Enables the ping command without any pre-configured scope.",
           "type": "string",
           "const": "allow-ping",
           "markdownDescription": "Enables the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_node_summary command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-node-summary",
+          "markdownDescription": "Denies the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_activity_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-activity-for",
+          "markdownDescription": "Denies the list_activity_for command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_edges_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-edges-for",
+          "markdownDescription": "Denies the list_edges_for command without any pre-configured scope."
         },
         {
           "description": "Denies the ping command without any pre-configured scope.",

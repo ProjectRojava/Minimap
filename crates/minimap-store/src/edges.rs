@@ -1,7 +1,7 @@
 //! Raw edge persistence. The edge-type matrix and cycle rules are enforced in
 //! `minimap-core` (feature 07) before these functions are called.
 
-use minimap_types::{ActivityAction, Edge, NewEdge, NodeRef};
+use minimap_types::{ActivityAction, Edge, EdgeLink, NewEdge, NodeRef};
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 use serde_json::json;
 use time::OffsetDateTime;
@@ -185,4 +185,20 @@ pub(crate) fn endpoint_ref(edge: &Edge, node: NodeRef) -> NodeRef {
     } else {
         edge.from()
     }
+}
+
+/// Edges touching `node_id`, each with a summary of the node on the other end.
+pub fn links_for_node(conn: &Connection, node_id: Uuid) -> Result<Vec<EdgeLink>> {
+    list_for_node(conn, node_id, false)?
+        .into_iter()
+        .map(|edge| {
+            let outgoing = edge.from_id == node_id;
+            let other = if outgoing { edge.to() } else { edge.from() };
+            Ok(EdgeLink {
+                outgoing,
+                other: nodes::summary(conn, other)?,
+                edge,
+            })
+        })
+        .collect()
 }

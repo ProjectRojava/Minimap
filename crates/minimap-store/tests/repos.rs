@@ -734,3 +734,32 @@ mod props {
         }
     }
 }
+
+#[test]
+fn summary_and_links_name_the_other_end() {
+    let mut conn = db();
+    let (a, b) = (task(&mut conn, "Write spec"), task(&mut conn, "Ship it"));
+    edges::add(&mut conn, blocks(&a, &b)).unwrap();
+    let s = nodes::summary(&conn, NodeRef::new(NodeType::Task, a.id)).unwrap();
+    assert_eq!((s.label.as_str(), s.archived), ("Write spec", false));
+
+    let links = edges::links_for_node(&conn, b.id).unwrap();
+    assert_eq!(links.len(), 1);
+    assert!(!links[0].outgoing);
+    assert_eq!(links[0].other.label, "Write spec");
+
+    // Person/team/waiting-on use their own label column.
+    let p = person(&mut conn, "Priya");
+    assert_eq!(
+        nodes::summary(&conn, NodeRef::new(NodeType::Person, p.id))
+            .unwrap()
+            .label,
+        "Priya"
+    );
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Task, a.id)).unwrap();
+    assert!(
+        nodes::summary(&conn, NodeRef::new(NodeType::Task, a.id))
+            .unwrap()
+            .archived
+    );
+}
