@@ -1,0 +1,12 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[serve]
+address = "127.0.0.1"
+port = 1420
+open = false
+
+[tools]
+# Trunk downloads the standalone Tailwind binary; no npm involved.
+tailwindcss = "4.1.11"

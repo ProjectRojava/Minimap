@@ -1,0 +1,124 @@
+# Minimap
+
+Local-first, private desktop app: a command center for CTOs/CXOs/PMs. Models objectives, projects, tasks, people and teams as a typed graph (dependencies, critical paths, capacity, downstream impact of slips).
+
+## 1. Hard constraints (never violate)
+- **No Node.js, npm, yarn, pnpm, bun or Electron** in build, tooling or runtime. If a library assumes npm, find another way.
+- **Local-first, single user.** No server, accounts or login. People are records, not users.
+- **No network access by default.** No telemetry/analytics/auto-update. Future importers (Jira, Linear, GitHub) must be explicit, user-initiated, opt-in.
+- **All data in one SQLite file** in the OS app-data dir, with an encryption option (SQLCipher).
+- **Rust everywhere.** Backend, domain logic, frontend (WASM).
+
+## 2. Stack
+Tauri 2.x (system webview) · Leptos CSR (stable 0.8.x) built with Trunk (`wasm32-unknown-unknown`) · Tailwind via Trunk's built-in support (or plain CSS) · `rusqlite` with `bundled-sqlcipher-vendored-openssl` (sync; call from commands via `tauri::async_runtime::spawn_blocking`) · `rusqlite_migration` (plain SQL via `include_str!`) · `petgraph` · `uuid` v7 (TEXT) · `time` (ISO-8601 UTC TEXT; dates `YYYY-MM-DD`) · `thiserror` in libs, `anyhow` only at app edge · `serde`/`serde_json` · `keyring` (DB passphrase) · `tracing` (file log in app-data; never log note bodies/user content at info) · tests: `#[test]`, `proptest`, `insta`.
+Check crates.io for current stable versions; pin in workspace `Cargo.toml`.
+
+**Bridge:** `app.withGlobalTauri: true`; `ui/src/api.rs` has a hand-written `wasm-bindgen` wrapper over `window.__TAURI__.core.invoke`, one typed async fn per command. All request/response types come from `minimap-types`.
+
+## 3. Layout & dependency rules
+`crates/minimap-types` (DTOs/enums, no IO, wasm-compatible; depends on nothing internal) · `crates/minimap-core` (domain + graph algorithms, no IO/SQLite; depends only on types) · `crates/minimap-store` (SQLite, migrations, repos; depends on types, core only for validation) · `src-tauri` (commands in `src/commands/` one module per area, state, wiring; capabilities/) · `ui` (Leptos+Trunk; depends **only** on `minimap-types` — never rusqlite/petgraph/tauri) · `docs/decisions/` (ADRs) · `docs/quick-add-grammar.md` · `docs/progress.md`.
+Trunk↔Tauri: `beforeDevCommand: trunk serve --config ui/Trunk.toml`, `beforeBuildCommand: trunk build --release --config ui/Trunk.toml`, `devUrl: http://localhost:1420`, `frontendDist: ../ui/dist`.
+
+## 4. Domain model
+Every node: `id` (uuid v7), `created_at`, `updated_at`, `archived_at` (soft delete).
+- **Objective**: title, description, target_date, status (on_track/at_risk/off_track/done), priority 1–5
+- **Project**: title, description, owner_person_id, start_date, target_date, status (planned/active/paused/done/cancelled), priority
+- **Task**: title, description, project_id (nullable), status (todo/in_progress/blocked/done/cancelled), estimate_days (decimal), start_date, due_date, completed_at, priority
+- **Person**: name, role_title, email?, weekly_capacity_hours (default 40), is_self (exactly one), notes
+- **Team**: name, description, parent_team_id (nestable)
+- **Note**: title, body (Markdown), note_date, kind (one_on_one/meeting/general)
+- **Decision**: title, context, decision, rationale, decided_on, status (proposed/decided/superseded)
+- **WaitingOn**: description, person_id, asked_on, expected_by, resolved_on
+
+### Edges (single `edges` table)
+Columns: id, edge_type, from_type, from_id, to_type, to_id, attrs (JSON, default '{}'), created_at, archived_at; `UNIQUE(edge_type, from_id, to_id)`; indexes `idx_edges_from(from_id, edge_type)`, `idx_edges_to(to_id, edge_type)`.
+Matrix (enforce in core, reject anything else):
+| type | from → to | attrs |
+|---|---|---|
+| blocks | Task → Task | lag_days (cross-project ok) |
+| depends_on | Project → Project | note |
+| contributes_to | Project/Task → Objective | weight 0–1 |
+| assigned_to | Task → Person | allocation_pct 1–100 |
+| member_of | Person → Team | role (lead/member) |
+| reports_to | Person → Person | — |
+| relates_to | any → any | note |
+| mentions | Note → any | — |
+| affects | Decision → Project/Task/Objective | — |
+| about | WaitingOn → Task/Project | — |
+
+Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `reports_to`, or team nesting; no self-edges; archiving a node archives its edges; hard delete only after archive, with UI confirmation.
+
+### Activity log
+`activity(id, at, node_type, node_id, action [created/updated/archived/edge_added/edge_removed], diff JSON {field:[old,new]})`. Every write goes through a repository method that appends to `activity` in the same transaction.
+
+## 5. Core algorithms (pure, in `minimap-core`)
+1. Graph build into `petgraph::StableGraph` (id→index map).
+2. Cycle check before inserting blocks/depends_on/reports_to; return the cycle path.
+3. CPM schedule + critical path: working days Mon–Fri; duration = estimate_days or 1 (flag "unestimated"); forward/backward pass (backward from project target date or latest finish); slack = LS − ES; critical = zero slack; done tasks fixed at actual dates; per project and portfolio-wide.
+4. Impact analysis: task/project + slip of N working days propagated along blocks/depends_on consuming slack; output affected tasks (new projected finish, slip absorbed), projects, objectives (contributes_to), people (assigned_to).
+5. Health scoring (computed): project from projected finish vs target, blocked/overdue share, unestimated work; objective rolls up weighted; expose reasons ("3 tasks overdue; projected 6 days late").
+6. Capacity per person/week: sum(allocation_pct × hours) of active assigned tasks scheduled that week ÷ weekly_capacity_hours; flag >100%.
+Each needs unit tests on small hand-built graphs and `proptest` for: no cycles after accepted insert, slack ≥ 0, impact never moves a task earlier.
+
+## 6. Tauri commands (`src-tauri/src/commands/`)
+Thin: load, call core, persist, return. Take/return `minimap-types`; return `Result<T, AppError>` (`{code, message}`).
+- nodes: create_/update_/archive_/get_/list_* per type (filters: status, project, person, team, date range, text)
+- edges: add_edge, remove_edge, list_edges_for(node_id)
+- graph: get_dependency_graph(scope), get_critical_path(project_id|portfolio), run_impact_analysis(node_id, slip_days)
+- dashboard: get_portfolio_overview, get_capacity(from,to), get_waiting_on(open_only)
+- review: get_weekly_review(week_start)
+- quick_add: parse_quick_add(text) → preview; commit_quick_add(text)
+- export: export_markdown(report_kind, params, path)
+- settings: get_settings, update_settings, set_db_passphrase, backup_now(path)
+Capabilities: frontend may call only these commands (app manifest) plus dialog/fs permissions export/backup need. Nothing broader.
+
+## 7. UI (Leptos)
+Keyboard-first, dense, calm; light/dark follows OS. Sidebar: Overview, Objectives, Projects, Tasks, People, Teams, Notes, Decisions, Waiting On, Weekly Review, Settings. Command palette (Ctrl/Cmd+K): navigate, actions, quick-add. Right-side detail pane for any node (fields, edges grouped by type & editable, activity).
+Screens: (1) Overview: objectives w/ computed health, projects under them, top-5 risks, overloaded people, stale (>7d) waiting-ons; (2) Projects: list+board, detail with tasks, timeline w/ critical path, deps in/out; (3) Dependency graph: SVG from Rust, layered L→R (Sugiyama-style layering in core), filters project/team/objective, critical path highlighted, click opens detail; (4) Impact analysis ("What if this slips?" from any task); (5) People: capacity heatmap people×weeks, person detail; (6) Notes/decisions: Markdown editor, `@` links person/project/task (creates `mentions`), `[ ]` lines → tasks; (7) Waiting on: sorted by age, one-click resolve; (8) Weekly review: slipped, blocked, overloaded, stale waiting-ons, decisions; ends with "Export as Markdown status report"; (9) Settings: db location, encryption + passphrase, backup folder, working days, default capacity, theme.
+
+### Quick-add grammar (full doc in `docs/quick-add-grammar.md`; parsing is pure, in core; UI always previews before commit)
+```
+task Fix login timeout @priya #api-launch !2 due:fri est:3d blocks:"Release 1.2"
+project Q1 EU region owner:@me target:2027-03-31 for:"Launch EU"
+wait @raj on "Security review sign-off" by:next-wed
+note 1:1 @priya
+decision "Postgres over Mongo" affects:#api-launch
+```
+`@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO) · `est:` (3d, 4h) · `blocks:`/`for:`/`affects:` edges to a named node.
+
+## 8. Storage, encryption, backup
+DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random passphrase in OS keychain via `keyring`, `PRAGMA rekey`; optional user passphrase. `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). Migrations run on startup in a transaction after a pre-migration backup.
+
+## 9. Milestones (one at a time; each ends with tests passing, `cargo clippy --workspace -- -D warnings` clean, working `cargo tauri dev`)
+- **M0 Scaffold**: workspace, Tauri 2 + Leptos + Trunk + Tailwind; `ping` command shown in UI; SQLite opens + first migration; app-data path on Win/macOS/Linux; README w/ prerequisites (no npm). Done when `cargo tauri dev` shows "pong" and `cargo tauri build` produces an installer.
+- **M1 Core data**: all node tables, edges, activity, repos + tests; CRUD commands + list/detail screens; sidebar, detail pane; self person on first run.
+- **M2 Graph engine**: cycle detection w/ readable UI error; CPM, critical path, dependency graph view; impact analysis. Done when the seeded demo (3 projects, ~40 tasks, cross-project blocks) highlights the critical path correctly and a 5-day slip shows right downstream changes; `insta` snapshots.
+- **M3 People & exec layer**: capacity + heatmap; health with reasons + Overview; waiting-on, notes with `@`, decisions; command palette + quick-add (all section-7 examples work).
+- **M4 Review, export, security**: weekly review + Markdown export; SQLCipher w/ keychain key, backup + auto-backup; Settings. Done when encrypting an existing DB loses no data, a backup restores, and the review exports a readable report.
+- **Later (do not build)**: PDF export (Typst), holidays, Jira/Linear/GitHub read-only importers, sync, shared snapshots, local AI summary.
+
+## 10. Demo data
+`seed_demo_data` command (debug builds only, from Settings): 2 objectives, 3 projects (one at risk), ~40 tasks with cross-project blocks, 8 people in 2 nested teams with reporting lines (one overloaded), a few notes/decisions/waiting-ons (one stale). Used for manual testing and snapshot tests.
+
+## 11. Conventions
+- `cargo fmt` and `cargo clippy --workspace --all-targets -- -D warnings` must pass.
+- No `unwrap()`/`expect()` outside tests and `main` setup.
+- Domain logic in `minimap-core`; commands thin; UI has no business rules.
+- All SQL in `minimap-store`, parameterized only. Every write is a transaction that also writes the activity row.
+- ADR in `docs/decisions/` for any significant architectural choice or deviation from this file.
+- Small commits, one logical change each.
+
+## 12. Commands
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install tauri-cli --version "^2" --locked
+cargo install trunk --locked
+cargo tauri dev | cargo tauri build
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all
+```
+Linux also needs Tauri system deps (webkit2gtk-4.1 etc.).
+
+## 13. Working agreement
+Start each session by reading this file and `docs/progress.md`. One milestone at a time; don't start the next until "Done when" passes. If a section-1 constraint blocks something, stop and explain the trade-off. Check official docs when unsure of Tauri 2 / Leptos / Trunk APIs.

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Only the app's own commands. Dialog/fs permissions are added in M4 when export and backup need them.",
+  "windows": ["main"],
+  "permissions": ["allow-ping"]
+}

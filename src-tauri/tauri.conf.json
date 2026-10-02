@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Minimap",
+  "version": "0.1.0",
+  "identifier": "app.minimap.desktop",
+  "build": {
+    "beforeDevCommand": "trunk serve --config ui/Trunk.toml",
+    "beforeBuildCommand": "trunk build --release --config ui/Trunk.toml",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      { "title": "Minimap", "width": 1280, "height": 800, "minWidth": 900, "minHeight": 600 }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+  }
+}
