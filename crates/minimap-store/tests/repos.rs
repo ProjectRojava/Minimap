@@ -76,6 +76,7 @@ fn one_of_each(conn: &mut Connection) -> Vec<NodeRef> {
         conn,
         CreateProject {
             title: "Q1 EU region".into(),
+            slug: None,
             description: String::new(),
             owner_person_id: None,
             start_date: None,
@@ -1080,6 +1081,7 @@ fn project(conn: &mut Connection, title: &str) -> Project {
         conn,
         CreateProject {
             title: title.into(),
+            slug: None,
             description: String::new(),
             owner_person_id: None,
             start_date: None,
@@ -1233,4 +1235,300 @@ fn list_summaries_are_active_only_and_sorted_by_label() {
         nodes::list_summaries(&conn, NodeType::Person).unwrap()[0].label,
         "Priya"
     );
+}
+
+// ------------------------------------------------------------------ projects
+
+fn project_with(
+    conn: &mut Connection,
+    title: &str,
+    slug: Option<&str>,
+) -> minimap_store::Result<Project> {
+    projects::create(
+        conn,
+        CreateProject {
+            title: title.into(),
+            slug: slug.map(String::from),
+            description: String::new(),
+            owner_person_id: None,
+            start_date: None,
+            target_date: None,
+            status: None,
+            priority: None,
+        },
+    )
+}
+
+#[test]
+fn project_handles_are_generated_unique_and_validated() {
+    let mut conn = db();
+    let a = project_with(&mut conn, "API Launch", None).unwrap();
+    let b = project_with(&mut conn, "API launch!", None).unwrap();
+    assert_eq!(
+        (a.slug.as_str(), b.slug.as_str()),
+        ("api-launch", "api-launch-2")
+    );
+
+    // Explicit handles are validated and must be free.
+    assert_eq!(
+        project_with(&mut conn, "Other", Some("custom"))
+            .unwrap()
+            .slug,
+        "custom"
+    );
+    assert!(
+        matches!(project_with(&mut conn, "Dup", Some("custom")), Err(StoreError::Invalid(m)) if m.contains("already used"))
+    );
+    assert!(matches!(
+        project_with(&mut conn, "Bad", Some("Not Valid")),
+        Err(StoreError::Invalid(_))
+    ));
+    // Blank explicit handle falls back to the title.
+    assert_eq!(
+        project_with(&mut conn, "Fallback", Some("  "))
+            .unwrap()
+            .slug,
+        "fallback"
+    );
+    // A rejected create writes nothing.
+    assert_eq!(projects::list(&conn, false).unwrap().len(), 4);
+}
+
+#[test]
+fn project_handle_is_editable_and_freed_by_archiving() {
+    let mut conn = db();
+    let a = project_with(&mut conn, "Alpha", None).unwrap();
+    let b = project_with(&mut conn, "Beta", None).unwrap();
+
+    // Renaming a project keeps its handle; the handle itself is editable.
+    let renamed = projects::update(
+        &mut conn,
+        a.id,
+        UpdateProject {
+            title: Some("Alpha Two".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(renamed.slug, "alpha");
+    assert!(matches!(
+        projects::update(
+            &mut conn,
+            b.id,
+            UpdateProject {
+                slug: Some("alpha".into()),
+                ..Default::default()
+            }
+        ),
+        Err(StoreError::Invalid(_))
+    ));
+    projects::update(
+        &mut conn,
+        a.id,
+        UpdateProject {
+            slug: Some("alpha".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap(); // own handle: no-op
+    projects::update(
+        &mut conn,
+        a.id,
+        UpdateProject {
+            slug: Some("a2".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        history(&conn, a.id)[0].diff,
+        json!({"slug": ["alpha", "a2"]})
+    );
+
+    // Archiving frees the handle for reuse.
+    projects::archive(&mut conn, b.id, TaskDisposition::Inbox).unwrap();
+    assert_eq!(
+        project_with(&mut conn, "Beta again", Some("beta"))
+            .unwrap()
+            .slug,
+        "beta"
+    );
+    // ...and restoring the archived one then hits the unique index.
+    assert!(matches!(
+        nodes::unarchive(&mut conn, NodeRef::new(NodeType::Project, b.id)),
+        Err(StoreError::Constraint(_))
+    ));
+}
+
+fn task_in(conn: &mut Connection, title: &str, project: Uuid) -> Task {
+    tasks::create(
+        conn,
+        CreateTask {
+            title: title.into(),
+            description: String::new(),
+            project_id: Some(project),
+            status: None,
+            estimate_days: None,
+            start_date: None,
+            due_date: None,
+            priority: None,
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn archiving_a_project_can_archive_its_tasks() {
+    let mut conn = db();
+    let p = project_with(&mut conn, "Alpha", None).unwrap();
+    let (t1, t2) = (
+        task_in(&mut conn, "one", p.id),
+        task_in(&mut conn, "two", p.id),
+    );
+    let other = project_with(&mut conn, "Other", None).unwrap();
+    let t3 = task_in(&mut conn, "elsewhere", other.id);
+    // A link on a task goes down with it.
+    edges::add(&mut conn, blocks(&t1, &t3)).unwrap();
+
+    projects::archive(&mut conn, p.id, TaskDisposition::Archive).unwrap();
+    assert!(projects::get(&conn, p.id).unwrap().archived_at.is_some());
+    for t in [&t1, &t2] {
+        assert!(tasks::get(&conn, t.id).unwrap().archived_at.is_some());
+        assert!(actions(&conn, t.id).contains(&ActivityAction::Archived));
+    }
+    assert!(tasks::get(&conn, t3.id).unwrap().archived_at.is_none());
+    assert!(edges::list_active(&conn).unwrap().is_empty());
+    assert!(matches!(
+        projects::archive(&mut conn, p.id, TaskDisposition::Archive),
+        Err(StoreError::AlreadyArchived { .. })
+    ));
+}
+
+#[test]
+fn archiving_a_project_can_move_its_tasks_to_the_inbox() {
+    let mut conn = db();
+    let p = project_with(&mut conn, "Alpha", None).unwrap();
+    let t = task_in(&mut conn, "one", p.id);
+    let done = task_in(&mut conn, "finished", p.id);
+    tasks::update(
+        &mut conn,
+        done.id,
+        UpdateTask {
+            status: Some(TaskStatus::Done),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    projects::archive(&mut conn, p.id, TaskDisposition::Inbox).unwrap();
+    for id in [t.id, done.id] {
+        let after = tasks::get(&conn, id).unwrap();
+        assert_eq!(after.project_id, None);
+        assert!(after.archived_at.is_none());
+        let latest = &history(&conn, id)[0];
+        assert_eq!(latest.action, ActivityAction::Updated);
+        assert_eq!(latest.diff, json!({"project_id": [p.id, null]}));
+    }
+    assert!(projects::get(&conn, p.id).unwrap().archived_at.is_some());
+}
+
+#[test]
+fn project_archive_is_atomic() {
+    let mut conn = db();
+    let missing = projects::archive(&mut conn, Uuid::now_v7(), TaskDisposition::Archive);
+    assert!(matches!(missing, Err(StoreError::NotFound { .. })));
+}
+
+#[test]
+fn project_rows_and_detail() {
+    let mut conn = db();
+    let me = person(&mut conn, "Priya");
+    let (eu, growth) = (
+        objective(&mut conn, "Launch EU", None),
+        objective(&mut conn, "Grow ARR", None),
+    );
+    let p = project_with(&mut conn, "EU region", None).unwrap();
+    projects::update(
+        &mut conn,
+        p.id,
+        UpdateProject {
+            owner_person_id: Patch::Set(me.id),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let rp = NodeRef::new(NodeType::Project, p.id);
+    edges::add(&mut conn, contributes(rp, &growth, json!({"weight": 0.5}))).unwrap();
+    edges::add(&mut conn, contributes(rp, &eu, json!({}))).unwrap();
+    let dep = project_with(&mut conn, "Billing", None).unwrap();
+    edges::add(
+        &mut conn,
+        edge(
+            rp,
+            NodeRef::new(NodeType::Project, dep.id),
+            EdgeType::DependsOn,
+            json!({}),
+        ),
+    )
+    .unwrap();
+    let (t1, t2) = (task_in(&mut conn, "a", p.id), task_in(&mut conn, "b", p.id));
+    tasks::update(
+        &mut conn,
+        t1.id,
+        UpdateTask {
+            status: Some(TaskStatus::Done),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let _ = t2;
+
+    let rows = views::project_rows(&conn).unwrap();
+    let row = rows.iter().find(|r| r.project.id == p.id).unwrap();
+    assert_eq!(row.owner.as_ref().unwrap().label, "Priya");
+    assert_eq!(
+        row.objectives
+            .iter()
+            .map(|o| o.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Grow ARR", "Launch EU"]
+    );
+    assert_eq!((row.task_count, row.done_task_count), (2, 1));
+    let billing = rows.iter().find(|r| r.project.id == dep.id).unwrap();
+    assert_eq!(
+        (
+            billing.owner.is_none(),
+            billing.objectives.len(),
+            billing.task_count
+        ),
+        (true, 0, 0)
+    );
+
+    let d = views::project_detail(&conn, p.id).unwrap();
+    assert_eq!(d.owner.unwrap().label, "Priya");
+    assert_eq!(d.objectives.len(), 2);
+    assert_eq!(
+        (
+            d.objectives[0].node.label.as_str(),
+            d.objectives[0].weight,
+            d.objectives[0].status.as_str()
+        ),
+        ("Grow ARR", Some(0.5), "on_track")
+    );
+    assert_eq!(d.depends_on[0].node.label, "Billing");
+    assert_eq!(d.tasks.len(), 2);
+    let dd = views::project_detail(&conn, dep.id).unwrap();
+    assert_eq!(
+        dd.needed_by
+            .iter()
+            .map(|n| n.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["EU region"]
+    );
+
+    let preview = views::project_archive_preview(&conn, p.id).unwrap();
+    assert_eq!(preview.tasks.len(), 2);
+    // Archived projects drop out of the rows.
+    projects::archive(&mut conn, dep.id, TaskDisposition::Inbox).unwrap();
+    assert_eq!(views::project_rows(&conn).unwrap().len(), 1);
 }

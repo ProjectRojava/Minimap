@@ -1,6 +1,6 @@
 //! Display text for enums and numbers. Presentation only; rules live in core.
 
-use minimap_types::ObjectiveStatus;
+use minimap_types::{ObjectiveStatus, ProjectStatus};
 
 /// The user's own call on an objective (computed health is shown separately, spec 15).
 pub fn objective_status_label(s: ObjectiveStatus) -> &'static str {
@@ -9,6 +9,16 @@ pub fn objective_status_label(s: ObjectiveStatus) -> &'static str {
         ObjectiveStatus::AtRisk => "At risk",
         ObjectiveStatus::OffTrack => "Off track",
         ObjectiveStatus::Done => "Done",
+    }
+}
+
+pub fn project_status_label(s: ProjectStatus) -> &'static str {
+    match s {
+        ProjectStatus::Planned => "Planned",
+        ProjectStatus::Active => "Active",
+        ProjectStatus::Paused => "Paused",
+        ProjectStatus::Done => "Done",
+        ProjectStatus::Cancelled => "Cancelled",
     }
 }
 
@@ -37,6 +47,7 @@ mod tests {
     #[test]
     fn labels() {
         assert_eq!(objective_status_label(ObjectiveStatus::AtRisk), "At risk");
+        assert_eq!(project_status_label(ProjectStatus::Cancelled), "Cancelled");
         assert_eq!(priority_short(2), "P2");
         assert_eq!(priority_option(1), "1 · highest");
         assert_eq!(priority_option(3), "3");

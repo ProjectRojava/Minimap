@@ -36,6 +36,7 @@ Top-level outcomes the portfolio serves. Projects and tasks contribute to them.
 - **Commands**: `list_objectives(grouping)`, `get_objective`, `get_objective_detail`, `create_objective`, `update_objective`, `archive_objective`, plus generic `list_node_summaries(node_type)` and `update_edge_attrs(edge_id, attrs)` (validated by core; part of 07).
 - **UI**: Objectives screen (columns: priority, objective, assessment, target, work count; New objective form; group-by-quarter toggle; `j`/`k`/`Enter` follow on-screen order across groups) and an objective panel in the detail pane (fields, assessment, priority, contributing projects/tasks with status and editable weight, add via picker with default weight 1, archive with confirmation). "Needs attention" (at risk / off track) shows as heavier text, since the theme is monochrome.
 - Changing a team role now uses `update_edge_attrs` instead of remove + re-add.
+- Update (spec 05): the picker now lists projects, and a project's own panel edits the same links (`contributes_to`, weight shared via `WeightInput`).
 - Contributions are listed from the objective's side; a project or task's own "contributes to" editor comes with 05/06 (and the generic link editor in 07).
 
 ## Not yet verified by hand

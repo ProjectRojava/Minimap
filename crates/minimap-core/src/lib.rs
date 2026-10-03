@@ -3,6 +3,8 @@
 pub mod cycles;
 pub mod edge_rules;
 pub mod objectives;
+pub mod projects;
+pub mod slug;
 
 use minimap_types::PingResponse;
 

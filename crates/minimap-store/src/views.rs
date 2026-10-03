@@ -4,13 +4,15 @@ use std::collections::HashMap;
 
 use minimap_types::{
     Contribution, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
-    ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow, TeamDetail,
-    TeamRow,
+    ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
+    ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TeamDetail, TeamRow,
 };
 use rusqlite::Connection;
 use uuid::Uuid;
 
-use crate::{convert::*, edges, error::Result, nodes, objectives, people, teams, waiting_on};
+use crate::{
+    convert::*, edges, error::Result, nodes, objectives, people, projects, teams, waiting_on,
+};
 
 const ACTIVE_TASK: &str = "t.status IN ('todo','in_progress','blocked')";
 
@@ -265,11 +267,12 @@ pub fn objective_rows(conn: &Connection) -> Result<Vec<ObjectiveRow>> {
         .collect())
 }
 
-/// Status of a project or task, as text.
+/// Status of a project, task or objective, as text.
 fn status_of(conn: &Connection, node: NodeRef) -> Result<String> {
     let table = match node.node_type {
         NodeType::Project => "projects",
         NodeType::Task => "tasks",
+        NodeType::Objective => "objectives",
         _ => return Ok(String::new()),
     };
     Ok(conn.query_row(
@@ -303,5 +306,139 @@ pub fn objective_detail(conn: &Connection, id: Uuid) -> Result<ObjectiveDetail> 
     Ok(ObjectiveDetail {
         objective,
         contributions,
+    })
+}
+
+fn summary_of(node_type: NodeType, id: Uuid, label: String) -> NodeSummary {
+    NodeSummary {
+        node: NodeRef::new(node_type, id),
+        label,
+        archived: false,
+    }
+}
+
+/// Active projects with owner, objectives and task progress, in storage order
+/// (filtering, ordering and grouping is `minimap-core::projects`).
+pub fn project_rows(conn: &Connection) -> Result<Vec<ProjectRow>> {
+    let people: HashMap<Uuid, String> = people::list(conn, true)?
+        .into_iter()
+        .map(|p| (p.id, p.name))
+        .collect();
+    let objective_names: HashMap<Uuid, String> = objectives::list(conn, false)?
+        .into_iter()
+        .map(|o| (o.id, o.title))
+        .collect();
+    let mut by_project: HashMap<Uuid, Vec<NodeSummary>> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::ContributesTo)? {
+        if e.from_type == NodeType::Project {
+            if let Some(name) = objective_names.get(&e.to_id) {
+                by_project.entry(e.from_id).or_default().push(summary_of(
+                    NodeType::Objective,
+                    e.to_id,
+                    name.clone(),
+                ));
+            }
+        }
+    }
+    let mut stmt = conn.prepare(
+        "SELECT project_id, COUNT(*), SUM(status = 'done') FROM tasks
+         WHERE project_id IS NOT NULL AND archived_at IS NULL GROUP BY project_id",
+    )?;
+    let counts: HashMap<Uuid, (u32, u32)> = stmt
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, u32>(1)?,
+                r.get::<_, u32>(2)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(id, total, done)| (parse_id(id), (total, done)))
+        .collect();
+
+    Ok(projects::list(conn, false)?
+        .into_iter()
+        .map(|project| {
+            let (task_count, done_task_count) = counts.get(&project.id).copied().unwrap_or((0, 0));
+            let mut objectives = by_project.remove(&project.id).unwrap_or_default();
+            objectives.sort_by_key(|o| o.label.to_lowercase());
+            ProjectRow {
+                owner: project.owner_person_id.and_then(|o| {
+                    people
+                        .get(&o)
+                        .map(|n| summary_of(NodeType::Person, o, n.clone()))
+                }),
+                objectives,
+                task_count,
+                done_task_count,
+                project,
+            }
+        })
+        .collect())
+}
+
+/// Active tasks of a project, oldest first.
+fn project_tasks(conn: &Connection, id: Uuid) -> Result<Vec<ProjectTask>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, status, due_date FROM tasks
+         WHERE project_id = ?1 AND archived_at IS NULL ORDER BY id",
+    )?;
+    let rows = stmt.query_map([id_s(id)], |r| {
+        Ok(ProjectTask {
+            node: summary_of(NodeType::Task, col_uuid(r, 0)?, r.get(1)?),
+            status: col_enum(r, 2)?,
+            due_date: col_date_opt(r, 3)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+pub fn project_detail(conn: &Connection, id: Uuid) -> Result<ProjectDetail> {
+    let project = projects::get(conn, id)?;
+    let owner = project
+        .owner_person_id
+        .map(|o| nodes::summary(conn, NodeRef::new(NodeType::Person, o)))
+        .transpose()?;
+    let mut objectives = Vec::new();
+    let mut depends_on = Vec::new();
+    let mut needed_by = Vec::new();
+    for link in edges::links_for_node(conn, id)? {
+        match (link.edge.edge_type, link.outgoing) {
+            (EdgeType::ContributesTo, true) => objectives.push(Contribution {
+                edge_id: link.edge.id,
+                status: status_of(conn, link.other.node)?,
+                weight: link.edge.attrs.get("weight").and_then(|w| w.as_f64()),
+                node: link.other,
+            }),
+            (EdgeType::DependsOn, true) => depends_on.push(LinkedNode {
+                edge_id: link.edge.id,
+                node: link.other,
+            }),
+            (EdgeType::DependsOn, false) => needed_by.push(link.other),
+            _ => {}
+        }
+    }
+    objectives.sort_by_key(|c| c.node.label.to_lowercase());
+    depends_on.sort_by_key(|d| d.node.label.to_lowercase());
+    needed_by.sort_by_key(|n| n.label.to_lowercase());
+    Ok(ProjectDetail {
+        owner,
+        objectives,
+        depends_on,
+        needed_by,
+        tasks: project_tasks(conn, id)?,
+        project,
+    })
+}
+
+/// The active tasks that archiving the project would affect.
+pub fn project_archive_preview(conn: &Connection, id: Uuid) -> Result<ProjectArchivePreview> {
+    projects::get(conn, id)?; // NotFound for unknown ids
+    Ok(ProjectArchivePreview {
+        tasks: project_tasks(conn, id)?
+            .into_iter()
+            .map(|t| t.node)
+            .collect(),
     })
 }

@@ -69,6 +69,13 @@ fn main() {
             commands::edges::remove_edge,
             commands::edges::set_manager,
             commands::edges::update_edge_attrs,
+            commands::projects::list_projects,
+            commands::projects::get_project,
+            commands::projects::get_project_detail,
+            commands::projects::create_project,
+            commands::projects::update_project,
+            commands::projects::preview_archive_project,
+            commands::projects::archive_project,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

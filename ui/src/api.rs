@@ -1,10 +1,12 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, CreateObjective, CreatePerson, CreateTeam, Edge, EdgeLink, NewEdge,
-    NodeRef, NodeSummary, NodeType, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping,
-    Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Team, TeamDetail, TeamRow,
-    UpdateObjective, UpdatePerson, UpdateTeam, Uuid,
+    Activity, AppError, CreateObjective, CreatePerson, CreateProject, CreateTeam, Edge, EdgeLink,
+    NewEdge, NodeRef, NodeSummary, NodeType, Objective, ObjectiveDetail, ObjectiveGroup,
+    ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse,
+    Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout,
+    TaskDisposition, Team, TeamDetail, TeamRow, UpdateObjective, UpdatePerson, UpdateProject,
+    UpdateTeam, Uuid,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -233,4 +235,48 @@ pub async fn list_node_summaries(node_type: NodeType) -> Result<Vec<NodeSummary>
 
 pub async fn update_edge_attrs(edge_id: Uuid, attrs: serde_json::Value) -> Result<Edge, AppError> {
     invoke("update_edge_attrs", &EdgeAttrsArg { edge_id, attrs }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectListArg {
+    filter_by: ProjectFilter,
+    layout: ProjectLayout,
+}
+
+#[derive(Serialize)]
+struct ArchiveProjectArg {
+    id: Uuid,
+    tasks: TaskDisposition,
+}
+
+pub async fn list_projects(
+    filter_by: ProjectFilter,
+    layout: ProjectLayout,
+) -> Result<Vec<ProjectGroup>, AppError> {
+    invoke("list_projects", &ProjectListArg { filter_by, layout }).await
+}
+
+pub async fn get_project(id: Uuid) -> Result<Project, AppError> {
+    invoke("get_project", &IdArg { id }).await
+}
+
+pub async fn get_project_detail(id: Uuid) -> Result<ProjectDetail, AppError> {
+    invoke("get_project_detail", &IdArg { id }).await
+}
+
+pub async fn create_project(input: CreateProject) -> Result<Project, AppError> {
+    invoke("create_project", &InputArg { input }).await
+}
+
+pub async fn update_project(id: Uuid, patch: UpdateProject) -> Result<Project, AppError> {
+    invoke("update_project", &PatchArg { id, patch }).await
+}
+
+pub async fn preview_archive_project(id: Uuid) -> Result<ProjectArchivePreview, AppError> {
+    invoke("preview_archive_project", &IdArg { id }).await
+}
+
+pub async fn archive_project(id: Uuid, tasks: TaskDisposition) -> Result<(), AppError> {
+    invoke("archive_project", &ArchiveProjectArg { id, tasks }).await
 }

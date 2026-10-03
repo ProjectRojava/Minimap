@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{NodeSummary, Objective, Person, Team, WaitingOn};
+use crate::{NodeSummary, Objective, Person, Project, ProjectStatus, TaskStatus, Team, WaitingOn};
 
 /// A team membership (`member_of` edge) as seen from either end.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -107,4 +107,80 @@ pub struct Contribution {
 pub struct ObjectiveDetail {
     pub objective: Objective,
     pub contributions: Vec<Contribution>,
+}
+
+// ------------------------------------------------------------------ projects
+
+/// How the projects screen is laid out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectLayout {
+    /// Grouped by objective (a project appears under each objective it contributes to).
+    #[default]
+    List,
+    /// One column per status.
+    Board,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProjectFilter {
+    pub status: Option<ProjectStatus>,
+    pub owner_person_id: Option<Uuid>,
+    pub objective_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectRow {
+    pub project: Project,
+    pub owner: Option<NodeSummary>,
+    /// Active objectives the project contributes to.
+    pub objectives: Vec<NodeSummary>,
+    /// Active tasks in the project, and how many of them are done.
+    pub task_count: u32,
+    pub done_task_count: u32,
+}
+
+/// A list section (one objective, or "No objective") or a board column (one status).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectGroup {
+    pub label: String,
+    pub objective: Option<NodeSummary>,
+    pub status: Option<ProjectStatus>,
+    pub rows: Vec<ProjectRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectTask {
+    pub node: NodeSummary,
+    pub status: TaskStatus,
+    pub due_date: Option<time::Date>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectDetail {
+    pub project: Project,
+    pub owner: Option<NodeSummary>,
+    /// Objectives it contributes to (with the objective's status and the link weight).
+    pub objectives: Vec<Contribution>,
+    /// Projects this one depends on.
+    pub depends_on: Vec<LinkedNode>,
+    /// Projects that depend on this one.
+    pub needed_by: Vec<NodeSummary>,
+    pub tasks: Vec<ProjectTask>,
+}
+
+/// What to do with a project's tasks when it is archived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskDisposition {
+    /// Archive them with the project.
+    Archive,
+    /// Keep them, without a project (they land in the inbox).
+    Inbox,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectArchivePreview {
+    pub tasks: Vec<NodeSummary>,
 }

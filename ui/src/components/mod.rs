@@ -4,6 +4,7 @@ pub mod form;
 pub mod node_row;
 pub mod objective_panel;
 pub mod people_panel;
+pub mod project_panel;
 pub mod sidebar;
 pub mod team_panel;
 pub mod titlebar;

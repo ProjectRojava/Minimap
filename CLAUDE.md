@@ -24,7 +24,7 @@ Trunk↔Tauri: `beforeDevCommand: trunk serve --config ui/Trunk.toml`, `beforeBu
 ## 4. Domain model
 Every node: `id` (uuid v7), `created_at`, `updated_at`, `archived_at` (soft delete).
 - **Objective**: title, description, target_date, status (on_track/at_risk/off_track/done), priority 1–5
-- **Project**: title, description, owner_person_id, start_date, target_date, status (planned/active/paused/done/cancelled), priority
+- **Project**: title, slug (unique handle among active projects, e.g. `api-launch`), description, owner_person_id, start_date, target_date, status (planned/active/paused/done/cancelled), priority
 - **Task**: title, description, project_id (nullable), status (todo/in_progress/blocked/done/cancelled), estimate_days (decimal), start_date, due_date, completed_at, priority
 - **Person**: name, role_title, email?, weekly_capacity_hours (default 40), is_self (exactly one), notes
 - **Team**: name, description, parent_team_id (nestable)
