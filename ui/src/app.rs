@@ -22,6 +22,7 @@ use crate::{
         teams::Teams,
     },
     state::{DataVersion, ListNav, Selection, Toasts},
+    theme::ThemeCtx,
 };
 
 #[component]
@@ -30,6 +31,15 @@ pub fn App() -> impl IntoView {
     provide_context(ListNav::new());
     provide_context(Toasts::new());
     provide_context(DataVersion::new());
+    let theme = ThemeCtx::new();
+    provide_context(theme);
+    // The database is the source of truth for the theme; localStorage only speeds up startup.
+    let settings = LocalResource::new(crate::api::get_settings);
+    Effect::new(move |_| {
+        if let Some(Ok(s)) = settings.get() {
+            theme.select(&s.theme);
+        }
+    });
 
     view! {
         <Router>

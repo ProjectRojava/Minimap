@@ -7,7 +7,7 @@ Depends on: 02
 One place for app configuration.
 
 ## Already built (from spec 06)
-- The `settings` key/value table (migration 0005), `get_settings` / `update_settings`, and a minimal Settings screen with **Hours per working day** (default 8, validated 0 < h <= 24). This spec extends them with the remaining settings.
+- The `settings` key/value table (migration 0005), `get_settings` / `update_settings`, and a minimal Settings screen with **Hours per working day** (default 8, validated 0 < h <= 24) and **Appearance** (colour theme picker: dark default, System, 17 built-in themes; see `docs/design.md`). This spec extends them with the remaining settings; the theme part of "General" is done.
 
 ## Scope
 **In**

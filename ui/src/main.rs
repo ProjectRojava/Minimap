@@ -6,6 +6,8 @@ mod labels;
 mod nav;
 mod pages;
 mod state;
+mod theme;
+mod themes;
 mod window;
 
 fn main() {

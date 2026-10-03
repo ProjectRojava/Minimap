@@ -1,56 +1,24 @@
 @import "tailwindcss";
 
 /*
- * Minimap theme: flat, monochrome, IDE-like (see docs/design.md).
- * All colour comes from these tokens. Components use the semantic utilities
- * (bg-canvas, bg-panel, text-muted, border-line, ...) and never raw palette
- * colours or `dark:` variants, so both themes stay in sync automatically.
+ * Minimap theme tokens (see docs/design.md). The values below are the DEFAULT (dark) theme,
+ * so the very first paint is already right. At runtime the app applies the chosen theme by
+ * setting these same custom properties on <html> (ui/src/theme.rs, palettes in
+ * ui/src/themes.rs), which overrides them. Components use the semantic utilities
+ * (bg-canvas, bg-panel, text-muted, border-line, ...) and never raw colours or `dark:` variants.
  */
-
 :root {
-  color-scheme: light;
-  --canvas: #fafafa;      /* main content area */
-  --panel: #f3f3f3;       /* sidebar, detail pane, headers */
-  --hover: #ebebeb;
-  --active: #e2e2e2;      /* selected row, current nav item */
-  --line: #e0e0e0;        /* hairline borders */
-  --line-strong: #c4c4c4; /* inputs on focus, emphasised borders */
-  --fg: #2b2b2b;          /* never pure black */
-  --muted: #636363;
-  --faint: #a0a0a0;
-  --danger: #b4423a;      /* the only hue: errors and destructive actions */
-  --scrim: rgb(0 0 0 / 0.12);
-}
-
-/* Dark: follows the OS unless a light override is set; data-theme forces either (Settings, 23). */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --canvas: #1e1f21;
-    --panel: #19191b;
-    --hover: #26272a;
-    --active: #2e2f33;
-    --line: #2a2b2e;
-    --line-strong: #44464b;
-    --fg: #d4d4d4;        /* never pure white */
-    --muted: #9a9ca1;
-    --faint: #64666b;
-    --danger: #d9776f;
-    --scrim: rgb(0 0 0 / 0.35);
-  }
-}
-:root[data-theme="dark"] {
   color-scheme: dark;
-  --canvas: #1e1f21;
-  --panel: #19191b;
-  --hover: #26272a;
-  --active: #2e2f33;
-  --line: #2a2b2e;
-  --line-strong: #44464b;
-  --fg: #d4d4d4;
-  --muted: #9a9ca1;
-  --faint: #64666b;
-  --danger: #d9776f;
+  --canvas: #1e1f21;      /* main content area, inputs */
+  --panel: #19191b;       /* sidebar, detail pane, headers */
+  --hover: #26272a;       /* hover, keyboard cursor */
+  --active: #2e2f33;      /* selected row, current nav item */
+  --line: #2a2b2e;        /* hairline borders */
+  --line-strong: #44464b; /* focused inputs, emphasised borders */
+  --fg: #d4d4d4;          /* primary text; never pure white */
+  --muted: #9a9ca1;       /* secondary text */
+  --faint: #64666b;       /* hints that are also available elsewhere */
+  --danger: #d9776f;      /* the only hue: errors and destructive actions */
   --scrim: rgb(0 0 0 / 0.35);
 }
 
