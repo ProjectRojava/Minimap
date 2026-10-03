@@ -1,14 +1,14 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, AssigneeChoice, CreateObjective, CreatePerson, CreateProject, CreateTask,
-    CreateTeam, CreateWaitingOn, Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary,
-    NodeType, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person,
-    PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Project, ProjectArchivePreview,
-    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, Settings, Task, TaskDetail,
-    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateObjective, UpdatePerson,
-    UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
-    WaitingOnFilter, WaitingOnRow,
+    Activity, AppError, AssigneeChoice, CreateNote, CreateObjective, CreatePerson, CreateProject,
+    CreateTask, CreateTeam, CreateWaitingOn, Edge, EdgeLink, LinkOption, NewEdge, NodeRef,
+    NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail,
+    ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow,
+    PingResponse, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup,
+    ProjectLayout, Settings, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team,
+    TeamDetail, TeamRow, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
+    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -429,4 +429,69 @@ pub async fn snooze_waiting_on(id: Uuid, days: Option<u32>) -> Result<WaitingOn,
 
 pub async fn archive_waiting_on(id: Uuid) -> Result<(), AppError> {
     invoke("archive_waiting_on", &IdArg { id }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NoteListArg {
+    filter_by: NoteFilter,
+}
+
+#[derive(Serialize)]
+struct BodyArg {
+    body: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConvertArg {
+    note_id: Uuid,
+    line: u32,
+    text: String,
+}
+
+pub async fn list_notes(filter_by: NoteFilter) -> Result<Vec<NoteRow>, AppError> {
+    invoke("list_notes", &NoteListArg { filter_by }).await
+}
+
+pub async fn get_note(id: Uuid) -> Result<Note, AppError> {
+    invoke("get_note", &IdArg { id }).await
+}
+
+pub async fn get_note_detail(id: Uuid) -> Result<NoteDetail, AppError> {
+    invoke("get_note_detail", &IdArg { id }).await
+}
+
+pub async fn create_note(input: CreateNote) -> Result<Note, AppError> {
+    invoke("create_note", &InputArg { input }).await
+}
+
+pub async fn update_note(id: Uuid, patch: UpdateNote) -> Result<Note, AppError> {
+    invoke("update_note", &PatchArg { id, patch }).await
+}
+
+pub async fn archive_note(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_note", &IdArg { id }).await
+}
+
+/// Safe HTML for a Markdown body (mentions resolved to current names).
+pub async fn render_markdown(body: String) -> Result<String, AppError> {
+    invoke("render_markdown", &BodyArg { body }).await
+}
+
+/// `text` is the line as the caller saw it; a changed line is refused.
+pub async fn convert_checklist_item(
+    note_id: Uuid,
+    line: u32,
+    text: String,
+) -> Result<Task, AppError> {
+    invoke(
+        "convert_checklist_item",
+        &ConvertArg {
+            note_id,
+            line,
+            text,
+        },
+    )
+    .await
 }

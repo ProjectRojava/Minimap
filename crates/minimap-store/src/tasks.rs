@@ -73,7 +73,7 @@ pub fn create_many(conn: &mut Connection, inputs: Vec<CreateTask>) -> Result<Vec
 }
 
 /// The task, its assignee link (`Me` = the self person, if there is one) and their activity rows.
-fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> {
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> {
     let assignee = match input.assignee {
         AssigneeChoice::Me => people::get_self(tx)?.map(|p| p.id),
         AssigneeChoice::Nobody => None,

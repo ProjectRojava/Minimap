@@ -1931,3 +1931,423 @@ fn stale_threshold_setting_defaults_to_seven_and_is_validated() {
     assert_eq!(settings::get(&conn).unwrap().hours_per_day, 8.0);
     assert_eq!(settings::get(&conn).unwrap().stale_waiting_days, 14);
 }
+
+// --------------------------------------------------------------------- notes
+
+fn make_note(conn: &mut Connection, title: &str, body: &str) -> Note {
+    notes::create(
+        conn,
+        CreateNote {
+            title: title.into(),
+            body: body.into(),
+            note_date: None,
+            kind: None,
+        },
+    )
+    .unwrap()
+}
+
+fn token(label: &str, id: Uuid) -> String {
+    format!("@[{label}](node:{id})")
+}
+
+fn mention_targets(conn: &Connection, note: Uuid) -> Vec<Uuid> {
+    let mut v: Vec<Uuid> = edges::list_active_of_type(conn, EdgeType::Mentions)
+        .unwrap()
+        .into_iter()
+        .filter(|e| e.from_id == note)
+        .map(|e| e.to_id)
+        .collect();
+    v.sort();
+    v
+}
+
+#[test]
+fn nodes_can_be_found_by_id() {
+    let mut conn = db();
+    let p = person(&mut conn, "Priya");
+    let t = task(&mut conn, "t");
+    assert_eq!(
+        nodes::find(&conn, p.id).unwrap(),
+        Some(NodeRef::new(NodeType::Person, p.id))
+    );
+    assert_eq!(
+        nodes::find(&conn, t.id).unwrap(),
+        Some(NodeRef::new(NodeType::Task, t.id))
+    );
+    assert_eq!(nodes::find(&conn, Uuid::now_v7()).unwrap(), None);
+}
+
+#[test]
+fn mentions_in_the_body_become_links_and_follow_edits() {
+    let mut conn = db();
+    let (priya, raj) = (person(&mut conn, "Priya"), person(&mut conn, "Raj"));
+    let t = task(&mut conn, "Fix login");
+    let n = make_note(
+        &mut conn,
+        "1:1",
+        &format!("Chat with {} today", token("Priya", priya.id)),
+    );
+    assert_eq!(mention_targets(&conn, n.id), vec![priya.id]);
+    assert_eq!(
+        actions(&conn, n.id),
+        vec![ActivityAction::Created, ActivityAction::EdgeAdded]
+    );
+
+    // Add two more, keep one.
+    let body = format!(
+        "{} {} {}",
+        token("Priya", priya.id),
+        token("Raj", raj.id),
+        token("Fix login", t.id)
+    );
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some(body),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut want = vec![priya.id, raj.id, t.id];
+    want.sort();
+    assert_eq!(mention_targets(&conn, n.id), want);
+
+    // Removing the text removes the link; renaming the label alone does not touch it.
+    let body = format!(
+        "{} {}",
+        token("Priya S.", priya.id),
+        token("Fix login", t.id)
+    );
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some(body),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut want = vec![priya.id, t.id];
+    want.sort();
+    assert_eq!(mention_targets(&conn, n.id), want);
+    assert_eq!(
+        edges::list_for_node(&conn, raj.id, true)
+            .unwrap()
+            .iter()
+            .filter(|e| e.archived_at.is_some())
+            .count(),
+        1
+    );
+
+    // The note shows on the person's side (incoming mention).
+    let links = edges::links_for_node(&conn, priya.id).unwrap();
+    assert!(links
+        .iter()
+        .any(|l| !l.outgoing && l.edge.edge_type == EdgeType::Mentions && l.other.label == "1:1"));
+
+    // Mentioning again after removal revives the link.
+    let again = token("Raj", raj.id);
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some(again),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(mention_targets(&conn, n.id), vec![raj.id]);
+}
+
+#[test]
+fn mentions_of_missing_archived_or_own_nodes_are_ignored() {
+    let mut conn = db();
+    let gone = person(&mut conn, "Gone");
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Person, gone.id)).unwrap();
+    let n = make_note(&mut conn, "n", "");
+    let body = format!(
+        "{} {} {} @priya @[bad](node:nope)",
+        token("Ghost", Uuid::now_v7()),
+        token("Gone", gone.id),
+        token("Me", n.id)
+    );
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some(body.clone()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(mention_targets(&conn, n.id).is_empty());
+    assert_eq!(
+        notes::get(&conn, n.id).unwrap().body,
+        body,
+        "the text is kept as written"
+    );
+}
+
+#[test]
+fn archiving_a_note_archives_its_mentions() {
+    let mut conn = db();
+    let p = person(&mut conn, "Priya");
+    let n = make_note(&mut conn, "n", &token("Priya", p.id));
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Note, n.id)).unwrap();
+    assert!(edges::list_active(&conn).unwrap().is_empty());
+}
+
+#[test]
+fn activity_records_the_size_of_a_body_not_its_text() {
+    let mut conn = db();
+    let n = make_note(&mut conn, "Secret plans", "very private text");
+    assert_eq!(
+        history(&conn, n.id)[0].diff["body"],
+        json!([null, "17 chars"])
+    );
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some("even more private text".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let latest = &history(&conn, n.id)[0];
+    assert_eq!(latest.action, ActivityAction::Updated);
+    assert_eq!(latest.diff, json!({"body": ["17 chars", "22 chars"]}));
+    for a in history(&conn, n.id) {
+        assert!(!a.diff.to_string().contains("private"), "{:?}", a.diff);
+    }
+}
+
+#[test]
+fn autosaves_in_one_session_share_one_activity_row() {
+    let mut conn = db();
+    let n = make_note(&mut conn, "Draft", "");
+    for body in ["a", "ab", "abc", "abcd"] {
+        notes::update(
+            &mut conn,
+            n.id,
+            UpdateNote {
+                body: Some(body.into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        actions(&conn, n.id),
+        vec![ActivityAction::Created, ActivityAction::Updated]
+    );
+    assert_eq!(
+        history(&conn, n.id)[0].diff,
+        json!({"body": ["0 chars", "4 chars"]})
+    );
+
+    // Another field joins the same row; a change that nets out to nothing removes the row.
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            title: Some("Final".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(actions(&conn, n.id).len(), 2);
+    assert_eq!(
+        history(&conn, n.id)[0].diff,
+        json!({"body": ["0 chars", "4 chars"], "title": ["Draft", "Final"]})
+    );
+    let quiet = make_note(&mut conn, "Quiet", "x");
+    notes::update(
+        &mut conn,
+        quiet.id,
+        UpdateNote {
+            body: Some("xy".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    notes::update(
+        &mut conn,
+        quiet.id,
+        UpdateNote {
+            body: Some("x".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        actions(&conn, quiet.id),
+        vec![ActivityAction::Created],
+        "typed and undone: nothing to show"
+    );
+}
+
+#[test]
+fn an_edge_change_between_saves_starts_a_new_row() {
+    let mut conn = db();
+    let p = person(&mut conn, "Priya");
+    let n = make_note(&mut conn, "n", "a");
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some("ab".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    // Mentioning someone logs an edge row; the next save is a separate session entry.
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some(token("Priya", p.id)),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            title: Some("t".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let kinds = actions(&conn, n.id);
+    assert_eq!(
+        kinds
+            .iter()
+            .filter(|a| **a == ActivityAction::EdgeAdded)
+            .count(),
+        1
+    );
+    assert!(
+        kinds
+            .iter()
+            .filter(|a| **a == ActivityAction::Updated)
+            .count()
+            >= 2
+    );
+}
+
+#[test]
+fn checklist_lines_convert_to_tasks_atomically() {
+    let mut conn = db();
+    let me = people::ensure_self(&mut conn, "Me").unwrap();
+    let priya = person(&mut conn, "Priya");
+    let project = project_with(&mut conn, "API Launch", None).unwrap();
+    let body = format!(
+        "# 1:1\n[ ] Send budget to {}\n- [ ] Plan {}\n[ ] Plain item\n- [x] done",
+        token("Priya", priya.id),
+        token("API Launch", project.id)
+    );
+    let n = make_note(&mut conn, "1:1", &body);
+
+    // Person mentioned: assigned to them.
+    let t = notes::convert_checklist_item(&mut conn, n.id, 1, "Send budget to Priya").unwrap();
+    assert_eq!(t.title, "Send budget to Priya");
+    assert_eq!(assignee_of(&conn, t.id), Some(priya.id));
+    let after = notes::get(&conn, n.id).unwrap().body;
+    assert!(
+        after.contains(&format!("- [x] @[Send budget to Priya](node:{})", t.id)),
+        "{after}"
+    );
+    // The note now mentions the task as well.
+    assert!(mention_targets(&conn, n.id).contains(&t.id));
+
+    // Project mentioned: the task is filed there, and (no person) goes to me.
+    let t2 = notes::convert_checklist_item(&mut conn, n.id, 2, "Plan API Launch").unwrap();
+    assert_eq!(t2.project_id, Some(project.id));
+    assert_eq!(assignee_of(&conn, t2.id), Some(me.id));
+
+    // No mentions: default assignee, no project.
+    let t3 = notes::convert_checklist_item(&mut conn, n.id, 3, "Plain item").unwrap();
+    assert_eq!(
+        (t3.project_id, assignee_of(&conn, t3.id)),
+        (None, Some(me.id))
+    );
+
+    // A converted line is no longer an item; nor are checked or missing lines.
+    for line in [1usize, 4, 99] {
+        let before = tasks::list(&conn, true).unwrap().len();
+        assert!(matches!(
+            notes::convert_checklist_item(&mut conn, n.id, line, "anything"),
+            Err(StoreError::Invalid(_))
+        ));
+        assert_eq!(
+            tasks::list(&conn, true).unwrap().len(),
+            before,
+            "no task for a refused line"
+        );
+    }
+}
+
+#[test]
+fn converting_a_missing_note_changes_nothing() {
+    let mut conn = db();
+    let raj = person(&mut conn, "Raj");
+    let n = make_note(&mut conn, "n", &format!("[ ] Ask {}", token("Raj", raj.id)));
+    // The conversion is one transaction; an unknown note fails before touching anything.
+    assert!(matches!(
+        notes::convert_checklist_item(&mut conn, Uuid::now_v7(), 0, "x"),
+        Err(StoreError::NotFound { .. })
+    ));
+    assert!(tasks::list(&conn, true).unwrap().is_empty());
+    assert_eq!(
+        notes::get(&conn, n.id).unwrap().body,
+        format!("[ ] Ask {}", token("Raj", raj.id))
+    );
+}
+
+#[test]
+fn note_items_carry_their_mentions() {
+    let mut conn = db();
+    let p = person(&mut conn, "Priya");
+    let a = make_note(&mut conn, "with", &token("Priya", p.id));
+    let b = make_note(&mut conn, "without", "plain");
+    let items = views::note_items(&conn).unwrap();
+    let find = |id| items.iter().find(|i| i.note.id == id).unwrap();
+    assert_eq!(
+        find(a.id)
+            .mentions
+            .iter()
+            .map(|m| m.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Priya"]
+    );
+    assert!(find(b.id).mentions.is_empty());
+    assert_eq!(views::note_item(&conn, a.id).unwrap().mentions.len(), 1);
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Note, b.id)).unwrap();
+    assert_eq!(views::note_items(&conn).unwrap().len(), 1);
+}
+
+#[test]
+fn a_changed_line_is_not_converted_by_a_stale_request() {
+    let mut conn = db();
+    let n = make_note(&mut conn, "n", "[ ] Send budget\n[ ] Book room");
+    // The user inserted a line above after the checklist was loaded: line 1 is now different.
+    notes::update(
+        &mut conn,
+        n.id,
+        UpdateNote {
+            body: Some("intro\n[ ] Send budget\n[ ] Book room".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let stale = notes::convert_checklist_item(&mut conn, n.id, 1, "Book room");
+    assert!(matches!(stale, Err(StoreError::Invalid(m)) if m.contains("changed")));
+    assert!(tasks::list(&conn, true).unwrap().is_empty());
+    // With the current text it works.
+    let ok = notes::convert_checklist_item(&mut conn, n.id, 2, "Book room").unwrap();
+    assert_eq!(ok.title, "Book room");
+}

@@ -1,12 +1,21 @@
-use minimap_types::{ActivityAction, CreateNote, NodeType, Note, NoteKind, UpdateNote};
-use rusqlite::{params, Connection, Row};
+use minimap_core::notes as rules;
+use minimap_types::{
+    ActivityAction, AssigneeChoice, CreateNote, CreateTask, EdgeType, NewEdge, NodeRef, NodeType,
+    Note, NoteKind, Task, UpdateNote,
+};
+use rusqlite::{params, Connection, Row, Transaction};
+use serde_json::{json, Map, Value};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
     activity,
     convert::*,
-    error::Result,
+    edges,
+    error::{Result, StoreError},
+    nodes,
     repo::{fetch, fetch_all},
+    tasks,
 };
 
 const TABLE: &str = "notes";
@@ -31,6 +40,51 @@ pub fn get(conn: &Connection, id: Uuid) -> Result<Note> {
 
 pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Note>> {
     fetch_all(conn, TABLE, COLS, include_archived, from_row)
+}
+
+/// "1,204 chars": note bodies are private and large, so activity records their size, not their text.
+fn size_of(body: &str) -> String {
+    format!("{} chars", body.chars().count())
+}
+
+/// Keeps the note's `mentions` links equal to the `@[Name](node:id)` mentions in its body:
+/// adds links for new mentions and archives links whose mention was removed. Mentions of
+/// nodes that don't exist or are archived are ignored (they render as plain text).
+fn sync_mentions(tx: &Transaction, note: Uuid, body: &str, at: OffsetDateTime) -> Result<()> {
+    let mut wanted: Vec<NodeRef> = Vec::new();
+    for id in rules::mention_ids(body)
+        .into_iter()
+        .filter(|&id| id != note)
+    {
+        if let Some(target) = nodes::find(tx, id)? {
+            if nodes::archived_at(tx, target)?.is_none() {
+                wanted.push(target);
+            }
+        }
+    }
+    let current: Vec<_> = edges::list_for_node(tx, note, false)?
+        .into_iter()
+        .filter(|e| e.edge_type == EdgeType::Mentions && e.from_id == note)
+        .collect();
+    for edge in &current {
+        if !wanted.iter().any(|w| w.id == edge.to_id) {
+            edges::archive_in_tx(tx, edge, at)?;
+        }
+    }
+    for target in wanted {
+        if !current.iter().any(|e| e.to_id == target.id) {
+            edges::add_in_tx(
+                tx,
+                NewEdge {
+                    edge_type: EdgeType::Mentions,
+                    from: NodeRef::new(NodeType::Note, note),
+                    to: target,
+                    attrs: json!({}),
+                },
+            )?;
+        }
+    }
+    Ok(())
 }
 
 pub fn create(conn: &mut Connection, input: CreateNote) -> Result<Note> {
@@ -60,18 +114,50 @@ pub fn create(conn: &mut Connection, input: CreateNote) -> Result<Note> {
             ts_opt_s(n.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::Note, n.id, &n)?;
+    // Like `record_created`, but with the body reduced to its size.
+    let mut diff = Map::new();
+    if let Value::Object(fields) = serde_json::to_value(&n)? {
+        for (k, v) in fields {
+            if matches!(
+                k.as_str(),
+                "id" | "created_at" | "updated_at" | "archived_at"
+            ) {
+                continue;
+            }
+            let v = if k == "body" {
+                json!(size_of(&n.body))
+            } else {
+                v
+            };
+            diff.insert(k, json!([null, v]));
+        }
+    }
+    activity::record(
+        &tx,
+        at,
+        NodeType::Note,
+        n.id,
+        ActivityAction::Created,
+        &Value::Object(diff),
+    )?;
+    sync_mentions(&tx, n.id, &n.body, at)?;
     tx.commit()?;
     Ok(n)
 }
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateNote) -> Result<Note> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let note = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(note)
+}
+
+fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateNote) -> Result<Note> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     ensure_not_blank("title", &new.title)?;
-    let diff = activity::diff(&old, &new)?;
+    let mut diff = activity::diff(&old, &new)?;
     if diff.is_empty() {
         return Ok(old);
     }
@@ -87,14 +173,84 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateNote) -> Result<Note
             ts_s(new.updated_at),
         ],
     )?;
-    activity::record(
+    if diff.contains_key("body") {
+        diff.insert(
+            "body".into(),
+            json!([size_of(&old.body), size_of(&new.body)]),
+        );
+    }
+    // Autosaves within one editing session fold into a single activity row.
+    activity::record_update_merged(tx, new.updated_at, NodeType::Note, id, diff)?;
+    if old.body != new.body {
+        sync_mentions(tx, id, &new.body, new.updated_at)?;
+    }
+    Ok(new)
+}
+
+/// Turns an unchecked `[ ]` line of the note into a task, in one transaction: the task is
+/// assigned to the first person mentioned on the line (otherwise to me) and filed in the first
+/// project mentioned, and the line becomes `- [x] @[title](node:task)`, which also links the
+/// note to the task. `expected_text` must match the line's current text.
+pub fn convert_checklist_item(
+    conn: &mut Connection,
+    note: Uuid,
+    line: usize,
+    expected_text: &str,
+) -> Result<Task> {
+    let tx = conn.transaction()?;
+    let body = get(&tx, note)?.body;
+    let item = rules::checklist(&body)
+        .into_iter()
+        .find(|i| i.line as usize == line)
+        .ok_or_else(|| StoreError::Invalid("that line is no longer an unchecked item".into()))?;
+    // The caller saw the line earlier; if it has changed since, don't convert something else.
+    if item.text != expected_text {
+        return Err(StoreError::Invalid(
+            "that line changed since you looked at it; check the note and try again".into(),
+        ));
+    }
+
+    let mut assignee = AssigneeChoice::Me;
+    let mut project_id = None;
+    for m in &item.mentions {
+        let Some(target) = nodes::find(&tx, m.id)? else {
+            continue;
+        };
+        if nodes::archived_at(&tx, target)?.is_some() {
+            continue;
+        }
+        match target.node_type {
+            NodeType::Person if assignee == AssigneeChoice::Me => {
+                assignee = AssigneeChoice::Person(m.id);
+            }
+            NodeType::Project if project_id.is_none() => project_id = Some(m.id),
+            _ => {}
+        }
+    }
+    let task = tasks::create_in_tx(
         &tx,
-        new.updated_at,
-        NodeType::Note,
-        id,
-        ActivityAction::Updated,
-        &diff.into(),
+        CreateTask {
+            title: item.text,
+            assignee,
+            description: String::new(),
+            project_id,
+            status: None,
+            estimate_days: None,
+            start_date: None,
+            due_date: None,
+            priority: None,
+        },
+    )?;
+    let converted = rules::convert_line(&body, line, &task.title, task.id)
+        .ok_or_else(|| StoreError::Invalid("that line is no longer an unchecked item".into()))?;
+    update_in_tx(
+        &tx,
+        note,
+        UpdateNote {
+            body: Some(converted),
+            ..Default::default()
+        },
     )?;
     tx.commit()?;
-    Ok(new)
+    Ok(task)
 }

@@ -170,7 +170,6 @@ impl Toasts {
         self.push(true, e.message.clone(), Some(e.code.clone()));
     }
 
-    #[allow(dead_code)] // first used by save confirmations in feature 03+
     pub fn info(&self, message: impl Into<String>) {
         self.push(false, message.into(), None);
     }

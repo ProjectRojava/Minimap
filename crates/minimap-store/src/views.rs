@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use minimap_types::{
-    Contribution, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
+    Contribution, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType, NoteItem,
     ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
     ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TaskDetail, TaskRow, TeamDetail,
     TeamRow, WaitingOnItem,
@@ -12,7 +12,8 @@ use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::{
-    convert::*, edges, error::Result, nodes, objectives, people, projects, tasks, teams, waiting_on,
+    convert::*, edges, error::Result, nodes, notes, objectives, people, projects, tasks, teams,
+    waiting_on,
 };
 
 const ACTIVE_TASK: &str = "t.status IN ('todo','in_progress','blocked')";
@@ -531,4 +532,38 @@ pub fn waiting_on_items(conn: &Connection) -> Result<Vec<WaitingOnItem>> {
                 })
         })
         .collect())
+}
+
+fn mentions_by_note(conn: &Connection) -> Result<HashMap<Uuid, Vec<NodeSummary>>> {
+    let mut out: HashMap<Uuid, Vec<NodeSummary>> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::Mentions)? {
+        if e.from_type == NodeType::Note {
+            out.entry(e.from_id)
+                .or_default()
+                .push(nodes::summary(conn, e.to())?);
+        }
+    }
+    for list in out.values_mut() {
+        list.sort_by_key(|n| n.label.to_lowercase());
+    }
+    Ok(out)
+}
+
+/// Active notes (with bodies) and what each mentions, in storage order
+/// (filtering and ordering is `minimap-core::notes`).
+pub fn note_items(conn: &Connection) -> Result<Vec<NoteItem>> {
+    let mut mentions = mentions_by_note(conn)?;
+    Ok(notes::list(conn, false)?
+        .into_iter()
+        .map(|note| NoteItem {
+            mentions: mentions.remove(&note.id).unwrap_or_default(),
+            note,
+        })
+        .collect())
+}
+
+pub fn note_item(conn: &Connection, id: Uuid) -> Result<NoteItem> {
+    let note = notes::get(conn, id)?;
+    let mentions = mentions_by_note(conn)?.remove(&id).unwrap_or_default();
+    Ok(NoteItem { note, mentions })
 }

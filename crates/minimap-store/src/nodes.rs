@@ -232,3 +232,20 @@ pub fn list_summaries(conn: &Connection, node_type: NodeType) -> Result<Vec<Node
         })
         .collect()
 }
+
+/// Which kind of node has this id (ids are unique across all tables), if any.
+pub fn find(conn: &Connection, id: uuid::Uuid) -> Result<Option<NodeRef>> {
+    for &node_type in NodeType::ALL {
+        let hit: Option<i64> = conn
+            .query_row(
+                &format!("SELECT 1 FROM {} WHERE id = ?1", table(node_type)),
+                [id_s(id)],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if hit.is_some() {
+            return Ok(Some(NodeRef::new(node_type, id)));
+        }
+    }
+    Ok(None)
+}

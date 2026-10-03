@@ -4,9 +4,9 @@ use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeT
 use crate::{
     api,
     components::{
-        links_editor::LinksEditor, objective_panel::ObjectivePanel, people_panel::PersonPanel,
-        project_panel::ProjectPanel, task_panel::TaskPanel, team_panel::TeamPanel,
-        waiting_panel::WaitingPanel,
+        links_editor::LinksEditor, note_panel::NotePanel, objective_panel::ObjectivePanel,
+        people_panel::PersonPanel, project_panel::ProjectPanel, task_panel::TaskPanel,
+        team_panel::TeamPanel, waiting_panel::WaitingPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -99,6 +99,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Project => view! { <ProjectPanel id=node.id /> }.into_any(),
             NodeType::Task => view! { <TaskPanel id=node.id /> }.into_any(),
             NodeType::WaitingOn => view! { <WaitingPanel id=node.id /> }.into_any(),
+            NodeType::Note => view! { <NotePanel id=node.id /> }.into_any(),
             other => view! {
                 <Section title="Fields">
                     <p class="text-muted">
@@ -157,6 +158,8 @@ pub fn kind_edited_elsewhere(node_type: NodeType, edge_type: EdgeType, outgoing:
         NodeType::Team => !outgoing && edge_type == EdgeType::MemberOf,
         NodeType::Objective => !outgoing && edge_type == EdgeType::ContributesTo,
         NodeType::Task => outgoing && edge_type == EdgeType::AssignedTo,
+        // A note's mentions come from its text.
+        NodeType::Note => outgoing && edge_type == EdgeType::Mentions,
         NodeType::Project => {
             (outgoing && edge_type == EdgeType::ContributesTo) || edge_type == EdgeType::DependsOn
         }

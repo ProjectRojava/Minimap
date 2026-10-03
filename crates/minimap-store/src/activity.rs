@@ -1,7 +1,7 @@
 //! Activity log. Every repository write calls into here inside its transaction.
 
 use minimap_types::{timefmt::fmt_ts, Activity, ActivityAction, NodeType};
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use time::OffsetDateTime;
@@ -117,4 +117,74 @@ pub fn list_recent(conn: &Connection, limit: u32) -> Result<Vec<Activity>> {
 
 pub fn count(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("SELECT COUNT(*) FROM activity", [], |r| r.get(0))?)
+}
+
+/// How long after a note's last save a further save still counts as the same editing session.
+pub(crate) const SAVE_SESSION_SECS: i64 = 300;
+
+/// Records an `updated` row, or folds it into the node's latest row when that row is also an
+/// `updated` made within [`SAVE_SESSION_SECS`] (so autosaving while typing is one entry, not
+/// one per pause). Folding keeps the earliest "old" and the latest "new" of each field and
+/// drops fields that ended up unchanged; if nothing is left the row is removed.
+pub(crate) fn record_update_merged(
+    tx: &Transaction,
+    at: OffsetDateTime,
+    node_type: NodeType,
+    node_id: Uuid,
+    diff: Map<String, Value>,
+) -> Result<()> {
+    let latest: Option<(String, String, String, String)> = tx
+        .query_row(
+            "SELECT id, at, action, diff FROM activity WHERE node_id = ?1 ORDER BY at DESC, id DESC LIMIT 1",
+            [id_s(node_id)],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()?;
+    if let Some((row_id, row_at, action, row_diff)) = latest {
+        let recent = minimap_types::timefmt::parse_ts(&row_at)
+            .map(|t| (at - t).whole_seconds() < SAVE_SESSION_SECS)
+            .unwrap_or(false);
+        if action == ActivityAction::Updated.as_str() && recent {
+            let mut merged: Map<String, Value> = match serde_json::from_str(&row_diff)? {
+                Value::Object(m) => m,
+                _ => Map::new(),
+            };
+            for (key, change) in diff {
+                let old = merged
+                    .get(&key)
+                    .map(|c| c[0].clone())
+                    .unwrap_or_else(|| change[0].clone());
+                let new = change[1].clone();
+                if old == new {
+                    merged.remove(&key);
+                } else {
+                    merged.insert(key, json!([old, new]));
+                }
+            }
+            if merged.is_empty() {
+                tx.execute("DELETE FROM activity WHERE id = ?1", [row_id])?;
+            } else {
+                tx.execute(
+                    "UPDATE activity SET at = ?2, diff = ?3 WHERE id = ?1",
+                    params![
+                        row_id,
+                        fmt_ts(at),
+                        serde_json::to_string(&Value::Object(merged))?
+                    ],
+                )?;
+            }
+            return Ok(());
+        }
+    }
+    if diff.is_empty() {
+        return Ok(());
+    }
+    record(
+        tx,
+        at,
+        node_type,
+        node_id,
+        ActivityAction::Updated,
+        &Value::Object(diff),
+    )
 }

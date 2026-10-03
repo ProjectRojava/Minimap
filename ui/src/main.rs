@@ -3,6 +3,7 @@ mod app;
 mod components;
 mod keyboard;
 mod labels;
+mod mentions;
 mod nav;
 mod pages;
 mod state;

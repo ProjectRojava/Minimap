@@ -183,6 +183,12 @@
           "markdownDescription": "Enables the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Enables the archive_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-note",
+          "markdownDescription": "Enables the archive_note command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_objective command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-objective",
@@ -217,6 +223,18 @@
           "type": "string",
           "const": "allow-archive-waiting-on",
           "markdownDescription": "Enables the archive_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the convert_checklist_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-convert-checklist-item",
+          "markdownDescription": "Enables the convert_checklist_item command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-note",
+          "markdownDescription": "Enables the create_note command without any pre-configured scope."
         },
         {
           "description": "Enables the create_objective command without any pre-configured scope.",
@@ -271,6 +289,18 @@
           "type": "string",
           "const": "allow-get-node-summary",
           "markdownDescription": "Enables the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-note",
+          "markdownDescription": "Enables the get_note command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_note_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-note-detail",
+          "markdownDescription": "Enables the get_note_detail command without any pre-configured scope."
         },
         {
           "description": "Enables the get_objective command without any pre-configured scope.",
@@ -381,6 +411,12 @@
           "markdownDescription": "Enables the list_node_summaries command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_notes command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-notes",
+          "markdownDescription": "Enables the list_notes command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_objectives command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-objectives",
@@ -441,6 +477,12 @@
           "markdownDescription": "Enables the remove_edge command without any pre-configured scope."
         },
         {
+          "description": "Enables the render_markdown command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-render-markdown",
+          "markdownDescription": "Enables the render_markdown command without any pre-configured scope."
+        },
+        {
           "description": "Enables the reopen_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "allow-reopen-waiting-on",
@@ -481,6 +523,12 @@
           "type": "string",
           "const": "allow-update-edge-attrs",
           "markdownDescription": "Enables the update_edge_attrs command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-note",
+          "markdownDescription": "Enables the update_note command without any pre-configured scope."
         },
         {
           "description": "Enables the update_objective command without any pre-configured scope.",
@@ -531,6 +579,12 @@
           "markdownDescription": "Denies the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Denies the archive_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-note",
+          "markdownDescription": "Denies the archive_note command without any pre-configured scope."
+        },
+        {
           "description": "Denies the archive_objective command without any pre-configured scope.",
           "type": "string",
           "const": "deny-archive-objective",
@@ -565,6 +619,18 @@
           "type": "string",
           "const": "deny-archive-waiting-on",
           "markdownDescription": "Denies the archive_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the convert_checklist_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-convert-checklist-item",
+          "markdownDescription": "Denies the convert_checklist_item command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-note",
+          "markdownDescription": "Denies the create_note command without any pre-configured scope."
         },
         {
           "description": "Denies the create_objective command without any pre-configured scope.",
@@ -619,6 +685,18 @@
           "type": "string",
           "const": "deny-get-node-summary",
           "markdownDescription": "Denies the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-note",
+          "markdownDescription": "Denies the get_note command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_note_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-note-detail",
+          "markdownDescription": "Denies the get_note_detail command without any pre-configured scope."
         },
         {
           "description": "Denies the get_objective command without any pre-configured scope.",
@@ -729,6 +807,12 @@
           "markdownDescription": "Denies the list_node_summaries command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_notes command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-notes",
+          "markdownDescription": "Denies the list_notes command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_objectives command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-objectives",
@@ -789,6 +873,12 @@
           "markdownDescription": "Denies the remove_edge command without any pre-configured scope."
         },
         {
+          "description": "Denies the render_markdown command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-render-markdown",
+          "markdownDescription": "Denies the render_markdown command without any pre-configured scope."
+        },
+        {
           "description": "Denies the reopen_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "deny-reopen-waiting-on",
@@ -829,6 +919,12 @@
           "type": "string",
           "const": "deny-update-edge-attrs",
           "markdownDescription": "Denies the update_edge_attrs command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_note command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-note",
+          "markdownDescription": "Denies the update_note command without any pre-configured scope."
         },
         {
           "description": "Denies the update_objective command without any pre-configured scope.",

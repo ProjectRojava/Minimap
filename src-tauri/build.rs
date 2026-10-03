@@ -59,6 +59,14 @@ const COMMANDS: &[&str] = &[
     "reopen_waiting_on",
     "snooze_waiting_on",
     "archive_waiting_on",
+    "list_notes",
+    "get_note",
+    "get_note_detail",
+    "create_note",
+    "update_note",
+    "archive_note",
+    "render_markdown",
+    "convert_checklist_item",
 ];
 
 fn main() {
