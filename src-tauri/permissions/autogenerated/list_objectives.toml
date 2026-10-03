@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-objectives"
+description = "Enables the list_objectives command without any pre-configured scope."
+commands.allow = ["list_objectives"]
+
+[[permission]]
+identifier = "deny-list-objectives"
+description = "Denies the list_objectives command without any pre-configured scope."
+commands.deny = ["list_objectives"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-edge-attrs"
+description = "Enables the update_edge_attrs command without any pre-configured scope."
+commands.allow = ["update_edge_attrs"]
+
+[[permission]]
+identifier = "deny-update-edge-attrs"
+description = "Denies the update_edge_attrs command without any pre-configured scope."
+commands.deny = ["update_edge_attrs"]

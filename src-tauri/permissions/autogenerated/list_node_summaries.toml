@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-node-summaries"
+description = "Enables the list_node_summaries command without any pre-configured scope."
+commands.allow = ["list_node_summaries"]
+
+[[permission]]
+identifier = "deny-list-node-summaries"
+description = "Denies the list_node_summaries command without any pre-configured scope."
+commands.deny = ["list_node_summaries"]
