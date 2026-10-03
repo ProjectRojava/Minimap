@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-team"
+description = "Enables the update_team command without any pre-configured scope."
+commands.allow = ["update_team"]
+
+[[permission]]
+identifier = "deny-update-team"
+description = "Denies the update_team command without any pre-configured scope."
+commands.deny = ["update_team"]

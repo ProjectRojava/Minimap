@@ -1,6 +1,6 @@
 # 02 — App shell and navigation
 
-Status: Implemented — awaiting manual check · Milestone: M1 · Priority: Must
+Status: Done · Milestone: M1 · Priority: Must
 Depends on: —
 
 ## Goal
@@ -24,10 +24,10 @@ The frame every screen lives in: sidebar, routing, the right-side detail pane, t
 - Detail pane width ~420px, resizable later.
 
 ## Acceptance criteria
-- [ ] Every sidebar entry navigates; back/forward work.
-- [ ] Clicking any node anywhere opens the detail pane; `Esc` closes it.
-- [ ] Theme switches when the OS theme changes, without reload.
-- [ ] Keyboard navigation works without a mouse on list screens.
+- [x] Every sidebar entry navigates; back/forward work.
+- [x] Clicking any node anywhere opens the detail pane; `Esc` closes it.
+- [x] Theme switches when the OS theme changes, without reload.
+- [x] Keyboard navigation works without a mouse on list screens.
 
 ## Decisions
 - **Keybindings**: Linear-style `g` chords for navigation (`g p` Projects, `g t` Tasks…; second key within 1 s; hints shown on sidebar hover). Single keys only inside lists (`j`/`k`/`Enter`/`Esc`). All shortcuts are ignored while typing in an input, and Ctrl/Cmd combos are left alone (reserved for the palette, 12).

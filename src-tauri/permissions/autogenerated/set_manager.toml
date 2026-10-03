@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-manager"
+description = "Enables the set_manager command without any pre-configured scope."
+commands.allow = ["set_manager"]
+
+[[permission]]
+identifier = "deny-set-manager"
+description = "Denies the set_manager command without any pre-configured scope."
+commands.deny = ["set_manager"]

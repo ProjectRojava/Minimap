@@ -22,3 +22,18 @@ pub fn store_error(e: StoreError) -> AppError {
     };
     app_error(code, e)
 }
+
+pub fn rule_error(e: minimap_core::edge_rules::EdgeRuleError) -> AppError {
+    app_error("invalid_edge", e)
+}
+
+/// "Can't add: this would create a loop — A → B → A".
+pub fn cycle_error(what: &str, labels: &[String]) -> AppError {
+    app_error(
+        "cycle",
+        format!(
+            "Can't {what}: this would create a loop — {}",
+            labels.join(" → ")
+        ),
+    )
+}

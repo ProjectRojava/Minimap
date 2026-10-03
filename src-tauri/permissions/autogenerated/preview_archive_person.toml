@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-preview-archive-person"
+description = "Enables the preview_archive_person command without any pre-configured scope."
+commands.allow = ["preview_archive_person"]
+
+[[permission]]
+identifier = "deny-preview-archive-person"
+description = "Denies the preview_archive_person command without any pre-configured scope."
+commands.deny = ["preview_archive_person"]

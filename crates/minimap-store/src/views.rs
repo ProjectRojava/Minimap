@@ -1,0 +1,242 @@
+//! Read models for the people and teams screens. Read-only; writes go through the repos.
+
+use std::collections::HashMap;
+
+use minimap_types::{
+    EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType, PersonArchivePreview,
+    PersonDetail, PersonRow, TeamDetail, TeamRow,
+};
+use rusqlite::Connection;
+use uuid::Uuid;
+
+use crate::{convert::*, edges, error::Result, nodes, people, teams, waiting_on};
+
+const ACTIVE_TASK: &str = "t.status IN ('todo','in_progress','blocked')";
+
+fn parse_id(s: String) -> Uuid {
+    // Ids are written by us; a malformed one would have failed the row mapping already.
+    Uuid::parse_str(&s).unwrap_or_default()
+}
+
+fn role_of(attrs: &serde_json::Value) -> String {
+    attrs
+        .get("role")
+        .and_then(|r| r.as_str())
+        .unwrap_or("member")
+        .to_owned()
+}
+
+/// Active tasks assigned to each person.
+fn active_task_counts(conn: &Connection) -> Result<HashMap<Uuid, u32>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT e.to_id, COUNT(*) FROM edges e JOIN tasks t ON t.id = e.from_id
+         WHERE e.edge_type = 'assigned_to' AND e.archived_at IS NULL
+           AND t.archived_at IS NULL AND {ACTIVE_TASK}
+         GROUP BY e.to_id"
+    ))?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?)))?;
+    Ok(rows
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(id, n)| (parse_id(id), n))
+        .collect())
+}
+
+fn open_waiting_on_counts(conn: &Connection) -> Result<HashMap<Uuid, u32>> {
+    let mut stmt = conn.prepare(
+        "SELECT person_id, COUNT(*) FROM waiting_on
+         WHERE archived_at IS NULL AND resolved_on IS NULL GROUP BY person_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?)))?;
+    Ok(rows
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(id, n)| (parse_id(id), n))
+        .collect())
+}
+
+/// Active people with their teams and workload, ordered by name.
+pub fn people_rows(conn: &Connection) -> Result<Vec<PersonRow>> {
+    let tasks = active_task_counts(conn)?;
+    let waiting = open_waiting_on_counts(conn)?;
+
+    let all_teams: HashMap<Uuid, NodeSummary> = teams::list(conn, false)?
+        .into_iter()
+        .map(|t| {
+            (
+                t.id,
+                NodeSummary {
+                    node: NodeRef::new(NodeType::Team, t.id),
+                    label: t.name,
+                    archived: false,
+                },
+            )
+        })
+        .collect();
+    let mut by_person: HashMap<Uuid, Vec<NodeSummary>> = HashMap::new();
+    for e in edges::list_active(conn)? {
+        if e.edge_type == EdgeType::MemberOf {
+            if let Some(team) = all_teams.get(&e.to_id) {
+                by_person.entry(e.from_id).or_default().push(team.clone());
+            }
+        }
+    }
+
+    let mut rows: Vec<PersonRow> = people::list(conn, false)?
+        .into_iter()
+        .map(|person| {
+            let mut teams = by_person.remove(&person.id).unwrap_or_default();
+            teams.sort_by_key(|t| t.label.to_lowercase());
+            PersonRow {
+                active_task_count: tasks.get(&person.id).copied().unwrap_or(0),
+                open_waiting_on_count: waiting.get(&person.id).copied().unwrap_or(0),
+                teams,
+                person,
+            }
+        })
+        .collect();
+    rows.sort_by_key(|r| r.person.name.to_lowercase());
+    Ok(rows)
+}
+
+pub fn person_detail(conn: &Connection, id: Uuid) -> Result<PersonDetail> {
+    let person = people::get(conn, id)?;
+    let mut memberships = Vec::new();
+    let mut manager = None;
+    let mut reports = Vec::new();
+    for link in edges::links_for_node(conn, id)? {
+        match (link.edge.edge_type, link.outgoing) {
+            (EdgeType::MemberOf, true) => memberships.push(Membership {
+                edge_id: link.edge.id,
+                role: role_of(&link.edge.attrs),
+                node: link.other,
+            }),
+            (EdgeType::ReportsTo, true) => {
+                manager = Some(LinkedNode {
+                    edge_id: link.edge.id,
+                    node: link.other,
+                })
+            }
+            (EdgeType::ReportsTo, false) => reports.push(link.other),
+            _ => {}
+        }
+    }
+    let waiting_ons = waiting_on::list(conn, false)?
+        .into_iter()
+        .filter(|w| w.person_id == id && w.resolved_on.is_none())
+        .collect();
+    let active_task_count = active_task_counts(conn)?.get(&id).copied().unwrap_or(0);
+    Ok(PersonDetail {
+        person,
+        memberships,
+        manager,
+        reports,
+        waiting_ons,
+        active_task_count,
+    })
+}
+
+/// Active tasks assigned to a person (what archiving them would leave unassigned).
+pub fn person_archive_preview(conn: &Connection, id: Uuid) -> Result<PersonArchivePreview> {
+    people::get(conn, id)?; // NotFound for unknown ids
+    let mut stmt = conn.prepare(&format!(
+        "SELECT t.id, t.title FROM edges e JOIN tasks t ON t.id = e.from_id
+         WHERE e.edge_type = 'assigned_to' AND e.to_id = ?1 AND e.archived_at IS NULL
+           AND t.archived_at IS NULL AND {ACTIVE_TASK}
+         ORDER BY t.id"
+    ))?;
+    let rows = stmt.query_map([id_s(id)], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+    })?;
+    let assigned_tasks = rows
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(tid, title)| NodeSummary {
+            node: NodeRef::new(NodeType::Task, parse_id(tid)),
+            label: title,
+            archived: false,
+        })
+        .collect();
+    Ok(PersonArchivePreview { assigned_tasks })
+}
+
+/// Active teams as a tree: parents before their children, siblings by name.
+/// A team whose parent is archived or missing is shown at the top level.
+pub fn team_rows(conn: &Connection) -> Result<Vec<TeamRow>> {
+    let all = teams::list(conn, false)?;
+    let ids: std::collections::HashSet<Uuid> = all.iter().map(|t| t.id).collect();
+
+    let mut members: HashMap<Uuid, u32> = HashMap::new();
+    let person_ids: std::collections::HashSet<Uuid> = people::list(conn, false)?
+        .into_iter()
+        .map(|p| p.id)
+        .collect();
+    for e in edges::list_active(conn)? {
+        if e.edge_type == EdgeType::MemberOf && person_ids.contains(&e.from_id) {
+            *members.entry(e.to_id).or_default() += 1;
+        }
+    }
+
+    let mut children: HashMap<Option<Uuid>, Vec<&minimap_types::Team>> = HashMap::new();
+    for t in &all {
+        let parent = t.parent_team_id.filter(|p| ids.contains(p));
+        children.entry(parent).or_default().push(t);
+    }
+    for list in children.values_mut() {
+        list.sort_by_key(|t| t.name.to_lowercase());
+    }
+
+    fn walk(
+        parent: Option<Uuid>,
+        depth: u32,
+        children: &HashMap<Option<Uuid>, Vec<&minimap_types::Team>>,
+        members: &HashMap<Uuid, u32>,
+        out: &mut Vec<TeamRow>,
+    ) {
+        for t in children.get(&parent).into_iter().flatten() {
+            out.push(TeamRow {
+                team: (*t).clone(),
+                depth,
+                member_count: members.get(&t.id).copied().unwrap_or(0),
+            });
+            walk(Some(t.id), depth + 1, children, members, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(None, 0, &children, &members, &mut out);
+    Ok(out)
+}
+
+pub fn team_detail(conn: &Connection, id: Uuid) -> Result<TeamDetail> {
+    let team = teams::get(conn, id)?;
+    let parent = team
+        .parent_team_id
+        .map(|p| nodes::summary(conn, NodeRef::new(NodeType::Team, p)))
+        .transpose()?;
+    let mut children: Vec<NodeSummary> = teams::list(conn, false)?
+        .into_iter()
+        .filter(|t| t.parent_team_id == Some(id))
+        .map(|t| NodeSummary {
+            node: NodeRef::new(NodeType::Team, t.id),
+            label: t.name,
+            archived: false,
+        })
+        .collect();
+    children.sort_by_key(|c| c.label.to_lowercase());
+    let mut members: Vec<Membership> = edges::links_for_node(conn, id)?
+        .into_iter()
+        .filter(|l| l.edge.edge_type == EdgeType::MemberOf && !l.outgoing && !l.other.archived)
+        .map(|l| Membership {
+            edge_id: l.edge.id,
+            role: role_of(&l.edge.attrs),
+            node: l.other,
+        })
+        .collect();
+    members.sort_by_key(|m| m.node.label.to_lowercase());
+    Ok(TeamDetail {
+        team,
+        parent,
+        children,
+        members,
+    })
+}

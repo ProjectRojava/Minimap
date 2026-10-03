@@ -52,9 +52,30 @@ fn touching_edges(
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// The person who is the user can be neither archived nor deleted.
+fn ensure_not_self(conn: &Connection, node: NodeRef) -> Result<()> {
+    if node.node_type != NodeType::Person {
+        return Ok(());
+    }
+    let is_self: Option<bool> = conn
+        .query_row(
+            "SELECT is_self FROM people WHERE id = ?1",
+            [id_s(node.id)],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if is_self == Some(true) {
+        return Err(StoreError::Invalid(
+            "you can't archive or delete yourself".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Archives the node and every active edge touching it, in one transaction.
 pub fn archive(conn: &mut Connection, node: NodeRef) -> Result<()> {
     let tx = conn.transaction()?;
+    ensure_not_self(&tx, node)?;
     if archived_at(&tx, node)?.is_some() {
         return Err(StoreError::AlreadyArchived {
             node_type: node.node_type,
@@ -123,6 +144,7 @@ pub fn unarchive(conn: &mut Connection, node: NodeRef) -> Result<()> {
 /// Fails with `Constraint` if other records still reference the node.
 pub fn delete(conn: &mut Connection, node: NodeRef) -> Result<()> {
     let tx = conn.transaction()?;
+    ensure_not_self(&tx, node)?;
     if archived_at(&tx, node)?.is_none() {
         return Err(StoreError::NotArchived {
             node_type: node.node_type,

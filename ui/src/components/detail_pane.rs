@@ -1,10 +1,11 @@
 use leptos::prelude::*;
-use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef};
+use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeType};
 
 use crate::{
     api,
+    components::{people_panel::PersonPanel, team_panel::TeamPanel},
     nav::type_label,
-    state::{Selection, Toasts},
+    state::{DataVersion, Selection, Toasts},
 };
 
 /// Right-hand panel for the selected node. Split view on wide windows, overlay on narrow ones.
@@ -36,9 +37,19 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
     let selection = expect_context::<Selection>();
     let toasts = expect_context::<Toasts>();
 
-    let summary = LocalResource::new(move || api::get_node_summary(node));
-    let links = LocalResource::new(move || api::list_edges_for(node.id));
-    let history = LocalResource::new(move || api::list_activity_for(node.id));
+    let version = expect_context::<DataVersion>();
+    let summary = LocalResource::new(move || {
+        version.track();
+        api::get_node_summary(node)
+    });
+    let links = LocalResource::new(move || {
+        version.track();
+        api::list_edges_for(node.id)
+    });
+    let history = LocalResource::new(move || {
+        version.track();
+        api::list_activity_for(node.id)
+    });
 
     // Surface backend errors as toasts as well as inline.
     Effect::new(move |_| {
@@ -77,18 +88,30 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
                     on:click=move |_| selection.close()>"✕"</button>
         </header>
 
-        <Section title="Fields">
-            <p class="text-zinc-500">
-                "Editable fields appear here once the " {type_label(node.node_type).to_lowercase()} " screens land."
-            </p>
-        </Section>
+        {match node.node_type {
+            NodeType::Person => view! { <PersonPanel id=node.id /> }.into_any(),
+            NodeType::Team => view! { <TeamPanel id=node.id /> }.into_any(),
+            other => view! {
+                <Section title="Fields">
+                    <p class="text-zinc-500">
+                        "Editable fields appear here once the " {type_label(other).to_lowercase()} " screens land."
+                    </p>
+                </Section>
+            }.into_any(),
+        }}
 
         <Section title="Links">
             {move || match links.get() {
                 None => view! { <p class="text-zinc-500">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => view! { <p class="text-red-600">{e.message}</p> }.into_any(),
-                Some(Ok(l)) if l.is_empty() => view! { <p class="text-zinc-500">"No links yet."</p> }.into_any(),
-                Some(Ok(l)) => view! { <LinkGroups links=l /> }.into_any(),
+                Some(Ok(l)) => {
+                    let l: Vec<EdgeLink> = l.into_iter().filter(|x| !edited_elsewhere(node.node_type, x)).collect();
+                    if l.is_empty() {
+                        view! { <p class="text-zinc-500">"No other links."</p> }.into_any()
+                    } else {
+                        view! { <LinkGroups links=l /> }.into_any()
+                    }
+                }
             }}
         </Section>
 
@@ -108,12 +131,28 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
 }
 
 #[component]
-fn Section(title: &'static str, children: Children) -> impl IntoView {
+pub(crate) fn Section(title: &'static str, children: Children) -> impl IntoView {
     view! {
         <section class="px-4 py-3 border-b border-zinc-100 dark:border-zinc-900 text-[13px]">
             <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{title}</h3>
             {children()}
         </section>
+    }
+}
+
+/// Links the node's own panel already shows and edits (teams and manager for a person,
+/// members for a team), so the generic list doesn't repeat them.
+pub fn edited_elsewhere(node_type: NodeType, link: &EdgeLink) -> bool {
+    match node_type {
+        NodeType::Person => {
+            link.outgoing
+                && matches!(
+                    link.edge.edge_type,
+                    EdgeType::MemberOf | EdgeType::ReportsTo
+                )
+        }
+        NodeType::Team => !link.outgoing && link.edge.edge_type == EdgeType::MemberOf,
+        _ => false,
     }
 }
 
@@ -289,6 +328,61 @@ mod tests {
             json!({"title": [null, "x"], "description": [null, ""], "due_date": [null, null]}),
         );
         assert_eq!(describe(&c), vec!["title: x"]);
+    }
+
+    fn link(edge_type: EdgeType, outgoing: bool) -> EdgeLink {
+        use minimap_types::{Edge, NodeRef, NodeSummary};
+        let id = Uuid::nil();
+        EdgeLink {
+            edge: Edge {
+                id,
+                edge_type,
+                from_type: NodeType::Person,
+                from_id: id,
+                to_type: NodeType::Team,
+                to_id: id,
+                attrs: json!({}),
+                created_at: time::OffsetDateTime::UNIX_EPOCH,
+                archived_at: None,
+            },
+            outgoing,
+            other: NodeSummary {
+                node: NodeRef::new(NodeType::Team, id),
+                label: String::new(),
+                archived: false,
+            },
+        }
+    }
+
+    #[test]
+    fn panels_hide_the_links_they_already_edit() {
+        // A person's own teams and manager are edited in the panel...
+        assert!(edited_elsewhere(
+            NodeType::Person,
+            &link(EdgeType::MemberOf, true)
+        ));
+        assert!(edited_elsewhere(
+            NodeType::Person,
+            &link(EdgeType::ReportsTo, true)
+        ));
+        // ...but reports, assigned tasks and mentions still show in the list.
+        assert!(!edited_elsewhere(
+            NodeType::Person,
+            &link(EdgeType::ReportsTo, false)
+        ));
+        assert!(!edited_elsewhere(
+            NodeType::Person,
+            &link(EdgeType::AssignedTo, false)
+        ));
+        // A team's members are listed by its panel.
+        assert!(edited_elsewhere(
+            NodeType::Team,
+            &link(EdgeType::MemberOf, false)
+        ));
+        assert!(!edited_elsewhere(
+            NodeType::Task,
+            &link(EdgeType::MemberOf, false)
+        ));
     }
 
     #[test]

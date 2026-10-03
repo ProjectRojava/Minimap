@@ -1,7 +1,7 @@
 //! Raw edge persistence. The edge-type matrix and cycle rules are enforced in
 //! `minimap-core` (feature 07) before these functions are called.
 
-use minimap_types::{ActivityAction, Edge, EdgeLink, NewEdge, NodeRef};
+use minimap_types::{ActivityAction, Edge, EdgeLink, EdgeType, NewEdge, NodeRef};
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 use serde_json::json;
 use time::OffsetDateTime;
@@ -68,6 +68,15 @@ pub fn list_active(conn: &Connection) -> Result<Vec<Edge>> {
         "SELECT {COLS} FROM edges WHERE archived_at IS NULL ORDER BY id"
     ))?;
     let rows = stmt.query_map([], from_row)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Active edges of one type (input for cycle checks).
+pub fn list_active_of_type(conn: &Connection, edge_type: EdgeType) -> Result<Vec<Edge>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COLS} FROM edges WHERE edge_type = ?1 AND archived_at IS NULL ORDER BY id"
+    ))?;
+    let rows = stmt.query_map([edge_type.as_str()], from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 

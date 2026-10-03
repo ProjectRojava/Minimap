@@ -21,6 +21,11 @@ Link any two nodes with a typed edge, validated against the edge matrix, with cy
 ## UI
 - Cycle error reads like: "Can't add: this would create a loop — Deploy → QA sign-off → Fix login → Deploy."
 
+## Already done by feature 03
+- `minimap-core::edge_rules` (full matrix, attribute ranges, self-edge) and `minimap-core::cycles::find_cycle` (with the loop path), both tested, including the proptest below.
+- Commands `add_edge`, `remove_edge` (validate in the command layer, cycle errors list node names) and `set_manager`.
+- Still to do here: `update_edge_attrs`, the generic "Links" editor in the detail pane (add by type + node search, edit attrs), and cycle errors for `blocks` / `depends_on` in the UI.
+
 ## Acceptance criteria
 - [ ] Every disallowed (type, from, to) combination is rejected in core, with a test.
 - [ ] Adding a cycle-forming edge fails and shows the path.

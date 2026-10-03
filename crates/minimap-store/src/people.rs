@@ -58,6 +58,28 @@ pub fn get_self(conn: &Connection) -> Result<Option<Person>> {
         .optional()?)
 }
 
+/// First-run setup: returns the self person, creating them (named `name`, or "Me") if absent.
+pub fn ensure_self(conn: &mut Connection, name: &str) -> Result<Person> {
+    if let Some(p) = get_self(conn)? {
+        return Ok(p);
+    }
+    let name = match name.trim() {
+        "" => "Me",
+        n => n,
+    };
+    create(
+        conn,
+        CreatePerson {
+            name: name.to_owned(),
+            role_title: String::new(),
+            email: None,
+            weekly_capacity_hours: None,
+            is_self: true,
+            notes: String::new(),
+        },
+    )
+}
+
 pub fn create(conn: &mut Connection, input: CreatePerson) -> Result<Person> {
     let at = now();
     let p = Person {
