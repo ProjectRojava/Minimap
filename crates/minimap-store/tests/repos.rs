@@ -1700,6 +1700,7 @@ fn settings_have_defaults_and_are_validated() {
         &mut conn,
         UpdateSettings {
             hours_per_day: Some(6.5),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -1709,6 +1710,7 @@ fn settings_have_defaults_and_are_validated() {
         &mut conn,
         UpdateSettings {
             hours_per_day: Some(7.0),
+            ..Default::default()
         },
     )
     .unwrap(); // overwrite
@@ -1721,7 +1723,8 @@ fn settings_have_defaults_and_are_validated() {
                 settings::update(
                     &mut conn,
                     UpdateSettings {
-                        hours_per_day: Some(bad)
+                        hours_per_day: Some(bad),
+                        ..Default::default()
                     }
                 ),
                 Err(StoreError::Invalid(_))
@@ -1730,4 +1733,52 @@ fn settings_have_defaults_and_are_validated() {
         );
     }
     assert_eq!(settings::get(&conn).unwrap().hours_per_day, 7.0);
+}
+
+#[test]
+fn theme_setting_defaults_to_dark_and_is_validated() {
+    let mut conn = db();
+    assert_eq!(settings::get(&conn).unwrap().theme, "minimap-dark");
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            theme: Some("catppuccin-mocha".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(s.theme, "catppuccin-mocha");
+    assert_eq!(settings::get(&conn).unwrap().theme, "catppuccin-mocha");
+    // Other settings are untouched by a theme change, and vice versa.
+    assert_eq!(s.hours_per_day, 8.0);
+    settings::update(
+        &mut conn,
+        UpdateSettings {
+            theme: Some("system".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(settings::get(&conn).unwrap().theme, "system");
+    for bad in ["", "Nord", "my theme", "a_b", &"x".repeat(41)] {
+        let r = settings::update(
+            &mut conn,
+            UpdateSettings {
+                theme: Some(bad.into()),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(r, Err(StoreError::Invalid(_))), "{bad:?}");
+    }
+    // A bad value in a combined update changes nothing.
+    let r = settings::update(
+        &mut conn,
+        UpdateSettings {
+            hours_per_day: Some(5.0),
+            theme: Some("Bad Id".into()),
+        },
+    );
+    assert!(r.is_err());
+    assert_eq!(settings::get(&conn).unwrap().hours_per_day, 8.0);
+    assert_eq!(settings::get(&conn).unwrap().theme, "system");
 }

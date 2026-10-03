@@ -6,6 +6,8 @@ use minimap_types::AppError;
 
 use crate::{
     state::Toasts,
+    theme::ThemeCtx,
+    themes::Kind,
     window::{self, Platform, ResizeDir},
 };
 
@@ -23,7 +25,16 @@ fn report(result: Result<(), AppError>, toasts: Toasts) {
 #[component]
 pub fn TitleBar() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
+    let theme = expect_context::<ThemeCtx>();
     let platform = Platform::detect();
+    // The logo has a dark and a light tile; pick the one that sits well on the theme.
+    let logo = move || {
+        if theme.current().kind == Kind::Dark {
+            "/minimap-logo-dark.svg"
+        } else {
+            "/minimap-logo-light.svg"
+        }
+    };
     let maximized = RwSignal::new(false);
 
     let refresh = move || {
@@ -54,7 +65,7 @@ pub fn TitleBar() -> impl IntoView {
     view! {
         <header data-tauri-drag-region class="flex h-8 shrink-0 select-none items-stretch border-b border-line bg-panel">
             <div data-tauri-drag-region class="flex flex-1 items-center gap-2" style=inset>
-                <img src="/minimap-logo-auto.svg" alt="" class="pointer-events-none h-4 w-4" />
+                <img src=logo alt="" class="pointer-events-none h-4 w-4" />
                 <span class="pointer-events-none text-[12px] text-muted">"Minimap"</span>
             </div>
             <Show when=move || platform.draws_window_controls()>

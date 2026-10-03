@@ -222,18 +222,23 @@ pub struct TaskDetail {
 }
 
 pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
+/// Dark is the default look. The UI owns the list of themes; the backend only stores the id.
+pub const DEFAULT_THEME: &str = "minimap-dark";
 
 /// App settings stored in the database. Spec 23 grows this; today it has one entry.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     /// Working hours in a day, used to turn `4h` estimates into days.
     pub hours_per_day: f64,
+    /// Id of the colour theme (`minimap-dark`, `nord`, ...) or `system` to follow the OS.
+    pub theme: String,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             hours_per_day: DEFAULT_HOURS_PER_DAY,
+            theme: DEFAULT_THEME.to_owned(),
         }
     }
 }
@@ -242,4 +247,5 @@ impl Default for Settings {
 #[serde(default)]
 pub struct UpdateSettings {
     pub hours_per_day: Option<f64>,
+    pub theme: Option<String>,
 }

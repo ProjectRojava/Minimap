@@ -215,6 +215,7 @@ mod tests {
             &mut conn,
             UpdateSettings {
                 hours_per_day: Some(6.0),
+                ..Default::default()
             },
         )
         .unwrap();
