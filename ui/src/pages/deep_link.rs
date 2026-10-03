@@ -32,8 +32,8 @@ pub fn DeepLink() -> impl IntoView {
 pub fn NotFound() -> impl IntoView {
     view! {
         <div class="p-6">
-            <h1 class="text-lg font-semibold tracking-tight">"Not found"</h1>
-            <p class="mt-1 text-[13px] text-zinc-500">"That page doesn't exist."</p>
+            <h1 class="text-[13px] font-semibold">"Not found"</h1>
+            <p class="mt-1 text-[13px] text-muted">"That page doesn't exist."</p>
         </div>
     }
 }

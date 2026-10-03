@@ -29,7 +29,7 @@ pub fn TeamPanel(id: Uuid) -> impl IntoView {
     view! {
         <Section title="Fields">
             {move || match team.get() {
-                None => view! { <p class="text-zinc-500">"Loading…"</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
                 Some(Ok(t)) => view! { <TeamFields team=t /> }.into_any(),
             }}
@@ -43,7 +43,7 @@ pub fn TeamPanel(id: Uuid) -> impl IntoView {
             (Some(Err(e)), _) | (_, Some(Err(e))) => view! {
                 <Section title="Structure">{error_line(e)}</Section>
             }.into_any(),
-            _ => view! { <Section title="Structure"><p class="text-zinc-500">"Loading…"</p></Section> }.into_any(),
+            _ => view! { <Section title="Structure"><p class="text-muted">"Loading…"</p></Section> }.into_any(),
         }}
     }
 }
@@ -97,9 +97,9 @@ fn Structure(detail: TeamDetail, teams: Vec<TeamRow>) -> impl IntoView {
     view! {
         <Section title="Structure">
             <SelectField label="Parent team" options=options current=current on_change=set_parent />
-            <p class="mt-3 mb-1 text-[11px] text-zinc-500">"Sub-teams"</p>
+            <p class="mt-3 mb-1 text-[11px] text-muted">"Sub-teams"</p>
             {if detail.children.is_empty() {
-                view! { <p class="text-zinc-500">"None."</p> }.into_any()
+                view! { <p class="text-muted">"None."</p> }.into_any()
             } else {
                 view! { <NodeButtons nodes=detail.children.clone() /> }.into_any()
             }}
@@ -113,7 +113,7 @@ fn Members(detail: TeamDetail) -> impl IntoView {
     view! {
         <Section title="Members">
             {if detail.members.is_empty() {
-                view! { <p class="text-zinc-500">"No members yet. Add people from their own page."</p> }.into_any()
+                view! { <p class="text-muted">"No members yet. Add people from their own page."</p> }.into_any()
             } else {
                 view! {
                     <ul class="space-y-px">
@@ -121,9 +121,9 @@ fn Members(detail: TeamDetail) -> impl IntoView {
                             let node = m.node.node;
                             view! {
                                 <li class="flex items-center gap-2">
-                                    <button class="flex-1 truncate rounded px-1.5 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    <button class="flex-1 truncate rounded px-1.5 py-0.5 text-left hover:bg-hover"
                                             on:click=move |_| selection.open(node)>{m.node.label}</button>
-                                    <span class="text-[11px] text-zinc-500">{m.role}</span>
+                                    <span class="text-[11px] text-muted">{m.role}</span>
                                 </li>
                             }
                         }).collect_view()}

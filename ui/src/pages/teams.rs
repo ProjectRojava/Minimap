@@ -56,14 +56,14 @@ pub fn Teams() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-12 shrink-0 border-b border-zinc-200 dark:border-zinc-800">
-                <h1 class="text-base font-semibold tracking-tight">"Teams"</h1>
+            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
+                <h1 class="text-[13px] font-semibold">"Teams"</h1>
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New team" }}
                 </button>
             </header>
             <Show when=move || adding.get()>
-                <form class="flex items-end gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40"
+                <form class="flex items-end gap-2 px-4 py-2 border-b border-line bg-panel"
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Team name" autofocus prop:value=move || name.get()
                            on:input=move |ev| name.set(event_target_value(&ev)) />
@@ -81,10 +81,10 @@ pub fn Teams() -> impl IntoView {
             </Show>
             <div class="flex-1 overflow-y-auto" role="tree">
                 {move || match rows.get() {
-                    None => view! { <p class="p-4 text-zinc-500">"Loading…"</p> }.into_any(),
-                    Some(Err(_)) => view! { <p class="p-4 text-zinc-500">"Couldn't load teams."</p> }.into_any(),
+                    None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
+                    Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load teams."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
-                        <p class="p-4 text-zinc-500">"No teams yet. Create one, then add people to it from their page."</p>
+                        <p class="p-4 text-muted">"No teams yet. Create one, then add people to it from their page."</p>
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate().map(|(i, t)| {
                         let node = NodeRef::new(NodeType::Team, t.team.id);
@@ -93,7 +93,7 @@ pub fn Teams() -> impl IntoView {
                             <NodeRow node=node index=i>
                                 <div class="flex w-full items-center gap-3" style=indent>
                                     <span class="flex-1 truncate font-medium">{t.team.name}</span>
-                                    <span class="text-[11px] text-zinc-500">
+                                    <span class="text-[11px] text-muted">
                                         {t.member_count} {if t.member_count == 1 { " member" } else { " members" }}
                                     </span>
                                 </div>

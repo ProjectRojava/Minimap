@@ -33,11 +33,11 @@ pub fn FirstRun() -> impl IntoView {
 
     view! {
         <Show when=needs_setup>
-            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                <form class="w-80 rounded-lg bg-white dark:bg-zinc-900 p-5 shadow-2xl space-y-3"
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-scrim">
+                <form class="w-80 rounded-sm border border-line bg-panel p-5 space-y-3"
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <h2 class="text-base font-semibold">"Welcome to Minimap"</h2>
-                    <p class="text-[13px] text-zinc-500">
+                    <p class="text-[13px] text-muted">
                         "What should we call you? You can change this later."
                     </p>
                     <input class=INPUT autofocus prop:value=move || name.get()

@@ -1,6 +1,96 @@
 @import "tailwindcss";
 
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/*
+ * Minimap theme: flat, monochrome, IDE-like (see docs/design.md).
+ * All colour comes from these tokens. Components use the semantic utilities
+ * (bg-canvas, bg-panel, text-muted, border-line, ...) and never raw palette
+ * colours or `dark:` variants, so both themes stay in sync automatically.
+ */
 
-:root { color-scheme: light dark; }
-body { @apply bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 antialiased; }
+:root {
+  color-scheme: light;
+  --canvas: #fafafa;      /* main content area */
+  --panel: #f3f3f3;       /* sidebar, detail pane, headers */
+  --hover: #ebebeb;
+  --active: #e2e2e2;      /* selected row, current nav item */
+  --line: #e0e0e0;        /* hairline borders */
+  --line-strong: #c4c4c4; /* inputs on focus, emphasised borders */
+  --fg: #2b2b2b;          /* never pure black */
+  --muted: #636363;
+  --faint: #a0a0a0;
+  --danger: #b4423a;      /* the only hue: errors and destructive actions */
+  --scrim: rgb(0 0 0 / 0.12);
+}
+
+/* Dark: follows the OS unless a light override is set; data-theme forces either (Settings, 23). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --canvas: #1e1f21;
+    --panel: #19191b;
+    --hover: #26272a;
+    --active: #2e2f33;
+    --line: #2a2b2e;
+    --line-strong: #44464b;
+    --fg: #d4d4d4;        /* never pure white */
+    --muted: #9a9ca1;
+    --faint: #64666b;
+    --danger: #d9776f;
+    --scrim: rgb(0 0 0 / 0.35);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #1e1f21;
+  --panel: #19191b;
+  --hover: #26272a;
+  --active: #2e2f33;
+  --line: #2a2b2e;
+  --line-strong: #44464b;
+  --fg: #d4d4d4;
+  --muted: #9a9ca1;
+  --faint: #64666b;
+  --danger: #d9776f;
+  --scrim: rgb(0 0 0 / 0.35);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-danger: var(--danger);
+  --color-scrim: var(--scrim);
+
+  --font-sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  *, ::before, ::after { border-color: var(--line); }
+  html, body { height: 100%; }
+  body {
+    background: var(--canvas);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum" 1, "cv11" 1;
+  }
+  ::selection { background: var(--active); }
+  input::placeholder, textarea::placeholder { color: var(--faint); }
+  :focus-visible { outline: 1px solid var(--line-strong); outline-offset: -1px; }
+  select option { background: var(--panel); color: var(--fg); }
+
+  /* Thin, quiet scrollbars like an editor. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--active); border: 3px solid transparent; background-clip: padding-box; border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--line-strong); background-clip: padding-box; border: 3px solid transparent; }
+}

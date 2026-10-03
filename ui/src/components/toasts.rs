@@ -14,17 +14,17 @@ pub fn ToastHost() -> impl IntoView {
                 children=move |t: Toast| {
                     let id = t.id;
                     let tone = if t.is_error {
-                        "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
+                        "border-l-2 border-l-danger"
                     } else {
-                        "border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        ""
                     };
                     view! {
-                        <div class=format!("flex items-start gap-3 rounded-md border px-3 py-2 text-sm shadow-lg {tone}")>
+                        <div class=format!("flex items-start gap-3 rounded-sm border border-line bg-panel px-3 py-2 text-[13px] text-fg {tone}")>
                             <div class="flex-1 min-w-0">
                                 <p class="break-words">{t.message}</p>
-                                {t.code.map(|c| view! { <p class="mt-0.5 font-mono text-[11px] opacity-60">{c}</p> })}
+                                {t.code.map(|c| view! { <p class="mt-0.5 font-mono text-[11px] text-faint">{c}</p> })}
                             </div>
-                            <button class="opacity-60 hover:opacity-100" aria-label="Dismiss"
+                            <button class="text-faint hover:text-fg" aria-label="Dismiss"
                                     on:click=move |_| toasts.dismiss(id)>"✕"</button>
                         </div>
                     }
