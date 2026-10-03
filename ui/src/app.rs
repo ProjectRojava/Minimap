@@ -6,11 +6,13 @@ use leptos_router::{
 
 use crate::{
     components::{
-        detail_pane::DetailPane, first_run::FirstRun, sidebar::Sidebar, toasts::ToastHost,
+        detail_pane::DetailPane, first_run::FirstRun, sidebar::Sidebar, titlebar::TitleBar,
+        toasts::ToastHost,
     },
     keyboard::use_global_shortcuts,
     pages::{
         deep_link::{DeepLink, NotFound},
+        objectives::Objectives,
         overview::Overview,
         people::People,
         placeholder::Placeholder,
@@ -46,13 +48,15 @@ fn Shell() -> impl IntoView {
     });
 
     view! {
-        <div class="flex h-screen overflow-hidden text-[13px]">
+        <div class="flex h-screen flex-col overflow-hidden text-[13px]">
+            <TitleBar />
+            <div class="flex min-h-0 flex-1">
             <Sidebar />
             <main class="flex-1 min-w-0 overflow-y-auto">
                 <Routes fallback=NotFound>
                     <Route path=path!("/") view=Overview />
                     <Route path=path!("/inbox") view=|| view! { <Placeholder title="Inbox" spec="06-tasks-and-inbox" /> } />
-                    <Route path=path!("/objectives") view=|| view! { <Placeholder title="Objectives" spec="04-objectives" /> } />
+                    <Route path=path!("/objectives") view=Objectives />
                     <Route path=path!("/projects") view=|| view! { <Placeholder title="Projects" spec="05-projects" /> } />
                     <Route path=path!("/tasks") view=|| view! { <Placeholder title="Tasks" spec="06-tasks-and-inbox" /> } />
                     <Route path=path!("/people") view=People />
@@ -65,6 +69,7 @@ fn Shell() -> impl IntoView {
                 </Routes>
             </main>
             <DetailPane />
+            </div>
             <ToastHost />
             <FirstRun />
         </div>

@@ -5,6 +5,13 @@ const COMMANDS: &[&str] = &[
     "get_node_summary",
     "list_edges_for",
     "list_activity_for",
+    "list_node_summaries",
+    "list_objectives",
+    "get_objective",
+    "get_objective_detail",
+    "create_objective",
+    "update_objective",
+    "archive_objective",
     "get_self_person",
     "create_self_person",
     "list_people",
@@ -23,6 +30,7 @@ const COMMANDS: &[&str] = &[
     "add_edge",
     "remove_edge",
     "set_manager",
+    "update_edge_attrs",
 ];
 
 fn main() {

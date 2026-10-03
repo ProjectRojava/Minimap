@@ -145,6 +145,35 @@ pub fn add(conn: &mut Connection, new: NewEdge) -> Result<Edge> {
     Ok(edge)
 }
 
+/// Replaces an active edge's attributes (validation of the values is the caller's job).
+/// Records one `updated` activity row on the `from` node. Unchanged attributes write nothing.
+pub fn update_attrs(conn: &mut Connection, id: Uuid, attrs: serde_json::Value) -> Result<Edge> {
+    let tx = conn.transaction()?;
+    let mut edge = get(&tx, id)?;
+    if edge.archived_at.is_some() {
+        return Err(StoreError::EdgeNotFound(id));
+    }
+    if edge.attrs == attrs {
+        return Ok(edge);
+    }
+    tx.execute(
+        "UPDATE edges SET attrs = ?2 WHERE id = ?1",
+        params![id_s(id), serde_json::to_string(&attrs)?],
+    )?;
+    let diff = json!({ format!("{} link", edge.edge_type): [edge.attrs, attrs] });
+    activity::record(
+        &tx,
+        now(),
+        edge.from_type,
+        edge.from_id,
+        ActivityAction::Updated,
+        &diff,
+    )?;
+    edge.attrs = attrs;
+    tx.commit()?;
+    Ok(edge)
+}
+
 /// Soft-removes an edge.
 pub fn remove(conn: &mut Connection, id: Uuid) -> Result<()> {
     let tx = conn.transaction()?;

@@ -40,7 +40,7 @@ Track the people the user works with (not app users) and group them into teams. 
 - **Commands**: `get_self_person`, `create_self_person`, `list_people`, `get_person`, `get_person_detail`, `create_person`, `update_person`, `preview_archive_person`, `archive_person`, `list_teams`, `get_team`, `get_team_detail`, `create_team`, `update_team`, `archive_team`, plus from 07: `add_edge`, `remove_edge`, `set_manager`. Rules run in the command layer (`check_new_edge`, `check_new_parent`), unit-tested without Tauri.
 - **UI**: first-run name prompt; People screen (name, role, teams, active tasks, open waiting-ons; inline "New person"); Teams screen (tree with indentation); person and team panels in the detail pane with auto-saving fields (save on blur / Enter), teams (add, change role, remove), manager, parent team, archive with confirmation (lists the tasks that lose their assignee). Lists use `NodeRow`/`ListNav`, so `j`/`k`/`Enter` work on them.
 - A write bumps `DataVersion`, which reloads lists and the pane; a rejected edit also reloads so controls snap back.
-- Changing a membership role removes and re-adds the edge (the old edge is revived with the new role), so the activity log shows both.
+- Changing a membership role uses `update_edge_attrs` (added with spec 04): one `updated` activity row on the person.
 - `api.rs` now serializes maps as plain objects; otherwise edge `attrs` would arrive as `{}`.
 
 ## Not yet verified by hand

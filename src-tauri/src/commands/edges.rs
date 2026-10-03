@@ -46,6 +46,28 @@ pub async fn add_edge(state: State<'_, AppState>, new: NewEdge) -> Result<Edge, 
         .await
 }
 
+/// Changes a link's attributes (e.g. a contribution's weight) after validating them.
+#[tauri::command]
+pub async fn update_edge_attrs(
+    state: State<'_, AppState>,
+    edge_id: Uuid,
+    attrs: serde_json::Value,
+) -> Result<Edge, AppError> {
+    state
+        .run(move |conn| update_edge_attrs_impl(conn, edge_id, attrs))
+        .await
+}
+
+pub(crate) fn update_edge_attrs_impl(
+    conn: &mut Connection,
+    edge_id: Uuid,
+    attrs: serde_json::Value,
+) -> Result<Edge, AppError> {
+    let edge = minimap_store::edges::get(conn, edge_id).map_err(store_error)?;
+    edge_rules::validate_attrs(edge.edge_type, &attrs).map_err(rule_error)?;
+    minimap_store::edges::update_attrs(conn, edge_id, attrs).map_err(store_error)
+}
+
 #[tauri::command]
 pub async fn remove_edge(state: State<'_, AppState>, edge_id: Uuid) -> Result<(), AppError> {
     state
@@ -206,6 +228,54 @@ mod tests {
         set_manager_impl(&mut conn, b.id, Some(a.id)).unwrap();
         assert_eq!(manager_of(&conn, b.id), Some(a.id));
         assert_eq!(manager_of(&conn, a.id), Some(c.id));
+    }
+
+    #[test]
+    fn edge_attrs_are_validated_before_saving() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let p = person(&mut conn, "Ann");
+        let team = minimap_store::teams::create(
+            &mut conn,
+            minimap_types::CreateTeam {
+                name: "Platform".into(),
+                description: String::new(),
+                parent_team_id: None,
+            },
+        )
+        .unwrap();
+        let edge = minimap_store::edges::add(
+            &mut conn,
+            NewEdge {
+                edge_type: EdgeType::MemberOf,
+                from: NodeRef::new(NodeType::Person, p.id),
+                to: NodeRef::new(NodeType::Team, team.id),
+                attrs: serde_json::json!({"role": "member"}),
+            },
+        )
+        .unwrap();
+
+        let ok = update_edge_attrs_impl(&mut conn, edge.id, serde_json::json!({"role": "lead"}))
+            .unwrap();
+        assert_eq!(ok.attrs, serde_json::json!({"role": "lead"}));
+        for bad in [
+            serde_json::json!({"role": "boss"}),
+            serde_json::json!({"weight": 0.5}),
+            serde_json::json!([]),
+        ] {
+            let err = update_edge_attrs_impl(&mut conn, edge.id, bad).unwrap_err();
+            assert_eq!(err.code, "invalid_edge");
+        }
+        // Rejected updates changed nothing.
+        assert_eq!(
+            minimap_store::edges::get(&conn, edge.id).unwrap().attrs,
+            serde_json::json!({"role": "lead"})
+        );
+        assert_eq!(
+            update_edge_attrs_impl(&mut conn, Uuid::now_v7(), serde_json::json!({}))
+                .unwrap_err()
+                .code,
+            "not_found"
+        );
     }
 
     #[test]

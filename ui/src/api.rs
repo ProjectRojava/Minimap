@@ -1,9 +1,10 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, CreatePerson, CreateTeam, Edge, EdgeLink, NewEdge, NodeRef, NodeSummary,
+    Activity, AppError, CreateObjective, CreatePerson, CreateTeam, Edge, EdgeLink, NewEdge,
+    NodeRef, NodeSummary, NodeType, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping,
     Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Team, TeamDetail, TeamRow,
-    UpdatePerson, UpdateTeam, Uuid,
+    UpdateObjective, UpdatePerson, UpdateTeam, Uuid,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -182,4 +183,54 @@ pub async fn set_manager(person_id: Uuid, manager_id: Option<Uuid>) -> Result<()
         },
     )
     .await
+}
+
+#[derive(Serialize)]
+struct GroupingArg {
+    grouping: ObjectiveGrouping,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NodeTypeArg {
+    node_type: NodeType,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EdgeAttrsArg {
+    edge_id: Uuid,
+    attrs: serde_json::Value,
+}
+
+pub async fn list_objectives(grouping: ObjectiveGrouping) -> Result<Vec<ObjectiveGroup>, AppError> {
+    invoke("list_objectives", &GroupingArg { grouping }).await
+}
+
+pub async fn get_objective(id: Uuid) -> Result<Objective, AppError> {
+    invoke("get_objective", &IdArg { id }).await
+}
+
+pub async fn get_objective_detail(id: Uuid) -> Result<ObjectiveDetail, AppError> {
+    invoke("get_objective_detail", &IdArg { id }).await
+}
+
+pub async fn create_objective(input: CreateObjective) -> Result<Objective, AppError> {
+    invoke("create_objective", &InputArg { input }).await
+}
+
+pub async fn update_objective(id: Uuid, patch: UpdateObjective) -> Result<Objective, AppError> {
+    invoke("update_objective", &PatchArg { id, patch }).await
+}
+
+pub async fn archive_objective(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_objective", &IdArg { id }).await
+}
+
+pub async fn list_node_summaries(node_type: NodeType) -> Result<Vec<NodeSummary>, AppError> {
+    invoke("list_node_summaries", &NodeTypeArg { node_type }).await
+}
+
+pub async fn update_edge_attrs(edge_id: Uuid, attrs: serde_json::Value) -> Result<Edge, AppError> {
+    invoke("update_edge_attrs", &EdgeAttrsArg { edge_id, attrs }).await
 }

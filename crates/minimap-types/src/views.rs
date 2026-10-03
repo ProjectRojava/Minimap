@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{NodeSummary, Person, Team, WaitingOn};
+use crate::{NodeSummary, Objective, Person, Team, WaitingOn};
 
 /// A team membership (`member_of` edge) as seen from either end.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,4 +63,48 @@ pub struct TeamDetail {
     pub parent: Option<NodeSummary>,
     pub children: Vec<NodeSummary>,
     pub members: Vec<Membership>,
+}
+
+// ---------------------------------------------------------------- objectives
+
+/// How the objectives list is arranged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObjectiveGrouping {
+    /// One flat list.
+    #[default]
+    None,
+    /// Calendar quarter of the target date, plus a "No date" bucket.
+    Quarter,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectiveRow {
+    pub objective: Objective,
+    /// Active projects and tasks that contribute to it.
+    pub contribution_count: u32,
+}
+
+/// A heading and its objectives. `label` is `None` for the single group of a flat list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectiveGroup {
+    pub label: Option<String>,
+    pub rows: Vec<ObjectiveRow>,
+}
+
+/// A project or task that contributes to an objective (`contributes_to` edge).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Contribution {
+    pub edge_id: Uuid,
+    pub node: NodeSummary,
+    /// The contributor's own status, e.g. `active` or `blocked`.
+    pub status: String,
+    /// 0-1; `None` means unset (treated as full weight by roll-ups).
+    pub weight: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectiveDetail {
+    pub objective: Objective,
+    pub contributions: Vec<Contribution>,
 }

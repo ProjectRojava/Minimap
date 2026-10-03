@@ -184,17 +184,11 @@ fn Organization(
             .collect();
 
     let rows = detail.memberships.into_iter().map(|m| {
-        let team_id = m.node.node.id;
         let (edge_id, node) = (m.edge_id, m.node.node);
         let change_role = move |role: String| {
-            // The role lives on the edge: replace it (the old edge is revived with the new role).
             spawn_local(async move {
-                let removed = api::remove_edge(edge_id).await;
-                if removed.is_ok() {
-                    finish(api::add_edge(member_edge(team_id, &role)).await, toasts, version);
-                } else {
-                    finish(removed, toasts, version);
-                }
+                let attrs = serde_json::json!({ "role": role });
+                finish(api::update_edge_attrs(edge_id, attrs).await, toasts, version);
             });
         };
         let remove = move |_| {

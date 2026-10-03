@@ -10,6 +10,9 @@ Flat, monochrome, IDE-like (think Zed): the work is the colour, the chrome is gr
 - **Dense.** 13px base text, 28px (`h-7`) rows, 40px (`h-10`) headers, 11px uppercase labels for section titles.
 - **Primary buttons** are inverted (`bg-fg text-canvas`), not coloured.
 
+## Window chrome
+The native title bar is disabled; `TitleBar` (32px) draws the app name, a drag region and minimize / maximize / close (flat, `currentColor` line icons; close turns `danger` on hover). It sits above the sidebar, content and pane, so full-height overlays start at `top-8`. On macOS the native traffic lights overlay the bar. See ADR-0004.
+
 ## Tokens
 | Utility | Use |
 |---|---|
