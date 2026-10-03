@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-convert-checklist-item"
+description = "Enables the convert_checklist_item command without any pre-configured scope."
+commands.allow = ["convert_checklist_item"]
+
+[[permission]]
+identifier = "deny-convert-checklist-item"
+description = "Denies the convert_checklist_item command without any pre-configured scope."
+commands.deny = ["convert_checklist_item"]
