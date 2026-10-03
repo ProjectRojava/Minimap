@@ -4,7 +4,7 @@
 
 - **Keep it current**: any change that adds, removes, renames or re-wires something listed here must update this file in the same change (checklist in §14). If something here disagrees with the code, the code wins; fix this file.
 - **Format**: every thing has an id `kind:name` (`crate:`, `mod:`, `fn:`, `cmd:`, `table:`, `type:`, `ui:`, `spec:`, `rule:`). Edges are written `A -> B  (relation)`. Grep an id to find every line that mentions it, e.g. `grep -n "cmd:add_edge" docs/knowledge-graph.md`.
-- **Last verified against code**: after dark default + themes (2026-10-03). Specs 07 (rest) and 08–27 not started.
+- **Last verified against code**: after spec 07 edges + generic Links editor (2026-10-03). Specs 08–27 not started.
 
 ---
 
@@ -19,7 +19,7 @@ UI (wasm)  --invoke-->  Tauri commands  --rules-->  core (pure)
 all of them share DTOs from crate:minimap-types
 ```
 
-Status: M0 done (progress.md M0 checkboxes are stale), M1 in progress: specs 01-02 done, 03-06 implemented (manual check pending); 07 partly (see §12).
+Status: M0 done (progress.md M0 checkboxes are stale), M1 in progress: specs 01-02 done, 03-07 implemented (manual check pending).
 
 ## 2. Crates and dependency edges
 
@@ -73,14 +73,14 @@ Actions (`type:ActivityAction`): created, updated, archived, **unarchived**, **d
 - `enums.rs`: `str_enum!` macro -> NodeType, EdgeType, ObjectiveStatus, ProjectStatus, TaskStatus, NoteKind, DecisionStatus, ActivityAction. Each has `as_str()`, `FromStr`, `ALL`; serde is snake_case and **must equal** `as_str()` (tested). SQL CHECK constraints repeat the status values.
 - `nodes.rs`: node structs, `Create*`, `Update*` (with `apply(&self-patch, &mut node)`), `Project.slug` (handle; `CreateProject.slug: Option`, `UpdateProject.slug`), `AssigneeChoice{Me,Nobody,Person(uuid)}` (`CreateTask.assignee`, default Me), `NodeRef{node_type,id}`, `NodeSummary{node,label,archived}`, constants `DEFAULT_PRIORITY`, `DEFAULT_WEEKLY_CAPACITY_HOURS`.
 - `patch.rs`: `Patch<T> = Keep | Set(T) | Clear` for nullable fields in `Update*` (non-null fields use `Option<T>`). `Task.completed_at` is **not** patchable (store sets it).
-- `edges.rs`: `Edge`, `NewEdge{edge_type,from,to,attrs}`, `EdgeLink{edge,outgoing,other:NodeSummary}`.
+- `edges.rs`: `Edge`, `NewEdge{edge_type,from,to,attrs}`, `EdgeLink{edge,outgoing,other:NodeSummary}`. `AttrKind{WholeNumber{min,max},Number{min,max},Choice{options},Text}`, `AttrSpec{key,label,kind,hint}`, `LinkOption{edge_type,outgoing,others,attrs}` (a relation addable from a node type).
 - `activity.rs`: `Activity`. `lib.rs`: `PingResponse`, `AppError{code,message}`, re-exports `Uuid`.
 - `views.rs` (read models): `Membership{edge_id,node,role}`, `LinkedNode{edge_id,node}`, `PersonRow`, `PersonDetail`, `PersonArchivePreview`, `TeamRow{team,depth,member_count}`, `TeamDetail`; objectives: `ObjectiveGrouping{None,Quarter}`, `ObjectiveRow{objective,contribution_count}`, `ObjectiveGroup{label:Option<String>,rows}`, `Contribution{edge_id,node,status,weight}`, `ObjectiveDetail`. projects: `ProjectLayout{List,Board}`, `ProjectFilter{status,owner_person_id,objective_id}`, `ProjectRow{project,owner,objectives,task_count,done_task_count}`, `ProjectGroup{label,objective,status,rows}`, `ProjectTask`, `ProjectDetail{project,owner,objectives:Vec<Contribution>,depends_on:Vec<LinkedNode>,needed_by,tasks}`, `TaskDisposition{Archive,Inbox}`, `ProjectArchivePreview`. tasks: `TaskFilter{status,project_id,assignee_id,due_from,due_to,text,no_project,include_closed}`, `TaskRow{task,project,assignee}`, `TaskDetail`; settings: `Settings{hours_per_day, theme}` (defaults 8 and `DEFAULT_THEME` = `minimap-dark`), `UpdateSettings`.
 - `timefmt.rs`: `fmt_date`, `parse_date`, `fmt_ts`, `parse_ts`.
 - Serde: dates/uuids are human-readable strings; timestamps use `time::serde::rfc3339`.
 
 ## 5. Core crate (`crate:minimap-core`, pure)
-- `mod:edge_rules`: `is_allowed`, `validate_types`, `validate_attrs`, `validate(edge_type, from:NodeRef, to:NodeRef, attrs)` (self-edge first), `must_be_acyclic`, `EdgeRuleError{NotAllowed,SelfEdge,BadAttr}`.
+- `mod:edge_rules`: `is_allowed`, `validate_types`, `validate_attrs`, `validate(edge_type, from:NodeRef, to:NodeRef, attrs)` (self-edge first), `must_be_acyclic`, `EdgeRuleError{NotAllowed,SelfEdge,BadAttr}`. Attribute rules are schema-driven: `attr_schema(edge_type) -> Vec<AttrSpec>` is the single definition used by `validate_attrs` and by editors; `link_options(node_type) -> Vec<LinkOption>` lists every relation addable from a node type in both directions (exactly what the matrix allows; `relates_to` symmetric so offered once, outgoing).
 - `mod:cycles`: `find_cycle(existing:&[(from,to)], from, to) -> Option<Vec<Uuid>>` returns `[from,to,...,from]` (BFS over petgraph `DiGraphMap`).
 - `mod:tasks`: `filter(rows,&TaskFilter)` (closed tasks hidden unless `include_closed` or an explicit status; `no_project` = inbox; due range inclusive and skips undated; text = every word in title/description/project/assignee), `sort` (due date, undated last; priority; title), `parse_estimate(text, hours_per_day)` (`3d`, `1.5d`, `4h`, bare number = days; rounds to 4 dp; `EstimateError` "Estimates look like 3d or 4h"), `parse_lines(text)` (one title per non-empty line, strips `-`, `*`, `1.`, `[ ]` markers).
 - `mod:slug`: `slugify(title)` (lowercase ascii words joined by `-`, max 40, fallback `project`), `validate(slug)`, `unique(base, is_taken)` (`-2`, `-3`...). `mod:projects`: `filter(rows, &ProjectFilter)`, `by_objective(rows)` (one section per objective by name, "No objective" last; a project under several objectives appears under each; inside: status active>planned>paused>done>cancelled, then priority, date), `by_status(rows)` (always 5 board columns: planned, active, paused, done, cancelled; priority then date), `status_title`.
@@ -130,10 +130,11 @@ Error codes: `not_found`, `invalid`, `constraint`, `duplicate`, `state`, `store`
 | create_team | teams.rs | check_parent_active, teams::create | ui:Teams form |
 | update_team | teams.rs | `fn:check_new_parent` (core::cycles) then teams::update | ui:TeamFields, Structure |
 | archive_team | teams.rs | refuses if active sub-teams, then nodes::archive | ui:ArchiveTeam |
-| add_edge | edges.rs | `fn:check_new_edge` (core edge_rules + cycles) then edges::add | person panel (teams), objective panel (contributions) |
-| remove_edge | edges.rs | edges::remove | person panel, objective panel |
+| add_edge | edges.rs | `fn:check_new_edge` (core edge_rules + cycles; `relates_to` rejected as `duplicate` if the reverse link exists) then edges::add | person panel (teams), objective panel (contributions), ui:LinksEditor (any relation) |
+| remove_edge | edges.rs | edges::remove | person panel, objective panel, LinksEditor |
 | set_manager | edges.rs | `fn:set_manager_impl` (validate, remove old, add new) | person panel |
-| update_edge_attrs | edges.rs | store::edges::get, core `validate_attrs`, store::edges::update_attrs | ui:Contributions (weight), PersonPanel (team role) |
+| update_edge_attrs | edges.rs | store::edges::get, core `validate_attrs`, store::edges::update_attrs | ui:Contributions (weight), PersonPanel (team role), LinksEditor attribute inputs |
+| list_link_options | edges.rs | core `edge_rules::link_options(node_type)` | ui:LinksEditor (relation picker + attribute controls) |
 | list_node_summaries | nodes.rs | store::nodes::list_summaries | objective picker |
 | list_objectives | objectives.rs | store::views::objective_rows then `core::objectives::arrange` | ui:Objectives |
 | get_objective / get_objective_detail | objectives.rs | objectives::get / views::objective_detail | ui:ObjectivePanel |
@@ -161,7 +162,7 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 - Data flow for writes: handler -> `spawn_local(api::x)` -> `finish(...)` -> `DataVersion` bump -> version-keyed `LocalResource`s reload (lists, pane Links/Activity/summary). Fields resources are **not** version-keyed so typing isn't overwritten.
 - `api.rs`: one typed async fn per command; `invoke` serializes args with maps-as-objects (else JS `Map` -> `{}`), maps errors to `AppError` (code `ipc` for bridge failures). Mirrors §7.
 - Pages (`pages/`): `overview` (ping demo), `objectives` (group-by-quarter toggle; keyboard row index runs across groups), `projects` (List/Board toggle, status/owner/objective filters, New project form; board = HTML5 drag a card to another column -> `update_project` status; keyboard rows are list order or column-major), `tasks` (`Tasks`, `Inbox`), `settings` (Appearance theme picker with swatch cards + hours per day), `people`, `teams`, `placeholder`, `deep_link` (+`NotFound`).
-- Components (`components/`): `sidebar` (from `nav::NAV`), `detail_pane` (header, `PersonPanel`/`TeamPanel`/placeholder, Links grouped by `link_heading`, Activity via `describe`; `edited_elsewhere` hides links the panel edits (person: teams/manager; team: members; objective: contributors; project: objectives + dependencies; task: assignee); split view >= 1100px, overlay below), `people_panel` (`PersonPanel`, fields, Organization: manager + teams/roles, waiting-ons, `ArchivePerson`; helpers `NodeButtons`, `team_options`, `indented`, `error_line`), `titlebar` (custom 32px title bar: drag region, minimize/maximize/close, Linux resize handles; uses `window.rs`), `task_list` (filters: text, status, project, assignee, due range, show done; inline status/priority/project/assignee/due controls per row; row keys x toggle done, s next status, 1-5 priority, d/a focus the due/assignee control; new-task textarea, Enter adds, pasted multi-line text shows a preview then `create_tasks_bulk`), `task_panel` (all fields, estimate text via `set_task_estimate`, project, assignee, archive), `project_panel` (fields incl. handle, dates, status, priority, owner; Objectives with weight; Dependencies (depends_on, loops rejected by the backend); read-only Tasks; `ArchiveProject` with the tasks choice), `objective_panel` (exports `WeightInput`, shared with the project panel; fields incl. "Your assessment" + priority, Contributions with weight edit + picker, `ArchiveObjective`), `team_panel` (fields, Structure: parent + sub-teams, Members, `ArchiveTeam`), `node_row` (list row using `ListNav`/`Selection`), `form` (`TextField` commit-on-change, `SelectField`, class consts `INPUT/BUTTON/BUTTON_PRIMARY/BUTTON_DANGER`), `toasts`, `first_run`.
+- Components (`components/`): `sidebar` (from `nav::NAV`), `links_editor` (generic Links section: groups by relation heading, per-link attribute inputs generated from `AttrSpec`s, remove, "Add a link…" = relation select then name search over `list_node_summaries` of the allowed types; hides/does not offer relations the node's own panel edits via `kind_edited_elsewhere`), `detail_pane` (header, `PersonPanel`/`TeamPanel`/placeholder, Links grouped by `link_heading`, Activity via `describe`; `edited_elsewhere` hides links the panel edits (person: teams/manager; team: members; objective: contributors; project: objectives + dependencies; task: assignee); split view >= 1100px, overlay below), `people_panel` (`PersonPanel`, fields, Organization: manager + teams/roles, waiting-ons, `ArchivePerson`; helpers `NodeButtons`, `team_options`, `indented`, `error_line`), `titlebar` (custom 32px title bar: drag region, minimize/maximize/close, Linux resize handles; uses `window.rs`), `task_list` (filters: text, status, project, assignee, due range, show done; inline status/priority/project/assignee/due controls per row; row keys x toggle done, s next status, 1-5 priority, d/a focus the due/assignee control; new-task textarea, Enter adds, pasted multi-line text shows a preview then `create_tasks_bulk`), `task_panel` (all fields, estimate text via `set_task_estimate`, project, assignee, archive), `project_panel` (fields incl. handle, dates, status, priority, owner; Objectives with weight; Dependencies (depends_on, loops rejected by the backend); read-only Tasks; `ArchiveProject` with the tasks choice), `objective_panel` (exports `WeightInput`, shared with the project panel; fields incl. "Your assessment" + priority, Contributions with weight edit + picker, `ArchiveObjective`), `team_panel` (fields, Structure: parent + sub-teams, Members, `ArchiveTeam`), `node_row` (list row using `ListNav`/`Selection`), `form` (`TextField` commit-on-change, `SelectField`, class consts `INPUT/BUTTON/BUTTON_PRIMARY/BUTTON_DANGER`), `toasts`, `first_run`.
 - `window.rs`: wasm-bindgen wrappers over `window.__TAURI__.window` (`minimize`, `toggle_maximize`, `close`, `is_maximized`, `start_resize`), `Platform::detect()` from the user agent, `ResizeDir`. The native title bar is off (`decorations:false`); macOS overlay config in `src-tauri/tauri.macos.conf.json` (ADR-0004).
 - `labels.rs` (pure presentation): objective, project and task status labels, `estimate_text`, priority labels, `humanize`.
 - `nav.rs` (pure, unit-tested): `NAV` table (label, path, chord, enabled), `chord_target`, `list_path`, `type_label`, `move_cursor`, `is_row_key`, `is_typing_target`. `keyboard.rs`: `g`+letter chords (1s window), `j/k/Enter` on lists, `n` new item on the screen, row keys, `Esc` closes pane; ignored while typing and for Ctrl/Cmd/Alt.
@@ -178,6 +179,7 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 - **Estimate**: text field -> `set_task_estimate` -> core `parse_estimate` with the stored hours-per-day -> `estimate_days` (existing estimates never rewritten when the setting changes).
 - **Contribution weight**: UI input -> `update_edge_attrs` -> core `validate_attrs` (0-1) -> `edges::update_attrs` (+activity).
 - **Add link**: UI -> `cmd:add_edge` -> `check_new_edge` (matrix, attrs, self-edge, cycle for blocks/depends_on/reports_to, error text lists node names: "Can't add this link: this would create a loop — A → B → A") -> `edges::add` (tx + activity).
+- **Generic link**: pane Links -> `list_link_options(node_type)` -> choose relation -> search candidates (`list_node_summaries` per allowed type, minus self and already-linked) -> `add_edge` (rules + cycle check run in the command; a loop toast names the path) -> `DataVersion` bump. Attribute inputs -> `update_edge_attrs`.
 - **Archive person**: `preview_archive_person` (active assigned tasks) -> confirm -> `nodes::archive` (person + edges in one tx; self refused).
 - **Nest team**: `update_team` with `Patch::Set(parent)` -> `check_new_parent` (parent active, no loop incl. archived teams) -> `teams::update`.
 
@@ -188,6 +190,9 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 | self can't be archived/deleted | `store::nodes::ensure_not_self` | same |
 | edge matrix + attrs | core `edge_rules` (called by `check_new_edge`) | core `matrix_matches_spec` (exhaustive), command tests |
 | no cycles (blocks/depends_on/reports_to) | core `cycles` via `check_new_edge`/`set_manager_impl` | core proptest, command tests |
+| `relates_to` is symmetric (A-B and B-A are one link) | `check_new_edge` | `relates_to_links_anything_to_anything_once` |
+| task and project loops name the nodes ("A → B → A") | `check_new_edge` with core `find_cycle` | `task_loops_are_rejected_with_the_task_titles`, `project_dependency_loops_are_rejected` |
+| link options == matrix; attribute schema drives validation | core `edge_rules::link_options/attr_schema` | `link_options_are_exactly_what_the_matrix_allows`, `schema_matches_the_matrix_documentation` |
 | no team-nesting cycles | `check_new_parent` | `commands/teams.rs` tests |
 | objective list order + quarter grouping | core `objectives::arrange` | core objectives tests |
 | project handle unique among active, valid format | store `projects::create/update` + unique index 0004; format in core `slug::validate` | store `project_handles_*`, core slug tests (+proptest), migration backfill test |
@@ -205,7 +210,7 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 | CHECK/FK integrity | migration 0002 | `invalid_input_is_rejected...`, `delete_of_referenced_node...` |
 
 ## 11. Tests inventory
-`cargo test --workspace`: core 33 (edge_rules, cycles + proptest, objectives, slug + proptest, projects, tasks + proptest), types 4, store 4 unit + 41 integration (`crates/minimap-store/tests/repos.rs`, incl. proptest `activity_count_matches_writes`), src-tauri 11 (`commands/edges.rs`, `commands/teams.rs`), ui 23 (`themes.rs`, `nav.rs`, `labels.rs`, `window.rs`, `form.rs`, `detail_pane.rs`, `people_panel.rs`, `objective_panel.rs`). No UI/browser tests; UI behaviour is verified by hand (checklists in specs 02, 03). Gate: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p minimap-ui --target wasm32-unknown-unknown -- -D warnings`, `cargo test --workspace`, `cd ui && trunk build`.
+`cargo test --workspace`: core 36 (edge_rules + link options, cycles + proptest, objectives, slug + proptest, projects, tasks + proptest), types 4, store 4 unit + 41 integration (`crates/minimap-store/tests/repos.rs`, incl. proptest `activity_count_matches_writes`), src-tauri 14 (`commands/edges.rs`, `commands/teams.rs`), ui 26 (`links_editor.rs`, `themes.rs`, `nav.rs`, `labels.rs`, `window.rs`, `form.rs`, `detail_pane.rs`, `people_panel.rs`, `objective_panel.rs`). No UI/browser tests; UI behaviour is verified by hand (checklists in specs 02, 03). Gate: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p minimap-ui --target wasm32-unknown-unknown -- -D warnings`, `cargo test --workspace`, `cd ui && trunk build`.
 
 ## 12. Feature specs (`docs/features/NN-*.md`; index in its README)
 | # | feature | status | touches / notes |
@@ -216,7 +221,7 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 | 04 | objectives | Implemented, manual check pending | objective cmds/screen/panel, quarter grouping (core), `update_edge_attrs`, `list_node_summaries`; computed-health marker waits for 15 |
 | 05 | projects | Implemented, manual check pending | handle (slug), list by objective + board with drag, filters, project panel, archive with task choice; read-only task list until 06 |
 | 06 | tasks + inbox | Implemented, manual check pending | tasks list/inbox with filters, inline editing and keyboard shortcuts, paste-a-list preview, estimates (`3d`/`4h`) with the hours-per-day setting (new `settings` table + minimal Settings screen), default assignee = me; no subtasks (decision); `blocks` editing still waits for 07 |
-| 07 | edges + cycle detection | Draft, **partly built** | done: core rules, `add_edge`, `remove_edge`, `set_manager`, `update_edge_attrs`, `list_node_summaries`; todo: generic Links editor in pane, blocks/depends_on UI |
+| 07 | edges + cycle detection | Implemented, manual check pending | core matrix/attr schema/cycles/link options; add/remove/update-attrs/set_manager/list_link_options commands; generic Links editor in the pane; `relates_to` in the MVP (symmetric) |
 | 08-12 | waiting-on, notes, decisions, search, palette/quick-add | Draft | |
 | 13-18 | CPM, impact, health/overview, this-week, capacity, graph view | Draft | core algorithms |
 | 19-27 | review/export, backup, encryption, Drive, settings, demo data, undo, data export, recurring | Draft | | (spec 23: the hours-per-day setting, the theme picker and a minimal Settings screen already exist)
@@ -230,7 +235,7 @@ ADRs: 0001 versions + command allow-list, 0002 network allowed + Drive backup, 0
 - Full-height overlays (detail pane scrim) start at `top-8`, below the title bar.
 - `ui/dist/` and `src-tauri/gen/` are build output (in `.gitignore`; `gen/` was committed earlier and may still be tracked).
 - WSL: `libEGL`/`MESA` warnings from WebKitGTK are harmless.
-- Edge attribute changes (team role, contribution weight) go through `update_edge_attrs`, one `updated` row on the from node.
+- Edge attribute changes (team role, contribution weight) go through `update_edge_attrs`, one `updated` row on the from node. The editor's attribute controls come from `edge_rules::attr_schema`, so a new attribute is one schema entry.
 - Priority: 1 = highest everywhere.
 - Anything the UI needs that is a business rule (sorting, grouping) is computed in core and returned by a command; the UI crate can't depend on core.
 - Migrations that need data fixes use `M::up_with_hook` (runs after the SQL, same tx); the app DB is migrated on launch (there is no pre-migration backup yet, spec 20).

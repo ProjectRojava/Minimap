@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-link-options"
+description = "Enables the list_link_options command without any pre-configured scope."
+commands.allow = ["list_link_options"]
+
+[[permission]]
+identifier = "deny-list-link-options"
+description = "Denies the list_link_options command without any pre-configured scope."
+commands.deny = ["list_link_options"]

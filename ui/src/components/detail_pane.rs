@@ -4,8 +4,8 @@ use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeT
 use crate::{
     api,
     components::{
-        objective_panel::ObjectivePanel, people_panel::PersonPanel, project_panel::ProjectPanel,
-        task_panel::TaskPanel, team_panel::TeamPanel,
+        links_editor::LinksEditor, objective_panel::ObjectivePanel, people_panel::PersonPanel,
+        project_panel::ProjectPanel, task_panel::TaskPanel, team_panel::TeamPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -110,14 +110,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             {move || match links.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
-                Some(Ok(l)) => {
-                    let l: Vec<EdgeLink> = l.into_iter().filter(|x| !edited_elsewhere(node.node_type, x)).collect();
-                    if l.is_empty() {
-                        view! { <p class="text-muted">"No other links."</p> }.into_any()
-                    } else {
-                        view! { <LinkGroups links=l /> }.into_any()
-                    }
-                }
+                Some(Ok(l)) => view! { <LinksEditor node=node links=l /> }.into_any(),
             }}
         </Section>
 
@@ -148,21 +141,22 @@ pub(crate) fn Section(title: &'static str, children: Children) -> impl IntoView 
 
 /// Links the node's own panel already shows and edits (teams and manager for a person,
 /// members for a team, contributors for an objective), so the generic list doesn't repeat them.
+#[cfg(test)]
 pub fn edited_elsewhere(node_type: NodeType, link: &EdgeLink) -> bool {
+    kind_edited_elsewhere(node_type, link.edge.edge_type, link.outgoing)
+}
+
+/// The same rule by relation kind, so the "add a link" picker also leaves these out.
+pub fn kind_edited_elsewhere(node_type: NodeType, edge_type: EdgeType, outgoing: bool) -> bool {
     match node_type {
         NodeType::Person => {
-            link.outgoing
-                && matches!(
-                    link.edge.edge_type,
-                    EdgeType::MemberOf | EdgeType::ReportsTo
-                )
+            outgoing && matches!(edge_type, EdgeType::MemberOf | EdgeType::ReportsTo)
         }
-        NodeType::Team => !link.outgoing && link.edge.edge_type == EdgeType::MemberOf,
-        NodeType::Objective => !link.outgoing && link.edge.edge_type == EdgeType::ContributesTo,
-        NodeType::Task => link.outgoing && link.edge.edge_type == EdgeType::AssignedTo,
+        NodeType::Team => !outgoing && edge_type == EdgeType::MemberOf,
+        NodeType::Objective => !outgoing && edge_type == EdgeType::ContributesTo,
+        NodeType::Task => outgoing && edge_type == EdgeType::AssignedTo,
         NodeType::Project => {
-            (link.outgoing && link.edge.edge_type == EdgeType::ContributesTo)
-                || link.edge.edge_type == EdgeType::DependsOn
+            (outgoing && edge_type == EdgeType::ContributesTo) || edge_type == EdgeType::DependsOn
         }
         _ => false,
     }
@@ -205,34 +199,6 @@ pub fn group_links(links: Vec<EdgeLink>) -> Vec<(&'static str, Vec<EdgeLink>)> {
         }
     }
     groups
-}
-
-#[component]
-fn LinkGroups(links: Vec<EdgeLink>) -> impl IntoView {
-    let selection = expect_context::<Selection>();
-    view! {
-        <div class="space-y-3">
-            {group_links(links).into_iter().map(|(heading, items)| view! {
-                <div>
-                    <p class="mb-1 text-muted">{heading}</p>
-                    <ul class="space-y-px">
-                        {items.into_iter().map(|l| {
-                            let node = l.other.node;
-                            view! {
-                                <li>
-                                    <button class="w-full text-left rounded px-1.5 py-0.5 hover:bg-hover"
-                                            on:click=move |_| selection.open(node)>
-                                        <span class="text-faint mr-1.5">{type_label(node.node_type)}</span>
-                                        {l.other.label}
-                                    </button>
-                                </li>
-                            }
-                        }).collect_view()}
-                    </ul>
-                </div>
-            }).collect_view()}
-        </div>
-    }
 }
 
 /// "field: old → new" lines for an activity row. Pure, so it is unit-tested.

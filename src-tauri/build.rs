@@ -31,6 +31,7 @@ const COMMANDS: &[&str] = &[
     "remove_edge",
     "set_manager",
     "update_edge_attrs",
+    "list_link_options",
     "list_projects",
     "get_project",
     "get_project_detail",

@@ -36,6 +36,7 @@
     "allow-update-objective",
     "allow-archive-objective",
     "allow-update-edge-attrs",
+    "allow-list-link-options",
     "allow-list-projects",
     "allow-get-project",
     "allow-get-project-detail",
