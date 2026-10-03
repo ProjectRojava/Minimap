@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-waiting-on"
+description = "Enables the update_waiting_on command without any pre-configured scope."
+commands.allow = ["update_waiting_on"]
+
+[[permission]]
+identifier = "deny-update-waiting-on"
+description = "Denies the update_waiting_on command without any pre-configured scope."
+commands.deny = ["update_waiting_on"]

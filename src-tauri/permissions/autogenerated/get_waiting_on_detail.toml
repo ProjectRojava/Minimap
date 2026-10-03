@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-waiting-on-detail"
+description = "Enables the get_waiting_on_detail command without any pre-configured scope."
+commands.allow = ["get_waiting_on_detail"]
+
+[[permission]]
+identifier = "deny-get-waiting-on-detail"
+description = "Denies the get_waiting_on_detail command without any pre-configured scope."
+commands.deny = ["get_waiting_on_detail"]

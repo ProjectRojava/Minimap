@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resolve-waiting-on"
+description = "Enables the resolve_waiting_on command without any pre-configured scope."
+commands.allow = ["resolve_waiting_on"]
+
+[[permission]]
+identifier = "deny-resolve-waiting-on"
+description = "Denies the resolve_waiting_on command without any pre-configured scope."
+commands.deny = ["resolve_waiting_on"]

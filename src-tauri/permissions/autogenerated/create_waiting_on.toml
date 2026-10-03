@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-waiting-on"
+description = "Enables the create_waiting_on command without any pre-configured scope."
+commands.allow = ["create_waiting_on"]
+
+[[permission]]
+identifier = "deny-create-waiting-on"
+description = "Denies the create_waiting_on command without any pre-configured scope."
+commands.deny = ["create_waiting_on"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-archive-waiting-on"
+description = "Enables the archive_waiting_on command without any pre-configured scope."
+commands.allow = ["archive_waiting_on"]
+
+[[permission]]
+identifier = "deny-archive-waiting-on"
+description = "Denies the archive_waiting_on command without any pre-configured scope."
+commands.deny = ["archive_waiting_on"]
