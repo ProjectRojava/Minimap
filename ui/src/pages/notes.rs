@@ -8,7 +8,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{SelectField, BUTTON, COMPACT_INPUT},
+        form::{DateField, SelectField, BUTTON, COMPACT_INPUT},
         node_row::NodeRow,
         note_panel::kind_label,
     },
@@ -104,11 +104,9 @@ pub fn Notes() -> impl IntoView {
                                          on_change=move |v: String| person.set(v) /> }
                 }}
                 <label class="flex items-center gap-1 text-[11px] text-muted">"From"
-                    <input class=COMPACT_INPUT type="date" prop:value=move || from.get()
-                           on:input=move |ev| from.set(event_target_value(&ev)) />
+                    <DateField compact=true current=from.get_untracked() on_commit=move |v: String| from.set(v) />
                     "to"
-                    <input class=COMPACT_INPUT type="date" prop:value=move || to.get()
-                           on:input=move |ev| to.set(event_target_value(&ev)) />
+                    <DateField compact=true current=to.get_untracked() on_commit=move |v: String| to.set(v) />
                 </label>
             </div>
             <div class="flex-1 overflow-y-auto" role="table">

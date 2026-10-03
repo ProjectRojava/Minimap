@@ -28,7 +28,7 @@ pub fn error_line(e: AppError) -> AnyView {
     view! { <p class="text-danger">{e.message}</p> }.into_any()
 }
 
-/// "· · Name" so nested teams read as a tree inside a flat `<select>`.
+/// "· · Name" so nested teams read as a tree inside a flat dropdown.
 pub fn indented(depth: u32, name: &str) -> String {
     format!("{}{name}", "· ".repeat(depth as usize))
 }

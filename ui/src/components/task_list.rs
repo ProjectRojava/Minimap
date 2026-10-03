@@ -13,7 +13,7 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
-        form::{date_patch, SelectField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT, INPUT},
+        form::{date_patch, DateField, SelectField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT, INPUT},
         node_row::NodeRow,
     },
     labels::{priority_option, task_status_label},
@@ -267,11 +267,11 @@ pub fn TaskList(inbox: bool) -> impl IntoView {
                                          on_change=move |v: String| assignee.set(v) /> }
                 }}
                 <label class="flex items-center gap-1 text-[11px] text-muted">"Due"
-                    <input class=COMPACT_INPUT type="date" prop:value=move || due_from.get()
-                           on:input=move |ev| due_from.set(event_target_value(&ev)) />
+                    <DateField compact=true current=due_from.get_untracked()
+                               on_commit=move |v: String| due_from.set(v) />
                     "to"
-                    <input class=COMPACT_INPUT type="date" prop:value=move || due_to.get()
-                           on:input=move |ev| due_to.set(event_target_value(&ev)) />
+                    <DateField compact=true current=due_to.get_untracked()
+                               on_commit=move |v: String| due_to.set(v) />
                 </label>
                 <label class="flex items-center gap-1 text-[11px] text-muted">
                     <input type="checkbox" prop:checked=move || show_closed.get()
@@ -404,7 +404,7 @@ fn TaskRowView(
             finish(api::set_assignee(id, person).await, toasts, version);
         });
     };
-    let on_due = move |ev: leptos::ev::Event| match date_patch(&event_target_value(&ev)) {
+    let on_due = move |v: String| match date_patch(&v) {
         Ok(p) => save(UpdateTask {
             due_date: p,
             ..Default::default()
@@ -444,7 +444,7 @@ fn TaskRowView(
                         on_change=on_assignee />
                 </span>
                 <span on:click=|ev| ev.stop_propagation()>
-                    <input id=due_id class=COMPACT_INPUT type="date" prop:value=due_now on:change=on_due />
+                    <DateField compact=true id=due_id current=due_now on_commit=on_due />
                 </span>
             </div>
         </NodeRow>

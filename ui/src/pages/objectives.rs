@@ -7,7 +7,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{DateField, SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
         node_row::NodeRow,
     },
     labels::{objective_status_label, priority_option, priority_short},
@@ -106,9 +106,7 @@ pub fn Objectives() -> impl IntoView {
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Objective" autofocus prop:value=move || title.get()
                            on:input=move |ev| title.set(event_target_value(&ev)) />
-                    <input class=format!("{INPUT} !w-40") type="date" title="Target date (optional)"
-                           prop:value=move || target.get()
-                           on:input=move |ev| target.set(event_target_value(&ev)) />
+                    <DateField compact=true placeholder="Target date" current=target.get_untracked() on_commit=move |v: String| target.set(v) />
                     <SelectField compact=true options=priority_options() current="3".to_owned()
                                  on_change=move |v: String| priority.set(v) />
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>

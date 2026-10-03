@@ -1,3 +1,4 @@
+pub mod date_field;
 pub mod detail_pane;
 pub mod first_run;
 pub mod form;
@@ -5,8 +6,10 @@ pub mod links_editor;
 pub mod node_row;
 pub mod note_panel;
 pub mod objective_panel;
+pub mod overlay;
 pub mod people_panel;
 pub mod project_panel;
+pub mod select;
 pub mod sidebar;
 pub mod task_list;
 pub mod task_panel;
