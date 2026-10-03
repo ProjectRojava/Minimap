@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-snooze-waiting-on"
+description = "Enables the snooze_waiting_on command without any pre-configured scope."
+commands.allow = ["snooze_waiting_on"]
+
+[[permission]]
+identifier = "deny-snooze-waiting-on"
+description = "Denies the snooze_waiting_on command without any pre-configured scope."
+commands.deny = ["snooze_waiting_on"]
