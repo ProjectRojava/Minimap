@@ -15,6 +15,7 @@ pub use edges::*;
 pub use enums::*;
 pub use nodes::*;
 pub use patch::*;
+pub use time::Date;
 pub use uuid::Uuid;
 pub use views::*;
 

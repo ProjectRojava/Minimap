@@ -90,6 +90,8 @@ impl UpdateObjective {
 pub struct Project {
     pub id: Uuid,
     pub title: String,
+    /// Short handle for quick-add (`#api-launch`); unique among active projects.
+    pub slug: String,
     pub description: String,
     pub owner_person_id: Option<Uuid>,
     pub start_date: Option<Date>,
@@ -107,6 +109,9 @@ pub struct Project {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProject {
     pub title: String,
+    /// Generated from the title when absent.
+    #[serde(default)]
+    pub slug: Option<String>,
     #[serde(default)]
     pub description: String,
     #[serde(default)]
@@ -125,6 +130,7 @@ pub struct CreateProject {
 #[serde(default)]
 pub struct UpdateProject {
     pub title: Option<String>,
+    pub slug: Option<String>,
     pub description: Option<String>,
     pub owner_person_id: Patch<Uuid>,
     pub start_date: Patch<Date>,
@@ -136,6 +142,7 @@ pub struct UpdateProject {
 impl UpdateProject {
     pub fn apply(self, p: &mut Project) {
         set(&mut p.title, self.title);
+        set(&mut p.slug, self.slug);
         set(&mut p.description, self.description);
         self.owner_person_id.apply(&mut p.owner_person_id);
         self.start_date.apply(&mut p.start_date);

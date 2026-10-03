@@ -2408,6 +2408,7 @@ dependencies = [
 name = "minimap-store"
 version = "0.1.0"
 dependencies = [
+ "minimap-core",
  "minimap-types",
  "proptest",
  "rusqlite",
@@ -2444,6 +2445,7 @@ dependencies = [
  "time",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

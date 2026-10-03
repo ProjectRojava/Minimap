@@ -4,7 +4,7 @@
 
 - **Keep it current**: any change that adds, removes, renames or re-wires something listed here must update this file in the same change (checklist in §14). If something here disagrees with the code, the code wins; fix this file.
 - **Format**: every thing has an id `kind:name` (`crate:`, `mod:`, `fn:`, `cmd:`, `table:`, `type:`, `ui:`, `spec:`, `rule:`). Edges are written `A -> B  (relation)`. Grep an id to find every line that mentions it, e.g. `grep -n "cmd:add_edge" docs/knowledge-graph.md`.
-- **Last verified against code**: after spec 04 objectives + custom title bar (2026-10-03). Specs 05–27 not started.
+- **Last verified against code**: after spec 05 projects (2026-10-03). Specs 06–27 not started.
 
 ---
 
@@ -19,7 +19,7 @@ UI (wasm)  --invoke-->  Tauri commands  --rules-->  core (pure)
 all of them share DTOs from crate:minimap-types
 ```
 
-Status: M0 done (progress.md M0 checkboxes are stale), M1 in progress: specs 01-02 done, 03-04 implemented (manual check pending); 07 partly (see §12).
+Status: M0 done (progress.md M0 checkboxes are stale), M1 in progress: specs 01-02 done, 03-05 implemented (manual check pending); 07 partly (see §12).
 
 ## 2. Crates and dependency edges
 
@@ -71,35 +71,37 @@ Actions (`type:ActivityAction`): created, updated, archived, **unarchived**, **d
 
 ## 4. Types crate (`crate:minimap-types`, files in `crates/minimap-types/src/`)
 - `enums.rs`: `str_enum!` macro -> NodeType, EdgeType, ObjectiveStatus, ProjectStatus, TaskStatus, NoteKind, DecisionStatus, ActivityAction. Each has `as_str()`, `FromStr`, `ALL`; serde is snake_case and **must equal** `as_str()` (tested). SQL CHECK constraints repeat the status values.
-- `nodes.rs`: node structs, `Create*`, `Update*` (with `apply(&self-patch, &mut node)`), `NodeRef{node_type,id}`, `NodeSummary{node,label,archived}`, constants `DEFAULT_PRIORITY`, `DEFAULT_WEEKLY_CAPACITY_HOURS`.
+- `nodes.rs`: node structs, `Create*`, `Update*` (with `apply(&self-patch, &mut node)`), `Project.slug` (handle; `CreateProject.slug: Option`, `UpdateProject.slug`), `NodeRef{node_type,id}`, `NodeSummary{node,label,archived}`, constants `DEFAULT_PRIORITY`, `DEFAULT_WEEKLY_CAPACITY_HOURS`.
 - `patch.rs`: `Patch<T> = Keep | Set(T) | Clear` for nullable fields in `Update*` (non-null fields use `Option<T>`). `Task.completed_at` is **not** patchable (store sets it).
 - `edges.rs`: `Edge`, `NewEdge{edge_type,from,to,attrs}`, `EdgeLink{edge,outgoing,other:NodeSummary}`.
 - `activity.rs`: `Activity`. `lib.rs`: `PingResponse`, `AppError{code,message}`, re-exports `Uuid`.
-- `views.rs` (read models): `Membership{edge_id,node,role}`, `LinkedNode{edge_id,node}`, `PersonRow`, `PersonDetail`, `PersonArchivePreview`, `TeamRow{team,depth,member_count}`, `TeamDetail`; objectives: `ObjectiveGrouping{None,Quarter}`, `ObjectiveRow{objective,contribution_count}`, `ObjectiveGroup{label:Option<String>,rows}`, `Contribution{edge_id,node,status,weight}`, `ObjectiveDetail`.
+- `views.rs` (read models): `Membership{edge_id,node,role}`, `LinkedNode{edge_id,node}`, `PersonRow`, `PersonDetail`, `PersonArchivePreview`, `TeamRow{team,depth,member_count}`, `TeamDetail`; objectives: `ObjectiveGrouping{None,Quarter}`, `ObjectiveRow{objective,contribution_count}`, `ObjectiveGroup{label:Option<String>,rows}`, `Contribution{edge_id,node,status,weight}`, `ObjectiveDetail`. projects: `ProjectLayout{List,Board}`, `ProjectFilter{status,owner_person_id,objective_id}`, `ProjectRow{project,owner,objectives,task_count,done_task_count}`, `ProjectGroup{label,objective,status,rows}`, `ProjectTask`, `ProjectDetail{project,owner,objectives:Vec<Contribution>,depends_on:Vec<LinkedNode>,needed_by,tasks}`, `TaskDisposition{Archive,Inbox}`, `ProjectArchivePreview`.
 - `timefmt.rs`: `fmt_date`, `parse_date`, `fmt_ts`, `parse_ts`.
 - Serde: dates/uuids are human-readable strings; timestamps use `time::serde::rfc3339`.
 
 ## 5. Core crate (`crate:minimap-core`, pure)
 - `mod:edge_rules`: `is_allowed`, `validate_types`, `validate_attrs`, `validate(edge_type, from:NodeRef, to:NodeRef, attrs)` (self-edge first), `must_be_acyclic`, `EdgeRuleError{NotAllowed,SelfEdge,BadAttr}`.
 - `mod:cycles`: `find_cycle(existing:&[(from,to)], from, to) -> Option<Vec<Uuid>>` returns `[from,to,...,from]` (BFS over petgraph `DiGraphMap`).
+- `mod:slug`: `slugify(title)` (lowercase ascii words joined by `-`, max 40, fallback `project`), `validate(slug)`, `unique(base, is_taken)` (`-2`, `-3`...). `mod:projects`: `filter(rows, &ProjectFilter)`, `by_objective(rows)` (one section per objective by name, "No objective" last; a project under several objectives appears under each; inside: status active>planned>paused>done>cancelled, then priority, date), `by_status(rows)` (always 5 board columns: planned, active, paused, done, cancelled; priority then date), `status_title`.
 - `mod:objectives`: `quarter_of(date)`, `quarter_label`, `arrange(rows, grouping)` = sort (priority asc, **1 = highest**, then target date with undated last, then title, id) + group (flat, or calendar quarters chronological + final "No date"). The backend returns groups already arranged because the UI can't call core.
 - `fn:pong` (M0 smoke).
 - Not yet: CPM schedule, impact, health, capacity, quick-add parser (specs 12-17).
 
 ## 6. Store crate (`crate:minimap-store`, all SQL lives here)
-Migrations (`migrations/`, embedded with `include_str!`, `fn:migrations` in lib.rs): `0001_init.sql` (`app_meta`), `0002_core_data.sql` (all node tables, `edges`, `activity`, unique index `idx_people_single_self`). Next migration must be `0003_*.sql` appended in `migrations()`.
+Migrations (`migrations/`, embedded with `include_str!`, `fn:migrations` in lib.rs): `0001_init.sql` (`app_meta`), `0002_core_data.sql` (all node tables, `edges`, `activity`, unique index `idx_people_single_self`). Next migration must be `0003_*.sql` appended in `migrations()`. `0003_project_slug.sql` (+ Rust hook `backfill_project_slugs` giving existing projects unique handles via core::slug), `0004_project_slug_index.sql` (unique index on `slug` for active projects; archiving frees the handle).
 
 | module | public API |
 |---|---|
 | `lib.rs` | `open(path)`, `open_in_memory()`, `schema_version(conn)`; sets WAL + foreign_keys, runs migrations; re-exports `Connection`, `StoreError`, `Result` |
 | `error.rs` | `StoreError`: Sqlite, Migration, NotFound{node_type,id}, EdgeNotFound, NotArchived, AlreadyArchived, NotArchivedYet, DuplicateEdge, Invalid(msg), Constraint(msg) (any SQLite constraint violation), Json |
 | each node mod (`objectives`..`waiting_on`) | `get`, `list(conn, include_archived)`, `create`, `update(id, patch)`; every write = one tx + one activity row; no-op update writes nothing; validation (blank title/name, priority 1-5, capacity > 0, estimate >= 0) |
+| `projects.rs` extra | `create` generates the handle from the title when none is given (validated; must be free among active projects; error names the owner), `update` re-checks it, `archive(id, TaskDisposition)` = one tx that archives the project and either archives its active tasks or clears their `project_id` (inbox; `updated` row each) |
 | `people.rs` extra | `get_self`, `ensure_self(name)` (blank -> "Me", idempotent) |
 | `tasks.rs` | `update` sets/clears `completed_at` when status enters/leaves `done` |
-| `nodes.rs` | generic over NodeType: `list_summaries(node_type)` (active, by label), `archive` (archives touching edges; one activity row each), `unarchive` (restores edges archived at the same timestamp unless other end archived), `delete` (only if archived; removes edges; keeps history), `summary(node)`; archive/delete **refuse the self person** |
+| `nodes.rs` | generic over NodeType: `list_summaries(node_type)` (active, by label), `archive` / `archive_in_tx` (archives touching edges; one activity row each), `unarchive` (restores edges archived at the same timestamp unless other end archived), `delete` (only if archived; removes edges; keeps history), `summary(node)`; archive/delete **refuse the self person** |
 | `edges.rs` | `get`, `list_for_node(id, include_archived)`, `list_active`, `list_active_of_type`, `update_attrs(id, attrs)` (one `updated` row on the from node, key `"<type> link"`; no-op if unchanged), `add` (revives archived edge with same (type,from,to); errors DuplicateEdge/NotFound/Invalid if an end is archived), `remove` (soft), `links_for_node` -> `EdgeLink` |
 | `activity.rs` | `list_for_node`, `list_recent(limit)`, `count`; internal `record`, `record_created`, `diff` |
-| `views.rs` | `people_rows`, `person_detail`, `person_archive_preview`, `team_rows` (tree order, depth), `team_detail`, `objective_rows` (with contributor counts, unsorted), `objective_detail` (projects first) |
+| `views.rs` | `people_rows`, `person_detail`, `person_archive_preview`, `team_rows` (tree order, depth), `team_detail`, `objective_rows` (with contributor counts, unsorted), `objective_detail` (projects first), `project_rows` (owner, objectives, task/done counts, unsorted), `project_detail`, `project_archive_preview` |
 | internal | `convert.rs` (row/param helpers, `now()` ms-truncated), `repo.rs` (`fetch`, `fetch_all`, `table()`) |
 
 Store does **not** enforce the edge matrix or cycles (command layer does, using core).
@@ -134,19 +136,23 @@ Error codes: `not_found`, `invalid`, `constraint`, `duplicate`, `state`, `store`
 | get_objective / get_objective_detail | objectives.rs | objectives::get / views::objective_detail | ui:ObjectivePanel |
 | create_objective / update_objective | objectives.rs | objectives::create / update | ui:Objectives form / ObjectiveFields |
 | archive_objective | objectives.rs | nodes::archive | ui:ArchiveObjective |
+| list_projects | projects.rs | views::project_rows, then core `projects::filter` and `by_objective` / `by_status` per layout | ui:Projects |
+| get_project / get_project_detail | projects.rs | projects::get / views::project_detail | ui:ProjectPanel |
+| create_project / update_project | projects.rs | projects::create / update | ui:Projects form / ProjectFields (board drag also calls update_project) |
+| preview_archive_project / archive_project | projects.rs | views::project_archive_preview / `projects::archive(id, disposition)` | ui:ArchiveProject |
 
-Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title bar), CSP `default-src 'self'` (+ `connect-src ipc:`), devUrl `localhost:1420`, frontendDist `../ui/dist`, identifier `app.minimap.desktop`. Permissions are an allow-list (app manifest) plus `core:window:*` for the title bar (minimize, toggle-maximize, internal-toggle-maximize, is-maximized, close, start-dragging, start-resize-dragging); generated files in `src-tauri/permissions/autogenerated/` and `gen/` are build output.
+Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title bar), `dragDropEnabled: false` (so HTML5 drag-and-drop works on the project board; Tauri's file-drop handler would swallow it on Windows), CSP `default-src 'self'` (+ `connect-src ipc:`), devUrl `localhost:1420`, frontendDist `../ui/dist`, identifier `app.minimap.desktop`. Permissions are an allow-list (app manifest) plus `core:window:*` for the title bar (minimize, toggle-maximize, internal-toggle-maximize, is-maximized, close, start-dragging, start-resize-dragging); generated files in `src-tauri/permissions/autogenerated/` and `gen/` are build output.
 
 ## 8. UI (`crate:minimap-ui`, `ui/src/`)
 - Entry: `main.rs` -> `app.rs::App` (provides contexts, `<Router>`, `Shell`). `Shell` = TitleBar over (Sidebar | `<Routes>` | DetailPane), plus ToastHost and FirstRun; installs `keyboard::use_global_shortcuts()`; clears `ListNav` on route change.
-- Routes: `/` Overview; `/objectives` Objectives; `/people` People; `/teams` Teams; `/inbox /projects /tasks /notes /decisions /waiting-on /settings` = `Placeholder` (name the spec); `/:type/:id` DeepLink (selects the node, redirects to its list). `/this-week` and `/weekly-review` are hidden (`enabled:false` in `nav::NAV`).
+- Routes: `/` Overview; `/objectives` Objectives; `/projects` Projects; `/people` People; `/teams` Teams; `/inbox /tasks /notes /decisions /waiting-on /settings` = `Placeholder` (name the spec); `/:type/:id` DeepLink (selects the node, redirects to its list). `/this-week` and `/weekly-review` are hidden (`enabled:false` in `nav::NAV`).
 - Contexts (`state.rs`): `Selection(RwSignal<Option<NodeRef>>)` (open node in pane), `ListNav` (rows + cursor for j/k/Enter; `set_items` keeps cursor), `Toasts` (`error(&AppError)`, `info`), `DataVersion` (`track()` inside resource closures, `bump()`), helper `finish(result, toasts, version)` (bumps always, toasts errors).
 - Data flow for writes: handler -> `spawn_local(api::x)` -> `finish(...)` -> `DataVersion` bump -> version-keyed `LocalResource`s reload (lists, pane Links/Activity/summary). Fields resources are **not** version-keyed so typing isn't overwritten.
 - `api.rs`: one typed async fn per command; `invoke` serializes args with maps-as-objects (else JS `Map` -> `{}`), maps errors to `AppError` (code `ipc` for bridge failures). Mirrors §7.
-- Pages (`pages/`): `overview` (ping demo), `objectives` (group-by-quarter toggle; keyboard row index runs across groups), `people`, `teams`, `placeholder`, `deep_link` (+`NotFound`).
-- Components (`components/`): `sidebar` (from `nav::NAV`), `detail_pane` (header, `PersonPanel`/`TeamPanel`/placeholder, Links grouped by `link_heading`, Activity via `describe`; `edited_elsewhere` hides links the panel edits (person: teams/manager; team: members; objective: contributors); split view >= 1100px, overlay below), `people_panel` (`PersonPanel`, fields, Organization: manager + teams/roles, waiting-ons, `ArchivePerson`; helpers `NodeButtons`, `team_options`, `indented`, `error_line`), `titlebar` (custom 32px title bar: drag region, minimize/maximize/close, Linux resize handles; uses `window.rs`), `objective_panel` (fields incl. "Your assessment" + priority, Contributions with weight edit + picker, `ArchiveObjective`), `team_panel` (fields, Structure: parent + sub-teams, Members, `ArchiveTeam`), `node_row` (list row using `ListNav`/`Selection`), `form` (`TextField` commit-on-change, `SelectField`, class consts `INPUT/BUTTON/BUTTON_PRIMARY/BUTTON_DANGER`), `toasts`, `first_run`.
+- Pages (`pages/`): `overview` (ping demo), `objectives` (group-by-quarter toggle; keyboard row index runs across groups), `projects` (List/Board toggle, status/owner/objective filters, New project form; board = HTML5 drag a card to another column -> `update_project` status; keyboard rows are list order or column-major), `people`, `teams`, `placeholder`, `deep_link` (+`NotFound`).
+- Components (`components/`): `sidebar` (from `nav::NAV`), `detail_pane` (header, `PersonPanel`/`TeamPanel`/placeholder, Links grouped by `link_heading`, Activity via `describe`; `edited_elsewhere` hides links the panel edits (person: teams/manager; team: members; objective: contributors; project: objectives + dependencies); split view >= 1100px, overlay below), `people_panel` (`PersonPanel`, fields, Organization: manager + teams/roles, waiting-ons, `ArchivePerson`; helpers `NodeButtons`, `team_options`, `indented`, `error_line`), `titlebar` (custom 32px title bar: drag region, minimize/maximize/close, Linux resize handles; uses `window.rs`), `project_panel` (fields incl. handle, dates, status, priority, owner; Objectives with weight; Dependencies (depends_on, loops rejected by the backend); read-only Tasks; `ArchiveProject` with the tasks choice), `objective_panel` (exports `WeightInput`, shared with the project panel; fields incl. "Your assessment" + priority, Contributions with weight edit + picker, `ArchiveObjective`), `team_panel` (fields, Structure: parent + sub-teams, Members, `ArchiveTeam`), `node_row` (list row using `ListNav`/`Selection`), `form` (`TextField` commit-on-change, `SelectField`, class consts `INPUT/BUTTON/BUTTON_PRIMARY/BUTTON_DANGER`), `toasts`, `first_run`.
 - `window.rs`: wasm-bindgen wrappers over `window.__TAURI__.window` (`minimize`, `toggle_maximize`, `close`, `is_maximized`, `start_resize`), `Platform::detect()` from the user agent, `ResizeDir`. The native title bar is off (`decorations:false`); macOS overlay config in `src-tauri/tauri.macos.conf.json` (ADR-0004).
-- `labels.rs` (pure presentation): objective status/priority labels, `humanize`.
+- `labels.rs` (pure presentation): objective and project status labels, priority labels, `humanize`.
 - `nav.rs` (pure, unit-tested): `NAV` table (label, path, chord, enabled), `chord_target`, `list_path`, `type_label`, `move_cursor`, `is_typing_target`. `keyboard.rs`: `g`+letter chords (1s window), `j/k/Enter` on lists, `Esc` closes pane; ignored while typing and for Ctrl/Cmd/Alt.
 - Chords: o Overview, i Inbox, w This week*, b Objectives, p Projects, t Tasks, e People, m Teams, n Notes, d Decisions, a Waiting on, r Weekly review*, s Settings (*hidden).
 - Style: `ui/style/input.css` defines theme tokens (CSS vars, light/dark via `prefers-color-scheme`, `data-theme` override) mapped to Tailwind utilities (`bg-canvas bg-panel bg-hover bg-active border-line text-fg text-muted text-faint text-danger bg-scrim`). **No raw palette colours, no `dark:` variants, no shadows** (`docs/design.md`). Logo from `branding/` copied by Trunk (`/minimap-logo-auto.svg`).
@@ -155,6 +161,8 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 ## 9. Key flows
 - **First run**: UI `FirstRun` -> `get_self_person` None -> prompt -> `create_self_person` -> `DataVersion` bump.
 - **Group objectives**: UI toggle -> `list_objectives(grouping)` -> store rows -> `core::objectives::arrange` -> groups labelled "Q1 2027" ... "No date".
+- **Move project on the board**: card `dragstart` (sets `dataTransfer`, WebKit needs it) -> column `drop` -> `update_project{status}` -> activity `updated` row -> `DataVersion` bump.
+- **Archive project**: `preview_archive_project` (active tasks) -> choose "archive tasks too" or "move to inbox" -> `archive_project` (single tx).
 - **Contribution weight**: UI input -> `update_edge_attrs` -> core `validate_attrs` (0-1) -> `edges::update_attrs` (+activity).
 - **Add link**: UI -> `cmd:add_edge` -> `check_new_edge` (matrix, attrs, self-edge, cycle for blocks/depends_on/reports_to, error text lists node names: "Can't add this link: this would create a loop — A → B → A") -> `edges::add` (tx + activity).
 - **Archive person**: `preview_archive_person` (active assigned tasks) -> confirm -> `nodes::archive` (person + edges in one tx; self refused).
@@ -169,6 +177,9 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 | no cycles (blocks/depends_on/reports_to) | core `cycles` via `check_new_edge`/`set_manager_impl` | core proptest, command tests |
 | no team-nesting cycles | `check_new_parent` | `commands/teams.rs` tests |
 | objective list order + quarter grouping | core `objectives::arrange` | core objectives tests |
+| project handle unique among active, valid format | store `projects::create/update` + unique index 0004; format in core `slug::validate` | store `project_handles_*`, core slug tests (+proptest), migration backfill test |
+| project archive moves/archives tasks atomically | `store::projects::archive` | `archiving_a_project_can_*`, `project_archive_is_atomic` |
+| project list/board ordering, filtering, grouping | core `projects` | core projects tests |
 | edge attrs validated before save | `cmd:update_edge_attrs` via core `validate_attrs` | `edge_attrs_are_validated_before_saving` |
 | archive cascades to edges; unarchive restores | `store::nodes` | store tests + proptest on activity counts |
 | hard delete only after archive | `store::nodes::delete` | store tests |
@@ -177,7 +188,7 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 | CHECK/FK integrity | migration 0002 | `invalid_input_is_rejected...`, `delete_of_referenced_node...` |
 
 ## 11. Tests inventory
-`cargo test --workspace`: core 17 (edge_rules, cycles + proptest, objectives), types 4, store 3 unit + 29 integration (`crates/minimap-store/tests/repos.rs`, incl. proptest `activity_count_matches_writes`), src-tauri 8 (`commands/edges.rs`, `commands/teams.rs`), ui 13 (`nav.rs`, `labels.rs`, `window.rs`, `detail_pane.rs`, `people_panel.rs`, `objective_panel.rs`). No UI/browser tests; UI behaviour is verified by hand (checklists in specs 02, 03). Gate: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p minimap-ui --target wasm32-unknown-unknown -- -D warnings`, `cargo test --workspace`, `cd ui && trunk build`.
+`cargo test --workspace`: core 26 (edge_rules, cycles + proptest, objectives, slug + proptest, projects), types 4, store 4 unit + 35 integration (`crates/minimap-store/tests/repos.rs`, incl. proptest `activity_count_matches_writes`), src-tauri 8 (`commands/edges.rs`, `commands/teams.rs`), ui 15 (`nav.rs`, `labels.rs`, `window.rs`, `form.rs`, `detail_pane.rs`, `people_panel.rs`, `objective_panel.rs`). No UI/browser tests; UI behaviour is verified by hand (checklists in specs 02, 03). Gate: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p minimap-ui --target wasm32-unknown-unknown -- -D warnings`, `cargo test --workspace`, `cd ui && trunk build`.
 
 ## 12. Feature specs (`docs/features/NN-*.md`; index in its README)
 | # | feature | status | touches / notes |
@@ -186,7 +197,7 @@ Tauri config: `app.withGlobalTauri: true`, `decorations: false` (custom title ba
 | 02 | app shell + navigation | Done | ui shell, node-summary/edges/activity cmds |
 | 03 | people + teams | Implemented, manual check pending | people/team cmds, views, UI screens/panels, core cycles+edge_rules |
 | 04 | objectives | Implemented, manual check pending | objective cmds/screen/panel, quarter grouping (core), `update_edge_attrs`, `list_node_summaries`; computed-health marker waits for 15 |
-| 05 | projects | Draft | next with 06; will populate the objective contribution picker |
+| 05 | projects | Implemented, manual check pending | handle (slug), list by objective + board with drag, filters, project panel, archive with task choice; read-only task list until 06 |
 | 06 | tasks + inbox | Draft | will make `NodeRow`/inline edit shine; `assigned_to` counts already feed People rows |
 | 07 | edges + cycle detection | Draft, **partly built** | done: core rules, `add_edge`, `remove_edge`, `set_manager`, `update_edge_attrs`, `list_node_summaries`; todo: generic Links editor in pane, blocks/depends_on UI |
 | 08-12 | waiting-on, notes, decisions, search, palette/quick-add | Draft | |
@@ -205,6 +216,8 @@ ADRs: 0001 versions + command allow-list, 0002 network allowed + Drive backup, 0
 - Edge attribute changes (team role, contribution weight) go through `update_edge_attrs`, one `updated` row on the from node.
 - Priority: 1 = highest everywhere.
 - Anything the UI needs that is a business rule (sorting, grouping) is computed in core and returned by a command; the UI crate can't depend on core.
+- Migrations that need data fixes use `M::up_with_hook` (runs after the SQL, same tx); the app DB is migrated on launch (there is no pre-migration backup yet, spec 20).
+- HTML5 drag-and-drop in the webview needs `dragDropEnabled: false` and `dataTransfer.setData` on dragstart.
 - Tailwind classes live in Rust source; Trunk's Tailwind scans `.rs` files.
 
 ## 14. Update checklist (do this when you change code)

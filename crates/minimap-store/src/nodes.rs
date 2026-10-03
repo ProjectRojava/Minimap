@@ -75,8 +75,15 @@ fn ensure_not_self(conn: &Connection, node: NodeRef) -> Result<()> {
 /// Archives the node and every active edge touching it, in one transaction.
 pub fn archive(conn: &mut Connection, node: NodeRef) -> Result<()> {
     let tx = conn.transaction()?;
-    ensure_not_self(&tx, node)?;
-    if archived_at(&tx, node)?.is_some() {
+    archive_in_tx(&tx, node)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// [`archive`] inside a caller's transaction, so several archives can be one atomic write.
+pub(crate) fn archive_in_tx(tx: &rusqlite::Transaction, node: NodeRef) -> Result<()> {
+    ensure_not_self(tx, node)?;
+    if archived_at(tx, node)?.is_some() {
         return Err(StoreError::AlreadyArchived {
             node_type: node.node_type,
             id: node.id,
@@ -91,17 +98,16 @@ pub fn archive(conn: &mut Connection, node: NodeRef) -> Result<()> {
         params![id_s(node.id), ts_s(at)],
     )?;
     activity::record(
-        &tx,
+        tx,
         at,
         node.node_type,
         node.id,
         ActivityAction::Archived,
         &json!({ "archived_at": [null, fmt_ts(at)] }),
     )?;
-    for edge in touching_edges(&tx, node, None)? {
-        edges::archive_in_tx(&tx, &edge, at)?;
+    for edge in touching_edges(tx, node, None)? {
+        edges::archive_in_tx(tx, &edge, at)?;
     }
-    tx.commit()?;
     Ok(())
 }
 

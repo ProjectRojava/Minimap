@@ -4,7 +4,8 @@ use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeT
 use crate::{
     api,
     components::{
-        objective_panel::ObjectivePanel, people_panel::PersonPanel, team_panel::TeamPanel,
+        objective_panel::ObjectivePanel, people_panel::PersonPanel, project_panel::ProjectPanel,
+        team_panel::TeamPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -94,6 +95,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Person => view! { <PersonPanel id=node.id /> }.into_any(),
             NodeType::Team => view! { <TeamPanel id=node.id /> }.into_any(),
             NodeType::Objective => view! { <ObjectivePanel id=node.id /> }.into_any(),
+            NodeType::Project => view! { <ProjectPanel id=node.id /> }.into_any(),
             other => view! {
                 <Section title="Fields">
                     <p class="text-muted">
@@ -156,6 +158,10 @@ pub fn edited_elsewhere(node_type: NodeType, link: &EdgeLink) -> bool {
         }
         NodeType::Team => !link.outgoing && link.edge.edge_type == EdgeType::MemberOf,
         NodeType::Objective => !link.outgoing && link.edge.edge_type == EdgeType::ContributesTo,
+        NodeType::Project => {
+            (link.outgoing && link.edge.edge_type == EdgeType::ContributesTo)
+                || link.edge.edge_type == EdgeType::DependsOn
+        }
         _ => false,
     }
 }
@@ -387,6 +393,19 @@ mod tests {
             NodeType::Task,
             &link(EdgeType::MemberOf, false)
         ));
+    }
+
+    #[test]
+    fn objective_and_project_panels_hide_the_links_they_edit() {
+        let hidden = |t, e, out| edited_elsewhere(t, &link(e, out));
+        // An objective lists its contributors; a project edits its objectives and dependencies.
+        assert!(hidden(NodeType::Objective, EdgeType::ContributesTo, false));
+        assert!(!hidden(NodeType::Objective, EdgeType::Affects, false));
+        assert!(hidden(NodeType::Project, EdgeType::ContributesTo, true));
+        assert!(hidden(NodeType::Project, EdgeType::DependsOn, true));
+        assert!(hidden(NodeType::Project, EdgeType::DependsOn, false));
+        assert!(!hidden(NodeType::Project, EdgeType::About, false));
+        assert!(!hidden(NodeType::Task, EdgeType::DependsOn, true));
     }
 
     #[test]

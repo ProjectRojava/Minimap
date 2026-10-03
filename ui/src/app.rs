@@ -16,6 +16,7 @@ use crate::{
         overview::Overview,
         people::People,
         placeholder::Placeholder,
+        projects::Projects,
         teams::Teams,
     },
     state::{DataVersion, ListNav, Selection, Toasts},
@@ -57,7 +58,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/") view=Overview />
                     <Route path=path!("/inbox") view=|| view! { <Placeholder title="Inbox" spec="06-tasks-and-inbox" /> } />
                     <Route path=path!("/objectives") view=Objectives />
-                    <Route path=path!("/projects") view=|| view! { <Placeholder title="Projects" spec="05-projects" /> } />
+                    <Route path=path!("/projects") view=Projects />
                     <Route path=path!("/tasks") view=|| view! { <Placeholder title="Tasks" spec="06-tasks-and-inbox" /> } />
                     <Route path=path!("/people") view=People />
                     <Route path=path!("/teams") view=Teams />

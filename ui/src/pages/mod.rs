@@ -3,4 +3,5 @@ pub mod objectives;
 pub mod overview;
 pub mod people;
 pub mod placeholder;
+pub mod projects;
 pub mod teams;

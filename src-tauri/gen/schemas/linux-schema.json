@@ -195,6 +195,12 @@
           "markdownDescription": "Enables the archive_person command without any pre-configured scope."
         },
         {
+          "description": "Enables the archive_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-project",
+          "markdownDescription": "Enables the archive_project command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_team command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-team",
@@ -211,6 +217,12 @@
           "type": "string",
           "const": "allow-create-person",
           "markdownDescription": "Enables the create_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-project",
+          "markdownDescription": "Enables the create_project command without any pre-configured scope."
         },
         {
           "description": "Enables the create_self_person command without any pre-configured scope.",
@@ -253,6 +265,18 @@
           "type": "string",
           "const": "allow-get-person-detail",
           "markdownDescription": "Enables the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-project",
+          "markdownDescription": "Enables the get_project command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_project_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-project-detail",
+          "markdownDescription": "Enables the get_project_detail command without any pre-configured scope."
         },
         {
           "description": "Enables the get_self_person command without any pre-configured scope.",
@@ -303,6 +327,12 @@
           "markdownDescription": "Enables the list_people command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_projects command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-projects",
+          "markdownDescription": "Enables the list_projects command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_teams command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-teams",
@@ -319,6 +349,12 @@
           "type": "string",
           "const": "allow-preview-archive-person",
           "markdownDescription": "Enables the preview_archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the preview_archive_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-preview-archive-project",
+          "markdownDescription": "Enables the preview_archive_project command without any pre-configured scope."
         },
         {
           "description": "Enables the remove_edge command without any pre-configured scope.",
@@ -351,6 +387,12 @@
           "markdownDescription": "Enables the update_person command without any pre-configured scope."
         },
         {
+          "description": "Enables the update_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-project",
+          "markdownDescription": "Enables the update_project command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_team command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-team",
@@ -375,6 +417,12 @@
           "markdownDescription": "Denies the archive_person command without any pre-configured scope."
         },
         {
+          "description": "Denies the archive_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-project",
+          "markdownDescription": "Denies the archive_project command without any pre-configured scope."
+        },
+        {
           "description": "Denies the archive_team command without any pre-configured scope.",
           "type": "string",
           "const": "deny-archive-team",
@@ -391,6 +439,12 @@
           "type": "string",
           "const": "deny-create-person",
           "markdownDescription": "Denies the create_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-project",
+          "markdownDescription": "Denies the create_project command without any pre-configured scope."
         },
         {
           "description": "Denies the create_self_person command without any pre-configured scope.",
@@ -433,6 +487,18 @@
           "type": "string",
           "const": "deny-get-person-detail",
           "markdownDescription": "Denies the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-project",
+          "markdownDescription": "Denies the get_project command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_project_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-project-detail",
+          "markdownDescription": "Denies the get_project_detail command without any pre-configured scope."
         },
         {
           "description": "Denies the get_self_person command without any pre-configured scope.",
@@ -483,6 +549,12 @@
           "markdownDescription": "Denies the list_people command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_projects command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-projects",
+          "markdownDescription": "Denies the list_projects command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_teams command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-teams",
@@ -499,6 +571,12 @@
           "type": "string",
           "const": "deny-preview-archive-person",
           "markdownDescription": "Denies the preview_archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the preview_archive_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-preview-archive-project",
+          "markdownDescription": "Denies the preview_archive_project command without any pre-configured scope."
         },
         {
           "description": "Denies the remove_edge command without any pre-configured scope.",
@@ -529,6 +607,12 @@
           "type": "string",
           "const": "deny-update-person",
           "markdownDescription": "Denies the update_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_project command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-project",
+          "markdownDescription": "Denies the update_project command without any pre-configured scope."
         },
         {
           "description": "Denies the update_team command without any pre-configured scope.",

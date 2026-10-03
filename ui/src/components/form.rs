@@ -1,6 +1,7 @@
 //! Small form controls shared by the detail panels and "new" forms.
 
 use leptos::prelude::*;
+use minimap_types::{timefmt::parse_date, AppError, Date, Patch};
 
 pub const INPUT: &str =
     "w-full rounded-sm border border-line bg-canvas px-2 py-1 text-[13px] text-fg \
@@ -75,5 +76,31 @@ pub fn SelectField(
                 }).collect_view()}
             </select>
         </label>
+    }
+}
+
+/// A date input's text as an update: empty clears the date, otherwise it must be `YYYY-MM-DD`.
+pub fn date_patch(text: &str) -> Result<Patch<Date>, AppError> {
+    match text.trim() {
+        "" => Ok(Patch::Clear),
+        t => parse_date(t).map(Patch::Set).map_err(|_| AppError {
+            code: "invalid".into(),
+            message: "Dates must look like 2027-03-31".into(),
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn date_patches() {
+        assert_eq!(date_patch("  ").unwrap(), Patch::Clear);
+        assert_eq!(
+            date_patch("2027-03-31").unwrap(),
+            Patch::Set(parse_date("2027-03-31").unwrap())
+        );
+        assert_eq!(date_patch("31/03/2027").unwrap_err().code, "invalid");
     }
 }

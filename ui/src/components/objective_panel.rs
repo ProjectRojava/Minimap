@@ -147,6 +147,43 @@ fn parse_candidate(v: &str) -> Option<NodeRef> {
     ))
 }
 
+/// Editable 0-1 weight of a `contributes_to` link. Empty means unset (full weight).
+#[component]
+pub fn WeightInput(edge_id: Uuid, weight: Option<f64>) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let set_weight = move |ev: leptos::ev::Event| {
+        let v = event_target_value(&ev);
+        let attrs = match v.trim() {
+            "" => serde_json::json!({}),
+            t => match t.parse::<f64>() {
+                Ok(w) => serde_json::json!({ "weight": w }),
+                Err(_) => {
+                    toasts.error(&AppError {
+                        code: "invalid".into(),
+                        message: "Weight must be a number from 0 to 1".into(),
+                    });
+                    version.bump();
+                    return;
+                }
+            },
+        };
+        spawn_local(async move {
+            finish(
+                api::update_edge_attrs(edge_id, attrs).await,
+                toasts,
+                version,
+            );
+        });
+    };
+    view! {
+        <input class=format!("{INPUT} !w-14 text-right") type="number" min="0" max="1" step="0.1"
+            placeholder="1" title="Weight (0-1)"
+            prop:value=weight.map(|w| w.to_string()).unwrap_or_default()
+            on:change=set_weight />
+    }
+}
+
 #[component]
 fn Contributions(detail: ObjectiveDetail, candidates: Vec<NodeSummary>) -> impl IntoView {
     let version = expect_context::<DataVersion>();
@@ -195,26 +232,6 @@ fn Contributions(detail: ObjectiveDetail, candidates: Vec<NodeSummary>) -> impl 
         .into_iter()
         .map(|c: Contribution| {
             let (edge_id, node) = (c.edge_id, c.node.node);
-            let set_weight = move |ev: leptos::ev::Event| {
-                let v = event_target_value(&ev);
-                let attrs = match v.trim() {
-                    "" => serde_json::json!({}),
-                    t => match t.parse::<f64>() {
-                        Ok(w) => serde_json::json!({ "weight": w }),
-                        Err(_) => {
-                            toasts.error(&AppError {
-                                code: "invalid".into(),
-                                message: "Weight must be a number from 0 to 1".into(),
-                            });
-                            version.bump();
-                            return;
-                        }
-                    },
-                };
-                spawn_local(async move {
-                    finish(api::update_edge_attrs(edge_id, attrs).await, toasts, version);
-                });
-            };
             let remove = move |_| {
                 spawn_local(async move {
                     finish(api::remove_edge(edge_id).await, toasts, version);
@@ -227,10 +244,7 @@ fn Contributions(detail: ObjectiveDetail, candidates: Vec<NodeSummary>) -> impl 
                         {c.node.label}
                     </button>
                     <span class="text-[11px] text-muted">{humanize(&c.status)}</span>
-                    <input class=format!("{INPUT} !w-14 text-right") type="number" min="0" max="1" step="0.1"
-                        placeholder="1" title="Weight (0-1)"
-                        prop:value=c.weight.map(|w| w.to_string()).unwrap_or_default()
-                        on:change=set_weight />
+                    <WeightInput edge_id=edge_id weight=c.weight />
                     <button class="px-1 text-faint hover:text-danger" aria-label="Remove contribution"
                             on:click=remove>"✕"</button>
                 </li>
