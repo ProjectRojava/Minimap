@@ -203,3 +203,26 @@ pub fn summary(conn: &Connection, node: NodeRef) -> Result<NodeSummary> {
         id: node.id,
     })
 }
+
+/// Active nodes of one type as (id, label), ordered by label. For pickers and link targets.
+pub fn list_summaries(conn: &Connection, node_type: NodeType) -> Result<Vec<NodeSummary>> {
+    let col = label_column(node_type);
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id, {col} FROM {} WHERE archived_at IS NULL ORDER BY lower({col}), id",
+        table(node_type)
+    ))?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(id, label)| {
+            let id = uuid::Uuid::parse_str(&id).map_err(|e| {
+                StoreError::Invalid(format!("malformed id in {}: {e}", table(node_type)))
+            })?;
+            Ok(NodeSummary {
+                node: NodeRef::new(node_type, id),
+                label,
+                archived: false,
+            })
+        })
+        .collect()
+}

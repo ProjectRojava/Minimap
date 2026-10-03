@@ -43,6 +43,13 @@ fn main() {
             commands::nodes::get_node_summary,
             commands::nodes::list_edges_for,
             commands::nodes::list_activity_for,
+            commands::nodes::list_node_summaries,
+            commands::objectives::list_objectives,
+            commands::objectives::get_objective,
+            commands::objectives::get_objective_detail,
+            commands::objectives::create_objective,
+            commands::objectives::update_objective,
+            commands::objectives::archive_objective,
             commands::people::get_self_person,
             commands::people::create_self_person,
             commands::people::list_people,
@@ -61,6 +68,7 @@ fn main() {
             commands::edges::add_edge,
             commands::edges::remove_edge,
             commands::edges::set_manager,
+            commands::edges::update_edge_attrs,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

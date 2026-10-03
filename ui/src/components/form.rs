@@ -2,14 +2,17 @@
 
 use leptos::prelude::*;
 
-pub const INPUT: &str = "w-full rounded-sm border border-line bg-canvas px-2 py-1 text-[13px] text-fg \
+pub const INPUT: &str =
+    "w-full rounded-sm border border-line bg-canvas px-2 py-1 text-[13px] text-fg \
     focus:outline-none focus:border-line-strong";
 pub const BUTTON: &str = "rounded-sm border border-line px-2 py-0.5 text-[12px] text-fg \
     hover:bg-hover disabled:opacity-40";
 /// Monochrome "primary": inverted foreground/background instead of a brand colour.
-pub const BUTTON_PRIMARY: &str = "rounded-sm border border-fg bg-fg px-2 py-0.5 text-[12px] text-canvas \
+pub const BUTTON_PRIMARY: &str =
+    "rounded-sm border border-fg bg-fg px-2 py-0.5 text-[12px] text-canvas \
     hover:opacity-85 disabled:opacity-40";
-pub const BUTTON_DANGER: &str = "rounded-sm border border-line px-2 py-0.5 text-[12px] text-danger \
+pub const BUTTON_DANGER: &str =
+    "rounded-sm border border-line px-2 py-0.5 text-[12px] text-danger \
     hover:bg-hover";
 
 /// Text input that reports its value once, when it loses focus or Enter is pressed,

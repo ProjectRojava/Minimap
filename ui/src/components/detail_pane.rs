@@ -3,7 +3,9 @@ use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeT
 
 use crate::{
     api,
-    components::{people_panel::PersonPanel, team_panel::TeamPanel},
+    components::{
+        objective_panel::ObjectivePanel, people_panel::PersonPanel, team_panel::TeamPanel,
+    },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
 };
@@ -16,10 +18,10 @@ pub fn DetailPane() -> impl IntoView {
         selection.0.get().map(|node| {
             view! {
                 // Scrim only below the split-view breakpoint.
-                <div class="fixed inset-0 z-20 bg-scrim min-[1100px]:hidden"
+                <div class="fixed inset-x-0 top-8 bottom-0 z-20 bg-scrim min-[1100px]:hidden"
                      on:click=move |_| selection.close()></div>
                 <aside
-                    class="fixed inset-y-0 right-0 z-30 w-[420px] max-w-full \
+                    class="fixed top-8 bottom-0 right-0 z-30 w-[420px] max-w-full \
                            min-[1100px]:static min-[1100px]:max-w-none \
                            flex flex-col shrink-0 overflow-y-auto border-l border-line \
                            bg-panel"
@@ -91,6 +93,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
         {match node.node_type {
             NodeType::Person => view! { <PersonPanel id=node.id /> }.into_any(),
             NodeType::Team => view! { <TeamPanel id=node.id /> }.into_any(),
+            NodeType::Objective => view! { <ObjectivePanel id=node.id /> }.into_any(),
             other => view! {
                 <Section title="Fields">
                     <p class="text-muted">
@@ -141,7 +144,7 @@ pub(crate) fn Section(title: &'static str, children: Children) -> impl IntoView 
 }
 
 /// Links the node's own panel already shows and edits (teams and manager for a person,
-/// members for a team), so the generic list doesn't repeat them.
+/// members for a team, contributors for an objective), so the generic list doesn't repeat them.
 pub fn edited_elsewhere(node_type: NodeType, link: &EdgeLink) -> bool {
     match node_type {
         NodeType::Person => {
@@ -152,6 +155,7 @@ pub fn edited_elsewhere(node_type: NodeType, link: &EdgeLink) -> bool {
                 )
         }
         NodeType::Team => !link.outgoing && link.edge.edge_type == EdgeType::MemberOf,
+        NodeType::Objective => !link.outgoing && link.edge.edge_type == EdgeType::ContributesTo,
         _ => false,
     }
 }

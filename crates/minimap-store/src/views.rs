@@ -3,13 +3,14 @@
 use std::collections::HashMap;
 
 use minimap_types::{
-    EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType, PersonArchivePreview,
-    PersonDetail, PersonRow, TeamDetail, TeamRow,
+    Contribution, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
+    ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow, TeamDetail,
+    TeamRow,
 };
 use rusqlite::Connection;
 use uuid::Uuid;
 
-use crate::{convert::*, edges, error::Result, nodes, people, teams, waiting_on};
+use crate::{convert::*, edges, error::Result, nodes, objectives, people, teams, waiting_on};
 
 const ACTIVE_TASK: &str = "t.status IN ('todo','in_progress','blocked')";
 
@@ -238,5 +239,69 @@ pub fn team_detail(conn: &Connection, id: Uuid) -> Result<TeamDetail> {
         parent,
         children,
         members,
+    })
+}
+
+/// Active objectives with how many projects/tasks contribute to each, in storage order
+/// (arranging and sorting is `minimap-core::objectives::arrange`).
+pub fn objective_rows(conn: &Connection) -> Result<Vec<ObjectiveRow>> {
+    // Archiving a project or task archives its edges, so active edges mean active contributors.
+    let mut stmt = conn.prepare(
+        "SELECT to_id, COUNT(*) FROM edges
+         WHERE edge_type = 'contributes_to' AND archived_at IS NULL GROUP BY to_id",
+    )?;
+    let counts: HashMap<Uuid, u32> = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(id, n)| (parse_id(id), n))
+        .collect();
+    Ok(objectives::list(conn, false)?
+        .into_iter()
+        .map(|objective| ObjectiveRow {
+            contribution_count: counts.get(&objective.id).copied().unwrap_or(0),
+            objective,
+        })
+        .collect())
+}
+
+/// Status of a project or task, as text.
+fn status_of(conn: &Connection, node: NodeRef) -> Result<String> {
+    let table = match node.node_type {
+        NodeType::Project => "projects",
+        NodeType::Task => "tasks",
+        _ => return Ok(String::new()),
+    };
+    Ok(conn.query_row(
+        &format!("SELECT status FROM {table} WHERE id = ?1"),
+        [id_s(node.id)],
+        |r| r.get(0),
+    )?)
+}
+
+/// An objective and the projects/tasks contributing to it (projects first, then by name).
+pub fn objective_detail(conn: &Connection, id: Uuid) -> Result<ObjectiveDetail> {
+    let objective = objectives::get(conn, id)?;
+    let mut contributions = Vec::new();
+    for link in edges::links_for_node(conn, id)? {
+        if link.edge.edge_type != EdgeType::ContributesTo || link.outgoing {
+            continue;
+        }
+        contributions.push(Contribution {
+            edge_id: link.edge.id,
+            status: status_of(conn, link.other.node)?,
+            weight: link.edge.attrs.get("weight").and_then(|w| w.as_f64()),
+            node: link.other,
+        });
+    }
+    contributions.sort_by_key(|c| {
+        (
+            c.node.node.node_type != NodeType::Project,
+            c.node.label.to_lowercase(),
+        )
+    });
+    Ok(ObjectiveDetail {
+        objective,
+        contributions,
     })
 }

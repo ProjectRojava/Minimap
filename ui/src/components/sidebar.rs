@@ -18,11 +18,7 @@ pub fn Sidebar() -> impl IntoView {
     view! {
         <nav class="w-52 shrink-0 flex flex-col border-r border-line bg-panel"
              aria-label="Main">
-            <div class="flex items-center gap-2 px-3 h-10">
-                <img src="/minimap-logo-auto.svg" alt="" class="h-6 w-6" />
-                <span class="font-semibold tracking-tight">"Minimap"</span>
-            </div>
-            <ul class="flex-1 overflow-y-auto px-2 pb-2 space-y-px">
+            <ul class="flex-1 overflow-y-auto px-2 py-2 space-y-px">
                 {NAV.iter().filter(|n| n.enabled).map(|n| {
                     let path = n.path;
                     view! {

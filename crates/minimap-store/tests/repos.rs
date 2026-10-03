@@ -1060,3 +1060,177 @@ fn team_rows_are_a_tree_and_detail_lists_members() {
         .collect();
     assert!(shape.contains(&("Platform".to_string(), 0)));
 }
+
+fn objective(conn: &mut Connection, title: &str, target: Option<&str>) -> Objective {
+    objectives::create(
+        conn,
+        CreateObjective {
+            title: title.into(),
+            description: String::new(),
+            target_date: target.map(|d| timefmt::parse_date(d).unwrap()),
+            status: None,
+            priority: None,
+        },
+    )
+    .unwrap()
+}
+
+fn project(conn: &mut Connection, title: &str) -> Project {
+    projects::create(
+        conn,
+        CreateProject {
+            title: title.into(),
+            description: String::new(),
+            owner_person_id: None,
+            start_date: None,
+            target_date: None,
+            status: Some(ProjectStatus::Active),
+            priority: None,
+        },
+    )
+    .unwrap()
+}
+
+fn contributes(from: NodeRef, to: &Objective, attrs: serde_json::Value) -> NewEdge {
+    edge(
+        from,
+        NodeRef::new(NodeType::Objective, to.id),
+        EdgeType::ContributesTo,
+        attrs,
+    )
+}
+
+#[test]
+fn objective_rows_count_contributors() {
+    let mut conn = db();
+    let (o1, o2) = (
+        objective(&mut conn, "Launch EU", Some("2027-03-31")),
+        objective(&mut conn, "Cut churn", None),
+    );
+    let (p1, p2) = (
+        project(&mut conn, "EU region"),
+        project(&mut conn, "Billing"),
+    );
+    let t = task(&mut conn, "Ship it");
+    for (n, o) in [
+        (NodeRef::new(NodeType::Project, p1.id), &o1),
+        (NodeRef::new(NodeType::Task, t.id), &o1),
+        (NodeRef::new(NodeType::Project, p2.id), &o2),
+    ] {
+        edges::add(&mut conn, contributes(n, o, json!({"weight": 0.5}))).unwrap();
+    }
+    let rows = views::objective_rows(&conn).unwrap();
+    let count = |id| {
+        rows.iter()
+            .find(|r| r.objective.id == id)
+            .unwrap()
+            .contribution_count
+    };
+    assert_eq!((count(o1.id), count(o2.id)), (2, 1));
+
+    // An archived contributor stops counting.
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Task, t.id)).unwrap();
+    let rows = views::objective_rows(&conn).unwrap();
+    assert_eq!(
+        rows.iter()
+            .find(|r| r.objective.id == o1.id)
+            .unwrap()
+            .contribution_count,
+        1
+    );
+    // Archived objectives are not listed.
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Objective, o2.id)).unwrap();
+    assert_eq!(views::objective_rows(&conn).unwrap().len(), 1);
+}
+
+#[test]
+fn objective_detail_lists_contributors_with_status_and_weight() {
+    let mut conn = db();
+    let o = objective(&mut conn, "Launch EU", None);
+    let p = project(&mut conn, "EU region");
+    let t = task(&mut conn, "alpha task");
+    let e = edges::add(
+        &mut conn,
+        contributes(NodeRef::new(NodeType::Task, t.id), &o, json!({})),
+    )
+    .unwrap();
+    edges::add(
+        &mut conn,
+        contributes(
+            NodeRef::new(NodeType::Project, p.id),
+            &o,
+            json!({"weight": 0.7}),
+        ),
+    )
+    .unwrap();
+
+    let d = views::objective_detail(&conn, o.id).unwrap();
+    let shown: Vec<_> = d
+        .contributions
+        .iter()
+        .map(|c| (c.node.label.as_str(), c.status.as_str(), c.weight))
+        .collect();
+    // Projects first, then tasks; unset weight is None.
+    assert_eq!(
+        shown,
+        vec![
+            ("EU region", "active", Some(0.7)),
+            ("alpha task", "todo", None)
+        ]
+    );
+    assert_eq!(d.contributions[1].edge_id, e.id);
+}
+
+#[test]
+fn update_attrs_changes_the_edge_and_logs_once() {
+    let mut conn = db();
+    let o = objective(&mut conn, "Launch EU", None);
+    let p = project(&mut conn, "EU region");
+    let rp = NodeRef::new(NodeType::Project, p.id);
+    let e = edges::add(&mut conn, contributes(rp, &o, json!({"weight": 1.0}))).unwrap();
+    let before = activity::count(&conn).unwrap();
+
+    let u = edges::update_attrs(&mut conn, e.id, json!({"weight": 0.4})).unwrap();
+    assert_eq!(u.attrs, json!({"weight": 0.4}));
+    assert_eq!(
+        edges::get(&conn, e.id).unwrap().attrs,
+        json!({"weight": 0.4})
+    );
+    assert_eq!(activity::count(&conn).unwrap(), before + 1);
+    let latest = &history(&conn, p.id)[0];
+    assert_eq!(latest.action, ActivityAction::Updated);
+    assert_eq!(
+        latest.diff,
+        json!({"contributes_to link": [{"weight": 1.0}, {"weight": 0.4}]})
+    );
+
+    // Same attrs: no write. Removed edge: error.
+    edges::update_attrs(&mut conn, e.id, json!({"weight": 0.4})).unwrap();
+    assert_eq!(activity::count(&conn).unwrap(), before + 1);
+    edges::remove(&mut conn, e.id).unwrap();
+    assert!(matches!(
+        edges::update_attrs(&mut conn, e.id, json!({})),
+        Err(StoreError::EdgeNotFound(_))
+    ));
+}
+
+#[test]
+fn list_summaries_are_active_only_and_sorted_by_label() {
+    let mut conn = db();
+    let (b, a) = (project(&mut conn, "beta"), project(&mut conn, "Alpha"));
+    let gone = project(&mut conn, "gone");
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Project, gone.id)).unwrap();
+    let list = nodes::list_summaries(&conn, NodeType::Project).unwrap();
+    assert_eq!(
+        list.iter().map(|s| s.label.as_str()).collect::<Vec<_>>(),
+        vec!["Alpha", "beta"]
+    );
+    assert_eq!(list[0].node, NodeRef::new(NodeType::Project, a.id));
+    let _ = b;
+    // Person uses its name column.
+    person(&mut conn, "Priya");
+    assert_eq!(
+        nodes::list_summaries(&conn, NodeType::Person).unwrap()[0].label,
+        "Priya"
+    );
+}

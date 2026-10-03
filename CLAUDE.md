@@ -72,7 +72,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - quick_add: parse_quick_add(text) → preview; commit_quick_add(text)
 - export: export_markdown(report_kind, params, path)
 - settings: get_settings, update_settings, set_db_passphrase, backup_now(path)
-Capabilities: frontend may call only these commands (app manifest) plus dialog/fs permissions export/backup need. Nothing broader.
+Capabilities: frontend may call only these commands (app manifest) plus dialog/fs permissions export/backup need, plus the minimal window-control permissions the custom title bar needs (ADR-0004). Nothing broader.
 
 ## 7. UI (Leptos)
 Keyboard-first, dense, calm; light/dark follows OS. Visual style: flat, monochrome, IDE-like; follow `docs/design.md` (theme tokens only, no raw colours). Sidebar: Overview, Objectives, Projects, Tasks, People, Teams, Notes, Decisions, Waiting On, Weekly Review, Settings. Command palette (Ctrl/Cmd+K): navigate, actions, quick-add. Right-side detail pane for any node (fields, edges grouped by type & editable, activity).

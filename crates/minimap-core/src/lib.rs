@@ -2,6 +2,7 @@
 
 pub mod cycles;
 pub mod edge_rules;
+pub mod objectives;
 
 use minimap_types::PingResponse;
 

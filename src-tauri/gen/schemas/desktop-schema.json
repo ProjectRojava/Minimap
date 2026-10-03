@@ -183,6 +183,12 @@
           "markdownDescription": "Enables the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Enables the archive_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-objective",
+          "markdownDescription": "Enables the archive_objective command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_person command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-person",
@@ -193,6 +199,12 @@
           "type": "string",
           "const": "allow-archive-team",
           "markdownDescription": "Enables the archive_team command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-objective",
+          "markdownDescription": "Enables the create_objective command without any pre-configured scope."
         },
         {
           "description": "Enables the create_person command without any pre-configured scope.",
@@ -217,6 +229,18 @@
           "type": "string",
           "const": "allow-get-node-summary",
           "markdownDescription": "Enables the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-objective",
+          "markdownDescription": "Enables the get_objective command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_objective_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-objective-detail",
+          "markdownDescription": "Enables the get_objective_detail command without any pre-configured scope."
         },
         {
           "description": "Enables the get_person command without any pre-configured scope.",
@@ -261,6 +285,18 @@
           "markdownDescription": "Enables the list_edges_for command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_node_summaries command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-node-summaries",
+          "markdownDescription": "Enables the list_node_summaries command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_objectives command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-objectives",
+          "markdownDescription": "Enables the list_objectives command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_people command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-people",
@@ -297,6 +333,18 @@
           "markdownDescription": "Enables the set_manager command without any pre-configured scope."
         },
         {
+          "description": "Enables the update_edge_attrs command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-edge-attrs",
+          "markdownDescription": "Enables the update_edge_attrs command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-objective",
+          "markdownDescription": "Enables the update_objective command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_person command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-person",
@@ -315,6 +363,12 @@
           "markdownDescription": "Denies the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Denies the archive_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-objective",
+          "markdownDescription": "Denies the archive_objective command without any pre-configured scope."
+        },
+        {
           "description": "Denies the archive_person command without any pre-configured scope.",
           "type": "string",
           "const": "deny-archive-person",
@@ -325,6 +379,12 @@
           "type": "string",
           "const": "deny-archive-team",
           "markdownDescription": "Denies the archive_team command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-objective",
+          "markdownDescription": "Denies the create_objective command without any pre-configured scope."
         },
         {
           "description": "Denies the create_person command without any pre-configured scope.",
@@ -349,6 +409,18 @@
           "type": "string",
           "const": "deny-get-node-summary",
           "markdownDescription": "Denies the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-objective",
+          "markdownDescription": "Denies the get_objective command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_objective_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-objective-detail",
+          "markdownDescription": "Denies the get_objective_detail command without any pre-configured scope."
         },
         {
           "description": "Denies the get_person command without any pre-configured scope.",
@@ -393,6 +465,18 @@
           "markdownDescription": "Denies the list_edges_for command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_node_summaries command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-node-summaries",
+          "markdownDescription": "Denies the list_node_summaries command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_objectives command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-objectives",
+          "markdownDescription": "Denies the list_objectives command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_people command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-people",
@@ -427,6 +511,18 @@
           "type": "string",
           "const": "deny-set-manager",
           "markdownDescription": "Denies the set_manager command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_edge_attrs command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-edge-attrs",
+          "markdownDescription": "Denies the update_edge_attrs command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_objective command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-objective",
+          "markdownDescription": "Denies the update_objective command without any pre-configured scope."
         },
         {
           "description": "Denies the update_person command without any pre-configured scope.",
