@@ -13,7 +13,7 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
-        form::{date_patch, SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{date_patch, SelectField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT, INPUT},
         node_row::NodeRow,
     },
     labels::{priority_option, task_status_label},
@@ -22,9 +22,6 @@ use crate::{
 
 const COLS: &str =
     "grid w-full items-center gap-2 grid-cols-[6.5rem_3.5rem_minmax(0,1fr)_9rem_8rem_8.5rem]";
-const COMPACT_INPUT: &str =
-    "rounded-sm border border-line bg-canvas px-1 py-0.5 text-[12px] text-fg \
-    focus:outline-none focus:border-line-strong";
 
 /// Next status for the `s` key: to do -> in progress -> done -> to do.
 fn next_status(s: TaskStatus) -> TaskStatus {

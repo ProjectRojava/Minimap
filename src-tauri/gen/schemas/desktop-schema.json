@@ -345,6 +345,12 @@
           "markdownDescription": "Enables the list_edges_for command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_link_options command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-link-options",
+          "markdownDescription": "Enables the list_link_options command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_node_summaries command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-node-summaries",
@@ -637,6 +643,12 @@
           "type": "string",
           "const": "deny-list-edges-for",
           "markdownDescription": "Denies the list_edges_for command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_link_options command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-link-options",
+          "markdownDescription": "Denies the list_link_options command without any pre-configured scope."
         },
         {
           "description": "Denies the list_node_summaries command without any pre-configured scope.",

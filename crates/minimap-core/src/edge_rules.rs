@@ -1,7 +1,7 @@
 //! The edge-type matrix (CLAUDE.md section 4.2): which edge may connect which node
 //! types, and which attributes it may carry.
 
-use minimap_types::{EdgeType, NodeRef, NodeType};
+use minimap_types::{AttrKind, AttrSpec, EdgeType, LinkOption, NodeRef, NodeType};
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -78,45 +78,117 @@ fn bad(msg: impl Into<String>) -> EdgeRuleError {
     EdgeRuleError::BadAttr(msg.into())
 }
 
-/// Attribute names and ranges per edge type. All attributes are optional.
+fn spec(key: &str, label: &str, kind: AttrKind, hint: &str) -> AttrSpec {
+    AttrSpec {
+        key: key.into(),
+        label: label.into(),
+        kind,
+        hint: hint.into(),
+    }
+}
+
+/// The attributes each edge type may carry. All are optional; anything else is rejected.
+pub fn attr_schema(edge_type: EdgeType) -> Vec<AttrSpec> {
+    let note = || spec("note", "Note", AttrKind::Text, "text");
+    match edge_type {
+        EdgeType::Blocks => vec![spec(
+            "lag_days",
+            "Lag (days)",
+            AttrKind::WholeNumber { min: 0, max: None },
+            "a whole number of days, 0 or more",
+        )],
+        EdgeType::DependsOn | EdgeType::RelatesTo => vec![note()],
+        EdgeType::ContributesTo => vec![spec(
+            "weight",
+            "Weight",
+            AttrKind::Number { min: 0.0, max: 1.0 },
+            "between 0 and 1",
+        )],
+        EdgeType::AssignedTo => vec![spec(
+            "allocation_pct",
+            "Allocation %",
+            AttrKind::WholeNumber {
+                min: 1,
+                max: Some(100),
+            },
+            "a whole number from 1 to 100",
+        )],
+        EdgeType::MemberOf => vec![spec(
+            "role",
+            "Role",
+            AttrKind::Choice {
+                options: vec!["lead".into(), "member".into()],
+            },
+            "'lead' or 'member'",
+        )],
+        EdgeType::ReportsTo | EdgeType::Mentions | EdgeType::Affects | EdgeType::About => vec![],
+    }
+}
+
+fn value_fits(kind: &AttrKind, value: &Value) -> bool {
+    match kind {
+        AttrKind::WholeNumber { min, max } => value
+            .as_u64()
+            .is_some_and(|n| n >= u64::from(*min) && max.is_none_or(|m| n <= u64::from(m))),
+        AttrKind::Number { min, max } => value.as_f64().is_some_and(|n| (*min..=*max).contains(&n)),
+        AttrKind::Choice { options } => value
+            .as_str()
+            .is_some_and(|s| options.iter().any(|o| o == s)),
+        AttrKind::Text => value.is_string(),
+    }
+}
+
+/// Checks attribute names and values against [`attr_schema`].
 pub fn validate_attrs(edge_type: EdgeType, attrs: &Value) -> Result<(), EdgeRuleError> {
     let Some(map) = attrs.as_object() else {
         return Err(bad("attributes must be an object"));
     };
-    let allowed: &[&str] = match edge_type {
-        EdgeType::Blocks => &["lag_days"],
-        EdgeType::DependsOn | EdgeType::RelatesTo => &["note"],
-        EdgeType::ContributesTo => &["weight"],
-        EdgeType::AssignedTo => &["allocation_pct"],
-        EdgeType::MemberOf => &["role"],
-        EdgeType::ReportsTo | EdgeType::Mentions | EdgeType::Affects | EdgeType::About => &[],
-    };
+    let schema = attr_schema(edge_type);
     for (key, value) in map {
-        if !allowed.contains(&key.as_str()) {
+        let Some(spec) = schema.iter().find(|s| &s.key == key) else {
             return Err(bad(format!("{edge_type} links have no '{key}' attribute")));
-        }
-        match key.as_str() {
-            "lag_days" => match value.as_u64() {
-                Some(_) => {}
-                None => return Err(bad("lag_days must be a whole number of days, 0 or more")),
-            },
-            "weight" => match value.as_f64() {
-                Some(w) if (0.0..=1.0).contains(&w) => {}
-                _ => return Err(bad("weight must be between 0 and 1")),
-            },
-            "allocation_pct" => match value.as_u64() {
-                Some(p) if (1..=100).contains(&p) => {}
-                _ => return Err(bad("allocation_pct must be a whole number from 1 to 100")),
-            },
-            "role" => match value.as_str() {
-                Some("lead" | "member") => {}
-                _ => return Err(bad("role must be 'lead' or 'member'")),
-            },
-            "note" if !value.is_string() => return Err(bad("note must be text")),
-            _ => {}
+        };
+        if !value_fits(&spec.kind, value) {
+            return Err(bad(format!("{key} must be {}", spec.hint)));
         }
     }
     Ok(())
+}
+
+/// Every relation a user can add from a node of `node` type: both directions, with the node
+/// types allowed on the other end. `relates_to` is symmetric, so it is offered once.
+pub fn link_options(node: NodeType) -> Vec<LinkOption> {
+    let mut out = Vec::new();
+    for &edge_type in EdgeType::ALL {
+        let others = |outgoing: bool| -> Vec<NodeType> {
+            NodeType::ALL
+                .iter()
+                .copied()
+                .filter(|&o| {
+                    if outgoing {
+                        is_allowed(edge_type, node, o)
+                    } else {
+                        is_allowed(edge_type, o, node)
+                    }
+                })
+                .collect()
+        };
+        for outgoing in [true, false] {
+            if !outgoing && edge_type == EdgeType::RelatesTo {
+                continue;
+            }
+            let others = others(outgoing);
+            if !others.is_empty() {
+                out.push(LinkOption {
+                    edge_type,
+                    outgoing,
+                    others,
+                    attrs: attr_schema(edge_type),
+                });
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -205,5 +277,90 @@ mod tests {
         assert!(must_be_acyclic(E::DependsOn));
         assert!(must_be_acyclic(E::ReportsTo));
         assert!(!must_be_acyclic(E::RelatesTo));
+    }
+
+    #[test]
+    fn schema_matches_the_matrix_documentation() {
+        let keys = |e| {
+            attr_schema(e)
+                .into_iter()
+                .map(|s| s.key)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(keys(E::Blocks), ["lag_days"]);
+        assert_eq!(keys(E::ContributesTo), ["weight"]);
+        assert_eq!(keys(E::AssignedTo), ["allocation_pct"]);
+        assert_eq!(keys(E::MemberOf), ["role"]);
+        assert_eq!(keys(E::DependsOn), ["note"]);
+        assert_eq!(keys(E::RelatesTo), ["note"]);
+        for e in [E::ReportsTo, E::Mentions, E::Affects, E::About] {
+            assert!(keys(e).is_empty(), "{e}");
+        }
+        // Boundaries come from the schema.
+        assert!(validate_attrs(E::AssignedTo, &json!({"allocation_pct": 1})).is_ok());
+        assert!(validate_attrs(E::AssignedTo, &json!({"allocation_pct": 100})).is_ok());
+        assert!(validate_attrs(E::ContributesTo, &json!({"weight": 0})).is_ok());
+        assert!(validate_attrs(E::ContributesTo, &json!({"weight": 1})).is_ok());
+        let err = validate_attrs(E::ContributesTo, &json!({"weight": 2})).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "invalid link attribute: weight must be between 0 and 1"
+        );
+    }
+
+    #[test]
+    fn link_options_are_exactly_what_the_matrix_allows() {
+        // Every offered (direction, other type) is allowed, and every allowed pairing is offered.
+        for &node in NodeType::ALL {
+            let options = link_options(node);
+            for &e in EdgeType::ALL {
+                for &other in NodeType::ALL {
+                    let out_allowed = is_allowed(e, node, other);
+                    let in_allowed = is_allowed(e, other, node) && e != E::RelatesTo;
+                    let offered = |outgoing| {
+                        options.iter().any(|o| {
+                            o.edge_type == e && o.outgoing == outgoing && o.others.contains(&other)
+                        })
+                    };
+                    assert_eq!(offered(true), out_allowed, "{node} {e} -> {other}");
+                    assert_eq!(offered(false), in_allowed, "{other} {e} -> {node}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn link_options_for_common_nodes() {
+        let find = |node, e, out| {
+            link_options(node)
+                .into_iter()
+                .find(|o| o.edge_type == e && o.outgoing == out)
+        };
+        let blocks = find(N::Task, E::Blocks, true).unwrap();
+        assert_eq!(blocks.others, vec![N::Task]);
+        assert_eq!(blocks.attrs[0].key, "lag_days");
+        assert!(find(N::Task, E::Blocks, false).is_some(), "blocked by");
+        assert_eq!(
+            find(N::Task, E::AssignedTo, true).unwrap().others,
+            vec![N::Person]
+        );
+        assert_eq!(
+            find(N::Person, E::AssignedTo, false).unwrap().others,
+            vec![N::Task]
+        );
+        assert!(find(N::Project, E::ContributesTo, true).is_some());
+        assert!(find(N::Task, E::ContributesTo, true).is_some());
+        assert!(find(N::Person, E::ContributesTo, true).is_none());
+        // `relates_to` is symmetric: offered once, to anything.
+        let rel = find(N::Decision, E::RelatesTo, true).unwrap();
+        assert_eq!(rel.others.len(), NodeType::ALL.len());
+        assert!(find(N::Decision, E::RelatesTo, false).is_none());
+        // Only notes mention; everything can be mentioned.
+        assert!(find(N::Note, E::Mentions, true).is_some());
+        assert!(find(N::Task, E::Mentions, true).is_none());
+        assert_eq!(
+            find(N::Task, E::Mentions, false).unwrap().others,
+            vec![N::Note]
+        );
     }
 }

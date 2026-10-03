@@ -2,7 +2,7 @@
 
 use minimap_types::{
     Activity, AppError, AssigneeChoice, CreateObjective, CreatePerson, CreateProject, CreateTask,
-    CreateTeam, Edge, EdgeLink, NewEdge, NodeRef, NodeSummary, NodeType, Objective,
+    CreateTeam, Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Objective,
     ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
     PersonRow, PingResponse, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter,
     ProjectGroup, ProjectLayout, Settings, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow,
@@ -379,4 +379,8 @@ pub async fn get_settings() -> Result<Settings, AppError> {
 
 pub async fn update_settings(patch: UpdateSettings) -> Result<Settings, AppError> {
     invoke("update_settings", &SettingsPatchArg { patch }).await
+}
+
+pub async fn list_link_options(node_type: NodeType) -> Result<Vec<LinkOption>, AppError> {
+    invoke("list_link_options", &NodeTypeArg { node_type }).await
 }

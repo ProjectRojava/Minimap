@@ -51,3 +51,36 @@ pub struct EdgeLink {
     pub outgoing: bool,
     pub other: NodeSummary,
 }
+
+/// What an edge attribute holds, so editors can offer the right control and validation can
+/// share the same definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AttrKind {
+    WholeNumber { min: u32, max: Option<u32> },
+    Number { min: f64, max: f64 },
+    Choice { options: Vec<String> },
+    Text,
+}
+
+/// One attribute an edge type may carry (all attributes are optional).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AttrSpec {
+    pub key: String,
+    pub label: String,
+    pub kind: AttrKind,
+    /// Completes "<key> must be ..." in validation errors.
+    pub hint: String,
+}
+
+/// A relation the user can add from a node of some type: which edge type, in which direction,
+/// to which kinds of node, and which attributes it takes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LinkOption {
+    pub edge_type: EdgeType,
+    /// True when the node is the `from` end (it blocks, it depends on, ...).
+    pub outgoing: bool,
+    /// Node types allowed on the other end.
+    pub others: Vec<NodeType>,
+    pub attrs: Vec<AttrSpec>,
+}

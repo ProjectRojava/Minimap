@@ -69,6 +69,7 @@ fn main() {
             commands::edges::remove_edge,
             commands::edges::set_manager,
             commands::edges::update_edge_attrs,
+            commands::edges::list_link_options,
             commands::projects::list_projects,
             commands::projects::get_project,
             commands::projects::get_project_detail,

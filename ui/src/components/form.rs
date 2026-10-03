@@ -6,6 +6,9 @@ use minimap_types::{timefmt::parse_date, AppError, Date, Patch};
 pub const INPUT: &str =
     "w-full rounded-sm border border-line bg-canvas px-2 py-1 text-[13px] text-fg \
     focus:outline-none focus:border-line-strong";
+pub const COMPACT_INPUT: &str =
+    "rounded-sm border border-line bg-canvas px-1 py-0.5 text-[12px] text-fg \
+    focus:outline-none focus:border-line-strong";
 pub const BUTTON: &str = "rounded-sm border border-line px-2 py-0.5 text-[12px] text-fg \
     hover:bg-hover disabled:opacity-40";
 /// Monochrome "primary": inverted foreground/background instead of a brand colour.

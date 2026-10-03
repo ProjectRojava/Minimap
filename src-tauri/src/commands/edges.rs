@@ -1,6 +1,6 @@
 use minimap_core::{cycles::find_cycle, edge_rules};
 use minimap_store::Connection;
-use minimap_types::{AppError, Edge, EdgeType, NewEdge, NodeRef, NodeType, Uuid};
+use minimap_types::{AppError, Edge, EdgeType, LinkOption, NewEdge, NodeRef, NodeType, Uuid};
 use tauri::State;
 
 use crate::{
@@ -18,6 +18,16 @@ pub(crate) fn label(conn: &Connection, node_type: NodeType, id: Uuid) -> String 
 /// Matrix, attribute and cycle rules for a new edge.
 pub(crate) fn check_new_edge(conn: &Connection, new: &NewEdge) -> Result<(), AppError> {
     edge_rules::validate(new.edge_type, new.from, new.to, &new.attrs).map_err(rule_error)?;
+    // `relates_to` has no direction: A related to B and B related to A are the same link.
+    if new.edge_type == EdgeType::RelatesTo {
+        let reverse = minimap_store::edges::list_active_of_type(conn, EdgeType::RelatesTo)
+            .map_err(store_error)?
+            .into_iter()
+            .any(|e| e.from_id == new.to.id && e.to_id == new.from.id);
+        if reverse {
+            return Err(store_error(minimap_store::StoreError::DuplicateEdge));
+        }
+    }
     if !edge_rules::must_be_acyclic(new.edge_type) {
         return Ok(());
     }
@@ -34,6 +44,12 @@ pub(crate) fn check_new_edge(conn: &Connection, new: &NewEdge) -> Result<(), App
         return Err(cycle_error("add this link", &labels));
     }
     Ok(())
+}
+
+/// The relations (and their attributes) that can be added from a node of this type.
+#[tauri::command]
+pub async fn list_link_options(node_type: NodeType) -> Result<Vec<LinkOption>, AppError> {
+    Ok(edge_rules::link_options(node_type))
 }
 
 #[tauri::command]
@@ -313,6 +329,169 @@ mod tests {
         };
         assert_eq!(
             check_new_edge(&conn, &wrong).unwrap_err().code,
+            "invalid_edge"
+        );
+    }
+
+    fn task(conn: &mut Connection, title: &str) -> Uuid {
+        minimap_store::tasks::create(
+            conn,
+            minimap_types::CreateTask {
+                title: title.into(),
+                assignee: minimap_types::AssigneeChoice::Nobody,
+                description: String::new(),
+                project_id: None,
+                status: None,
+                estimate_days: None,
+                start_date: None,
+                due_date: None,
+                priority: None,
+            },
+        )
+        .unwrap()
+        .id
+    }
+
+    fn project(conn: &mut Connection, title: &str) -> Uuid {
+        minimap_store::projects::create(
+            conn,
+            minimap_types::CreateProject {
+                title: title.into(),
+                slug: None,
+                description: String::new(),
+                owner_person_id: None,
+                start_date: None,
+                target_date: None,
+                status: None,
+                priority: None,
+            },
+        )
+        .unwrap()
+        .id
+    }
+
+    fn link(kind: EdgeType, from: (NodeType, Uuid), to: (NodeType, Uuid)) -> NewEdge {
+        NewEdge {
+            edge_type: kind,
+            from: NodeRef::new(from.0, from.1),
+            to: NodeRef::new(to.0, to.1),
+            attrs: serde_json::json!({}),
+        }
+    }
+
+    fn add(conn: &mut Connection, new: NewEdge) -> Result<Edge, AppError> {
+        check_new_edge(conn, &new)?;
+        minimap_store::edges::add(conn, new).map_err(store_error)
+    }
+
+    #[test]
+    fn task_loops_are_rejected_with_the_task_titles() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let (deploy, qa, fix) = (
+            task(&mut conn, "Deploy"),
+            task(&mut conn, "QA sign-off"),
+            task(&mut conn, "Fix login"),
+        );
+        let t = |id| (NodeType::Task, id);
+        add(&mut conn, link(EdgeType::Blocks, t(deploy), t(qa))).unwrap();
+        add(&mut conn, link(EdgeType::Blocks, t(qa), t(fix))).unwrap();
+        let err = add(&mut conn, link(EdgeType::Blocks, t(fix), t(deploy))).unwrap_err();
+        assert_eq!(err.code, "cycle");
+        assert_eq!(
+            err.message,
+            "Can't add this link: this would create a loop — Fix login → Deploy → QA sign-off → Fix login"
+        );
+        // Self-link and wrong types.
+        assert_eq!(
+            add(&mut conn, link(EdgeType::Blocks, t(deploy), t(deploy)))
+                .unwrap_err()
+                .code,
+            "invalid_edge"
+        );
+        let p = project(&mut conn, "P");
+        assert_eq!(
+            add(
+                &mut conn,
+                link(EdgeType::Blocks, t(deploy), (NodeType::Project, p))
+            )
+            .unwrap_err()
+            .code,
+            "invalid_edge"
+        );
+        // Blocking is across any tasks (no project needed), and a task blocked twice is fine.
+        add(&mut conn, link(EdgeType::Blocks, t(deploy), t(fix))).unwrap();
+        // Nothing changed after the rejections.
+        assert_eq!(
+            minimap_store::edges::list_active_of_type(&conn, EdgeType::Blocks)
+                .unwrap()
+                .len(),
+            3
+        );
+    }
+
+    #[test]
+    fn project_dependency_loops_are_rejected() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let (a, b, c) = (
+            project(&mut conn, "Alpha"),
+            project(&mut conn, "Beta"),
+            project(&mut conn, "Gamma"),
+        );
+        let p = |id| (NodeType::Project, id);
+        add(&mut conn, link(EdgeType::DependsOn, p(a), p(b))).unwrap();
+        add(&mut conn, link(EdgeType::DependsOn, p(b), p(c))).unwrap();
+        let err = add(&mut conn, link(EdgeType::DependsOn, p(c), p(a))).unwrap_err();
+        assert_eq!(err.code, "cycle");
+        assert!(
+            err.message.contains("Gamma → Alpha → Beta → Gamma"),
+            "{}",
+            err.message
+        );
+        // A loop through a removed edge is fine again.
+        let ab = minimap_store::edges::list_active_of_type(&conn, EdgeType::DependsOn)
+            .unwrap()
+            .into_iter()
+            .find(|e| e.from_id == a)
+            .unwrap();
+        minimap_store::edges::remove(&mut conn, ab.id).unwrap();
+        add(&mut conn, link(EdgeType::DependsOn, p(c), p(a))).unwrap();
+    }
+
+    #[test]
+    fn relates_to_links_anything_to_anything_once() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let (t, p) = (task(&mut conn, "T"), project(&mut conn, "P"));
+        let (tt, pp) = ((NodeType::Task, t), (NodeType::Project, p));
+        let first = add(&mut conn, link(EdgeType::RelatesTo, tt, pp)).unwrap();
+        // The same pair in either direction is the same link.
+        assert_eq!(
+            add(&mut conn, link(EdgeType::RelatesTo, tt, pp))
+                .unwrap_err()
+                .code,
+            "duplicate"
+        );
+        assert_eq!(
+            add(&mut conn, link(EdgeType::RelatesTo, pp, tt))
+                .unwrap_err()
+                .code,
+            "duplicate"
+        );
+        // Not acyclic-checked, and takes a note.
+        let mut with_note = link(
+            EdgeType::RelatesTo,
+            tt,
+            (NodeType::Task, task(&mut conn, "Other")),
+        );
+        with_note.attrs = serde_json::json!({ "note": "same customer" });
+        add(&mut conn, with_note).unwrap();
+        // After removing it, the reverse direction can be added.
+        minimap_store::edges::remove(&mut conn, first.id).unwrap();
+        add(&mut conn, link(EdgeType::RelatesTo, pp, tt)).unwrap();
+        // Self-links stay rejected.
+        assert_eq!(
+            add(&mut conn, link(EdgeType::RelatesTo, tt, tt))
+                .unwrap_err()
+                .code,
             "invalid_edge"
         );
     }
