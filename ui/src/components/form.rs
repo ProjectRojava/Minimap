@@ -60,6 +60,9 @@ pub fn SelectField(
     #[prop(into)] on_change: Callback<String>,
     #[prop(optional)] label: &'static str,
     #[prop(optional)] compact: bool,
+    /// DOM id, so keyboard shortcuts can focus the control.
+    #[prop(optional, into)]
+    id: Option<String>,
 ) -> impl IntoView {
     let class = if compact {
         "rounded-sm border border-line bg-canvas px-1 py-0.5 text-[12px] text-fg focus:outline-none focus:border-line-strong"
@@ -69,7 +72,7 @@ pub fn SelectField(
     view! {
         <label class="block">
             {(!label.is_empty()).then(|| view! { <span class="block mb-0.5 text-[11px] text-muted">{label}</span> })}
-            <select class=class on:change=move |ev| on_change.run(event_target_value(&ev))>
+            <select id=id class=class on:change=move |ev| on_change.run(event_target_value(&ev))>
                 {options.into_iter().map(|(v, l)| {
                     let selected = v == current;
                     view! { <option value=v selected=selected>{l}</option> }

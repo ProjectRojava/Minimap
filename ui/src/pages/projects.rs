@@ -75,6 +75,7 @@ pub fn Projects() -> impl IntoView {
     });
 
     let adding = RwSignal::new(false);
+    list.on_new(move || adding.set(true));
     let title = RwSignal::new(String::new());
     let new_owner = RwSignal::new(String::new());
     let new_objective = RwSignal::new(String::new());

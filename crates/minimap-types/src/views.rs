@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{NodeSummary, Objective, Person, Project, ProjectStatus, TaskStatus, Team, WaitingOn};
+use crate::{
+    NodeSummary, Objective, Person, Project, ProjectStatus, Task, TaskStatus, Team, WaitingOn,
+};
 
 /// A team membership (`member_of` edge) as seen from either end.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -183,4 +185,61 @@ pub enum TaskDisposition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProjectArchivePreview {
     pub tasks: Vec<NodeSummary>,
+}
+
+// --------------------------------------------------------------------- tasks
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TaskFilter {
+    /// Only this status (done and cancelled included when asked for explicitly).
+    pub status: Option<TaskStatus>,
+    pub project_id: Option<Uuid>,
+    pub assignee_id: Option<Uuid>,
+    /// Inclusive due-date range; tasks without a due date never match a range.
+    pub due_from: Option<time::Date>,
+    pub due_to: Option<time::Date>,
+    /// Every word must appear in the title, description, project or assignee name.
+    pub text: Option<String>,
+    /// The inbox: tasks that belong to no project.
+    pub no_project: bool,
+    /// Include done and cancelled tasks (unless a `status` is chosen).
+    pub include_closed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TaskRow {
+    pub task: Task,
+    pub project: Option<NodeSummary>,
+    pub assignee: Option<NodeSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TaskDetail {
+    pub task: Task,
+    pub project: Option<NodeSummary>,
+    pub assignee: Option<NodeSummary>,
+}
+
+pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
+
+/// App settings stored in the database. Spec 23 grows this; today it has one entry.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Settings {
+    /// Working hours in a day, used to turn `4h` estimates into days.
+    pub hours_per_day: f64,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            hours_per_day: DEFAULT_HOURS_PER_DAY,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UpdateSettings {
+    pub hours_per_day: Option<f64>,
 }

@@ -1,13 +1,16 @@
 use minimap_types::{
-    ActivityAction, CreateTask, NodeType, Task, TaskStatus, UpdateTask, DEFAULT_PRIORITY,
+    ActivityAction, AssigneeChoice, CreateTask, EdgeType, NewEdge, NodeRef, NodeType, Task,
+    TaskStatus, UpdateTask, DEFAULT_PRIORITY,
 };
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
     activity,
     convert::*,
+    edges,
     error::{Result, StoreError},
+    people,
     repo::{fetch, fetch_all},
 };
 
@@ -52,6 +55,30 @@ pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Task>> {
 }
 
 pub fn create(conn: &mut Connection, input: CreateTask) -> Result<Task> {
+    let tx = conn.transaction()?;
+    let task = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(task)
+}
+
+/// Creates all the tasks or none (one transaction). For pasted lists.
+pub fn create_many(conn: &mut Connection, inputs: Vec<CreateTask>) -> Result<Vec<Task>> {
+    let tx = conn.transaction()?;
+    let tasks = inputs
+        .into_iter()
+        .map(|input| create_in_tx(&tx, input))
+        .collect::<Result<Vec<_>>>()?;
+    tx.commit()?;
+    Ok(tasks)
+}
+
+/// The task, its assignee link (`Me` = the self person, if there is one) and their activity rows.
+fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> {
+    let assignee = match input.assignee {
+        AssigneeChoice::Me => people::get_self(tx)?.map(|p| p.id),
+        AssigneeChoice::Nobody => None,
+        AssigneeChoice::Person(id) => Some(id),
+    };
     let at = now();
     let status = input.status.unwrap_or(TaskStatus::Todo);
     let t = Task {
@@ -70,7 +97,6 @@ pub fn create(conn: &mut Connection, input: CreateTask) -> Result<Task> {
         archived_at: None,
     };
     validate(&t)?;
-    let tx = conn.transaction()?;
     tx.execute(
         &format!(
             "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)"
@@ -91,9 +117,45 @@ pub fn create(conn: &mut Connection, input: CreateTask) -> Result<Task> {
             ts_opt_s(t.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::Task, t.id, &t)?;
-    tx.commit()?;
+    activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
+    if let Some(person) = assignee {
+        edges::add_in_tx(tx, assigned_to(t.id, person))?;
+    }
     Ok(t)
+}
+
+fn assigned_to(task: Uuid, person: Uuid) -> NewEdge {
+    NewEdge {
+        edge_type: EdgeType::AssignedTo,
+        from: NodeRef::new(NodeType::Task, task),
+        to: NodeRef::new(NodeType::Person, person),
+        attrs: serde_json::json!({}),
+    }
+}
+
+/// Makes `person` the task's only assignee (`None` unassigns). Replaces any current
+/// assignment in one transaction; assigning the current assignee again changes nothing.
+pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> Result<()> {
+    let tx = conn.transaction()?;
+    get(&tx, task)?; // NotFound for unknown tasks
+    let current: Vec<_> = edges::list_for_node(&tx, task, false)?
+        .into_iter()
+        .filter(|e| e.edge_type == EdgeType::AssignedTo && e.from_id == task)
+        .collect();
+    if let Some(p) = person {
+        if current.len() == 1 && current[0].to_id == p {
+            return Ok(());
+        }
+    }
+    let at = now();
+    for edge in &current {
+        edges::archive_in_tx(&tx, edge, at)?;
+    }
+    if let Some(p) = person {
+        edges::add_in_tx(&tx, assigned_to(task, p))?;
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTask) -> Result<Task> {

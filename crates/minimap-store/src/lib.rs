@@ -11,6 +11,7 @@ pub mod objectives;
 pub mod people;
 pub mod projects;
 mod repo;
+pub mod settings;
 pub mod tasks;
 pub mod teams;
 pub mod views;
@@ -31,6 +32,7 @@ fn migrations() -> Migrations<'static> {
             backfill_project_slugs,
         ),
         M::up(include_str!("../migrations/0004_project_slug_index.sql")),
+        M::up(include_str!("../migrations/0005_settings.sql")),
     ])
 }
 
@@ -84,7 +86,7 @@ mod tests {
     #[test]
     fn first_migration_runs() {
         let conn = open_in_memory().unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 4);
+        assert_eq!(schema_version(&conn).unwrap(), 5);
         let v: String = conn
             .query_row(
                 "SELECT value FROM app_meta WHERE key = 'created_by'",
@@ -153,7 +155,7 @@ mod migration_tests {
         migrations().to_version(&mut conn, 1).unwrap();
         assert_eq!(schema_version(&conn).unwrap(), 1);
         migrations().to_latest(&mut conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 4);
+        assert_eq!(schema_version(&conn).unwrap(), 5);
         let n: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('tasks','edges','activity')",

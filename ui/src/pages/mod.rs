@@ -4,4 +4,6 @@ pub mod overview;
 pub mod people;
 pub mod placeholder;
 pub mod projects;
+pub mod settings;
+pub mod tasks;
 pub mod teams;
