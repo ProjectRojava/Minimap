@@ -5,13 +5,14 @@ use std::collections::HashMap;
 use minimap_types::{
     Contribution, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
     ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
-    ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TeamDetail, TeamRow,
+    ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TaskDetail, TaskRow, TeamDetail,
+    TeamRow,
 };
 use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::{
-    convert::*, edges, error::Result, nodes, objectives, people, projects, teams, waiting_on,
+    convert::*, edges, error::Result, nodes, objectives, people, projects, tasks, teams, waiting_on,
 };
 
 const ACTIVE_TASK: &str = "t.status IN ('todo','in_progress','blocked')";
@@ -440,5 +441,56 @@ pub fn project_archive_preview(conn: &Connection, id: Uuid) -> Result<ProjectArc
             .into_iter()
             .map(|t| t.node)
             .collect(),
+    })
+}
+
+/// Active tasks with their project and assignee, in storage order
+/// (filtering and ordering is `minimap-core::tasks`).
+pub fn task_rows(conn: &Connection) -> Result<Vec<TaskRow>> {
+    let projects: HashMap<Uuid, String> = projects::list(conn, true)?
+        .into_iter()
+        .map(|p| (p.id, p.title))
+        .collect();
+    let people: HashMap<Uuid, String> = people::list(conn, true)?
+        .into_iter()
+        .map(|p| (p.id, p.name))
+        .collect();
+    let mut assignee: HashMap<Uuid, Uuid> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::AssignedTo)? {
+        assignee.insert(e.from_id, e.to_id);
+    }
+    Ok(tasks::list(conn, false)?
+        .into_iter()
+        .map(|task| TaskRow {
+            project: task.project_id.and_then(|p| {
+                projects
+                    .get(&p)
+                    .map(|n| summary_of(NodeType::Project, p, n.clone()))
+            }),
+            assignee: assignee.get(&task.id).and_then(|p| {
+                people
+                    .get(p)
+                    .map(|n| summary_of(NodeType::Person, *p, n.clone()))
+            }),
+            task,
+        })
+        .collect())
+}
+
+pub fn task_detail(conn: &Connection, id: Uuid) -> Result<TaskDetail> {
+    let task = tasks::get(conn, id)?;
+    let project = task
+        .project_id
+        .map(|p| nodes::summary(conn, NodeRef::new(NodeType::Project, p)))
+        .transpose()?;
+    let assignee = edges::list_for_node(conn, id, false)?
+        .into_iter()
+        .find(|e| e.edge_type == EdgeType::AssignedTo && e.from_id == id)
+        .map(|e| nodes::summary(conn, e.to()))
+        .transpose()?;
+    Ok(TaskDetail {
+        task,
+        project,
+        assignee,
     })
 }

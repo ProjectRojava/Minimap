@@ -83,8 +83,15 @@ pub fn list_active_of_type(conn: &Connection, edge_type: EdgeType) -> Result<Vec
 /// Adds an edge, or revives an archived one with the same (type, from, to).
 pub fn add(conn: &mut Connection, new: NewEdge) -> Result<Edge> {
     let tx = conn.transaction()?;
+    let edge = add_in_tx(&tx, new)?;
+    tx.commit()?;
+    Ok(edge)
+}
+
+/// [`add`] inside a caller's transaction.
+pub(crate) fn add_in_tx(tx: &Transaction, new: NewEdge) -> Result<Edge> {
     for end in [new.from, new.to] {
-        if nodes::archived_at(&tx, end)?.is_some() {
+        if nodes::archived_at(tx, end)?.is_some() {
             return Err(StoreError::Invalid(format!(
                 "cannot link to archived {} {}",
                 end.node_type, end.id
@@ -140,8 +147,7 @@ pub fn add(conn: &mut Connection, new: NewEdge) -> Result<Edge> {
             e
         }
     };
-    record(&tx, at, &edge, ActivityAction::EdgeAdded)?;
-    tx.commit()?;
+    record(tx, at, &edge, ActivityAction::EdgeAdded)?;
     Ok(edge)
 }
 

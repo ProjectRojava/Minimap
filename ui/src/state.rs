@@ -27,6 +27,17 @@ impl Selection {
 pub struct ListNav {
     items: RwSignal<Vec<NodeRef>>,
     pub cursor: RwSignal<Option<usize>>,
+    /// Bumped by the `n` shortcut; list screens open their "new" form in response.
+    pub new_request: RwSignal<u64>,
+    /// The last row shortcut (`x`, `1`-`5`, ...) pressed with a row under the cursor.
+    pub row_key: RwSignal<Option<RowKey>>,
+}
+
+/// A row shortcut. `seq` grows with every press so repeating a key is still a change.
+#[derive(Clone, PartialEq)]
+pub struct RowKey {
+    pub key: String,
+    pub seq: u64,
 }
 
 impl ListNav {
@@ -34,7 +45,51 @@ impl ListNav {
         Self {
             items: RwSignal::new(Vec::new()),
             cursor: RwSignal::new(None),
+            new_request: RwSignal::new(0),
+            row_key: RwSignal::new(None),
         }
+    }
+
+    pub fn request_new(&self) {
+        self.new_request.update(|n| *n += 1);
+    }
+
+    pub fn send_row_key(&self, key: &str) {
+        self.row_key.update(|k| {
+            let seq = k.as_ref().map_or(0, |k| k.seq) + 1;
+            *k = Some(RowKey {
+                key: key.to_owned(),
+                seq,
+            });
+        });
+    }
+
+    /// Runs `f` each time the `n` shortcut is pressed while this screen is mounted.
+    pub fn on_new(&self, f: impl Fn() + 'static) {
+        let request = self.new_request;
+        Effect::new(move |previous: Option<u64>| {
+            let now = request.get();
+            if previous.is_some() {
+                f();
+            }
+            now
+        });
+    }
+
+    /// Runs `f(key, node)` for each row shortcut pressed on the row under the cursor while this
+    /// screen is mounted (presses from before it mounted are ignored).
+    pub fn on_row_key(&self, f: impl Fn(String, NodeRef) + 'static) {
+        let this = *self;
+        let seen = this.row_key.get_untracked().map_or(0, |k| k.seq);
+        Effect::new(move |_| {
+            if let Some(k) = this.row_key.get() {
+                if k.seq > seen {
+                    if let Some(node) = this.current() {
+                        f(k.key, node);
+                    }
+                }
+            }
+        });
     }
 
     /// Replaces the rows, keeping the cursor on the same position (clamped) so a
@@ -51,6 +106,7 @@ impl ListNav {
     pub fn clear(&self) {
         self.items.set(Vec::new());
         self.cursor.set(None);
+        self.row_key.set(None);
     }
 
     pub fn step(&self, delta: isize) {

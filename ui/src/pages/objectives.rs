@@ -47,6 +47,7 @@ pub fn Objectives() -> impl IntoView {
     });
 
     let adding = RwSignal::new(false);
+    list.on_new(move || adding.set(true));
     let title = RwSignal::new(String::new());
     let target = RwSignal::new(String::new());
     let priority = RwSignal::new("3".to_owned());

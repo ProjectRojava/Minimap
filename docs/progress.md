@@ -16,3 +16,4 @@
 - [x] 03 People and teams (implemented; manual click-through pending, see spec). Also landed: edge matrix + cycle detection in core, `add_edge`/`remove_edge`/`set_manager` (part of 07)
 - [x] 04 Objectives (implemented; manual click-through pending). Also landed: `update_edge_attrs`, `list_node_summaries`, quarter grouping in core
 - [x] 05 Projects (implemented; manual click-through pending). Includes the board view, project handles (migration 0003/0004), archive with a tasks choice
+- [x] 06 Tasks and inbox (implemented; manual click-through pending). Includes the hours-per-day setting (settings table + minimal screen), default assignee, paste-a-list preview, row shortcuts

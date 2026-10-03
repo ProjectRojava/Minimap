@@ -38,6 +38,18 @@ const COMMANDS: &[&str] = &[
     "update_project",
     "preview_archive_project",
     "archive_project",
+    "list_tasks",
+    "get_task",
+    "get_task_detail",
+    "create_task",
+    "update_task",
+    "set_task_estimate",
+    "set_assignee",
+    "archive_task",
+    "parse_task_lines",
+    "create_tasks_bulk",
+    "get_settings",
+    "update_settings",
 ];
 
 fn main() {

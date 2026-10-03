@@ -76,6 +76,18 @@ fn main() {
             commands::projects::update_project,
             commands::projects::preview_archive_project,
             commands::projects::archive_project,
+            commands::tasks::list_tasks,
+            commands::tasks::get_task,
+            commands::tasks::get_task_detail,
+            commands::tasks::create_task,
+            commands::tasks::update_task,
+            commands::tasks::set_task_estimate,
+            commands::tasks::set_assignee,
+            commands::tasks::archive_task,
+            commands::tasks::parse_task_lines,
+            commands::tasks::create_tasks_bulk,
+            commands::settings::get_settings,
+            commands::settings::update_settings,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

@@ -37,6 +37,7 @@ fn task(conn: &mut Connection, title: &str) -> Task {
         conn,
         CreateTask {
             title: title.into(),
+            assignee: AssigneeChoice::Nobody,
             description: String::new(),
             project_id: None,
             status: None,
@@ -449,6 +450,7 @@ fn invalid_input_is_rejected_and_writes_nothing() {
     let mut conn = db();
     let bad = |title: &str, priority| CreateTask {
         title: title.into(),
+        assignee: AssigneeChoice::Nobody,
         description: String::new(),
         project_id: None,
         status: None,
@@ -1365,6 +1367,7 @@ fn task_in(conn: &mut Connection, title: &str, project: Uuid) -> Task {
         conn,
         CreateTask {
             title: title.into(),
+            assignee: AssigneeChoice::Nobody,
             description: String::new(),
             project_id: Some(project),
             status: None,
@@ -1531,4 +1534,200 @@ fn project_rows_and_detail() {
     // Archived projects drop out of the rows.
     projects::archive(&mut conn, dep.id, TaskDisposition::Inbox).unwrap();
     assert_eq!(views::project_rows(&conn).unwrap().len(), 1);
+}
+
+// --------------------------------------------------------------------- tasks
+
+fn new_task(title: &str, assignee: AssigneeChoice) -> CreateTask {
+    CreateTask {
+        title: title.into(),
+        assignee,
+        description: String::new(),
+        project_id: None,
+        status: None,
+        estimate_days: None,
+        start_date: None,
+        due_date: None,
+        priority: None,
+    }
+}
+
+fn assignee_of(conn: &Connection, task: Uuid) -> Option<Uuid> {
+    edges::list_active_of_type(conn, EdgeType::AssignedTo)
+        .unwrap()
+        .into_iter()
+        .find(|e| e.from_id == task)
+        .map(|e| e.to_id)
+}
+
+#[test]
+fn new_tasks_are_assigned_to_me_by_default() {
+    let mut conn = db();
+    // Before first-run setup there is nobody to assign to.
+    let early = tasks::create(&mut conn, new_task("early", AssigneeChoice::Me)).unwrap();
+    assert_eq!(assignee_of(&conn, early.id), None);
+
+    let me = people::ensure_self(&mut conn, "Me").unwrap();
+    let raj = person(&mut conn, "Raj");
+    let mine = tasks::create(&mut conn, new_task("mine", AssigneeChoice::Me)).unwrap();
+    let his = tasks::create(&mut conn, new_task("his", AssigneeChoice::Person(raj.id))).unwrap();
+    let nobody = tasks::create(&mut conn, new_task("nobody", AssigneeChoice::Nobody)).unwrap();
+    assert_eq!(assignee_of(&conn, mine.id), Some(me.id));
+    assert_eq!(assignee_of(&conn, his.id), Some(raj.id));
+    assert_eq!(assignee_of(&conn, nobody.id), None);
+    // The assignment is part of the create: activity shows both.
+    assert_eq!(
+        actions(&conn, mine.id),
+        vec![ActivityAction::Created, ActivityAction::EdgeAdded]
+    );
+    // An unknown person fails the whole create.
+    let before = tasks::list(&conn, true).unwrap().len();
+    let ghost = tasks::create(
+        &mut conn,
+        new_task("ghost", AssigneeChoice::Person(Uuid::now_v7())),
+    );
+    assert!(ghost.is_err());
+    assert_eq!(tasks::list(&conn, true).unwrap().len(), before);
+}
+
+#[test]
+fn create_many_is_all_or_nothing() {
+    let mut conn = db();
+    let me = people::ensure_self(&mut conn, "Me").unwrap();
+    let made = tasks::create_many(
+        &mut conn,
+        vec![
+            new_task("a", AssigneeChoice::Me),
+            new_task("b", AssigneeChoice::Me),
+            new_task("c", AssigneeChoice::Me),
+        ],
+    )
+    .unwrap();
+    assert_eq!(made.len(), 3);
+    assert!(made.iter().all(|t| assignee_of(&conn, t.id) == Some(me.id)));
+
+    let count = activity::count(&conn).unwrap();
+    let failed = tasks::create_many(
+        &mut conn,
+        vec![
+            new_task("ok", AssigneeChoice::Me),
+            new_task("   ", AssigneeChoice::Me),
+        ],
+    );
+    assert!(matches!(failed, Err(StoreError::Invalid(_))));
+    assert_eq!(
+        tasks::list(&conn, true).unwrap().len(),
+        3,
+        "no partial batch"
+    );
+    assert_eq!(
+        activity::count(&conn).unwrap(),
+        count,
+        "no partial activity"
+    );
+}
+
+#[test]
+fn set_assignee_replaces_the_assignment() {
+    let mut conn = db();
+    let (me, raj) = (
+        people::ensure_self(&mut conn, "Me").unwrap(),
+        person(&mut conn, "Raj"),
+    );
+    let t = tasks::create(&mut conn, new_task("t", AssigneeChoice::Me)).unwrap();
+    assert_eq!(assignee_of(&conn, t.id), Some(me.id));
+
+    tasks::set_assignee(&mut conn, t.id, Some(raj.id)).unwrap();
+    assert_eq!(assignee_of(&conn, t.id), Some(raj.id));
+    let after_change = activity::count(&conn).unwrap();
+    tasks::set_assignee(&mut conn, t.id, Some(raj.id)).unwrap(); // same person: nothing
+    assert_eq!(activity::count(&conn).unwrap(), after_change);
+
+    tasks::set_assignee(&mut conn, t.id, None).unwrap();
+    assert_eq!(assignee_of(&conn, t.id), None);
+    // Back to a previous assignee revives the archived edge.
+    tasks::set_assignee(&mut conn, t.id, Some(me.id)).unwrap();
+    assert_eq!(assignee_of(&conn, t.id), Some(me.id));
+    assert_eq!(edges::list_for_node(&conn, t.id, false).unwrap().len(), 1);
+    // Unknown task / person.
+    assert!(matches!(
+        tasks::set_assignee(&mut conn, Uuid::now_v7(), None),
+        Err(StoreError::NotFound { .. })
+    ));
+    assert!(tasks::set_assignee(&mut conn, t.id, Some(Uuid::now_v7())).is_err());
+    assert_eq!(
+        assignee_of(&conn, t.id),
+        Some(me.id),
+        "a failed change keeps the old assignee"
+    );
+}
+
+#[test]
+fn task_rows_and_detail_include_project_and_assignee() {
+    let mut conn = db();
+    let raj = person(&mut conn, "Raj");
+    let p = project_with(&mut conn, "API Launch", None).unwrap();
+    let mut input = new_task("Fix login", AssigneeChoice::Person(raj.id));
+    input.project_id = Some(p.id);
+    let t = tasks::create(&mut conn, input).unwrap();
+    let loose = tasks::create(&mut conn, new_task("loose", AssigneeChoice::Nobody)).unwrap();
+
+    let rows = views::task_rows(&conn).unwrap();
+    let row = rows.iter().find(|r| r.task.id == t.id).unwrap();
+    assert_eq!(row.project.as_ref().unwrap().label, "API Launch");
+    assert_eq!(row.assignee.as_ref().unwrap().label, "Raj");
+    let row = rows.iter().find(|r| r.task.id == loose.id).unwrap();
+    assert!(row.project.is_none() && row.assignee.is_none());
+
+    let d = views::task_detail(&conn, t.id).unwrap();
+    assert_eq!(
+        (
+            d.project.unwrap().label.as_str(),
+            d.assignee.unwrap().label.as_str()
+        ),
+        ("API Launch", "Raj")
+    );
+    // Archived tasks drop out of the rows.
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Task, loose.id)).unwrap();
+    assert_eq!(views::task_rows(&conn).unwrap().len(), 1);
+}
+
+#[test]
+fn settings_have_defaults_and_are_validated() {
+    let mut conn = db();
+    assert_eq!(settings::get(&conn).unwrap().hours_per_day, 8.0);
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            hours_per_day: Some(6.5),
+        },
+    )
+    .unwrap();
+    assert_eq!(s.hours_per_day, 6.5);
+    assert_eq!(settings::get(&conn).unwrap().hours_per_day, 6.5);
+    settings::update(
+        &mut conn,
+        UpdateSettings {
+            hours_per_day: Some(7.0),
+        },
+    )
+    .unwrap(); // overwrite
+    assert_eq!(settings::get(&conn).unwrap().hours_per_day, 7.0);
+    settings::update(&mut conn, UpdateSettings::default()).unwrap(); // nothing to change
+    assert_eq!(settings::get(&conn).unwrap().hours_per_day, 7.0);
+    for bad in [0.0, -1.0, 25.0, f64::NAN, f64::INFINITY] {
+        assert!(
+            matches!(
+                settings::update(
+                    &mut conn,
+                    UpdateSettings {
+                        hours_per_day: Some(bad)
+                    }
+                ),
+                Err(StoreError::Invalid(_))
+            ),
+            "{bad}"
+        );
+    }
+    assert_eq!(settings::get(&conn).unwrap().hours_per_day, 7.0);
 }

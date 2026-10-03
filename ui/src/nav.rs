@@ -147,6 +147,12 @@ pub fn move_cursor(cursor: Option<usize>, len: usize, delta: isize) -> Option<us
     Some(next)
 }
 
+/// Keys that act on the row under the list cursor: `x` toggle done, `s` next status,
+/// `d` due date, `a` assignee, `1`-`5` priority. Screens that don't use them ignore them.
+pub fn is_row_key(key: &str) -> bool {
+    matches!(key, "x" | "s" | "d" | "a" | "1" | "2" | "3" | "4" | "5")
+}
+
 /// Keys must not trigger shortcuts while the user is typing.
 pub fn is_typing_target(tag: &str, editable: bool) -> bool {
     editable
@@ -184,6 +190,16 @@ mod tests {
         assert_eq!(move_cursor(Some(2), 3, 1), Some(2));
         assert_eq!(move_cursor(Some(1), 3, 1), Some(2));
         assert_eq!(move_cursor(Some(5), 3, 1), Some(2)); // list shrank under the cursor
+    }
+
+    #[test]
+    fn row_keys() {
+        for k in ["x", "s", "d", "a", "1", "5"] {
+            assert!(is_row_key(k), "{k}");
+        }
+        for k in ["g", "j", "k", "n", "0", "6", "Enter", "xx", ""] {
+            assert!(!is_row_key(k), "{k}");
+        }
     }
 
     #[test]

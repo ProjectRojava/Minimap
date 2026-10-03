@@ -176,9 +176,22 @@ pub struct Task {
     pub archived_at: Option<OffsetDateTime>,
 }
 
+/// Who a new task is assigned to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssigneeChoice {
+    /// The self person (the default; nobody if first-run setup hasn't happened yet).
+    #[default]
+    Me,
+    Nobody,
+    Person(Uuid),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTask {
     pub title: String,
+    #[serde(default)]
+    pub assignee: AssigneeChoice,
     #[serde(default)]
     pub description: String,
     #[serde(default)]

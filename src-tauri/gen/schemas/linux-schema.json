@@ -201,6 +201,12 @@
           "markdownDescription": "Enables the archive_project command without any pre-configured scope."
         },
         {
+          "description": "Enables the archive_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-task",
+          "markdownDescription": "Enables the archive_task command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_team command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-team",
@@ -229,6 +235,18 @@
           "type": "string",
           "const": "allow-create-self-person",
           "markdownDescription": "Enables the create_self_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-task",
+          "markdownDescription": "Enables the create_task command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_tasks_bulk command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-tasks-bulk",
+          "markdownDescription": "Enables the create_tasks_bulk command without any pre-configured scope."
         },
         {
           "description": "Enables the create_team command without any pre-configured scope.",
@@ -285,6 +303,24 @@
           "markdownDescription": "Enables the get_self_person command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-settings",
+          "markdownDescription": "Enables the get_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-task",
+          "markdownDescription": "Enables the get_task command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_task_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-task-detail",
+          "markdownDescription": "Enables the get_task_detail command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_team command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-team",
@@ -333,10 +369,22 @@
           "markdownDescription": "Enables the list_projects command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_tasks command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-tasks",
+          "markdownDescription": "Enables the list_tasks command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_teams command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-teams",
           "markdownDescription": "Enables the list_teams command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the parse_task_lines command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-parse-task-lines",
+          "markdownDescription": "Enables the parse_task_lines command without any pre-configured scope."
         },
         {
           "description": "Enables the ping command without any pre-configured scope.",
@@ -363,10 +411,22 @@
           "markdownDescription": "Enables the remove_edge command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_assignee command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-assignee",
+          "markdownDescription": "Enables the set_assignee command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_manager command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-manager",
           "markdownDescription": "Enables the set_manager command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_task_estimate command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-task-estimate",
+          "markdownDescription": "Enables the set_task_estimate command without any pre-configured scope."
         },
         {
           "description": "Enables the update_edge_attrs command without any pre-configured scope.",
@@ -391,6 +451,18 @@
           "type": "string",
           "const": "allow-update-project",
           "markdownDescription": "Enables the update_project command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-settings",
+          "markdownDescription": "Enables the update_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-task",
+          "markdownDescription": "Enables the update_task command without any pre-configured scope."
         },
         {
           "description": "Enables the update_team command without any pre-configured scope.",
@@ -423,6 +495,12 @@
           "markdownDescription": "Denies the archive_project command without any pre-configured scope."
         },
         {
+          "description": "Denies the archive_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-task",
+          "markdownDescription": "Denies the archive_task command without any pre-configured scope."
+        },
+        {
           "description": "Denies the archive_team command without any pre-configured scope.",
           "type": "string",
           "const": "deny-archive-team",
@@ -451,6 +529,18 @@
           "type": "string",
           "const": "deny-create-self-person",
           "markdownDescription": "Denies the create_self_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-task",
+          "markdownDescription": "Denies the create_task command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_tasks_bulk command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-tasks-bulk",
+          "markdownDescription": "Denies the create_tasks_bulk command without any pre-configured scope."
         },
         {
           "description": "Denies the create_team command without any pre-configured scope.",
@@ -507,6 +597,24 @@
           "markdownDescription": "Denies the get_self_person command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-settings",
+          "markdownDescription": "Denies the get_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-task",
+          "markdownDescription": "Denies the get_task command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_task_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-task-detail",
+          "markdownDescription": "Denies the get_task_detail command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_team command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-team",
@@ -555,10 +663,22 @@
           "markdownDescription": "Denies the list_projects command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_tasks command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-tasks",
+          "markdownDescription": "Denies the list_tasks command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_teams command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-teams",
           "markdownDescription": "Denies the list_teams command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the parse_task_lines command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-parse-task-lines",
+          "markdownDescription": "Denies the parse_task_lines command without any pre-configured scope."
         },
         {
           "description": "Denies the ping command without any pre-configured scope.",
@@ -585,10 +705,22 @@
           "markdownDescription": "Denies the remove_edge command without any pre-configured scope."
         },
         {
+          "description": "Denies the set_assignee command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-assignee",
+          "markdownDescription": "Denies the set_assignee command without any pre-configured scope."
+        },
+        {
           "description": "Denies the set_manager command without any pre-configured scope.",
           "type": "string",
           "const": "deny-set-manager",
           "markdownDescription": "Denies the set_manager command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_task_estimate command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-task-estimate",
+          "markdownDescription": "Denies the set_task_estimate command without any pre-configured scope."
         },
         {
           "description": "Denies the update_edge_attrs command without any pre-configured scope.",
@@ -613,6 +745,18 @@
           "type": "string",
           "const": "deny-update-project",
           "markdownDescription": "Denies the update_project command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-settings",
+          "markdownDescription": "Denies the update_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-task",
+          "markdownDescription": "Denies the update_task command without any pre-configured scope."
         },
         {
           "description": "Denies the update_team command without any pre-configured scope.",

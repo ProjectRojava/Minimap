@@ -3,5 +3,7 @@ pub mod nodes;
 pub mod objectives;
 pub mod people;
 pub mod projects;
+pub mod settings;
 pub mod system;
+pub mod tasks;
 pub mod teams;

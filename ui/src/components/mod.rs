@@ -6,6 +6,8 @@ pub mod objective_panel;
 pub mod people_panel;
 pub mod project_panel;
 pub mod sidebar;
+pub mod task_list;
+pub mod task_panel;
 pub mod team_panel;
 pub mod titlebar;
 pub mod toasts;

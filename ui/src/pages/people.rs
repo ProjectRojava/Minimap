@@ -34,6 +34,7 @@ pub fn People() -> impl IntoView {
     });
 
     let adding = RwSignal::new(false);
+    list.on_new(move || adding.set(true));
     let name = RwSignal::new(String::new());
     let role = RwSignal::new(String::new());
     let submit = move || {

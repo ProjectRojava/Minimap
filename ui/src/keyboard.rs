@@ -5,7 +5,7 @@ use leptos_router::hooks::use_navigate;
 use wasm_bindgen::JsCast;
 
 use crate::{
-    nav::{chord_target, is_typing_target, CHORD_WINDOW_MS},
+    nav::{chord_target, is_row_key, is_typing_target, CHORD_WINDOW_MS},
     state::{ListNav, Selection},
 };
 
@@ -55,6 +55,8 @@ pub fn use_global_shortcuts() {
         match key.as_str() {
             "g" => chord_started.set_value(now),
             "Escape" if selection.0.get_untracked().is_some() => selection.close(),
+            "n" => list.request_new(),
+            k if is_row_key(k) && list.current().is_some() => list.send_row_key(k),
             "j" => list.step(1),
             "k" => list.step(-1),
             // Let Enter activate a focused link or button instead.

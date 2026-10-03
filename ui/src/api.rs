@@ -1,12 +1,13 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, CreateObjective, CreatePerson, CreateProject, CreateTeam, Edge, EdgeLink,
-    NewEdge, NodeRef, NodeSummary, NodeType, Objective, ObjectiveDetail, ObjectiveGroup,
-    ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse,
-    Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout,
-    TaskDisposition, Team, TeamDetail, TeamRow, UpdateObjective, UpdatePerson, UpdateProject,
-    UpdateTeam, Uuid,
+    Activity, AppError, AssigneeChoice, CreateObjective, CreatePerson, CreateProject, CreateTask,
+    CreateTeam, Edge, EdgeLink, NewEdge, NodeRef, NodeSummary, NodeType, Objective,
+    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
+    PersonRow, PingResponse, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter,
+    ProjectGroup, ProjectLayout, Settings, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow,
+    Team, TeamDetail, TeamRow, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
+    UpdateTask, UpdateTeam, Uuid,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -279,4 +280,103 @@ pub async fn preview_archive_project(id: Uuid) -> Result<ProjectArchivePreview, 
 
 pub async fn archive_project(id: Uuid, tasks: TaskDisposition) -> Result<(), AppError> {
     invoke("archive_project", &ArchiveProjectArg { id, tasks }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TaskListArg {
+    filter_by: TaskFilter,
+}
+
+#[derive(Serialize)]
+struct EstimateArg {
+    id: Uuid,
+    text: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssigneeArg {
+    task_id: Uuid,
+    person_id: Option<Uuid>,
+}
+
+#[derive(Serialize)]
+struct TextArg {
+    text: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BulkArg {
+    titles: Vec<String>,
+    project_id: Option<Uuid>,
+    assignee: AssigneeChoice,
+}
+
+#[derive(Serialize)]
+struct SettingsPatchArg {
+    patch: UpdateSettings,
+}
+
+pub async fn list_tasks(filter_by: TaskFilter) -> Result<Vec<TaskRow>, AppError> {
+    invoke("list_tasks", &TaskListArg { filter_by }).await
+}
+
+// Kept for parity with the `get_task` command; the UI reads `get_task_detail`.
+#[allow(dead_code)]
+pub async fn get_task(id: Uuid) -> Result<Task, AppError> {
+    invoke("get_task", &IdArg { id }).await
+}
+
+pub async fn get_task_detail(id: Uuid) -> Result<TaskDetail, AppError> {
+    invoke("get_task_detail", &IdArg { id }).await
+}
+
+pub async fn create_task(input: CreateTask) -> Result<Task, AppError> {
+    invoke("create_task", &InputArg { input }).await
+}
+
+pub async fn update_task(id: Uuid, patch: UpdateTask) -> Result<Task, AppError> {
+    invoke("update_task", &PatchArg { id, patch }).await
+}
+
+pub async fn set_task_estimate(id: Uuid, text: String) -> Result<Task, AppError> {
+    invoke("set_task_estimate", &EstimateArg { id, text }).await
+}
+
+pub async fn set_assignee(task_id: Uuid, person_id: Option<Uuid>) -> Result<(), AppError> {
+    invoke("set_assignee", &AssigneeArg { task_id, person_id }).await
+}
+
+pub async fn archive_task(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_task", &IdArg { id }).await
+}
+
+pub async fn parse_task_lines(text: String) -> Result<Vec<String>, AppError> {
+    invoke("parse_task_lines", &TextArg { text }).await
+}
+
+pub async fn create_tasks_bulk(
+    titles: Vec<String>,
+    project_id: Option<Uuid>,
+    assignee: AssigneeChoice,
+) -> Result<Vec<Task>, AppError> {
+    invoke(
+        "create_tasks_bulk",
+        &BulkArg {
+            titles,
+            project_id,
+            assignee,
+        },
+    )
+    .await
+}
+
+pub async fn get_settings() -> Result<Settings, AppError> {
+    invoke("get_settings", &NoArgs {}).await
+}
+
+pub async fn update_settings(patch: UpdateSettings) -> Result<Settings, AppError> {
+    invoke("update_settings", &SettingsPatchArg { patch }).await
 }

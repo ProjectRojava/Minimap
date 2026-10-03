@@ -17,6 +17,8 @@ use crate::{
         people::People,
         placeholder::Placeholder,
         projects::Projects,
+        settings::Settings,
+        tasks::{Inbox, Tasks},
         teams::Teams,
     },
     state::{DataVersion, ListNav, Selection, Toasts},
@@ -56,16 +58,16 @@ fn Shell() -> impl IntoView {
             <main class="flex-1 min-w-0 overflow-y-auto">
                 <Routes fallback=NotFound>
                     <Route path=path!("/") view=Overview />
-                    <Route path=path!("/inbox") view=|| view! { <Placeholder title="Inbox" spec="06-tasks-and-inbox" /> } />
+                    <Route path=path!("/inbox") view=Inbox />
                     <Route path=path!("/objectives") view=Objectives />
                     <Route path=path!("/projects") view=Projects />
-                    <Route path=path!("/tasks") view=|| view! { <Placeholder title="Tasks" spec="06-tasks-and-inbox" /> } />
+                    <Route path=path!("/tasks") view=Tasks />
                     <Route path=path!("/people") view=People />
                     <Route path=path!("/teams") view=Teams />
                     <Route path=path!("/notes") view=|| view! { <Placeholder title="Notes" spec="09-notes-and-mentions" /> } />
                     <Route path=path!("/decisions") view=|| view! { <Placeholder title="Decisions" spec="10-decisions" /> } />
                     <Route path=path!("/waiting-on") view=|| view! { <Placeholder title="Waiting on" spec="08-waiting-on" /> } />
-                    <Route path=path!("/settings") view=|| view! { <Placeholder title="Settings" spec="23-settings" /> } />
+                    <Route path=path!("/settings") view=Settings />
                     <Route path=path!("/:type/:id") view=DeepLink />
                 </Routes>
             </main>
