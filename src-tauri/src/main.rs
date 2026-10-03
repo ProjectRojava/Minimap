@@ -97,6 +97,14 @@ fn main() {
             commands::waiting_on::reopen_waiting_on,
             commands::waiting_on::snooze_waiting_on,
             commands::waiting_on::archive_waiting_on,
+            commands::notes::list_notes,
+            commands::notes::get_note,
+            commands::notes::get_note_detail,
+            commands::notes::create_note,
+            commands::notes::update_note,
+            commands::notes::archive_note,
+            commands::notes::render_markdown,
+            commands::notes::convert_checklist_item,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

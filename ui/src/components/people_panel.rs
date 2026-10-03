@@ -2,8 +2,8 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    AppError, EdgeType, NewEdge, NodeRef, NodeSummary, NodeType, Patch, Person, PersonDetail,
-    PersonRow, TeamRow, UpdatePerson, Uuid,
+    mention_token, AppError, CreateNote, EdgeType, NewEdge, NodeRef, NodeSummary, NodeType,
+    NoteFilter, NoteKind, Patch, Person, PersonDetail, PersonRow, TeamRow, UpdatePerson, Uuid,
 };
 
 use crate::{
@@ -71,6 +71,7 @@ pub fn PersonPanel(id: Uuid) -> impl IntoView {
             (Some(Ok(d)), Some(Ok(ps)), Some(Ok(ts))) => view! {
                 <Organization detail=d.clone() people=ps teams=ts />
                 <WaitingOnList detail=d.clone() />
+                <PersonNotes detail=d.clone() />
                 <ArchivePerson detail=d />
             }.into_any(),
             (Some(Err(e)), _, _) | (_, Some(Err(e)), _) | (_, _, Some(Err(e))) => view! {
@@ -241,6 +242,70 @@ pub fn NodeButtons(nodes: Vec<NodeSummary>) -> impl IntoView {
                 }
             }).collect_view()}
         </ul>
+    }
+}
+
+/// Notes that mention this person (their 1:1s first among equals: newest first), and a
+/// shortcut to start a new 1:1 that already mentions them.
+#[component]
+fn PersonNotes(detail: PersonDetail) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let selection = expect_context::<Selection>();
+    let id = detail.person.id;
+    let name = detail.person.name.clone();
+    let is_self = detail.person.is_self;
+
+    let notes = LocalResource::new(move || {
+        version.track();
+        api::list_notes(NoteFilter {
+            mentions_id: Some(id),
+            ..Default::default()
+        })
+    });
+    let new_one_on_one = move |_| {
+        let input = CreateNote {
+            title: format!("1:1 with {name}"),
+            body: format!("{}\n\n", mention_token(&name, id)),
+            note_date: None,
+            kind: Some(NoteKind::OneOnOne),
+        };
+        spawn_local(async move {
+            if let Some(n) = finish(api::create_note(input).await, toasts, version) {
+                selection.open(NodeRef::new(NodeType::Note, n.id));
+            }
+        });
+    };
+
+    view! {
+        <Section title="Notes">
+            {(!is_self).then(|| view! {
+                <button class=BUTTON on:click=new_one_on_one>"New 1:1"</button>
+            })}
+            {move || match notes.get() {
+                None => view! { <p class="mt-2 text-muted">"Loading…"</p> }.into_any(),
+                Some(Err(e)) => error_line(e),
+                Some(Ok(rows)) if rows.is_empty() => view! {
+                    <p class="mt-2 text-muted">"No notes mention them yet."</p>
+                }.into_any(),
+                Some(Ok(rows)) => view! {
+                    <ul class="mt-2 space-y-px">
+                        {rows.into_iter().take(10).map(|n| {
+                            let node = NodeRef::new(NodeType::Note, n.id);
+                            view! {
+                                <li>
+                                    <button class="flex w-full items-center gap-2 rounded px-1.5 py-0.5 text-left hover:bg-hover"
+                                            on:click=move |_| selection.open(node)>
+                                        <span class="w-20 shrink-0 tabular-nums text-muted">{n.note_date.to_string()}</span>
+                                        <span class="truncate">{n.title}</span>
+                                    </button>
+                                </li>
+                            }
+                        }).collect_view()}
+                    </ul>
+                }.into_any(),
+            }}
+        </Section>
     }
 }
 

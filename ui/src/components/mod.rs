@@ -3,6 +3,7 @@ pub mod first_run;
 pub mod form;
 pub mod links_editor;
 pub mod node_row;
+pub mod note_panel;
 pub mod objective_panel;
 pub mod people_panel;
 pub mod project_panel;

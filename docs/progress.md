@@ -20,3 +20,4 @@
 - [x] Dark by default + theme system (ADR-0005): 17 built-in themes as data, Settings → Appearance, `settings.theme`
 - [x] 07 Edges, linking and cycle detection (implemented; manual click-through pending). Includes `relates_to`, the generic Links editor, schema-driven attribute validation
 - [x] 08 Waiting-on (implemented; manual click-through pending). Includes snooze (`follow_up_on`, migration 0006) and the stale-threshold setting; Overview/This week will consume it (15, 16)
+- [x] 09 Notes and @mentions (implemented; manual click-through pending). Mentions stored as `@[Name](node:id)`, checklist conversion, safe Markdown preview, autosave with folded activity

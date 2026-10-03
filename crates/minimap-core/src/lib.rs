@@ -2,6 +2,7 @@
 
 pub mod cycles;
 pub mod edge_rules;
+pub mod notes;
 pub mod objectives;
 pub mod projects;
 pub mod slug;

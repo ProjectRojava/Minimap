@@ -1,4 +1,5 @@
 pub mod deep_link;
+pub mod notes;
 pub mod objectives;
 pub mod overview;
 pub mod people;

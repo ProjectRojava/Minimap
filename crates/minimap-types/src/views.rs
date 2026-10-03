@@ -291,3 +291,60 @@ pub struct WaitingOnRow {
     /// Open, not snoozed, and past its expected date.
     pub overdue: bool,
 }
+
+// --------------------------------------------------------------------- notes
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NoteFilter {
+    pub kind: Option<crate::NoteKind>,
+    /// Only notes that mention this node (a person for their 1:1s, a project, a task, ...).
+    pub mentions_id: Option<Uuid>,
+    /// Inclusive note-date range.
+    pub date_from: Option<time::Date>,
+    pub date_to: Option<time::Date>,
+    /// Every word must appear in the title or body.
+    pub text: Option<String>,
+}
+
+/// A note and what it mentions, before it is filtered and shortened for a list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NoteItem {
+    pub note: crate::Note,
+    pub mentions: Vec<NodeSummary>,
+}
+
+/// A note as a list shows it: no body, just an excerpt.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NoteRow {
+    pub id: Uuid,
+    pub title: String,
+    pub note_date: time::Date,
+    pub kind: crate::NoteKind,
+    pub excerpt: String,
+    pub mentions: Vec<NodeSummary>,
+}
+
+/// A mention found in a note body: `@[label](node:id)`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MentionRef {
+    pub label: String,
+    pub id: Uuid,
+}
+
+/// An unchecked `[ ]` line that can become a task.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChecklistItem {
+    /// 0-based line number in the body.
+    pub line: u32,
+    /// The task title: the text after `[ ]`, with mentions shown as their names.
+    pub text: String,
+    pub mentions: Vec<MentionRef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NoteDetail {
+    pub note: crate::Note,
+    pub mentions: Vec<NodeSummary>,
+    pub checklist: Vec<ChecklistItem>,
+}

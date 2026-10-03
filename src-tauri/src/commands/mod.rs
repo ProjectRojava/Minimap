@@ -1,5 +1,6 @@
 pub mod edges;
 pub mod nodes;
+pub mod notes;
 pub mod objectives;
 pub mod people;
 pub mod projects;
