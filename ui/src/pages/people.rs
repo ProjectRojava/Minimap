@@ -60,14 +60,14 @@ pub fn People() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-12 shrink-0 border-b border-zinc-200 dark:border-zinc-800">
-                <h1 class="text-base font-semibold tracking-tight">"People"</h1>
+            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
+                <h1 class="text-[13px] font-semibold">"People"</h1>
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New person" }}
                 </button>
             </header>
             <Show when=move || adding.get()>
-                <form class="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40"
+                <form class="flex items-center gap-2 px-4 py-2 border-b border-line bg-panel"
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Name" autofocus prop:value=move || name.get()
                            on:input=move |ev| name.set(event_target_value(&ev)) />
@@ -76,16 +76,16 @@ pub fn People() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
-            <div class=format!("{COLS} px-3 py-1 text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-200 dark:border-zinc-800")>
+            <div class=format!("{COLS} px-3 py-1 text-[11px] uppercase tracking-wide text-muted border-b border-line")>
                 <span>"Name"</span><span>"Role"</span><span>"Teams"</span>
                 <span class="text-right">"Tasks"</span><span class="text-right">"Waiting"</span>
             </div>
             <div class="flex-1 overflow-y-auto" role="table">
                 {move || match rows.get() {
-                    None => view! { <p class="p-4 text-zinc-500">"Loading…"</p> }.into_any(),
-                    Some(Err(_)) => view! { <p class="p-4 text-zinc-500">"Couldn't load people."</p> }.into_any(),
+                    None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
+                    Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load people."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
-                        <p class="p-4 text-zinc-500">"No people yet. Add the people you work with."</p>
+                        <p class="p-4 text-muted">"No people yet. Add the people you work with."</p>
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate().map(|(i, p)| {
                         let node = NodeRef::new(NodeType::Person, p.person.id);
@@ -95,10 +95,10 @@ pub fn People() -> impl IntoView {
                                 <div class=COLS>
                                     <span class="truncate font-medium">
                                         {p.person.name}
-                                        {p.person.is_self.then(|| view! { <span class="ml-1.5 text-[11px] font-normal text-zinc-500">"you"</span> })}
+                                        {p.person.is_self.then(|| view! { <span class="ml-1.5 text-[11px] font-normal text-muted">"you"</span> })}
                                     </span>
-                                    <span class="truncate text-zinc-500">{p.person.role_title}</span>
-                                    <span class="truncate text-zinc-500">{teams}</span>
+                                    <span class="truncate text-muted">{p.person.role_title}</span>
+                                    <span class="truncate text-muted">{teams}</span>
                                     <span class="text-right tabular-nums">{p.active_task_count}</span>
                                     <span class="text-right tabular-nums">{p.open_waiting_on_count}</span>
                                 </div>

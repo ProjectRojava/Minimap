@@ -16,13 +16,13 @@ pub fn DetailPane() -> impl IntoView {
         selection.0.get().map(|node| {
             view! {
                 // Scrim only below the split-view breakpoint.
-                <div class="fixed inset-0 z-20 bg-black/30 min-[1100px]:hidden"
+                <div class="fixed inset-0 z-20 bg-scrim min-[1100px]:hidden"
                      on:click=move |_| selection.close()></div>
                 <aside
-                    class="fixed inset-y-0 right-0 z-30 w-[420px] max-w-full shadow-2xl \
-                           min-[1100px]:static min-[1100px]:shadow-none min-[1100px]:max-w-none \
-                           flex flex-col shrink-0 overflow-y-auto border-l border-zinc-200 dark:border-zinc-800 \
-                           bg-white dark:bg-zinc-950"
+                    class="fixed inset-y-0 right-0 z-30 w-[420px] max-w-full \
+                           min-[1100px]:static min-[1100px]:max-w-none \
+                           flex flex-col shrink-0 overflow-y-auto border-l border-line \
+                           bg-panel"
                     aria-label="Details"
                 >
                     <PaneBody node=node />
@@ -66,16 +66,16 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
     });
 
     view! {
-        <header class="flex items-start gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+        <header class="flex items-start gap-2 px-4 py-3 border-b border-line">
             <div class="flex-1 min-w-0">
-                <p class="text-[11px] uppercase tracking-wide text-zinc-500">{type_label(node.node_type)}</p>
+                <p class="text-[11px] uppercase tracking-wide text-muted">{type_label(node.node_type)}</p>
                 <h2 class="text-base font-semibold break-words">
                     {move || match summary.get() {
                         Some(Ok(s)) => {
                             let archived = s.archived;
                             view! {
                                 {s.label}
-                                {archived.then(|| view! { <span class="ml-2 text-[11px] font-normal text-zinc-500">"archived"</span> })}
+                                {archived.then(|| view! { <span class="ml-2 text-[11px] font-normal text-muted">"archived"</span> })}
                             }.into_any()
                         }
                         Some(Err(_)) => "Unavailable".into_any(),
@@ -83,7 +83,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
                     }}
                 </h2>
             </div>
-            <button class="rounded px-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            <button class="rounded px-1.5 text-muted hover:bg-hover"
                     aria-label="Close details (Esc)" title="Close (Esc)"
                     on:click=move |_| selection.close()>"✕"</button>
         </header>
@@ -93,7 +93,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Team => view! { <TeamPanel id=node.id /> }.into_any(),
             other => view! {
                 <Section title="Fields">
-                    <p class="text-zinc-500">
+                    <p class="text-muted">
                         "Editable fields appear here once the " {type_label(other).to_lowercase()} " screens land."
                     </p>
                 </Section>
@@ -102,12 +102,12 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
 
         <Section title="Links">
             {move || match links.get() {
-                None => view! { <p class="text-zinc-500">"Loading…"</p> }.into_any(),
-                Some(Err(e)) => view! { <p class="text-red-600">{e.message}</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+                Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
                 Some(Ok(l)) => {
                     let l: Vec<EdgeLink> = l.into_iter().filter(|x| !edited_elsewhere(node.node_type, x)).collect();
                     if l.is_empty() {
-                        view! { <p class="text-zinc-500">"No other links."</p> }.into_any()
+                        view! { <p class="text-muted">"No other links."</p> }.into_any()
                     } else {
                         view! { <LinkGroups links=l /> }.into_any()
                     }
@@ -117,9 +117,9 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
 
         <Section title="Activity">
             {move || match history.get() {
-                None => view! { <p class="text-zinc-500">"Loading…"</p> }.into_any(),
-                Some(Err(e)) => view! { <p class="text-red-600">{e.message}</p> }.into_any(),
-                Some(Ok(h)) if h.is_empty() => view! { <p class="text-zinc-500">"No activity."</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+                Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
+                Some(Ok(h)) if h.is_empty() => view! { <p class="text-muted">"No activity."</p> }.into_any(),
                 Some(Ok(h)) => view! {
                     <ul class="space-y-2">
                         {h.into_iter().map(|a| view! { <ActivityRow activity=a /> }).collect_view()}
@@ -133,8 +133,8 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
 #[component]
 pub(crate) fn Section(title: &'static str, children: Children) -> impl IntoView {
     view! {
-        <section class="px-4 py-3 border-b border-zinc-100 dark:border-zinc-900 text-[13px]">
-            <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{title}</h3>
+        <section class="px-4 py-3 border-b border-line text-[13px]">
+            <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h3>
             {children()}
         </section>
     }
@@ -202,15 +202,15 @@ fn LinkGroups(links: Vec<EdgeLink>) -> impl IntoView {
         <div class="space-y-3">
             {group_links(links).into_iter().map(|(heading, items)| view! {
                 <div>
-                    <p class="mb-1 text-zinc-500">{heading}</p>
+                    <p class="mb-1 text-muted">{heading}</p>
                     <ul class="space-y-px">
                         {items.into_iter().map(|l| {
                             let node = l.other.node;
                             view! {
                                 <li>
-                                    <button class="w-full text-left rounded px-1.5 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    <button class="w-full text-left rounded px-1.5 py-0.5 hover:bg-hover"
                                             on:click=move |_| selection.open(node)>
-                                        <span class="text-zinc-400 mr-1.5">{type_label(node.node_type)}</span>
+                                        <span class="text-faint mr-1.5">{type_label(node.node_type)}</span>
                                         {l.other.label}
                                     </button>
                                 </li>
@@ -279,9 +279,9 @@ fn ActivityRow(activity: Activity) -> impl IntoView {
         <li>
             <p>
                 <span class="font-medium">{action_label(activity.action)}</span>
-                <span class="ml-2 text-[11px] text-zinc-500">{when} " UTC"</span>
+                <span class="ml-2 text-[11px] text-muted">{when} " UTC"</span>
             </p>
-            {lines.into_iter().map(|l| view! { <p class="text-zinc-500 break-words">{l}</p> }).collect_view()}
+            {lines.into_iter().map(|l| view! { <p class="text-muted break-words">{l}</p> }).collect_view()}
         </li>
     }
 }

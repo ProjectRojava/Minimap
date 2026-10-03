@@ -2,18 +2,15 @@
 
 use leptos::prelude::*;
 
-pub const INPUT: &str =
-    "w-full rounded border border-zinc-300 dark:border-zinc-700 bg-transparent \
-    px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-500";
-pub const BUTTON: &str =
-    "rounded border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-[12px] \
-    hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40";
-pub const BUTTON_PRIMARY: &str =
-    "rounded bg-emerald-600 px-2.5 py-1 text-[12px] font-medium text-white \
-    hover:bg-emerald-700 disabled:opacity-40";
-pub const BUTTON_DANGER: &str =
-    "rounded border border-red-300 dark:border-red-900 px-2.5 py-1 text-[12px] \
-    text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950";
+pub const INPUT: &str = "w-full rounded-sm border border-line bg-canvas px-2 py-1 text-[13px] text-fg \
+    focus:outline-none focus:border-line-strong";
+pub const BUTTON: &str = "rounded-sm border border-line px-2 py-0.5 text-[12px] text-fg \
+    hover:bg-hover disabled:opacity-40";
+/// Monochrome "primary": inverted foreground/background instead of a brand colour.
+pub const BUTTON_PRIMARY: &str = "rounded-sm border border-fg bg-fg px-2 py-0.5 text-[12px] text-canvas \
+    hover:opacity-85 disabled:opacity-40";
+pub const BUTTON_DANGER: &str = "rounded-sm border border-line px-2 py-0.5 text-[12px] text-danger \
+    hover:bg-hover";
 
 /// Text input that reports its value once, when it loses focus or Enter is pressed,
 /// and only if it changed. The stored value is not pushed back into the box while typing.
@@ -35,7 +32,7 @@ pub fn TextField(
     };
     view! {
         <label class="block mb-2">
-            <span class="block mb-0.5 text-[11px] text-zinc-500">{label}</span>
+            <span class="block mb-0.5 text-[11px] text-muted">{label}</span>
             {if multiline {
                 view! {
                     <textarea class=INPUT rows="4" placeholder=placeholder prop:value=value
@@ -61,13 +58,13 @@ pub fn SelectField(
     #[prop(optional)] compact: bool,
 ) -> impl IntoView {
     let class = if compact {
-        "rounded border border-zinc-300 dark:border-zinc-700 bg-transparent px-1 py-0.5 text-[12px]"
+        "rounded-sm border border-line bg-canvas px-1 py-0.5 text-[12px] text-fg focus:outline-none focus:border-line-strong"
     } else {
         INPUT
     };
     view! {
         <label class="block">
-            {(!label.is_empty()).then(|| view! { <span class="block mb-0.5 text-[11px] text-zinc-500">{label}</span> })}
+            {(!label.is_empty()).then(|| view! { <span class="block mb-0.5 text-[11px] text-muted">{label}</span> })}
             <select class=class on:change=move |ev| on_change.run(event_target_value(&ev))>
                 {options.into_iter().map(|(v, l)| {
                     let selected = v == current;

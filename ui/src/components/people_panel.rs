@@ -25,7 +25,7 @@ fn role_options() -> Vec<(String, String)> {
 }
 
 pub fn error_line(e: AppError) -> AnyView {
-    view! { <p class="text-red-600">{e.message}</p> }.into_any()
+    view! { <p class="text-danger">{e.message}</p> }.into_any()
 }
 
 /// "· · Name" so nested teams read as a tree inside a flat `<select>`.
@@ -62,7 +62,7 @@ pub fn PersonPanel(id: Uuid) -> impl IntoView {
     view! {
         <Section title="Fields">
             {move || match person.get() {
-                None => view! { <p class="text-zinc-500">"Loading…"</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
                 Some(Ok(p)) => view! { <PersonFields person=p /> }.into_any(),
             }}
@@ -76,7 +76,7 @@ pub fn PersonPanel(id: Uuid) -> impl IntoView {
             (Some(Err(e)), _, _) | (_, Some(Err(e)), _) | (_, _, Some(Err(e))) => view! {
                 <Section title="Organization">{error_line(e)}</Section>
             }.into_any(),
-            _ => view! { <Section title="Organization"><p class="text-zinc-500">"Loading…"</p></Section> }.into_any(),
+            _ => view! { <Section title="Organization"><p class="text-muted">"Loading…"</p></Section> }.into_any(),
         }}
     }
 }
@@ -208,7 +208,7 @@ fn Organization(
                     {m.node.label}
                 </button>
                 <SelectField compact=true current=m.role options=role_options() on_change=change_role />
-                <button class="px-1 text-zinc-400 hover:text-red-600" aria-label="Remove from team"
+                <button class="px-1 text-faint hover:text-danger" aria-label="Remove from team"
                         on:click=remove>"✕"</button>
             </li>
         }
@@ -217,13 +217,13 @@ fn Organization(
     view! {
         <Section title="Organization">
             <SelectField label="Manager" options=manager_options current=manager_now on_change=set_manager />
-            <p class="mt-3 mb-1 text-[11px] text-zinc-500">"Teams"</p>
+            <p class="mt-3 mb-1 text-[11px] text-muted">"Teams"</p>
             <ul class="mb-2 space-y-1">{rows}</ul>
             <SelectField compact=true options=add_options current=String::new() on_change=add_team />
             {(!detail.reports.is_empty()).then(|| {
                 let reports = detail.reports.clone();
                 view! {
-                    <p class="mt-3 mb-1 text-[11px] text-zinc-500">"Direct reports"</p>
+                    <p class="mt-3 mb-1 text-[11px] text-muted">"Direct reports"</p>
                     <NodeButtons nodes=reports />
                 }
             })}
@@ -241,7 +241,7 @@ pub fn NodeButtons(nodes: Vec<NodeSummary>) -> impl IntoView {
                 let node = n.node;
                 view! {
                     <li>
-                        <button class="w-full rounded px-1.5 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        <button class="w-full rounded px-1.5 py-0.5 text-left hover:bg-hover"
                                 on:click=move |_| selection.open(node)>{n.label}</button>
                     </li>
                 }
@@ -256,7 +256,7 @@ fn WaitingOnList(detail: PersonDetail) -> impl IntoView {
     view! {
         <Section title="Waiting on them">
             {if detail.waiting_ons.is_empty() {
-                view! { <p class="text-zinc-500">"Nothing outstanding."</p> }.into_any()
+                view! { <p class="text-muted">"Nothing outstanding."</p> }.into_any()
             } else {
                 view! {
                     <ul class="space-y-px">
@@ -264,10 +264,10 @@ fn WaitingOnList(detail: PersonDetail) -> impl IntoView {
                             let node = NodeRef::new(NodeType::WaitingOn, w.id);
                             view! {
                                 <li>
-                                    <button class="w-full rounded px-1.5 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    <button class="w-full rounded px-1.5 py-0.5 text-left hover:bg-hover"
                                             on:click=move |_| selection.open(node)>
                                         {w.description}
-                                        <span class="ml-2 text-[11px] text-zinc-500">"since " {w.asked_on.to_string()}</span>
+                                        <span class="ml-2 text-[11px] text-muted">"since " {w.asked_on.to_string()}</span>
                                     </button>
                                 </li>
                             }
@@ -308,7 +308,7 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
 
     if detail.person.is_self {
         return view! {
-            <Section title="Archive"><p class="text-zinc-500">"This is you, so it can't be archived."</p></Section>
+            <Section title="Archive"><p class="text-muted">"This is you, so it can't be archived."</p></Section>
         }
         .into_any();
     }

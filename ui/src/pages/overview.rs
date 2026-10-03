@@ -15,8 +15,8 @@ pub fn Overview() -> impl IntoView {
 
     view! {
         <div class="p-6 space-y-3">
-            <h1 class="text-lg font-semibold tracking-tight">"Overview"</h1>
-            <p class="text-[13px] text-zinc-500">
+            <h1 class="text-[13px] font-semibold">"Overview"</h1>
+            <p class="text-[13px] text-muted">
                 "The portfolio overview arrives with " <code class="font-mono">"15-health-and-overview"</code> "."
             </p>
             <p class="font-mono text-[12px]">
@@ -26,7 +26,7 @@ pub fn Overview() -> impl IntoView {
                     Some(Err(_)) => "backend unavailable".to_owned(),
                 }}
             </p>
-            <p class="text-[12px] text-zinc-500">
+            <p class="text-[12px] text-muted">
                 "Shortcuts: " <kbd class="font-mono">"g"</kbd> " then a letter to jump (shown on hover in the sidebar), "
                 <kbd class="font-mono">"j"</kbd> "/" <kbd class="font-mono">"k"</kbd> " move in lists, "
                 <kbd class="font-mono">"Enter"</kbd> " opens, " <kbd class="font-mono">"Esc"</kbd> " closes."
