@@ -2,12 +2,13 @@
 
 use minimap_types::{
     Activity, AppError, AssigneeChoice, CreateObjective, CreatePerson, CreateProject, CreateTask,
-    CreateTeam, Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Objective,
-    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
-    PersonRow, PingResponse, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter,
-    ProjectGroup, ProjectLayout, Settings, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow,
-    Team, TeamDetail, TeamRow, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
-    UpdateTask, UpdateTeam, Uuid,
+    CreateTeam, CreateWaitingOn, Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary,
+    NodeType, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person,
+    PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Project, ProjectArchivePreview,
+    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, Settings, Task, TaskDetail,
+    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateObjective, UpdatePerson,
+    UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
+    WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -383,4 +384,49 @@ pub async fn update_settings(patch: UpdateSettings) -> Result<Settings, AppError
 
 pub async fn list_link_options(node_type: NodeType) -> Result<Vec<LinkOption>, AppError> {
     invoke("list_link_options", &NodeTypeArg { node_type }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WaitingListArg {
+    filter_by: WaitingOnFilter,
+}
+
+#[derive(Serialize)]
+struct SnoozeArg {
+    id: Uuid,
+    days: Option<u32>,
+}
+
+pub async fn get_waiting_on(filter_by: WaitingOnFilter) -> Result<Vec<WaitingOnRow>, AppError> {
+    invoke("get_waiting_on", &WaitingListArg { filter_by }).await
+}
+
+pub async fn get_waiting_on_detail(id: Uuid) -> Result<WaitingOnRow, AppError> {
+    invoke("get_waiting_on_detail", &IdArg { id }).await
+}
+
+pub async fn create_waiting_on(input: CreateWaitingOn) -> Result<WaitingOn, AppError> {
+    invoke("create_waiting_on", &InputArg { input }).await
+}
+
+pub async fn update_waiting_on(id: Uuid, patch: UpdateWaitingOn) -> Result<WaitingOn, AppError> {
+    invoke("update_waiting_on", &PatchArg { id, patch }).await
+}
+
+pub async fn resolve_waiting_on(id: Uuid) -> Result<WaitingOn, AppError> {
+    invoke("resolve_waiting_on", &IdArg { id }).await
+}
+
+pub async fn reopen_waiting_on(id: Uuid) -> Result<WaitingOn, AppError> {
+    invoke("reopen_waiting_on", &IdArg { id }).await
+}
+
+/// `Some(days)` hides it for that many days; `None` ends the snooze.
+pub async fn snooze_waiting_on(id: Uuid, days: Option<u32>) -> Result<WaitingOn, AppError> {
+    invoke("snooze_waiting_on", &SnoozeArg { id, days }).await
+}
+
+pub async fn archive_waiting_on(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_waiting_on", &IdArg { id }).await
 }

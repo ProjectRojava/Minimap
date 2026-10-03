@@ -43,6 +43,27 @@ pub fn Settings() -> impl IntoView {
         }
     };
 
+    let save_stale = move |v: String| match v.trim().parse::<u32>() {
+        Ok(d) => spawn_local(async move {
+            finish(
+                api::update_settings(UpdateSettings {
+                    stale_waiting_days: Some(d),
+                    ..Default::default()
+                })
+                .await,
+                toasts,
+                version,
+            );
+        }),
+        Err(_) => {
+            toasts.error(&AppError {
+                code: "invalid".into(),
+                message: "Stale after must be a whole number of days".into(),
+            });
+            version.bump();
+        }
+    };
+
     view! {
         <div class="max-w-3xl p-6 space-y-8">
             <h1 class="text-[13px] font-semibold">"Settings"</h1>
@@ -62,6 +83,22 @@ pub fn Settings() -> impl IntoView {
                             "Estimates you've already entered keep their value; only new ones use the new setting."
                         </p>
                     }.into_any(),
+                }}
+            </section>
+            <section class="space-y-2">
+                <h2 class="text-[11px] font-semibold uppercase tracking-wide text-muted">"Waiting on"</h2>
+                {move || match settings.get() {
+                    Some(Ok(s)) => view! {
+                        <div class="max-w-xs">
+                            <TextField label="Stale after (days)" kind="number" value=s.stale_waiting_days.to_string()
+                                on_commit=save_stale />
+                        </div>
+                        <p class="text-[11px] text-muted">
+                            "An open waiting-on is stale once it is older than this, or past its expected date. "
+                            "Snoozed ones are not stale until they resurface."
+                        </p>
+                    }.into_any(),
+                    _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 }}
             </section>
             <p class="text-[11px] text-muted">"More settings (backups, encryption) arrive with the Settings feature."</p>

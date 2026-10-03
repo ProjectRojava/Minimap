@@ -7,3 +7,4 @@ pub mod settings;
 pub mod system;
 pub mod tasks;
 pub mod teams;
+pub mod waiting_on;

@@ -135,11 +135,11 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
     }
 }
 
-fn candidate_value(n: &NodeSummary) -> String {
+pub(crate) fn candidate_value(n: &NodeSummary) -> String {
     format!("{}:{}", n.node.node_type, n.node.id)
 }
 
-fn parse_candidate(v: &str) -> Option<NodeRef> {
+pub(crate) fn parse_candidate(v: &str) -> Option<NodeRef> {
     let (t, id) = v.split_once(':')?;
     Some(NodeRef::new(
         NodeType::from_str(t).ok()?,

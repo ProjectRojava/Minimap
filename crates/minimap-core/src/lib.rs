@@ -6,6 +6,7 @@ pub mod objectives;
 pub mod projects;
 pub mod slug;
 pub mod tasks;
+pub mod waiting_on;
 
 use minimap_types::PingResponse;
 

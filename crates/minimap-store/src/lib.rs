@@ -21,6 +21,11 @@ use std::path::Path;
 
 pub use error::{Result, StoreError};
 pub use rusqlite::Connection;
+
+/// Today's date (UTC), the app's notion of "today".
+pub fn today() -> time::Date {
+    convert::today()
+}
 use rusqlite_migration::{Migrations, M};
 
 fn migrations() -> Migrations<'static> {
@@ -33,6 +38,7 @@ fn migrations() -> Migrations<'static> {
         ),
         M::up(include_str!("../migrations/0004_project_slug_index.sql")),
         M::up(include_str!("../migrations/0005_settings.sql")),
+        M::up(include_str!("../migrations/0006_waiting_on_follow_up.sql")),
     ])
 }
 
@@ -86,7 +92,7 @@ mod tests {
     #[test]
     fn first_migration_runs() {
         let conn = open_in_memory().unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 5);
+        assert_eq!(schema_version(&conn).unwrap(), 6);
         let v: String = conn
             .query_row(
                 "SELECT value FROM app_meta WHERE key = 'created_by'",
@@ -155,7 +161,7 @@ mod migration_tests {
         migrations().to_version(&mut conn, 1).unwrap();
         assert_eq!(schema_version(&conn).unwrap(), 1);
         migrations().to_latest(&mut conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 5);
+        assert_eq!(schema_version(&conn).unwrap(), 6);
         let n: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('tasks','edges','activity')",
