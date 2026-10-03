@@ -1,5 +1,7 @@
 # Minimap
 
+> **Start with [`docs/knowledge-graph.md`](docs/knowledge-graph.md)**: the map of what exists in the code (crates, modules, commands, tables, UI, rules and where they're tested, spec status). Read it before searching the codebase, open only the files it points to, and **update it in the same change whenever you change code** (its §14 lists what to update for each kind of change).
+
 Local-first, private desktop app: a command center for CTOs/CXOs/PMs. Models objectives, projects, tasks, people and teams as a typed graph (dependencies, critical paths, capacity, downstream impact of slips).
 
 ## 1. Hard constraints (never violate)
@@ -121,4 +123,4 @@ cargo fmt --all
 Linux also needs Tauri system deps (webkit2gtk-4.1 etc.).
 
 ## 13. Working agreement
-Start each session by reading this file and `docs/progress.md`. Feature specs live in `docs/features/` (index in its README); implement only specs marked `Status: Ready`, and when one conflicts with this file, follow the spec and record an ADR. One milestone at a time; don't start the next until "Done when" passes. If a section-1 constraint blocks something, stop and explain the trade-off. Check official docs when unsure of Tauri 2 / Leptos / Trunk APIs.
+Start each session by reading this file, then `docs/knowledge-graph.md` (the code map), then `docs/progress.md`. **Keep `docs/knowledge-graph.md` in sync with the code**: any change that adds, removes, renames or re-wires a crate, module, public function, type, table, command, route, component, rule or test count must update the matching section (see its §14) before the work is reported done; if the graph and the code disagree, trust the code and fix the graph. Feature specs live in `docs/features/` (index in its README); implement only specs marked `Status: Ready`, and when one conflicts with this file, follow the spec and record an ADR. One milestone at a time; don't start the next until "Done when" passes. If a section-1 constraint blocks something, stop and explain the trade-off. Check official docs when unsure of Tauri 2 / Leptos / Trunk APIs.
