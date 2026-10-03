@@ -2388,6 +2388,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "thiserror 2.0.21",
+ "time",
  "tracing",
  "tracing-subscriber",
 ]

@@ -7,6 +7,7 @@ use crate::error::{Result, StoreError};
 
 const HOURS_PER_DAY: &str = "hours_per_day";
 const THEME: &str = "theme";
+const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
@@ -40,6 +41,14 @@ pub fn get(conn: &Connection) -> Result<Settings> {
     if let Some(h) = read(conn, HOURS_PER_DAY)?.and_then(|v| v.as_f64()) {
         s.hours_per_day = h;
     }
+    if let Some(d) = read(conn, STALE_WAITING_DAYS)?
+        .and_then(|v| v.as_u64())
+        .and_then(|d| u32::try_from(d).ok())
+    {
+        if (1..=365).contains(&d) {
+            s.stale_waiting_days = d;
+        }
+    }
     if let Some(t) = read(conn, THEME)?.and_then(|v| v.as_str().map(str::to_owned)) {
         if valid_theme_id(&t) {
             s.theme = t;
@@ -64,12 +73,22 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             ));
         }
     }
+    if let Some(d) = patch.stale_waiting_days {
+        if !(1..=365).contains(&d) {
+            return Err(StoreError::Invalid(
+                "stale after must be between 1 and 365 days".into(),
+            ));
+        }
+    }
     let tx = conn.transaction()?;
     if let Some(h) = patch.hours_per_day {
         write(&tx, HOURS_PER_DAY, &serde_json::json!(h))?;
     }
     if let Some(t) = patch.theme {
         write(&tx, THEME, &serde_json::json!(t))?;
+    }
+    if let Some(d) = patch.stale_waiting_days {
+        write(&tx, STALE_WAITING_DAYS, &serde_json::json!(d))?;
     }
     tx.commit()?;
     get(conn)

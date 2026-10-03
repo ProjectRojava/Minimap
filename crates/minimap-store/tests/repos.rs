@@ -126,6 +126,7 @@ fn one_of_each(conn: &mut Connection) -> Vec<NodeRef> {
             person_id: p.id,
             asked_on: None,
             expected_by: None,
+            follow_up_on: None,
         },
     )
     .unwrap();
@@ -199,6 +200,7 @@ fn delete_of_referenced_node_is_a_constraint_error() {
             person_id: p.id,
             asked_on: None,
             expected_by: None,
+            follow_up_on: None,
         },
     )
     .unwrap();
@@ -861,6 +863,7 @@ fn people_rows_show_teams_and_workload() {
             person_id: raj.id,
             asked_on: None,
             expected_by: None,
+            follow_up_on: None,
         },
     )
     .unwrap();
@@ -871,6 +874,7 @@ fn people_rows_show_teams_and_workload() {
             person_id: raj.id,
             asked_on: None,
             expected_by: None,
+            follow_up_on: None,
         },
     )
     .unwrap();
@@ -942,6 +946,7 @@ fn person_detail_has_teams_manager_reports_and_waiting_ons() {
             person_id: me.id,
             asked_on: None,
             expected_by: None,
+            follow_up_on: None,
         },
     )
     .unwrap();
@@ -1776,9 +1781,153 @@ fn theme_setting_defaults_to_dark_and_is_validated() {
         UpdateSettings {
             hours_per_day: Some(5.0),
             theme: Some("Bad Id".into()),
+            ..Default::default()
         },
     );
     assert!(r.is_err());
     assert_eq!(settings::get(&conn).unwrap().hours_per_day, 8.0);
     assert_eq!(settings::get(&conn).unwrap().theme, "system");
+}
+
+// ---------------------------------------------------------------- waiting-on
+
+fn waiting(conn: &mut Connection, person: Uuid, description: &str) -> WaitingOn {
+    waiting_on::create(
+        conn,
+        CreateWaitingOn {
+            description: description.into(),
+            person_id: person,
+            asked_on: None,
+            expected_by: None,
+            follow_up_on: None,
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn follow_up_date_is_saved_snoozes_and_logs_changes() {
+    let mut conn = db();
+    let raj = person(&mut conn, "Raj");
+    let w = waiting(&mut conn, raj.id, "Security review");
+    assert_eq!(w.follow_up_on, None);
+    let until = timefmt::parse_date("2027-02-10").unwrap();
+    let w = waiting_on::update(
+        &mut conn,
+        w.id,
+        UpdateWaitingOn {
+            follow_up_on: Patch::Set(until),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        waiting_on::get(&conn, w.id).unwrap().follow_up_on,
+        Some(until)
+    );
+    assert_eq!(
+        history(&conn, w.id)[0].diff,
+        json!({"follow_up_on": [null, "2027-02-10"]})
+    );
+    waiting_on::update(
+        &mut conn,
+        w.id,
+        UpdateWaitingOn {
+            follow_up_on: Patch::Clear,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(waiting_on::get(&conn, w.id).unwrap().follow_up_on, None);
+    // It can also be set when creating.
+    let created = waiting_on::create(
+        &mut conn,
+        CreateWaitingOn {
+            description: "x".into(),
+            person_id: raj.id,
+            asked_on: None,
+            expected_by: None,
+            follow_up_on: Some(until),
+        },
+    )
+    .unwrap();
+    assert_eq!(created.follow_up_on, Some(until));
+}
+
+#[test]
+fn waiting_on_items_name_the_person_and_the_target() {
+    let mut conn = db();
+    let raj = person(&mut conn, "Raj");
+    let p = project_with(&mut conn, "API Launch", None).unwrap();
+    let t = task(&mut conn, "Fix login");
+    let (w1, w2, w3) = (
+        waiting(&mut conn, raj.id, "one"),
+        waiting(&mut conn, raj.id, "two"),
+        waiting(&mut conn, raj.id, "gone"),
+    );
+    let about = |w: &WaitingOn, to: NodeRef| {
+        edge(
+            NodeRef::new(NodeType::WaitingOn, w.id),
+            to,
+            EdgeType::About,
+            json!({}),
+        )
+    };
+    edges::add(&mut conn, about(&w1, NodeRef::new(NodeType::Project, p.id))).unwrap();
+    edges::add(&mut conn, about(&w2, NodeRef::new(NodeType::Task, t.id))).unwrap();
+    nodes::archive(&mut conn, NodeRef::new(NodeType::WaitingOn, w3.id)).unwrap();
+
+    let items = views::waiting_on_items(&conn).unwrap();
+    assert_eq!(items.len(), 2, "archived ones are not listed");
+    let find = |id| items.iter().find(|i| i.waiting.id == id).unwrap();
+    assert_eq!(find(w1.id).person.label, "Raj");
+    assert_eq!(find(w1.id).about.as_ref().unwrap().label, "API Launch");
+    assert_eq!(find(w2.id).about.as_ref().unwrap().label, "Fix login");
+    // Removing the link clears the target.
+    let link = edges::list_active_of_type(&conn, EdgeType::About)
+        .unwrap()
+        .remove(0);
+    edges::remove(&mut conn, link.id).unwrap();
+    assert!(views::waiting_on_items(&conn)
+        .unwrap()
+        .iter()
+        .all(|i| i.about.is_none() || i.waiting.id != link.from_id));
+}
+
+#[test]
+fn stale_threshold_setting_defaults_to_seven_and_is_validated() {
+    let mut conn = db();
+    assert_eq!(settings::get(&conn).unwrap().stale_waiting_days, 7);
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            stale_waiting_days: Some(14),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!((s.stale_waiting_days, s.hours_per_day), (14, 8.0));
+    assert_eq!(settings::get(&conn).unwrap().stale_waiting_days, 14);
+    for bad in [0u32, 366, 10_000] {
+        let r = settings::update(
+            &mut conn,
+            UpdateSettings {
+                stale_waiting_days: Some(bad),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(r, Err(StoreError::Invalid(_))), "{bad}");
+    }
+    // A bad value alongside a good one changes nothing.
+    let r = settings::update(
+        &mut conn,
+        UpdateSettings {
+            stale_waiting_days: Some(0),
+            hours_per_day: Some(6.0),
+            ..Default::default()
+        },
+    );
+    assert!(r.is_err());
+    assert_eq!(settings::get(&conn).unwrap().hours_per_day, 8.0);
+    assert_eq!(settings::get(&conn).unwrap().stale_waiting_days, 14);
 }

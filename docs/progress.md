@@ -19,3 +19,4 @@
 - [x] 06 Tasks and inbox (implemented; manual click-through pending). Includes the hours-per-day setting (settings table + minimal screen), default assignee, paste-a-list preview, row shortcuts
 - [x] Dark by default + theme system (ADR-0005): 17 built-in themes as data, Settings → Appearance, `settings.theme`
 - [x] 07 Edges, linking and cycle detection (implemented; manual click-through pending). Includes `relates_to`, the generic Links editor, schema-driven attribute validation
+- [x] 08 Waiting-on (implemented; manual click-through pending). Includes snooze (`follow_up_on`, migration 0006) and the stale-threshold setting; Overview/This week will consume it (15, 16)

@@ -6,7 +6,7 @@ use minimap_types::{
     Contribution, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
     ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
     ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TaskDetail, TaskRow, TeamDetail,
-    TeamRow,
+    TeamRow, WaitingOnItem,
 };
 use rusqlite::Connection;
 use uuid::Uuid;
@@ -493,4 +493,42 @@ pub fn task_detail(conn: &Connection, id: Uuid) -> Result<TaskDetail> {
         project,
         assignee,
     })
+}
+
+/// Active waiting-ons with who they are from and what they are about, in storage order
+/// (ages, stale flags, filtering and ordering is `minimap-core::waiting_on`).
+pub fn waiting_on_items(conn: &Connection) -> Result<Vec<WaitingOnItem>> {
+    let people: HashMap<Uuid, NodeSummary> = people::list(conn, true)?
+        .into_iter()
+        .map(|p| {
+            (
+                p.id,
+                NodeSummary {
+                    node: NodeRef::new(NodeType::Person, p.id),
+                    label: p.name,
+                    archived: p.archived_at.is_some(),
+                },
+            )
+        })
+        .collect();
+    let mut about: HashMap<Uuid, NodeSummary> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::About)? {
+        if e.from_type == NodeType::WaitingOn {
+            about.insert(e.from_id, nodes::summary(conn, e.to())?);
+        }
+    }
+    Ok(waiting_on::list(conn, false)?
+        .into_iter()
+        .filter_map(|waiting| {
+            // Waiting-ons always reference an existing person (foreign key).
+            people
+                .get(&waiting.person_id)
+                .cloned()
+                .map(|person| WaitingOnItem {
+                    about: about.get(&waiting.id).cloned(),
+                    person,
+                    waiting,
+                })
+        })
+        .collect())
 }

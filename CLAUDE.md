@@ -30,7 +30,7 @@ Every node: `id` (uuid v7), `created_at`, `updated_at`, `archived_at` (soft dele
 - **Team**: name, description, parent_team_id (nestable)
 - **Note**: title, body (Markdown), note_date, kind (one_on_one/meeting/general)
 - **Decision**: title, context, decision, rationale, decided_on, status (proposed/decided/superseded)
-- **WaitingOn**: description, person_id, asked_on, expected_by, resolved_on
+- **WaitingOn**: description, person_id, asked_on, expected_by, follow_up_on (snooze until), resolved_on
 
 ### Edges (single `edges` table)
 Columns: id, edge_type, from_type, from_id, to_type, to_id, attrs (JSON, default '{}'), created_at, archived_at; `UNIQUE(edge_type, from_id, to_id)`; indexes `idx_edges_from(from_id, edge_type)`, `idx_edges_to(to_id, edge_type)`.

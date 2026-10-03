@@ -51,6 +51,14 @@ const COMMANDS: &[&str] = &[
     "create_tasks_bulk",
     "get_settings",
     "update_settings",
+    "get_waiting_on",
+    "get_waiting_on_detail",
+    "create_waiting_on",
+    "update_waiting_on",
+    "resolve_waiting_on",
+    "reopen_waiting_on",
+    "snooze_waiting_on",
+    "archive_waiting_on",
 ];
 
 fn main() {

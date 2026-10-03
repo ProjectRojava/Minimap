@@ -89,6 +89,14 @@ fn main() {
             commands::tasks::create_tasks_bulk,
             commands::settings::get_settings,
             commands::settings::update_settings,
+            commands::waiting_on::get_waiting_on,
+            commands::waiting_on::get_waiting_on_detail,
+            commands::waiting_on::create_waiting_on,
+            commands::waiting_on::update_waiting_on,
+            commands::waiting_on::resolve_waiting_on,
+            commands::waiting_on::reopen_waiting_on,
+            commands::waiting_on::snooze_waiting_on,
+            commands::waiting_on::archive_waiting_on,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

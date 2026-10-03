@@ -12,3 +12,4 @@ pub mod task_panel;
 pub mod team_panel;
 pub mod titlebar;
 pub mod toasts;
+pub mod waiting_panel;

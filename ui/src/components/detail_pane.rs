@@ -6,6 +6,7 @@ use crate::{
     components::{
         links_editor::LinksEditor, objective_panel::ObjectivePanel, people_panel::PersonPanel,
         project_panel::ProjectPanel, task_panel::TaskPanel, team_panel::TeamPanel,
+        waiting_panel::WaitingPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -97,6 +98,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Objective => view! { <ObjectivePanel id=node.id /> }.into_any(),
             NodeType::Project => view! { <ProjectPanel id=node.id /> }.into_any(),
             NodeType::Task => view! { <TaskPanel id=node.id /> }.into_any(),
+            NodeType::WaitingOn => view! { <WaitingPanel id=node.id /> }.into_any(),
             other => view! {
                 <Section title="Fields">
                     <p class="text-muted">

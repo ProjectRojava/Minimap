@@ -222,6 +222,8 @@ pub struct TaskDetail {
 }
 
 pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
+/// A waiting-on older than this many days (or past its expected date) counts as stale.
+pub const DEFAULT_STALE_WAITING_DAYS: u32 = 7;
 /// Dark is the default look. The UI owns the list of themes; the backend only stores the id.
 pub const DEFAULT_THEME: &str = "minimap-dark";
 
@@ -232,6 +234,8 @@ pub struct Settings {
     pub hours_per_day: f64,
     /// Id of the colour theme (`minimap-dark`, `nord`, ...) or `system` to follow the OS.
     pub theme: String,
+    /// Open waiting-ons older than this many days are stale.
+    pub stale_waiting_days: u32,
 }
 
 impl Default for Settings {
@@ -239,6 +243,7 @@ impl Default for Settings {
         Self {
             hours_per_day: DEFAULT_HOURS_PER_DAY,
             theme: DEFAULT_THEME.to_owned(),
+            stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
         }
     }
 }
@@ -248,4 +253,41 @@ impl Default for Settings {
 pub struct UpdateSettings {
     pub hours_per_day: Option<f64>,
     pub theme: Option<String>,
+    pub stale_waiting_days: Option<u32>,
+}
+
+// ---------------------------------------------------------------- waiting-on
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WaitingOnFilter {
+    pub person_id: Option<Uuid>,
+    /// Include ones already resolved.
+    pub include_resolved: bool,
+    /// Include ones snoozed until a future date.
+    pub include_snoozed: bool,
+}
+
+/// A waiting-on with who it is from and what it is about, before ages and flags are worked out.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WaitingOnItem {
+    pub waiting: WaitingOn,
+    pub person: NodeSummary,
+    /// The task or project it is for (`about` link), if any.
+    pub about: Option<NodeSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WaitingOnRow {
+    pub waiting: WaitingOn,
+    pub person: NodeSummary,
+    pub about: Option<NodeSummary>,
+    /// Days since it was asked (never negative).
+    pub age_days: i64,
+    /// Open, not snoozed, and older than the stale threshold or past its expected date.
+    pub stale: bool,
+    /// Open and snoozed until a future date.
+    pub snoozed: bool,
+    /// Open, not snoozed, and past its expected date.
+    pub overdue: bool,
 }

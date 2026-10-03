@@ -444,6 +444,8 @@ pub struct WaitingOn {
     pub person_id: Uuid,
     pub asked_on: Date,
     pub expected_by: Option<Date>,
+    /// Snoozed until this date: hidden from the default list, then it resurfaces.
+    pub follow_up_on: Option<Date>,
     pub resolved_on: Option<Date>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
@@ -462,6 +464,8 @@ pub struct CreateWaitingOn {
     pub asked_on: Option<Date>,
     #[serde(default)]
     pub expected_by: Option<Date>,
+    #[serde(default)]
+    pub follow_up_on: Option<Date>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -471,6 +475,7 @@ pub struct UpdateWaitingOn {
     pub person_id: Option<Uuid>,
     pub asked_on: Option<Date>,
     pub expected_by: Patch<Date>,
+    pub follow_up_on: Patch<Date>,
     pub resolved_on: Patch<Date>,
 }
 
@@ -480,6 +485,7 @@ impl UpdateWaitingOn {
         set(&mut w.person_id, self.person_id);
         set(&mut w.asked_on, self.asked_on);
         self.expected_by.apply(&mut w.expected_by);
+        self.follow_up_on.apply(&mut w.follow_up_on);
         self.resolved_on.apply(&mut w.resolved_on);
     }
 }

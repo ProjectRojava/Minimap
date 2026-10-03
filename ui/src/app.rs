@@ -20,6 +20,7 @@ use crate::{
         settings::Settings,
         tasks::{Inbox, Tasks},
         teams::Teams,
+        waiting_on::WaitingOn,
     },
     state::{DataVersion, ListNav, Selection, Toasts},
     theme::ThemeCtx,
@@ -76,7 +77,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/teams") view=Teams />
                     <Route path=path!("/notes") view=|| view! { <Placeholder title="Notes" spec="09-notes-and-mentions" /> } />
                     <Route path=path!("/decisions") view=|| view! { <Placeholder title="Decisions" spec="10-decisions" /> } />
-                    <Route path=path!("/waiting-on") view=|| view! { <Placeholder title="Waiting on" spec="08-waiting-on" /> } />
+                    <Route path=path!("/waiting-on") view=WaitingOn />
                     <Route path=path!("/settings") view=Settings />
                     <Route path=path!("/:type/:id") view=DeepLink />
                 </Routes>
