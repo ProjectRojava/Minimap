@@ -9,6 +9,7 @@ Flat, monochrome, IDE-like (think Zed): the work is the colour, the chrome is gr
 - **Easy on the eye.** No pure black or white; low-contrast hairlines. `fg` and `muted` meet WCAG AA (≥ 4.5:1) on canvas and panel in every theme (enforced by tests; see Themes); `faint` (~2.5:1) is only for hints and icons that are also available elsewhere (shortcut hints, ✕), never for information you need to read.
 - **Dense.** 13px base text, 28px (`h-7`) rows, 40px (`h-10`) headers, 11px uppercase labels for section titles.
 - **Primary buttons** are inverted (`bg-fg text-canvas`), not coloured.
+- **No native pop-ups.** The OS toolkit draws a webview's `<select>` list, date picker and checkbox, and they ignore page colours. Use `SelectField` (themed dropdown) and `DateField` (ISO text box + themed calendar) instead of `<select>` and `<input type="date">`; checkboxes and number/search inputs are restyled in `ui/style/input.css`. Dates are always shown and typed as `YYYY-MM-DD`, never in the locale's format.
 
 ## Window chrome
 The native title bar is disabled; `TitleBar` (32px) draws the app name, a drag region and minimize / maximize / close (flat, `currentColor` line icons; close turns `danger` on hover). It sits above the sidebar, content and pane, so full-height overlays start at `top-8`. On macOS the native traffic lights overlay the bar. See ADR-0004.

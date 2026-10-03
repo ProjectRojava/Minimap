@@ -13,7 +13,7 @@ use crate::{
     api,
     components::{
         detail_pane::{group_links, kind_edited_elsewhere, link_heading},
-        form::{BUTTON, COMPACT_INPUT, INPUT},
+        form::{SelectField, BUTTON, COMPACT_INPUT, INPUT},
         people_panel::error_line,
     },
     nav::type_label,
@@ -186,17 +186,12 @@ fn AttrFields(edge_id: Uuid, attrs: Value, specs: Vec<AttrSpec>) -> impl IntoVie
             };
             let title = spec.label.clone();
             match spec.kind {
-                AttrKind::Choice { options } => view! {
-                    <select class=COMPACT_INPUT title=title
-                            on:change=move |ev| save(event_target_value(&ev))>
-                        <option value="" selected=shown.is_empty()>"—"</option>
-                        {options.into_iter().map(|o| {
-                            let selected = o == shown;
-                            let label = o.clone();
-                            view! { <option value=o selected=selected>{label}</option> }
-                        }).collect_view()}
-                    </select>
-                }.into_any(),
+                AttrKind::Choice { options } => {
+                    let choices: Vec<(String, String)> = std::iter::once((String::new(), "—".to_owned()))
+                        .chain(options.into_iter().map(|o| (o.clone(), o)))
+                        .collect();
+                    view! { <SelectField compact=true options=choices current=shown on_change=save /> }.into_any()
+                }
                 AttrKind::Text => view! {
                     <input class=format!("{COMPACT_INPUT} w-28") type="text" placeholder=title.clone()
                            title=title prop:value=shown on:change=move |ev| save(event_target_value(&ev)) />
@@ -308,20 +303,17 @@ fn AddLink(node: NodeRef, options: Vec<LinkOption>, links: Vec<EdgeLink>) -> imp
         {move || if !open.get() {
             view! { <button class=BUTTON on:click=move |_| open.set(true)>"Add a link…"</button> }.into_any()
         } else {
-            let labels = labels.clone();
+            let relation_choices: Vec<(String, String)> = std::iter::once((String::new(), "Choose a relation…".to_owned()))
+                .chain(labels.iter().map(|(i, label)| (i.to_string(), (*label).to_owned())))
+                .collect();
             view! {
                 <div class="space-y-2 rounded-sm border border-line p-2">
                     <div class="flex items-center gap-2">
-                        <select class=COMPACT_INPUT aria-label="Relation"
-                                on:change=move |ev| {
-                                    relation.set(event_target_value(&ev).parse::<usize>().ok());
-                                    query.set(String::new());
-                                }>
-                            <option value="" selected=move || relation.get().is_none()>"Choose a relation…"</option>
-                            {labels.into_iter().map(|(i, label)| view! {
-                                <option value=i.to_string() selected=move || relation.get() == Some(i)>{label}</option>
-                            }).collect_view()}
-                        </select>
+                        <SelectField compact=true options=relation_choices.clone() current=String::new()
+                            on_change=move |v: String| {
+                                relation.set(v.parse::<usize>().ok());
+                                query.set(String::new());
+                            } />
                         <button class=format!("{BUTTON} ml-auto")
                                 on:click=move |_| { open.set(false); relation.set(None); query.set(String::new()); }>
                             "Cancel"

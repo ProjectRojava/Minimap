@@ -7,7 +7,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{DateField, SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
         node_row::NodeRow,
         objective_panel::{candidate_value, parse_candidate},
         waiting_panel::{age_text, snooze_options},
@@ -198,8 +198,7 @@ pub fn WaitingOn() -> impl IntoView {
                             .collect();
                         view! { <SelectField options=options current=who.get_untracked() on_change=move |v: String| who.set(v) /> }
                     }}
-                    <input class=format!("{INPUT} !w-40") type="date" title="Expected by (optional)"
-                           prop:value=move || expected.get() on:input=move |ev| expected.set(event_target_value(&ev)) />
+                    <DateField compact=true placeholder="Expected by" current=expected.get_untracked() on_commit=move |v: String| expected.set(v) />
                     {move || {
                         let options: Vec<(String, String)> = std::iter::once((String::new(), "About… (optional)".to_owned()))
                             .chain(match targets.get() {

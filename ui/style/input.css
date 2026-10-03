@@ -86,3 +86,33 @@
 .md a.mention:hover { background: var(--hover); }
 .md .mention.missing { color: var(--muted); }
 .md .link { text-decoration: underline dotted; text-underline-offset: 2px; }
+
+/* Native form controls drawn by the OS ignore the theme, so the ones we keep are restyled and
+   the rest (dropdowns, dates) are our own components (SelectField, DateField). */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--canvas);
+}
+input[type="checkbox"]:checked { background: var(--fg); border-color: var(--fg); }
+input[type="checkbox"]:checked::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--canvas);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+input[type="checkbox"]:disabled { opacity: 0.6; }
+input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }

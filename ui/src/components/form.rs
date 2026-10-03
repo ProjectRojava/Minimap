@@ -30,6 +30,13 @@ pub fn TextField(
     #[prop(default = "text")] kind: &'static str,
     #[prop(optional)] placeholder: &'static str,
 ) -> impl IntoView {
+    if kind == "date" {
+        // The webview's own date control ignores the theme; use ours.
+        return view! {
+            <div class="mb-2"><DateField label=label current=value on_commit=on_commit placeholder=placeholder /></div>
+        }
+        .into_any();
+    }
     let last = StoredValue::new(value.clone());
     let commit = move |v: String| {
         if v != last.get_value() {
@@ -53,37 +60,10 @@ pub fn TextField(
             }}
         </label>
     }
+    .into_any()
 }
 
-/// `<select>` over `(value, label)` options. Reports the chosen value.
-#[component]
-pub fn SelectField(
-    options: Vec<(String, String)>,
-    current: String,
-    #[prop(into)] on_change: Callback<String>,
-    #[prop(optional)] label: &'static str,
-    #[prop(optional)] compact: bool,
-    /// DOM id, so keyboard shortcuts can focus the control.
-    #[prop(optional, into)]
-    id: Option<String>,
-) -> impl IntoView {
-    let class = if compact {
-        "rounded-sm border border-line bg-canvas px-1 py-0.5 text-[12px] text-fg focus:outline-none focus:border-line-strong"
-    } else {
-        INPUT
-    };
-    view! {
-        <label class="block">
-            {(!label.is_empty()).then(|| view! { <span class="block mb-0.5 text-[11px] text-muted">{label}</span> })}
-            <select id=id class=class on:change=move |ev| on_change.run(event_target_value(&ev))>
-                {options.into_iter().map(|(v, l)| {
-                    let selected = v == current;
-                    view! { <option value=v selected=selected>{l}</option> }
-                }).collect_view()}
-            </select>
-        </label>
-    }
-}
+pub use super::{date_field::DateField, select::SelectField};
 
 /// A date input's text as an update: empty clears the date, otherwise it must be `YYYY-MM-DD`.
 pub fn date_patch(text: &str) -> Result<Patch<Date>, AppError> {
