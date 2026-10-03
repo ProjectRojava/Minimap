@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-archive-objective"
+description = "Enables the archive_objective command without any pre-configured scope."
+commands.allow = ["archive_objective"]
+
+[[permission]]
+identifier = "deny-archive-objective"
+description = "Denies the archive_objective command without any pre-configured scope."
+commands.deny = ["archive_objective"]

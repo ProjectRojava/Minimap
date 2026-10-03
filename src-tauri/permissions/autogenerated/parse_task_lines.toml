@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-parse-task-lines"
+description = "Enables the parse_task_lines command without any pre-configured scope."
+commands.allow = ["parse_task_lines"]
+
+[[permission]]
+identifier = "deny-parse-task-lines"
+description = "Denies the parse_task_lines command without any pre-configured scope."
+commands.deny = ["parse_task_lines"]

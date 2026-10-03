@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-objective"
+description = "Enables the update_objective command without any pre-configured scope."
+commands.allow = ["update_objective"]
+
+[[permission]]
+identifier = "deny-update-objective"
+description = "Denies the update_objective command without any pre-configured scope."
+commands.deny = ["update_objective"]

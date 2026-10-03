@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-objective-detail"
+description = "Enables the get_objective_detail command without any pre-configured scope."
+commands.allow = ["get_objective_detail"]
+
+[[permission]]
+identifier = "deny-get-objective-detail"
+description = "Denies the get_objective_detail command without any pre-configured scope."
+commands.deny = ["get_objective_detail"]
