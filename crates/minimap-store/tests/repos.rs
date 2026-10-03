@@ -763,3 +763,300 @@ fn summary_and_links_name_the_other_end() {
             .archived
     );
 }
+
+#[test]
+fn self_person_cannot_be_archived_or_deleted() {
+    let mut conn = db();
+    let me = people::ensure_self(&mut conn, "  ").unwrap();
+    assert_eq!(me.name, "Me");
+    assert!(me.is_self);
+    // Idempotent: a second call returns the same person.
+    assert_eq!(
+        people::ensure_self(&mut conn, "Someone else").unwrap().id,
+        me.id
+    );
+
+    let r = NodeRef::new(NodeType::Person, me.id);
+    assert!(matches!(
+        nodes::archive(&mut conn, r),
+        Err(StoreError::Invalid(_))
+    ));
+    assert!(matches!(
+        nodes::delete(&mut conn, r),
+        Err(StoreError::Invalid(_))
+    ));
+    assert!(people::get(&conn, me.id).unwrap().archived_at.is_none());
+}
+
+fn team(conn: &mut Connection, name: &str, parent: Option<Uuid>) -> Team {
+    teams::create(
+        conn,
+        CreateTeam {
+            name: name.into(),
+            description: String::new(),
+            parent_team_id: parent,
+        },
+    )
+    .unwrap()
+}
+
+fn edge(from: NodeRef, to: NodeRef, edge_type: EdgeType, attrs: serde_json::Value) -> NewEdge {
+    NewEdge {
+        edge_type,
+        from,
+        to,
+        attrs,
+    }
+}
+
+#[test]
+fn people_rows_show_teams_and_workload() {
+    let mut conn = db();
+    let (priya, raj) = (person(&mut conn, "priya"), person(&mut conn, "Raj"));
+    let platform = team(&mut conn, "Platform", None);
+    let (rp, rt) = (
+        NodeRef::new(NodeType::Person, priya.id),
+        NodeRef::new(NodeType::Team, platform.id),
+    );
+    edges::add(
+        &mut conn,
+        edge(rp, rt, EdgeType::MemberOf, json!({"role": "lead"})),
+    )
+    .unwrap();
+
+    let (t1, t2, t3) = (
+        task(&mut conn, "a"),
+        task(&mut conn, "b"),
+        task(&mut conn, "c"),
+    );
+    for t in [&t1, &t2, &t3] {
+        edges::add(
+            &mut conn,
+            edge(
+                NodeRef::new(NodeType::Task, t.id),
+                rp,
+                EdgeType::AssignedTo,
+                json!({}),
+            ),
+        )
+        .unwrap();
+    }
+    // Done tasks and archived tasks don't count as active.
+    tasks::update(
+        &mut conn,
+        t2.id,
+        UpdateTask {
+            status: Some(TaskStatus::Done),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    waiting_on::create(
+        &mut conn,
+        CreateWaitingOn {
+            description: "x".into(),
+            person_id: raj.id,
+            asked_on: None,
+            expected_by: None,
+        },
+    )
+    .unwrap();
+    let resolved = waiting_on::create(
+        &mut conn,
+        CreateWaitingOn {
+            description: "y".into(),
+            person_id: raj.id,
+            asked_on: None,
+            expected_by: None,
+        },
+    )
+    .unwrap();
+    waiting_on::update(
+        &mut conn,
+        resolved.id,
+        UpdateWaitingOn {
+            resolved_on: Patch::Set(timefmt::parse_date("2027-01-01").unwrap()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let rows = views::people_rows(&conn).unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|r| r.person.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["priya", "Raj"]
+    ); // case-insensitive order
+    let p = &rows[0];
+    assert_eq!(p.active_task_count, 2);
+    assert_eq!(
+        p.teams.iter().map(|t| t.label.as_str()).collect::<Vec<_>>(),
+        vec!["Platform"]
+    );
+    assert_eq!(rows[1].open_waiting_on_count, 1);
+    assert_eq!(rows[1].active_task_count, 0);
+
+    // Archiving the team removes it from the person's row.
+    nodes::archive(&mut conn, rt).unwrap();
+    assert!(views::people_rows(&conn).unwrap()[0].teams.is_empty());
+}
+
+#[test]
+fn person_detail_has_teams_manager_reports_and_waiting_ons() {
+    let mut conn = db();
+    let (me, boss, report) = (
+        person(&mut conn, "Me"),
+        person(&mut conn, "Boss"),
+        person(&mut conn, "Report"),
+    );
+    let t = team(&mut conn, "Platform", None);
+    let r = |p: &Person| NodeRef::new(NodeType::Person, p.id);
+    edges::add(
+        &mut conn,
+        edge(
+            r(&me),
+            NodeRef::new(NodeType::Team, t.id),
+            EdgeType::MemberOf,
+            json!({}),
+        ),
+    )
+    .unwrap();
+    edges::add(
+        &mut conn,
+        edge(r(&me), r(&boss), EdgeType::ReportsTo, json!({})),
+    )
+    .unwrap();
+    edges::add(
+        &mut conn,
+        edge(r(&report), r(&me), EdgeType::ReportsTo, json!({})),
+    )
+    .unwrap();
+    waiting_on::create(
+        &mut conn,
+        CreateWaitingOn {
+            description: "sign-off".into(),
+            person_id: me.id,
+            asked_on: None,
+            expected_by: None,
+        },
+    )
+    .unwrap();
+
+    let d = views::person_detail(&conn, me.id).unwrap();
+    assert_eq!(d.memberships.len(), 1);
+    assert_eq!(d.memberships[0].role, "member"); // default
+    assert_eq!(d.manager.as_ref().unwrap().node.label, "Boss");
+    assert_eq!(
+        d.reports
+            .iter()
+            .map(|n| n.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Report"]
+    );
+    assert_eq!(d.waiting_ons.len(), 1);
+}
+
+#[test]
+fn archive_preview_lists_active_assigned_tasks() {
+    let mut conn = db();
+    let p = person(&mut conn, "Priya");
+    let (open, done) = (task(&mut conn, "open one"), task(&mut conn, "finished"));
+    let rp = NodeRef::new(NodeType::Person, p.id);
+    for t in [&open, &done] {
+        edges::add(
+            &mut conn,
+            edge(
+                NodeRef::new(NodeType::Task, t.id),
+                rp,
+                EdgeType::AssignedTo,
+                json!({}),
+            ),
+        )
+        .unwrap();
+    }
+    tasks::update(
+        &mut conn,
+        done.id,
+        UpdateTask {
+            status: Some(TaskStatus::Done),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let preview = views::person_archive_preview(&conn, p.id).unwrap();
+    assert_eq!(preview.assigned_tasks.len(), 1);
+    assert_eq!(preview.assigned_tasks[0].label, "open one");
+
+    // Archiving really does archive the assignment edges.
+    nodes::archive(&mut conn, rp).unwrap();
+    assert!(edges::list_active(&conn).unwrap().is_empty());
+}
+
+#[test]
+fn team_rows_are_a_tree_and_detail_lists_members() {
+    let mut conn = db();
+    let eng = team(&mut conn, "Engineering", None);
+    let _sales = team(&mut conn, "Sales", None);
+    let platform = team(&mut conn, "Platform", Some(eng.id));
+    let infra = team(&mut conn, "Infra", Some(platform.id));
+    let apps = team(&mut conn, "apps", Some(eng.id));
+
+    let rows = views::team_rows(&conn).unwrap();
+    let shape: Vec<(&str, u32)> = rows
+        .iter()
+        .map(|r| (r.team.name.as_str(), r.depth))
+        .collect();
+    assert_eq!(
+        shape,
+        vec![
+            ("Engineering", 0),
+            ("apps", 1),
+            ("Platform", 1),
+            ("Infra", 2),
+            ("Sales", 0)
+        ]
+    );
+
+    let p = person(&mut conn, "Priya");
+    edges::add(
+        &mut conn,
+        edge(
+            NodeRef::new(NodeType::Person, p.id),
+            NodeRef::new(NodeType::Team, infra.id),
+            EdgeType::MemberOf,
+            json!({"role": "lead"}),
+        ),
+    )
+    .unwrap();
+    let d = views::team_detail(&conn, infra.id).unwrap();
+    assert_eq!(d.parent.as_ref().unwrap().label, "Platform");
+    assert_eq!((d.members.len(), d.members[0].role.as_str()), (1, "lead"));
+    let rows = views::team_rows(&conn).unwrap();
+    assert_eq!(
+        rows.iter()
+            .find(|r| r.team.id == infra.id)
+            .unwrap()
+            .member_count,
+        1
+    );
+    let eng_detail = views::team_detail(&conn, eng.id).unwrap();
+    assert_eq!(
+        eng_detail
+            .children
+            .iter()
+            .map(|c| c.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["apps", "Platform"]
+    );
+    let _ = apps;
+
+    // Archiving a parent promotes its active children to the top level in the tree.
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Team, eng.id)).unwrap();
+    let shape: Vec<(String, u32)> = views::team_rows(&conn)
+        .unwrap()
+        .into_iter()
+        .map(|r| (r.team.name, r.depth))
+        .collect();
+    assert!(shape.contains(&("Platform".to_string(), 0)));
+}

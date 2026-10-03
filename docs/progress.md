@@ -12,4 +12,5 @@
 
 ## M1 progress
 - [x] 01 Data model and activity log (store + types; no UI/commands yet)
-- [x] 02 App shell and navigation (implemented; manual click-through pending, see spec)
+- [x] 02 App shell and navigation
+- [x] 03 People and teams (implemented; manual click-through pending, see spec). Also landed: edge matrix + cycle detection in core, `add_edge`/`remove_edge`/`set_manager` (part of 07)

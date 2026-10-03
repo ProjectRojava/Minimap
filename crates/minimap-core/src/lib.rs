@@ -1,5 +1,7 @@
 //! Domain logic and graph algorithms. Pure: no IO, no SQLite.
-//! Populated from M2 onward.
+
+pub mod cycles;
+pub mod edge_rules;
 
 use minimap_types::PingResponse;
 

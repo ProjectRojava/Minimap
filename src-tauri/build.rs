@@ -1,9 +1,28 @@
-/// Commands exposed to the frontend. Keep in sync with `invoke_handler` in main.rs.
+/// Commands exposed to the frontend. Keep in sync with `invoke_handler` in main.rs
+/// and the permissions in capabilities/default.json.
 const COMMANDS: &[&str] = &[
     "ping",
     "get_node_summary",
     "list_edges_for",
     "list_activity_for",
+    "get_self_person",
+    "create_self_person",
+    "list_people",
+    "get_person",
+    "get_person_detail",
+    "create_person",
+    "update_person",
+    "preview_archive_person",
+    "archive_person",
+    "list_teams",
+    "get_team",
+    "get_team_detail",
+    "create_team",
+    "update_team",
+    "archive_team",
+    "add_edge",
+    "remove_edge",
+    "set_manager",
 ];
 
 fn main() {

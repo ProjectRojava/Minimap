@@ -37,13 +37,20 @@ impl ListNav {
         }
     }
 
+    /// Replaces the rows, keeping the cursor on the same position (clamped) so a
+    /// refresh after an edit doesn't lose your place.
     pub fn set_items(&self, items: Vec<NodeRef>) {
+        let len = items.len();
         self.items.set(items);
-        self.cursor.set(None);
+        self.cursor.update(|c| {
+            *c = c.and_then(|i| if len == 0 { None } else { Some(i.min(len - 1)) });
+        });
     }
 
+    /// Leaving a screen: forget its rows and the cursor.
     pub fn clear(&self) {
-        self.set_items(Vec::new());
+        self.items.set(Vec::new());
+        self.cursor.set(None);
     }
 
     pub fn step(&self, delta: isize) {
@@ -120,5 +127,43 @@ impl Toasts {
 impl Default for Toasts {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Bumped after every write so lists and the detail pane reload.
+#[derive(Clone, Copy)]
+pub struct DataVersion(RwSignal<u64>);
+
+impl DataVersion {
+    pub fn new() -> Self {
+        Self(RwSignal::new(0))
+    }
+
+    /// Read inside a resource's source closure to reload it on every write.
+    pub fn track(&self) -> u64 {
+        self.0.get()
+    }
+
+    pub fn bump(&self) {
+        self.0.update(|v| *v += 1);
+    }
+}
+
+impl Default for DataVersion {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Finishes a write: errors become a toast, and either way views reload (so a rejected
+/// edit snaps controls back to the stored value).
+pub fn finish<T>(result: Result<T, AppError>, toasts: Toasts, version: DataVersion) -> Option<T> {
+    version.bump();
+    match result {
+        Ok(v) => Some(v),
+        Err(e) => {
+            toasts.error(&e);
+            None
+        }
     }
 }

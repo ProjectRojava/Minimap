@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-person"
+description = "Enables the get_person command without any pre-configured scope."
+commands.allow = ["get_person"]
+
+[[permission]]
+identifier = "deny-get-person"
+description = "Denies the get_person command without any pre-configured scope."
+commands.deny = ["get_person"]

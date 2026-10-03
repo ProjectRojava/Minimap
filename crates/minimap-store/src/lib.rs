@@ -13,6 +13,7 @@ pub mod projects;
 mod repo;
 pub mod tasks;
 pub mod teams;
+pub mod views;
 pub mod waiting_on;
 
 use std::path::Path;

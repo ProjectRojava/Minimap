@@ -177,10 +177,76 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the add_edge command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-add-edge",
+          "markdownDescription": "Enables the add_edge command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the archive_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-person",
+          "markdownDescription": "Enables the archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the archive_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-team",
+          "markdownDescription": "Enables the archive_team command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-person",
+          "markdownDescription": "Enables the create_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_self_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-self-person",
+          "markdownDescription": "Enables the create_self_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-team",
+          "markdownDescription": "Enables the create_team command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-node-summary",
           "markdownDescription": "Enables the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-person",
+          "markdownDescription": "Enables the get_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_person_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-person-detail",
+          "markdownDescription": "Enables the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_self_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-self-person",
+          "markdownDescription": "Enables the get_self_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-team",
+          "markdownDescription": "Enables the get_team command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_team_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-team-detail",
+          "markdownDescription": "Enables the get_team_detail command without any pre-configured scope."
         },
         {
           "description": "Enables the list_activity_for command without any pre-configured scope.",
@@ -195,16 +261,124 @@
           "markdownDescription": "Enables the list_edges_for command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_people command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-people",
+          "markdownDescription": "Enables the list_people command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_teams command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-teams",
+          "markdownDescription": "Enables the list_teams command without any pre-configured scope."
+        },
+        {
           "description": "Enables the ping command without any pre-configured scope.",
           "type": "string",
           "const": "allow-ping",
           "markdownDescription": "Enables the ping command without any pre-configured scope."
         },
         {
+          "description": "Enables the preview_archive_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-preview-archive-person",
+          "markdownDescription": "Enables the preview_archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_edge command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remove-edge",
+          "markdownDescription": "Enables the remove_edge command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_manager command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-manager",
+          "markdownDescription": "Enables the set_manager command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-person",
+          "markdownDescription": "Enables the update_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-team",
+          "markdownDescription": "Enables the update_team command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the add_edge command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-add-edge",
+          "markdownDescription": "Denies the add_edge command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the archive_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-person",
+          "markdownDescription": "Denies the archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the archive_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-team",
+          "markdownDescription": "Denies the archive_team command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-person",
+          "markdownDescription": "Denies the create_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_self_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-self-person",
+          "markdownDescription": "Denies the create_self_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-team",
+          "markdownDescription": "Denies the create_team command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_node_summary command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-node-summary",
           "markdownDescription": "Denies the get_node_summary command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-person",
+          "markdownDescription": "Denies the get_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_person_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-person-detail",
+          "markdownDescription": "Denies the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_self_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-self-person",
+          "markdownDescription": "Denies the get_self_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-team",
+          "markdownDescription": "Denies the get_team command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_team_detail command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-team-detail",
+          "markdownDescription": "Denies the get_team_detail command without any pre-configured scope."
         },
         {
           "description": "Denies the list_activity_for command without any pre-configured scope.",
@@ -219,10 +393,52 @@
           "markdownDescription": "Denies the list_edges_for command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_people command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-people",
+          "markdownDescription": "Denies the list_people command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_teams command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-teams",
+          "markdownDescription": "Denies the list_teams command without any pre-configured scope."
+        },
+        {
           "description": "Denies the ping command without any pre-configured scope.",
           "type": "string",
           "const": "deny-ping",
           "markdownDescription": "Denies the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the preview_archive_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-preview-archive-person",
+          "markdownDescription": "Denies the preview_archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_edge command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remove-edge",
+          "markdownDescription": "Denies the remove_edge command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_manager command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-manager",
+          "markdownDescription": "Denies the set_manager command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_person command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-person",
+          "markdownDescription": "Denies the update_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_team command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-team",
+          "markdownDescription": "Denies the update_team command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

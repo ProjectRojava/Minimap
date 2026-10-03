@@ -5,14 +5,18 @@ use leptos_router::{
 };
 
 use crate::{
-    components::{detail_pane::DetailPane, sidebar::Sidebar, toasts::ToastHost},
+    components::{
+        detail_pane::DetailPane, first_run::FirstRun, sidebar::Sidebar, toasts::ToastHost,
+    },
     keyboard::use_global_shortcuts,
     pages::{
         deep_link::{DeepLink, NotFound},
         overview::Overview,
+        people::People,
         placeholder::Placeholder,
+        teams::Teams,
     },
-    state::{ListNav, Selection, Toasts},
+    state::{DataVersion, ListNav, Selection, Toasts},
 };
 
 #[component]
@@ -20,6 +24,7 @@ pub fn App() -> impl IntoView {
     provide_context(Selection(RwSignal::new(None)));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
+    provide_context(DataVersion::new());
 
     view! {
         <Router>
@@ -50,8 +55,8 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/objectives") view=|| view! { <Placeholder title="Objectives" spec="04-objectives" /> } />
                     <Route path=path!("/projects") view=|| view! { <Placeholder title="Projects" spec="05-projects" /> } />
                     <Route path=path!("/tasks") view=|| view! { <Placeholder title="Tasks" spec="06-tasks-and-inbox" /> } />
-                    <Route path=path!("/people") view=|| view! { <Placeholder title="People" spec="03-people-and-teams" /> } />
-                    <Route path=path!("/teams") view=|| view! { <Placeholder title="Teams" spec="03-people-and-teams" /> } />
+                    <Route path=path!("/people") view=People />
+                    <Route path=path!("/teams") view=Teams />
                     <Route path=path!("/notes") view=|| view! { <Placeholder title="Notes" spec="09-notes-and-mentions" /> } />
                     <Route path=path!("/decisions") view=|| view! { <Placeholder title="Decisions" spec="10-decisions" /> } />
                     <Route path=path!("/waiting-on") view=|| view! { <Placeholder title="Waiting on" spec="08-waiting-on" /> } />
@@ -61,6 +66,7 @@ fn Shell() -> impl IntoView {
             </main>
             <DetailPane />
             <ToastHost />
+            <FirstRun />
         </div>
     }
 }

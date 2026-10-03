@@ -8,6 +8,7 @@ mod enums;
 mod nodes;
 mod patch;
 pub mod timefmt;
+mod views;
 
 pub use activity::*;
 pub use edges::*;
@@ -15,6 +16,7 @@ pub use enums::*;
 pub use nodes::*;
 pub use patch::*;
 pub use uuid::Uuid;
+pub use views::*;
 
 /// Response of the `ping` command (M0 smoke test of the UI <-> Rust bridge).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
