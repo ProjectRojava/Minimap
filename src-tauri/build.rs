@@ -61,6 +61,8 @@ const COMMANDS: &[&str] = &[
     "archive_waiting_on",
     "parse_quick_add",
     "commit_quick_add",
+    "get_schedule",
+    "get_critical_path",
     "search",
     "list_decisions",
     "get_decision",

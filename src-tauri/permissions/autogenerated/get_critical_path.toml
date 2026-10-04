@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-critical-path"
+description = "Enables the get_critical_path command without any pre-configured scope."
+commands.allow = ["get_critical_path"]
+
+[[permission]]
+identifier = "deny-get-critical-path"
+description = "Denies the get_critical_path command without any pre-configured scope."
+commands.deny = ["get_critical_path"]

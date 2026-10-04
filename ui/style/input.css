@@ -116,3 +116,22 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type="search"]::-webkit-search-cancel-button,
 input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+
+/* Schedule timeline (components/schedule_panel.rs). Theme tokens only. */
+.gantt { display: block; }
+.gantt text { fill: var(--muted); font-size: 10px; font-family: inherit; }
+.gantt .week-line { stroke: var(--line-strong); stroke-width: 1; }
+.gantt .day-line { stroke: var(--line); stroke-width: 1; }
+.gantt .head-line { stroke: var(--line); stroke-width: 1; }
+.gantt .bar { fill: var(--muted); cursor: pointer; }
+.gantt .bar.critical { fill: var(--fg); }
+.gantt .bar.done { fill: var(--faint); }
+.gantt .bar.late { fill: var(--danger); }
+.gantt .bar.unestimated { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 2; }
+.gantt .bar.critical.unestimated { stroke: var(--fg); }
+.gantt .bar:hover { opacity: 0.8; }
+.gantt .slack { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 2; }
+.gantt .today { stroke: var(--fg); stroke-width: 1; }
+.gantt .target { stroke: var(--danger); stroke-width: 1; stroke-dasharray: 4 3; }
+.gantt .today-label { fill: var(--fg); }
+.gantt .target-label { fill: var(--danger); }

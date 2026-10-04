@@ -9,6 +9,7 @@ mod mention;
 mod nodes;
 mod patch;
 mod quick_add;
+mod schedule;
 pub mod timefmt;
 mod views;
 
@@ -19,6 +20,7 @@ pub use mention::mention_token;
 pub use nodes::*;
 pub use patch::*;
 pub use quick_add::*;
+pub use schedule::*;
 pub use time::Date;
 pub use uuid::Uuid;
 pub use views::*;
