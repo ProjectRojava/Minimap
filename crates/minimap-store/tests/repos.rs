@@ -2594,3 +2594,86 @@ fn the_capacity_task_limit_defaults_to_ten_and_is_validated() {
     let after = settings::get(&conn).unwrap();
     assert_eq!((after.capacity_task_limit, after.hours_per_day), (15, 8.0));
 }
+
+#[test]
+fn the_report_template_defaults_is_validated_and_can_be_reset() {
+    let mut conn = db();
+    let default = settings::get(&conn).unwrap().report_template;
+    assert_eq!(default, DEFAULT_REPORT_TEMPLATE);
+    let set = |conn: &mut Connection, text: &str| {
+        settings::update(
+            conn,
+            UpdateSettings {
+                report_template: Some(text.into()),
+                ..Default::default()
+            },
+        )
+    };
+    let s = set(&mut conn, "# Board update\n\n{{summary}}\n").unwrap();
+    assert_eq!(s.report_template, "# Board update\n\n{{summary}}\n");
+    assert_eq!(
+        settings::get(&conn).unwrap().report_template,
+        s.report_template
+    );
+    // A bad template is refused and the old one stays.
+    for bad in ["{{nonsense}}", "{{summary", "   "] {
+        let bad = if bad == "   " {
+            "{{ title }} {{ x }}"
+        } else {
+            bad
+        };
+        assert!(
+            matches!(set(&mut conn, bad), Err(StoreError::Invalid(_))),
+            "{bad}"
+        );
+    }
+    assert_eq!(
+        settings::get(&conn).unwrap().report_template,
+        s.report_template
+    );
+    // Other settings leave it alone; an empty text restores the built-in one.
+    settings::update(
+        &mut conn,
+        UpdateSettings {
+            hours_per_day: Some(6.0),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        settings::get(&conn).unwrap().report_template,
+        s.report_template
+    );
+    assert_eq!(set(&mut conn, "  ").unwrap().report_template, default);
+    assert_eq!(settings::get(&conn).unwrap().report_template, default);
+}
+
+#[test]
+fn activity_between_two_days_is_inclusive_and_oldest_first() {
+    use time::macros::date;
+    let mut conn = db();
+    let t = task(&mut conn, "Ship");
+    // Move the stored entries to known days.
+    let rows = history(&conn, t.id);
+    assert_eq!(rows.len(), 1);
+    for (day, n) in [
+        ("2027-03-01T00:00:00.000Z", 1),
+        ("2027-03-07T23:59:59.999Z", 2),
+        ("2027-03-08T00:00:00.000Z", 3),
+    ] {
+        conn.execute(
+            "INSERT INTO activity (id, at, node_type, node_id, action, diff) VALUES (?1, ?2, 'task', ?3, 'updated', '{}')",
+            rusqlite::params![format!("00000000-0000-0000-0000-00000000000{n}"), day, t.id.to_string()],
+        )
+        .unwrap();
+    }
+    let got = activity::list_between(&conn, date!(2027 - 03 - 01), date!(2027 - 03 - 07)).unwrap();
+    let ats: Vec<String> = got.iter().map(|a| a.at.to_string()).collect();
+    assert_eq!(got.len(), 2, "{ats:?}");
+    assert!(got[0].at < got[1].at);
+    assert!(
+        activity::list_between(&conn, date!(2027 - 03 - 02), date!(2027 - 03 - 06))
+            .unwrap()
+            .is_empty()
+    );
+}

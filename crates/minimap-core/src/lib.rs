@@ -13,12 +13,14 @@ pub mod objectives;
 pub mod overview;
 pub mod projects;
 pub mod quick_add;
+pub mod report;
 pub mod schedule;
 pub mod search;
 pub mod slug;
 pub mod tasks;
 pub mod this_week;
 pub mod waiting_on;
+pub mod weekly_review;
 
 use minimap_types::PingResponse;
 

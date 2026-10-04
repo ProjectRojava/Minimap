@@ -25,6 +25,7 @@ use crate::{
         teams::Teams,
         this_week::ThisWeek,
         waiting_on::WaitingOn,
+        weekly_review::WeeklyReview,
         what_if::WhatIf,
     },
     state::{DataVersion, ListNav, PaletteOpen, Scenario, Selection, Toasts},
@@ -89,6 +90,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/decisions") view=Decisions />
                     <Route path=path!("/waiting-on") view=WaitingOn />
                     <Route path=path!("/what-if") view=WhatIf />
+                    <Route path=path!("/weekly-review") view=WeeklyReview />
                     <Route path=path!("/settings") view=Settings />
                     <Route path=path!("/:type/:id") view=DeepLink />
                 </Routes>

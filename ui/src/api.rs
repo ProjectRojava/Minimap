@@ -4,15 +4,15 @@ use minimap_types::{
     Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Capacity, CreateDecision,
     CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
     CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge, EdgeLink,
-    GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note,
-    NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping,
-    Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse, PortfolioOverview,
-    Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout,
-    QuickChoice, QuickPreview, QuickResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter,
-    SearchHit, Settings, Slip, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team,
-    TeamDetail, TeamRow, ThisWeek, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
-    UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
-    WaitingOnFilter, WaitingOnRow,
+    ExportResult, GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType,
+    Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup,
+    ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse,
+    PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup,
+    ProjectLayout, QuickChoice, QuickPreview, QuickResult, ReportKind, ReportParams, Schedule,
+    ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Slip, Task, TaskDetail,
+    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision,
+    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask,
+    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -499,6 +499,105 @@ struct RescheduleArg {
 
 pub async fn reschedule_task(id: Uuid, when: String) -> Result<Task, AppError> {
     invoke("reschedule_task", &RescheduleArg { id, when }).await
+}
+
+pub async fn get_weekly_review(
+    week_start: Option<minimap_types::Date>,
+) -> Result<WeeklyReview, AppError> {
+    invoke("get_weekly_review", &WeekArg { week_start }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReportArg {
+    report_kind: ReportKind,
+    params: ReportParams,
+}
+
+/// The weekly status report as Markdown, made from the template in Settings.
+pub async fn render_report(week_start: Option<minimap_types::Date>) -> Result<String, AppError> {
+    invoke(
+        "render_report",
+        &ReportArg {
+            report_kind: ReportKind::WeeklyStatus,
+            params: ReportParams { week_start },
+        },
+    )
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportArg {
+    report_kind: ReportKind,
+    params: ReportParams,
+    path: String,
+}
+
+/// Writes the weekly status report to `path` (chosen with [`save_dialog`]).
+pub async fn export_markdown(
+    week_start: Option<minimap_types::Date>,
+    path: String,
+) -> Result<ExportResult, AppError> {
+    invoke(
+        "export_markdown",
+        &ExportArg {
+            report_kind: ReportKind::WeeklyStatus,
+            params: ReportParams { week_start },
+            path,
+        },
+    )
+    .await
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "dialog"], js_name = save)]
+    async fn dialog_save_raw(options: JsValue) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(catch, js_namespace = ["navigator", "clipboard"], js_name = writeText)]
+    async fn clipboard_write_raw(text: &str) -> Result<JsValue, JsValue>;
+}
+
+#[derive(Serialize)]
+struct SaveFilter {
+    name: &'static str,
+    extensions: [&'static str; 2],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveOptions {
+    title: &'static str,
+    default_path: String,
+    filters: [SaveFilter; 1],
+}
+
+/// The operating system's save dialog for a Markdown file. `Ok(None)` = cancelled.
+pub async fn save_dialog(default_name: &str) -> Result<Option<String>, AppError> {
+    let options = SaveOptions {
+        title: "Save the status report",
+        default_path: default_name.to_owned(),
+        filters: [SaveFilter {
+            name: "Markdown",
+            extensions: ["md", "markdown"],
+        }],
+    }
+    .serialize(&serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true))
+    .map_err(ipc_error)?;
+    match dialog_save_raw(options).await {
+        Ok(v) if v.is_null() || v.is_undefined() => Ok(None),
+        Ok(v) => Ok(v.as_string()),
+        Err(e) => Err(ipc_error(format!("{e:?}"))),
+    }
+}
+
+/// Puts text on the clipboard.
+pub async fn copy_text(text: &str) -> Result<(), AppError> {
+    clipboard_write_raw(text)
+        .await
+        .map(|_| ())
+        .map_err(|e| ipc_error(format!("{e:?}")))
 }
 
 pub async fn get_portfolio_overview() -> Result<PortfolioOverview, AppError> {
