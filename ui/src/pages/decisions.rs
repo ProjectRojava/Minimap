@@ -11,6 +11,7 @@ use crate::{
         decision_panel::status_options,
         form::{SelectField, BUTTON, COMPACT_INPUT},
         node_row::NodeRow,
+        page::{column_head, EmptyState, Hints, PageHeader, CHIP, FILTER_BAR},
     },
     labels::decision_status_label,
     state::{finish, DataVersion, ListNav, Selection, Toasts},
@@ -73,23 +74,26 @@ pub fn Decisions() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">"Decisions"</h1>
+            <PageHeader icon="decisions" title="Decisions" subtitle="What was decided, why, and what it touches">
                 <button class=BUTTON on:click=move |_| create()>"New decision"</button>
-                <span class="ml-auto text-[11px] text-muted">"n new · j/k move · Enter open"</span>
-            </header>
-            <div class="flex flex-wrap items-center gap-2 px-4 py-1.5 shrink-0 border-b border-line">
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("Enter", "open")] />
+            </PageHeader>
+            <div class=FILTER_BAR>
                 <input class=format!("{COMPACT_INPUT} w-44") type="search" placeholder="Search decisions"
                        prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
                 <SelectField compact=true options=status_filter current=String::new()
                              on_change=move |v: String| status.set(v) />
+            </div>
+            <div class=column_head(COLS)>
+                <span>"Decided"</span><span>"Status"</span><span>"Decision"</span><span>"Links"</span>
             </div>
             <div class="flex-1 overflow-y-auto" role="table">
                 {move || match rows.get() {
                     None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load decisions."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
-                        <p class="p-4 text-muted">"No decisions match. Press n to record one."</p>
+                        <EmptyState icon="decisions" title="No decisions match"
+                            hint="Press n to record one, or clear the filters." />
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate()
                         .map(|(i, row)| view! { <DecisionRowView row=row index=i /> })
@@ -126,7 +130,7 @@ fn DecisionRowView(row: DecisionRow, index: usize) -> impl IntoView {
         <NodeRow node=node index=index>
             <div class=COLS>
                 <span class="tabular-nums text-muted">{when}</span>
-                <span class="text-[11px] uppercase tracking-wide text-muted">{decision_status_label(row.status)}</span>
+                <span><span class=CHIP>{decision_status_label(row.status)}</span></span>
                 <span class=if dim { "truncate text-muted line-through decoration-faint" } else { "truncate" }>
                     <span class="font-medium">{row.title}</span>
                     <span class="ml-2 text-muted">{row.excerpt}</span>

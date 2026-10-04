@@ -4,8 +4,8 @@
 
 use leptos::prelude::*;
 use minimap_types::{
-    NodeRef, NodeType, ObjectiveHealthRow, OverloadedPerson, PortfolioOverview, ProjectHealthRow,
-    RiskItem, WaitingOnRow,
+    HealthLevel, NodeRef, NodeType, ObjectiveHealthRow, OverloadedPerson, PortfolioOverview,
+    ProjectHealthRow, RiskItem, WaitingOnRow,
 };
 
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
             counts_text, finish_text, load_text, reasons_text, risk_kind_label, risk_priority_text,
             HealthMark,
         },
+        page::{EmptyState, PageHeader, CHIP},
         waiting_panel::age_text,
     },
     labels::objective_status_label,
@@ -39,17 +40,35 @@ pub fn Overview() -> impl IntoView {
     }
 }
 
+/// A count of projects at one health level.
+#[component]
+fn StatTile(label: &'static str, value: u32, level: HealthLevel) -> impl IntoView {
+    let number = if level == HealthLevel::Red && value > 0 {
+        "text-danger"
+    } else {
+        "text-fg"
+    };
+    view! {
+        <div class="rounded-sm border border-line bg-panel px-3 py-2">
+            <div class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                <HealthMark level=level />{label}
+            </div>
+            <div class=format!("text-[22px] font-semibold leading-7 tabular-nums {number}")>{value}</div>
+        </div>
+    }
+}
+
 #[component]
 fn Block(title: String, children: Children) -> impl IntoView {
     view! {
         <section class="border-b border-line">
-            <h2 class="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h2>
+            <h2 class="px-4 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">{title}</h2>
             {children()}
         </section>
     }
 }
 
-const ROW: &str = "flex items-baseline gap-2 px-4 min-h-7 cursor-default hover:bg-hover";
+const ROW: &str = "flex items-baseline gap-2 px-4 min-h-8 py-1 cursor-default hover:bg-hover";
 
 #[component]
 fn Body(overview: PortfolioOverview) -> impl IntoView {
@@ -69,6 +88,8 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
         thresholds,
         ..
     } = overview;
+    let counts_line = counts_text(&counts);
+    let (red, amber, green, idle) = (counts.red, counts.amber, counts.green, counts.idle);
     let nothing = objectives.is_empty() && unlinked_projects.is_empty();
     let t = thresholds;
     let legend = format!(
@@ -117,17 +138,20 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
     let n_waiting = stale_waiting.len();
 
     view! {
-        <header class="flex items-baseline gap-3 px-4 h-10 border-b border-line">
-            <h1 class="text-[13px] font-semibold">"Overview"</h1>
-            <span class="text-muted">{counts_text(&counts)}</span>
-            <span class="ml-auto text-[11px] text-muted">{format!("as of {today}")}</span>
-        </header>
+        <PageHeader icon="overview" title="Overview" subtitle="What is at risk and why, without asking">
+            <span class="text-muted">{counts_line}</span>
+            <span class=format!("{CHIP} ml-auto")>{format!("as of {today}")}</span>
+        </PageHeader>
+        <div class="grid grid-cols-2 gap-2 border-b border-line px-4 py-3 sm:grid-cols-4">
+            <StatTile label="Red" value=red level=HealthLevel::Red />
+            <StatTile label="Amber" value=amber level=HealthLevel::Amber />
+            <StatTile label="Green" value=green level=HealthLevel::Green />
+            <StatTile label="Not scored" value=idle level=HealthLevel::Idle />
+        </div>
         {warning_rows}
         {nothing.then(|| view! {
-            <p class="p-4 text-muted">
-                "Nothing to show yet. Add objectives and projects, link projects to objectives "
-                "(Links → Contributes to), and give them target dates and task estimates: health appears here."
-            </p>
+            <EmptyState icon="overview" title="Nothing to show yet"
+                hint="Add objectives and projects, link projects to objectives (Links → Contributes to), and give them target dates and task estimates: health appears here." />
         })}
         {has_risks.then(|| view! {
             <Block title="Top risks".to_owned()>
@@ -199,7 +223,7 @@ fn project_row(
     on_click: impl Fn(leptos::ev::MouseEvent) + 'static,
 ) -> impl IntoView {
     let class = if nested {
-        "flex items-baseline gap-2 pl-9 pr-4 min-h-7 cursor-default hover:bg-hover"
+        "flex items-baseline gap-2 pl-9 pr-4 min-h-8 py-1 cursor-default hover:bg-hover"
     } else {
         ROW
     };

@@ -4,6 +4,7 @@ use minimap_types::{AppError, HealthThresholds, UpdateSettings};
 use crate::{
     api,
     components::form::{TextField, BUTTON, COMPACT_INPUT},
+    components::page::{Card, PageHeader},
     state::{finish, DataVersion, Toasts},
     theme::ThemeCtx,
     themes::{self, Kind, Theme},
@@ -65,11 +66,12 @@ pub fn Settings() -> impl IntoView {
     };
 
     view! {
-        <div class="max-w-3xl p-6 space-y-8">
-            <h1 class="text-[13px] font-semibold">"Settings"</h1>
+        <div class="flex h-full flex-col">
+            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons and project health"><span></span></PageHeader>
+            <div class="flex-1 overflow-y-auto">
+            <div class="mx-auto max-w-3xl space-y-4 p-6">
             <Appearance />
-            <section class="space-y-2">
-                <h2 class="text-[11px] font-semibold uppercase tracking-wide text-muted">"Time"</h2>
+            <Card title="Time" description="How estimates and working days are measured.">
                 {move || match settings.get() {
                     None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
@@ -84,9 +86,8 @@ pub fn Settings() -> impl IntoView {
                         </p>
                     }.into_any(),
                 }}
-            </section>
-            <section class="space-y-2">
-                <h2 class="text-[11px] font-semibold uppercase tracking-wide text-muted">"Waiting on"</h2>
+            </Card>
+            <Card title="Waiting on" description="When an open waiting-on counts as stale.">
                 {move || match settings.get() {
                     Some(Ok(s)) => view! {
                         <div class="max-w-xs">
@@ -100,9 +101,11 @@ pub fn Settings() -> impl IntoView {
                     }.into_any(),
                     _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 }}
-            </section>
+            </Card>
             <HealthSettings />
             <p class="text-[11px] text-muted">"More settings (backups, encryption) arrive with the Settings feature."</p>
+            </div>
+            </div>
         </div>
     }
 }
@@ -140,8 +143,7 @@ fn Appearance() -> impl IntoView {
     };
 
     view! {
-        <section class="space-y-3">
-            <h2 class="text-[11px] font-semibold uppercase tracking-wide text-muted">"Appearance"</h2>
+        <Card title="Appearance" description="Colour theme. Dark is the default; System follows your OS.">
             <button
                 class=move || format!(
                     "flex w-full items-center gap-3 rounded-sm border p-2 text-left hover:bg-hover {}",
@@ -164,7 +166,7 @@ fn Appearance() -> impl IntoView {
                 "Palettes are adapted from the originals to fit the app's colour tokens, with text colours "
                 "nudged where needed so everything stays readable."
             </p>
-        </section>
+        </Card>
     }
 }
 
@@ -226,14 +228,13 @@ fn HealthSettings() -> impl IntoView {
         });
     };
     view! {
-        <section class="space-y-2">
-            <h2 class="text-[11px] font-semibold uppercase tracking-wide text-muted">"Project health"</h2>
+        <Card title="Project health" description="When a project turns amber or red on the Overview.">
             {move || match settings.get() {
                 Some(Ok(s)) => view! { <HealthRows current=s.health on_save=save /> }.into_any(),
                 Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
-        </section>
+        </Card>
     }
 }
 

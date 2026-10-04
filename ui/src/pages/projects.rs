@@ -11,6 +11,7 @@ use crate::{
     components::{
         form::{SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
         node_row::NodeRow,
+        page::{column_head, EmptyState, GroupLabel, PageHeader, CHIP, FILTER_BAR, FORM_BAR},
     },
     labels::{priority_short, project_status_label},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
@@ -123,8 +124,7 @@ pub fn Projects() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">"Projects"</h1>
+            <PageHeader icon="projects" title="Projects" subtitle="Work with an owner, a target date and tasks">
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New project" }}
                 </button>
@@ -134,8 +134,8 @@ pub fn Projects() -> impl IntoView {
                     <button class=move || toggle_class(board.get()) aria-pressed=move || board.get().to_string()
                             on:click=move |_| board.set(true)>"Board"</button>
                 </div>
-            </header>
-            <div class="flex items-center gap-2 px-4 py-1.5 shrink-0 border-b border-line">
+            </PageHeader>
+            <div class=FILTER_BAR>
                 <span class="text-[11px] uppercase tracking-wide text-muted">"Filter"</span>
                 {move || view! {
                     <SelectField compact=true current=status.get_untracked()
@@ -163,7 +163,7 @@ pub fn Projects() -> impl IntoView {
                 }}
             </div>
             <Show when=move || adding.get()>
-                <form class="flex items-end gap-2 px-4 py-2 border-b border-line bg-panel"
+                <form class=FORM_BAR
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Project title" autofocus prop:value=move || title.get()
                            on:input=move |ev| title.set(event_target_value(&ev)) />
@@ -194,7 +194,8 @@ pub fn Projects() -> impl IntoView {
                 None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load projects."</p> }.into_any(),
                 Some(Ok(g)) if !board.get() && g.is_empty() => view! {
-                    <p class="p-4 text-muted">"No projects match. Add one, or clear the filters."</p>
+                    <EmptyState icon="projects" title="No projects match"
+                        hint="Add one with New project, or clear the filters." />
                 }.into_any(),
                 Some(Ok(g)) if board.get() => view! { <Board groups=g /> }.into_any(),
                 Some(Ok(g)) => view! { <ListView groups=g /> }.into_any(),
@@ -218,18 +219,19 @@ fn ListView(groups: Vec<ProjectGroup>) -> impl IntoView {
     let mut index = 0;
     let mut out = Vec::new();
     for group in groups {
-        out.push(view! {
-            <div class="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                {group.label} <span class="ml-1 font-normal text-faint">{group.rows.len()}</span>
-            </div>
-        }.into_any());
+        out.push(
+            view! {
+                <GroupLabel label=group.label.clone() count=group.rows.len() />
+            }
+            .into_any(),
+        );
         for row in group.rows {
             out.push(project_row(row, index).into_any());
             index += 1;
         }
     }
     view! {
-        <div class=format!("{COLS} px-3 py-1 text-[11px] uppercase tracking-wide text-muted border-b border-line")>
+        <div class=column_head(COLS)>
             <span>"Pri"</span><span>"Project"</span><span>"Owner"</span><span>"Status"</span>
             <span>"Target"</span><span class="text-right">"Tasks"</span>
         </div>
@@ -250,7 +252,7 @@ fn project_row(row: ProjectRow, index: usize) -> impl IntoView {
                     <span class="ml-2 font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</span>
                 </span>
                 <span class="truncate text-muted">{row.owner.map(|o| o.label).unwrap_or_default()}</span>
-                <span class="text-muted">{project_status_label(p.status)}</span>
+                <span><span class=CHIP>{project_status_label(p.status)}</span></span>
                 <span class="text-muted tabular-nums">{p.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
                 <span class="text-right tabular-nums text-muted">{tasks}</span>
             </div>

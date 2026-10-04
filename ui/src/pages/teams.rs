@@ -6,6 +6,7 @@ use crate::{
     components::{
         form::{SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
         node_row::NodeRow,
+        page::{EmptyState, PageHeader, FORM_BAR},
         people_panel::team_options,
     },
     state::{finish, DataVersion, ListNav, Selection, Toasts},
@@ -57,14 +58,13 @@ pub fn Teams() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">"Teams"</h1>
+            <PageHeader icon="teams" title="Teams" subtitle="How people are organised, nested as you need">
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New team" }}
                 </button>
-            </header>
+            </PageHeader>
             <Show when=move || adding.get()>
-                <form class="flex items-end gap-2 px-4 py-2 border-b border-line bg-panel"
+                <form class=FORM_BAR
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Team name" autofocus prop:value=move || name.get()
                            on:input=move |ev| name.set(event_target_value(&ev)) />
@@ -85,7 +85,8 @@ pub fn Teams() -> impl IntoView {
                     None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load teams."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
-                        <p class="p-4 text-muted">"No teams yet. Create one, then add people to it from their page."</p>
+                        <EmptyState icon="teams" title="No teams yet"
+                            hint="Create one, then add people to it from their page." />
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate().map(|(i, t)| {
                         let node = NodeRef::new(NodeType::Team, t.team.id);
