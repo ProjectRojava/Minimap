@@ -246,6 +246,10 @@ pub struct Settings {
     /// The Markdown template of the weekly status report (`{{placeholders}}`, see
     /// `REPORT_PLACEHOLDERS`); the built-in default until edited.
     pub report_template: String,
+    /// Folder for backups; `None` = the default one inside the app's data folder.
+    pub backup_folder: Option<String>,
+    /// Back up automatically (on start when the last backup is over a day old, then daily).
+    pub auto_backup: bool,
 }
 
 impl Default for Settings {
@@ -257,6 +261,8 @@ impl Default for Settings {
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
             health: crate::HealthThresholds::default(),
             report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
+            backup_folder: None,
+            auto_backup: true,
         }
     }
 }
@@ -271,6 +277,9 @@ pub struct UpdateSettings {
     pub health: Option<crate::HealthThresholds>,
     /// A new report template; an empty text restores the built-in one.
     pub report_template: Option<String>,
+    /// A new backup folder (an absolute path); an empty text goes back to the default.
+    pub backup_folder: Option<String>,
+    pub auto_backup: Option<bool>,
 }
 
 // ---------------------------------------------------------------- waiting-on

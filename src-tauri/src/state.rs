@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use minimap_store::Connection;
 use minimap_types::AppError;
@@ -8,12 +11,15 @@ use crate::error::app_error;
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
+    /// The app's data folder (the database, the log and the default backup folder live here).
+    pub data_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new(conn: Connection) -> Self {
+    pub fn new(conn: Connection, data_dir: PathBuf) -> Self {
         Self {
             db: Arc::new(Mutex::new(conn)),
+            data_dir,
         }
     }
 

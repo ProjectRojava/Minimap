@@ -1,3 +1,4 @@
+pub mod backup_settings;
 pub mod date_field;
 pub mod decision_panel;
 pub mod detail_pane;
