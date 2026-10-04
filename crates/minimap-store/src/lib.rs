@@ -10,6 +10,7 @@ pub mod notes;
 pub mod objectives;
 pub mod people;
 pub mod projects;
+pub mod quick_add;
 mod repo;
 pub mod search;
 pub mod settings;

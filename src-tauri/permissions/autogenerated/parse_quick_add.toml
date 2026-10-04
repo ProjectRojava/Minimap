@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-parse-quick-add"
+description = "Enables the parse_quick_add command without any pre-configured scope."
+commands.allow = ["parse_quick_add"]
+
+[[permission]]
+identifier = "deny-parse-quick-add"
+description = "Denies the parse_quick_add command without any pre-configured scope."
+commands.deny = ["parse_quick_add"]

@@ -6,10 +6,11 @@ use minimap_types::{
     Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail,
     NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person,
     PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Project, ProjectArchivePreview,
-    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, SearchFilter, SearchHit, Settings,
-    Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow,
-    UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
-    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview,
+    QuickResult, SearchFilter, SearchHit, Settings, Task, TaskDetail, TaskDisposition, TaskFilter,
+    TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
+    UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
+    WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -449,6 +450,26 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+#[derive(Serialize)]
+struct QuickArg {
+    text: String,
+    choices: Vec<QuickChoice>,
+}
+
+pub async fn parse_quick_add(
+    text: String,
+    choices: Vec<QuickChoice>,
+) -> Result<QuickPreview, AppError> {
+    invoke("parse_quick_add", &QuickArg { text, choices }).await
+}
+
+pub async fn commit_quick_add(
+    text: String,
+    choices: Vec<QuickChoice>,
+) -> Result<QuickResult, AppError> {
+    invoke("commit_quick_add", &QuickArg { text, choices }).await
 }
 
 #[derive(Serialize)]
