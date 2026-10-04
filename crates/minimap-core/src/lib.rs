@@ -6,6 +6,7 @@ pub mod edge_rules;
 pub mod notes;
 pub mod objectives;
 pub mod projects;
+pub mod search;
 pub mod slug;
 pub mod tasks;
 pub mod waiting_on;

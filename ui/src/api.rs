@@ -6,10 +6,10 @@ use minimap_types::{
     Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail,
     NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person,
     PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Project, ProjectArchivePreview,
-    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, Settings, Task, TaskDetail,
-    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote,
-    UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask, UpdateTeam,
-    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, SearchFilter, SearchHit, Settings,
+    Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow,
+    UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
+    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -449,6 +449,16 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+#[derive(Serialize)]
+struct SearchArg {
+    query: String,
+    filter_by: SearchFilter,
+}
+
+pub async fn search(query: String, filter_by: SearchFilter) -> Result<Vec<SearchHit>, AppError> {
+    invoke("search", &SearchArg { query, filter_by }).await
 }
 
 #[derive(Serialize)]
