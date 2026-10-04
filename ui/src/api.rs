@@ -3,15 +3,16 @@
 use minimap_types::{
     Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Capacity, CreateDecision,
     CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
-    CreateWaitingOn, Decision, DecisionFilter, DecisionRow, Edge, EdgeLink, ImpactReport,
-    LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow,
-    Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview,
-    PersonDetail, PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview,
-    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview,
-    QuickResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Slip,
-    Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek,
-    UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
-    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge, EdgeLink,
+    GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note,
+    NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping,
+    Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse, PortfolioOverview,
+    Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout,
+    QuickChoice, QuickPreview, QuickResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter,
+    SearchHit, Settings, Slip, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team,
+    TeamDetail, TeamRow, ThisWeek, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
+    UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
+    WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -456,6 +457,16 @@ struct ConvertArg {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphArg {
+    filter_by: GraphFilter,
+}
+
+pub async fn get_dependency_graph(filter_by: GraphFilter) -> Result<DependencyGraph, AppError> {
+    invoke("get_dependency_graph", &GraphArg { filter_by }).await
+}
+
+#[derive(Serialize)]
 struct CapacityArg {
     from: Option<minimap_types::Date>,
     to: Option<minimap_types::Date>,
@@ -548,6 +559,7 @@ pub async fn commit_quick_add(
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SearchArg {
     query: String,
     filter_by: SearchFilter,
@@ -558,6 +570,7 @@ pub async fn search(query: String, filter_by: SearchFilter) -> Result<Vec<Search
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DecisionListArg {
     filter_by: DecisionFilter,
 }
@@ -626,4 +639,47 @@ pub async fn convert_checklist_item(
         },
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    /// Tauri turns a command's `snake_case` parameters into `camelCase` keys on the JS side, so
+    /// every argument struct with a multi-word field must say so. (A missed one fails only when
+    /// the screen that uses it opens: "missing required key filterBy".)
+    #[test]
+    fn argument_structs_with_multi_word_fields_use_camel_case() {
+        let source = include_str!("api.rs");
+        // Only the code above this test module.
+        let code = source.split("#[cfg(test)]").next().unwrap_or(source);
+        let mut checked = 0;
+        let mut offenders = Vec::new();
+        for block in code.split("#[derive(Serialize)]").skip(1) {
+            let header_end = block.find('{').unwrap_or(block.len());
+            let (header, rest) = block.split_at(header_end);
+            let body = rest.split('}').next().unwrap_or("");
+            let has_multi_word_field = body.lines().any(|l| {
+                let name = l
+                    .trim()
+                    .trim_start_matches("pub ")
+                    .split(':')
+                    .next()
+                    .unwrap_or("");
+                !name.is_empty()
+                    && name.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+                    && name.contains('_')
+            });
+            checked += 1;
+            if has_multi_word_field && !header.contains("camelCase") {
+                offenders.push(header.trim().lines().last().unwrap_or("").to_owned());
+            }
+        }
+        assert!(
+            checked > 20,
+            "the scan found only {checked} argument structs"
+        );
+        assert!(
+            offenders.is_empty(),
+            "missing rename_all = \"camelCase\": {offenders:?}"
+        );
+    }
 }

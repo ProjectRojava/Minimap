@@ -327,6 +327,12 @@
           "markdownDescription": "Enables the get_decision command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_dependency_graph command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-dependency-graph",
+          "markdownDescription": "Enables the get_dependency_graph command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-node-summary",
@@ -823,6 +829,12 @@
           "type": "string",
           "const": "deny-get-decision",
           "markdownDescription": "Denies the get_decision command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_dependency_graph command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-dependency-graph",
+          "markdownDescription": "Denies the get_dependency_graph command without any pre-configured scope."
         },
         {
           "description": "Denies the get_node_summary command without any pre-configured scope.",

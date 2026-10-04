@@ -3,9 +3,11 @@
 pub mod capacity;
 pub mod cycles;
 pub mod decisions;
+pub mod dependency_graph;
 pub mod edge_rules;
 pub mod health;
 pub mod impact;
+pub mod layout;
 pub mod notes;
 pub mod objectives;
 pub mod overview;

@@ -1,6 +1,7 @@
 pub mod capacity;
 pub mod decisions;
 pub mod deep_link;
+pub mod graph;
 pub mod notes;
 pub mod objectives;
 pub mod overview;

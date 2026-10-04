@@ -65,6 +65,14 @@ pub const NAV: &[NavItem] = &[
         enabled: true,
     },
     NavItem {
+        label: "Dependencies",
+        icon: "graph",
+        group: "Plan",
+        path: "/graph",
+        chord: 'l',
+        enabled: true,
+    },
+    NavItem {
         label: "What if",
         icon: "what-if",
         group: "Plan",
