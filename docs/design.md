@@ -14,6 +14,10 @@ Flat, IDE-like (think Zed): a grey chrome with one accent colour and a few statu
 ## Window chrome
 The native title bar is disabled; `TitleBar` (32px) draws the app name, a drag region and minimize / maximize / close (flat, `currentColor` line icons; close turns `danger` on hover). It sits above the sidebar, content and pane, so full-height overlays start at `top-8`. On macOS the native traffic lights overlay the bar. See ADR-0004.
 
+## Buttons and pills
+- **Buttons** (`form.rs`): `BUTTON` outlined grey that warms to the accent on hover; `BUTTON_SOFT` an accent tint for a page's "New …" action; `BUTTON_PRIMARY` solid accent for the one main action of a form or dialog ("Add", "Apply"); `BUTTON_SUCCESS` for completing ("Resolve"); `BUTTON_DANGER` for destructive actions ("Archive"); `BUTTON_ON` marks the selected button of a toggle group (List/Board, Write/Preview, Days/Weeks).
+- **Pills** (`page::Tone`): a status is a tinted pill whose colour says where it stands: **accent** = under way or notable (active, in progress, proposed, 1:1), **success** = good (done, decided, on track, resolved), **warning** = needs attention (paused, blocked, at risk, stale, P1/P2), **danger** = bad (off track, overdue), **neutral** = nothing special (planned, cancelled, general). The status-to-tone mapping is data in `labels.rs` (`project_status_tone`, `task_status_tone`, `objective_status_tone`, `decision_status_tone`, `note_kind_tone`), tested. Status dropdowns (`SelectField tone=...`) take the same text colour. The word is always shown, so colour never carries the meaning alone.
+
 ## Pages
 Every list screen is built from the same pieces (`ui/src/components/page.rs`), so they look and behave alike:
 - **`PageHeader`** (48px, `bg-panel`): a 28px icon tile (the screen's sidebar icon), the title (14px semibold), a one-line description (hidden below ~1024px), then the page's own buttons and toggles as children. **`Hints`** renders the keyboard shortcuts as key chips at the right (hidden below ~1280px).

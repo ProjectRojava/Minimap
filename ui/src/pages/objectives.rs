@@ -1,17 +1,16 @@
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
     timefmt::parse_date, CreateObjective, NodeRef, NodeType, ObjectiveGrouping, ObjectiveRow,
-    ObjectiveStatus,
 };
 
 use crate::{
     api,
     components::{
-        form::{DateField, SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
-        page::{column_head, EmptyState, GroupLabel, PageHeader, CHIP, CHIP_STRONG, FORM_BAR},
+        page::{column_head, EmptyState, GroupLabel, PageHeader, FORM_BAR},
     },
-    labels::{objective_status_label, priority_option, priority_short},
+    labels::{objective_status_label, objective_status_tone, priority_option, priority_short},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
 
@@ -91,10 +90,10 @@ pub fn Objectives() -> impl IntoView {
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon="objectives" title="Objectives" subtitle="The outcomes your portfolio serves">
-                <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
+                <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New objective" }}
                 </button>
-                <button class=move || format!("{BUTTON} ml-auto {}", if by_quarter.get() { "bg-active" } else { "" })
+                <button class=move || format!("{BUTTON} ml-auto {}", if by_quarter.get() { BUTTON_ON } else { "" })
                         aria-pressed=move || by_quarter.get().to_string()
                         title="Group by the quarter of the target date"
                         on:click=move |_| by_quarter.update(|b| *b = !*b)>
@@ -153,12 +152,7 @@ fn priority_options() -> Vec<(String, String)> {
 fn objective_row(row: ObjectiveRow, index: usize) -> impl IntoView {
     let o = row.objective;
     let node = NodeRef::new(NodeType::Objective, o.id);
-    // Without colour, "needs attention" reads as heavier text.
-    let attention = matches!(
-        o.status,
-        ObjectiveStatus::AtRisk | ObjectiveStatus::OffTrack
-    );
-    let status_class = if attention { CHIP_STRONG } else { CHIP };
+    let status_class = objective_status_tone(o.status).chip();
     view! {
         <NodeRow node=node index=index>
             <div class=COLS>

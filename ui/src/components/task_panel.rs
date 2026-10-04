@@ -16,7 +16,7 @@ use crate::{
         people_panel::error_line,
         what_if_button::WhatIfButton,
     },
-    labels::{estimate_text, priority_option, task_status_label},
+    labels::{estimate_text, priority_option, task_status_label, task_status_tone},
     state::{finish, DataVersion, Selection, Toasts},
 };
 
@@ -147,7 +147,8 @@ fn TaskFields(
             on_commit=move |v: String| save(UpdateTask { description: Some(v), ..Default::default() }) />
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Status" options=status_options
-                current=task.status.as_str().to_owned() on_change=save_status />
+                current=task.status.as_str().to_owned() on_change=save_status
+                tone=task_status_tone(task.status).text() />
             <SelectField label="Priority" options=priority_options
                 current=task.priority.to_string() on_change=save_priority />
         </div>

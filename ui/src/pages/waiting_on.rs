@@ -7,10 +7,12 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{DateField, SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{
+            DateField, SelectField, BUTTON, BUTTON_PRIMARY, BUTTON_SOFT, BUTTON_SUCCESS, INPUT,
+        },
         node_row::NodeRow,
         objective_panel::{candidate_value, parse_candidate},
-        page::{column_head, EmptyState, Hints, PageHeader, FILTER_BAR, FORM_BAR},
+        page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR, FORM_BAR},
         waiting_panel::{age_text, snooze_options},
     },
     nav::type_label,
@@ -157,7 +159,7 @@ pub fn WaitingOn() -> impl IntoView {
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon="waiting" title="Waiting on" subtitle="What you are waiting for, from whom, and for how long">
-                <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
+                <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New" }}
                 </button>
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "resolve"), ("s", "snooze 3 days")] />
@@ -232,10 +234,8 @@ pub fn WaitingOn() -> impl IntoView {
     }
 }
 
-fn chip(text: String) -> impl IntoView {
-    view! {
-        <span class="ml-2 rounded-sm border border-line px-1 text-[10px] uppercase tracking-wide text-muted">{text}</span>
-    }
+fn chip((tone, text): (Tone, String)) -> impl IntoView {
+    view! { <span class=format!("ml-2 {}", tone.chip())>{text}</span> }
 }
 
 #[component]
@@ -291,16 +291,17 @@ fn WaitingRowView(row: WaitingOnRow, index: usize) -> impl IntoView {
         .map(|a| format!("{} · {}", type_label(a.node.node_type), a.label))
         .unwrap_or_default();
     let expected_class = if row.overdue {
-        "tabular-nums font-medium"
+        "tabular-nums font-medium text-danger"
     } else {
         "tabular-nums text-muted"
     };
     let status_chip = if resolved {
-        w.resolved_on.map(|d| format!("resolved {d}"))
+        w.resolved_on
+            .map(|d| (Tone::Success, format!("resolved {d}")))
     } else if row.snoozed {
-        w.follow_up_on.map(|d| format!("until {d}"))
+        w.follow_up_on.map(|d| (Tone::Accent, format!("until {d}")))
     } else if row.stale {
-        Some("stale".to_owned())
+        Some((Tone::Warning, "stale".to_owned()))
     } else {
         None
     };
@@ -318,7 +319,7 @@ fn WaitingRowView(row: WaitingOnRow, index: usize) -> impl IntoView {
                         view! { <button class=BUTTON on:click=reopen>"Reopen"</button> }.into_any()
                     } else {
                         view! {
-                            <button class=BUTTON on:click=resolve>"Resolve"</button>
+                            <button class=BUTTON_SUCCESS on:click=resolve>"Resolve"</button>
                             {if row.snoozed {
                                 view! { <button class=BUTTON on:click=wake>"Wake"</button> }.into_any()
                             } else {

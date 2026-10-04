@@ -13,11 +13,14 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
-        form::{date_patch, DateField, SelectField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT, INPUT},
+        form::{
+            date_patch, DateField, SelectField, BUTTON, BUTTON_PRIMARY, BUTTON_SOFT, COMPACT_INPUT,
+            INPUT,
+        },
         node_row::NodeRow,
         page::{column_head, EmptyState, Hints, PageHeader, FILTER_BAR},
     },
-    labels::{priority_option, task_status_label},
+    labels::{priority_option, task_status_label, task_status_tone},
     state::{finish, DataVersion, ListNav, Toasts},
 };
 
@@ -232,7 +235,7 @@ pub fn TaskList(inbox: bool) -> impl IntoView {
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon=if inbox { "inbox" } else { "tasks" } title=if inbox { "Inbox" } else { "Tasks" } subtitle="Work you or your team own, with estimates and due dates">
-                <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
+                <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New task" }}
                 </button>
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
@@ -433,7 +436,8 @@ fn TaskRowView(
             <div class=COLS>
                 // Controls must not open the pane when clicked.
                 <span on:click=|ev| ev.stop_propagation()>
-                    <SelectField compact=true options=status_options() current=status_now on_change=on_status />
+                    <SelectField compact=true options=status_options() current=status_now on_change=on_status
+                        tone=task_status_tone(t.status).text() />
                 </span>
                 <span on:click=|ev| ev.stop_propagation()>
                     <SelectField compact=true options=priority_options() current=priority_now on_change=on_priority />

@@ -14,7 +14,7 @@ use crate::{
     api,
     components::{
         detail_pane::Section,
-        form::{SelectField, TextField, BUTTON, BUTTON_DANGER, INPUT},
+        form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_ON, INPUT},
         people_panel::{error_line, NodeButtons},
     },
     mentions::{byte_to_utf16, insert_mention, mention_query, utf16_to_byte, MentionQuery},
@@ -300,9 +300,9 @@ fn NoteEditor(note: Note) -> impl IntoView {
                 <SelectField label="Kind" options=kind_options current=note.kind.as_str().to_owned() on_change=save_kind />
             </div>
             <div class="mt-3 mb-1 flex items-center gap-2">
-                <button class=move || format!("{BUTTON} {}", if preview.get() { "" } else { "bg-active" })
+                <button class=move || format!("{BUTTON} {}", if preview.get() { "" } else { BUTTON_ON })
                         on:click=move |_| preview.set(false)>"Write"</button>
-                <button class=move || format!("{BUTTON} {}", if preview.get() { "bg-active" } else { "" })
+                <button class=move || format!("{BUTTON} {}", if preview.get() { BUTTON_ON } else { "" })
                         on:click=show_preview>"Preview"</button>
                 <span class="ml-auto text-[11px] text-muted">{move || status.get()}</span>
             </div>

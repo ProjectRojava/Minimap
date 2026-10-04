@@ -16,7 +16,7 @@ use crate::{
         health_panel::ObjectiveHealthSection,
         people_panel::error_line,
     },
-    labels::{humanize, objective_status_label, priority_option},
+    labels::{humanize, objective_status_label, objective_status_tone, priority_option},
     nav::type_label,
     state::{finish, DataVersion, Selection, Toasts},
 };
@@ -130,7 +130,8 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
             on_commit=save_date />
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Your assessment" options=status_options
-                current=objective.status.as_str().to_owned() on_change=save_status />
+                current=objective.status.as_str().to_owned() on_change=save_status
+                tone=objective_status_tone(objective.status).text() />
             <SelectField label="Priority" options=priority_options
                 current=objective.priority.to_string() on_change=save_priority />
         </div>
