@@ -7,6 +7,7 @@ use crate::{
     components::{
         backup_settings::BackupSettings,
         page::{Card, PageHeader},
+        security_settings::SecuritySettings,
     },
     state::{finish, DataVersion, Toasts},
     theme::ThemeCtx,
@@ -91,7 +92,7 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <div class="flex h-full flex-col">
-            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons, health, backups and the status report"><span></span></PageHeader>
+            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons, health, encryption, backups and the status report"><span></span></PageHeader>
             <div class="flex-1 overflow-y-auto">
             <div class="mx-auto max-w-3xl space-y-4 p-6">
             <Appearance />
@@ -143,6 +144,7 @@ pub fn Settings() -> impl IntoView {
                 }}
             </Card>
             <HealthSettings />
+            <SecuritySettings />
             <BackupSettings />
             <ReportSettings />
             <p class="text-[11px] text-muted">"More settings (encryption, Google Drive) arrive with the Settings feature."</p>

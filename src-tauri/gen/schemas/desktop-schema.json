@@ -315,6 +315,12 @@
           "markdownDescription": "Enables the create_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the delete_unencrypted_backups command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-delete-unencrypted-backups",
+          "markdownDescription": "Enables the delete_unencrypted_backups command without any pre-configured scope."
+        },
+        {
           "description": "Enables the export_markdown command without any pre-configured scope.",
           "type": "string",
           "const": "allow-export-markdown",
@@ -415,6 +421,12 @@
           "type": "string",
           "const": "allow-get-schedule",
           "markdownDescription": "Enables the get_schedule command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_security_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-security-status",
+          "markdownDescription": "Enables the get_security_status command without any pre-configured scope."
         },
         {
           "description": "Enables the get_self_person command without any pre-configured scope.",
@@ -645,6 +657,12 @@
           "markdownDescription": "Enables the set_assignee command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_encryption command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-encryption",
+          "markdownDescription": "Enables the set_encryption command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_manager command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-manager",
@@ -661,6 +679,12 @@
           "type": "string",
           "const": "allow-snooze-waiting-on",
           "markdownDescription": "Enables the snooze_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unlock_database command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-unlock-database",
+          "markdownDescription": "Enables the unlock_database command without any pre-configured scope."
         },
         {
           "description": "Enables the update_decision command without any pre-configured scope.",
@@ -861,6 +885,12 @@
           "markdownDescription": "Denies the create_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Denies the delete_unencrypted_backups command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-delete-unencrypted-backups",
+          "markdownDescription": "Denies the delete_unencrypted_backups command without any pre-configured scope."
+        },
+        {
           "description": "Denies the export_markdown command without any pre-configured scope.",
           "type": "string",
           "const": "deny-export-markdown",
@@ -961,6 +991,12 @@
           "type": "string",
           "const": "deny-get-schedule",
           "markdownDescription": "Denies the get_schedule command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_security_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-security-status",
+          "markdownDescription": "Denies the get_security_status command without any pre-configured scope."
         },
         {
           "description": "Denies the get_self_person command without any pre-configured scope.",
@@ -1191,6 +1227,12 @@
           "markdownDescription": "Denies the set_assignee command without any pre-configured scope."
         },
         {
+          "description": "Denies the set_encryption command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-encryption",
+          "markdownDescription": "Denies the set_encryption command without any pre-configured scope."
+        },
+        {
           "description": "Denies the set_manager command without any pre-configured scope.",
           "type": "string",
           "const": "deny-set-manager",
@@ -1207,6 +1249,12 @@
           "type": "string",
           "const": "deny-snooze-waiting-on",
           "markdownDescription": "Denies the snooze_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unlock_database command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-unlock-database",
+          "markdownDescription": "Denies the unlock_database command without any pre-configured scope."
         },
         {
           "description": "Denies the update_decision command without any pre-configured scope.",

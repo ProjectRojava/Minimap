@@ -14,6 +14,9 @@ pub enum BackupKind {
     PreMigration,
     /// The live data as it was just before a restore: `minimap-pre-restore-YYYYMMDD-HHMMSS.db`.
     PreRestore,
+    /// Taken before encryption is turned on, off or re-keyed, and removed once that succeeded:
+    /// `minimap-pre-encryption-YYYYMMDD-HHMMSS.db`.
+    PreEncryption,
 }
 
 /// How many automatic backups are kept.
@@ -30,6 +33,8 @@ pub struct BackupEntry {
     /// Minutes since it was made (never negative).
     pub age_minutes: u64,
     pub bytes: u64,
+    /// The file is encrypted (it does not start with the plain SQLite header).
+    pub encrypted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +44,8 @@ pub struct BackupStatus {
     pub is_default_folder: bool,
     pub default_folder: String,
     pub auto_backup: bool,
+    /// The live database is encrypted (so backups without encryption stand out).
+    pub database_encrypted: bool,
     pub keep_auto: u32,
     /// The newest manual or automatic backup.
     pub last_backup: Option<BackupEntry>,
@@ -61,6 +68,8 @@ pub struct RestorePreview {
     pub bytes: u64,
     pub schema_version: u32,
     pub current_schema_version: u32,
+    /// The backup is encrypted.
+    pub encrypted: bool,
     /// The file is from an older version and is upgraded after restoring.
     pub will_upgrade: bool,
     /// Active items in the backup, per kind.

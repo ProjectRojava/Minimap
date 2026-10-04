@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-unencrypted-backups"
+description = "Enables the delete_unencrypted_backups command without any pre-configured scope."
+commands.allow = ["delete_unencrypted_backups"]
+
+[[permission]]
+identifier = "deny-delete-unencrypted-backups"
+description = "Denies the delete_unencrypted_backups command without any pre-configured scope."
+commands.deny = ["delete_unencrypted_backups"]

@@ -14,6 +14,7 @@ pub mod quick_add;
 pub mod review;
 pub mod schedule;
 pub mod search;
+pub mod security;
 pub mod settings;
 pub mod system;
 pub mod tasks;
