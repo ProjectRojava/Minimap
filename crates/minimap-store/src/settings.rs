@@ -9,6 +9,7 @@ const HOURS_PER_DAY: &str = "hours_per_day";
 const THEME: &str = "theme";
 const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 const HEALTH: &str = "health";
+const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
 
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
@@ -48,6 +49,14 @@ pub fn get(conn: &Connection) -> Result<Settings> {
     {
         if (1..=365).contains(&d) {
             s.stale_waiting_days = d;
+        }
+    }
+    if let Some(n) = read(conn, CAPACITY_TASK_LIMIT)?
+        .and_then(|v| v.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
+    {
+        if (1..=500).contains(&n) {
+            s.capacity_task_limit = n;
         }
     }
     if let Some(h) = read(conn, HEALTH)?
@@ -92,9 +101,19 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     if let Some(h) = &patch.health {
         h.validate().map_err(StoreError::Invalid)?;
     }
+    if let Some(n) = patch.capacity_task_limit {
+        if !(1..=500).contains(&n) {
+            return Err(StoreError::Invalid(
+                "the open-task limit must be between 1 and 500".into(),
+            ));
+        }
+    }
     let tx = conn.transaction()?;
     if let Some(h) = patch.health {
         write(&tx, HEALTH, &serde_json::to_value(h)?)?;
+    }
+    if let Some(n) = patch.capacity_task_limit {
+        write(&tx, CAPACITY_TASK_LIMIT, &serde_json::json!(n))?;
     }
     if let Some(h) = patch.hours_per_day {
         write(&tx, HOURS_PER_DAY, &serde_json::json!(h))?;

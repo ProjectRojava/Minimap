@@ -142,14 +142,18 @@ pub struct ObjectiveHealthRow {
     pub projects: Vec<ProjectHealthRow>,
 }
 
-/// Someone whose scheduled work in the next five working days exceeds their capacity. (Spec 17
-/// adds the week-by-week heatmap; this is its first week.)
+/// Someone over capacity this week or next (the Capacity screen has the full heatmap), or with
+/// more open tasks than the configured limit.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OverloadedPerson {
     pub person: NodeSummary,
-    /// Scheduled work as a percentage of capacity (over 100 = overloaded).
+    /// The heavier of this week and next, as a percentage of capacity (over 100 = overloaded).
     pub load_pct: f64,
+    /// Monday of that heaviest week.
+    pub peak_week: Option<Date>,
     pub open_tasks: u32,
+    /// They have more open tasks than the limit in Settings.
+    pub over_task_limit: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

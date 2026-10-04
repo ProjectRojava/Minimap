@@ -99,6 +99,7 @@ fn main() {
             commands::waiting_on::archive_waiting_on,
             commands::quick_add::parse_quick_add,
             commands::quick_add::commit_quick_add,
+            commands::capacity::get_capacity,
             commands::this_week::get_this_week,
             commands::this_week::reschedule_task,
             commands::overview::get_portfolio_overview,

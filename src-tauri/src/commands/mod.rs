@@ -1,3 +1,4 @@
+pub mod capacity;
 pub mod decisions;
 pub mod edges;
 pub mod impact;

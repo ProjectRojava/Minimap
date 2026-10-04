@@ -1,5 +1,5 @@
 //! The portfolio overview (spec 15): health of every project and objective, the top risks, and
-//! who is overloaded. Pure; the stale waiting-ons are added by the command (they come from the
+//! who is overloaded (from `capacity`). Pure; the stale waiting-ons are added by the command (they come from the
 //! waiting-on rules).
 
 use std::collections::{BTreeMap, HashMap};
@@ -12,6 +12,7 @@ use minimap_types::{
 };
 
 use crate::{
+    capacity,
     health::{
         objective_health, project_health, risk_score, task_health, Contribution, ProjectFacts,
         TargetFacts,
@@ -25,8 +26,6 @@ const EPS: f64 = 1e-9;
 pub const TOP_RISKS: usize = 5;
 /// People listed as overloaded.
 const MAX_OVERLOADED: usize = 8;
-/// The load window: the next five working days.
-const WINDOW_DAYS: f64 = 5.0;
 
 pub struct OverviewWorld<'a> {
     pub tasks: &'a [Task],
@@ -37,6 +36,8 @@ pub struct OverviewWorld<'a> {
     pub today: Date,
     pub hours_per_day: f64,
     pub thresholds: HealthThresholds,
+    /// More open tasks than this flags a person as overloaded.
+    pub task_limit: u32,
 }
 
 fn is_open(t: &Task) -> bool {
@@ -370,55 +371,33 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
     risks.truncate(TOP_RISKS);
 
     // ---------------------------------------------------------- overloaded
-    let mut overloaded: Vec<OverloadedPerson> = Vec::new();
-    if let (Some(_), true) = (&schedule, w.hours_per_day > 0.0) {
-        let mut load: HashMap<Uuid, (f64, u32)> = HashMap::new();
-        for e in w.edges.iter().filter(|e| {
-            e.edge_type == EdgeType::AssignedTo
-                && e.archived_at.is_none()
-                && e.from_type == NodeType::Task
-        }) {
-            let Some(s) = scheduled.get(&e.from_id).filter(|s| !s.done) else {
-                continue;
-            };
-            let overlap = (s.ef.min(WINDOW_DAYS) - s.es.max(0.0)).max(0.0);
-            if overlap <= EPS {
-                continue;
-            }
-            let alloc = e
-                .attrs
-                .get("allocation_pct")
-                .and_then(|a| a.as_f64())
-                .unwrap_or(100.0)
-                / 100.0;
-            let entry = load.entry(e.to_id).or_insert((0.0, 0));
-            entry.0 += overlap * alloc;
-            entry.1 += 1;
-        }
-        for p in w.people.iter().filter(|p| p.archived_at.is_none()) {
-            let Some((days, tasks)) = load.get(&p.id) else {
-                continue;
-            };
-            let capacity = p.weekly_capacity_hours / w.hours_per_day;
-            if capacity <= 0.0 {
-                continue;
-            }
-            let pct = days / capacity * 100.0;
-            if pct > 100.0 + EPS {
-                overloaded.push(OverloadedPerson {
-                    person: summary(NodeType::Person, p.id, &p.name),
-                    load_pct: (pct * 10.0).round() / 10.0,
-                    open_tasks: *tasks,
-                });
-            }
-        }
-        overloaded.sort_by(|a, b| {
-            b.load_pct
-                .total_cmp(&a.load_pct)
-                .then_with(|| a.person.label.cmp(&b.person.label))
-        });
-        overloaded.truncate(MAX_OVERLOADED);
-    }
+    // Over capacity this week or next (the same figures as the Capacity screen), or too many
+    // open tasks.
+    let capacity = capacity::compute(&capacity::CapacityInput {
+        tasks: w.tasks,
+        edges: w.edges,
+        projects: w.projects,
+        people: w.people,
+        today: w.today,
+        hours_per_day: w.hours_per_day,
+        from: None,
+        to: None,
+        weeks: Some(2),
+        task_limit: w.task_limit,
+    });
+    let mut overloaded: Vec<OverloadedPerson> = capacity
+        .people
+        .iter()
+        .filter(|p| p.peak_pct > 100.0 + EPS || p.over_task_limit)
+        .map(|p| OverloadedPerson {
+            person: p.person.clone(),
+            load_pct: p.peak_pct,
+            peak_week: p.peak_week,
+            open_tasks: p.active_tasks,
+            over_task_limit: p.over_task_limit,
+        })
+        .collect();
+    overloaded.truncate(MAX_OVERLOADED);
 
     let count = |l: HealthLevel| rows.values().filter(|r| r.health.level == l).count() as u32;
     PortfolioOverview {
@@ -603,6 +582,7 @@ mod tests {
                 today: MON,
                 hours_per_day: 8.0,
                 thresholds,
+                task_limit: 10,
             })
         }
     }
@@ -945,8 +925,8 @@ mod tests {
 
     #[test]
     fn people_over_capacity_in_the_next_week_are_flagged() {
-        // Priya works 40h (5 days a week at 8h). Two parallel tasks of 3 and 4 days both fall in
-        // the next five working days: 7 days of work in a 5-day week = 140%.
+        // Priya works 40h (5 days a week at 8h). Two parallel tasks of 3 and 4 days both start
+        // today (Monday): this week holds 3 + 4 = 7 days of 5 = 140%.
         let w = World_ {
             tasks: vec![
                 task(1, "A", Some(3.0), None),
@@ -972,6 +952,8 @@ mod tests {
         let p = &o.overloaded[0];
         assert_eq!(p.person.label, "Priya");
         assert_eq!((p.load_pct, p.open_tasks), (140.0, 2));
+        assert_eq!(p.peak_week, Some(date!(2027 - 03 - 01)));
+        assert!(!p.over_task_limit);
     }
 
     #[test]
@@ -985,8 +967,8 @@ mod tests {
             ..Default::default()
         };
         let o = w.overview();
-        // Priya's only task starts later: not loaded this week. Half's 10-day task fills the
-        // week (5 days) against a 2.5-day capacity: 200%.
+        // Priya's only task starts in two weeks: outside this week and next. Half's 10-day task
+        // fills both weeks (5 days) against a 2.5-day capacity: 200%.
         assert_eq!(o.overloaded.len(), 1);
         assert_eq!(
             (
@@ -1003,6 +985,28 @@ mod tests {
             ..Default::default()
         };
         assert!(w.overview().overloaded.is_empty());
+    }
+
+    #[test]
+    fn too_many_open_tasks_flags_a_person_even_without_estimates_or_load() {
+        let mut w = World_ {
+            people: vec![person(30, "Busy", 40.0), person(31, "Fine", 40.0)],
+            ..Default::default()
+        };
+        // 11 tiny tasks (limit is 10) for one person, 10 for the other.
+        for i in 0..11u128 {
+            w.tasks.push(task(100 + i, &format!("b{i}"), None, None));
+            w.edges.push(assigned(100 + i, 30, Some(1)));
+        }
+        for i in 0..10u128 {
+            w.tasks.push(task(200 + i, &format!("f{i}"), None, None));
+            w.edges.push(assigned(200 + i, 31, Some(1)));
+        }
+        let o = w.overview();
+        assert_eq!(o.overloaded.len(), 1);
+        assert_eq!(o.overloaded[0].person.label, "Busy");
+        assert!(o.overloaded[0].over_task_limit);
+        assert_eq!(o.overloaded[0].open_tasks, 11);
     }
 
     // -------------------------------------------------------------- robustness
