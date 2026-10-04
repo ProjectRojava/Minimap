@@ -224,6 +224,8 @@ pub struct TaskDetail {
 pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
 /// A waiting-on older than this many days (or past its expected date) counts as stale.
 pub const DEFAULT_STALE_WAITING_DAYS: u32 = 7;
+/// More open tasks than this flags a person as overloaded (the simple, estimate-free signal).
+pub const DEFAULT_CAPACITY_TASK_LIMIT: u32 = 10;
 /// Dark is the default look. The UI owns the list of themes; the backend only stores the id.
 pub const DEFAULT_THEME: &str = "minimap-dark";
 
@@ -236,6 +238,8 @@ pub struct Settings {
     pub theme: String,
     /// Open waiting-ons older than this many days are stale.
     pub stale_waiting_days: u32,
+    /// A person with more open tasks than this is flagged on Capacity and the Overview.
+    pub capacity_task_limit: u32,
     /// When a project's lateness, blocked/overdue share or unestimated share turns its health
     /// amber or red.
     pub health: crate::HealthThresholds,
@@ -247,6 +251,7 @@ impl Default for Settings {
             hours_per_day: DEFAULT_HOURS_PER_DAY,
             theme: DEFAULT_THEME.to_owned(),
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
+            capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
             health: crate::HealthThresholds::default(),
         }
     }
@@ -258,6 +263,7 @@ pub struct UpdateSettings {
     pub hours_per_day: Option<f64>,
     pub theme: Option<String>,
     pub stale_waiting_days: Option<u32>,
+    pub capacity_task_limit: Option<u32>,
     pub health: Option<crate::HealthThresholds>,
 }
 

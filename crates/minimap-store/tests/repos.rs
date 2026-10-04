@@ -2566,3 +2566,31 @@ fn health_thresholds_default_are_configurable_and_validated() {
     let after = settings::get(&conn).unwrap();
     assert_eq!((after.health, after.hours_per_day), (custom, 8.0));
 }
+
+#[test]
+fn the_capacity_task_limit_defaults_to_ten_and_is_validated() {
+    let mut conn = db();
+    assert_eq!(settings::get(&conn).unwrap().capacity_task_limit, 10);
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            capacity_task_limit: Some(15),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!((s.capacity_task_limit, s.hours_per_day), (15, 8.0));
+    for bad in [0u32, 501, 100_000] {
+        let r = settings::update(
+            &mut conn,
+            UpdateSettings {
+                capacity_task_limit: Some(bad),
+                hours_per_day: Some(6.0),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(r, Err(StoreError::Invalid(_))), "{bad}");
+    }
+    let after = settings::get(&conn).unwrap();
+    assert_eq!((after.capacity_task_limit, after.hours_per_day), (15, 8.0));
+}

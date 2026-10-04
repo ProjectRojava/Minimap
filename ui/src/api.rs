@@ -1,17 +1,17 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, CreateDecision, CreateNote,
-    CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam, CreateWaitingOn,
-    Decision, DecisionFilter, DecisionRow, Edge, EdgeLink, ImpactReport, LinkOption, NewEdge,
-    NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
-    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
-    PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
-    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, Schedule,
-    ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Slip, Task, TaskDetail,
-    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision,
-    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask,
-    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Capacity, CreateDecision,
+    CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
+    CreateWaitingOn, Decision, DecisionFilter, DecisionRow, Edge, EdgeLink, ImpactReport,
+    LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow,
+    Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview,
+    PersonDetail, PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview,
+    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview,
+    QuickResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Slip,
+    Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek,
+    UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
+    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -453,6 +453,21 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+#[derive(Serialize)]
+struct CapacityArg {
+    from: Option<minimap_types::Date>,
+    to: Option<minimap_types::Date>,
+    weeks: Option<u32>,
+}
+
+pub async fn get_capacity(
+    from: Option<minimap_types::Date>,
+    to: Option<minimap_types::Date>,
+    weeks: Option<u32>,
+) -> Result<Capacity, AppError> {
+    invoke("get_capacity", &CapacityArg { from, to, weeks }).await
 }
 
 #[derive(Serialize)]

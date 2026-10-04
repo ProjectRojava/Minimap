@@ -32,6 +32,7 @@ pub(crate) fn overview_impl(conn: &mut Connection) -> Result<PortfolioOverview, 
         today,
         hours_per_day: settings.hours_per_day,
         thresholds: settings.health,
+        task_limit: settings.capacity_task_limit,
     });
     // Stale waiting-ons follow their own rules (age setting, expected date); oldest first.
     overview.stale_waiting = list_impl(conn, &WaitingOnFilter::default(), today)?

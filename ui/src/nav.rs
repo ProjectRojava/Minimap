@@ -89,6 +89,14 @@ pub const NAV: &[NavItem] = &[
         enabled: true,
     },
     NavItem {
+        label: "Capacity",
+        icon: "capacity",
+        group: "People",
+        path: "/capacity",
+        chord: 'c',
+        enabled: true,
+    },
+    NavItem {
         label: "Notes",
         icon: "notes",
         group: "Log",
