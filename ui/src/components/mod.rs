@@ -8,6 +8,7 @@ pub mod node_row;
 pub mod note_panel;
 pub mod objective_panel;
 pub mod overlay;
+pub mod palette;
 pub mod people_panel;
 pub mod project_panel;
 pub mod search_box;

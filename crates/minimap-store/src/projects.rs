@@ -5,7 +5,7 @@ use minimap_types::{
     ActivityAction, CreateProject, NodeRef, NodeType, Project, ProjectStatus, TaskDisposition,
     UpdateProject, DEFAULT_PRIORITY,
 };
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -72,8 +72,15 @@ fn ensure_slug_free(conn: &Connection, slug: &str, except: Option<Uuid>) -> Resu
 }
 
 pub fn create(conn: &mut Connection, input: CreateProject) -> Result<Project> {
-    let at = now();
     let tx = conn.transaction()?;
+    let created = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(created)
+}
+
+/// [`create`] inside a caller's transaction.
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreateProject) -> Result<Project> {
+    let at = now();
     let handle = match input
         .slug
         .as_deref()
@@ -82,7 +89,7 @@ pub fn create(conn: &mut Connection, input: CreateProject) -> Result<Project> {
     {
         Some(given) => {
             slug::validate(given).map_err(StoreError::Invalid)?;
-            ensure_slug_free(&tx, given, None)?;
+            ensure_slug_free(tx, given, None)?;
             given.to_owned()
         }
         None => {
@@ -125,8 +132,7 @@ pub fn create(conn: &mut Connection, input: CreateProject) -> Result<Project> {
             ts_opt_s(p.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::Project, p.id, &p)?;
-    tx.commit()?;
+    activity::record_created(tx, at, NodeType::Project, p.id, &p)?;
     Ok(p)
 }
 

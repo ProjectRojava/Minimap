@@ -3,6 +3,15 @@ use leptos_router::{components::A, hooks::use_location};
 
 use crate::{components::search_box::SearchBox, nav::NAV};
 
+/// "Ctrl K" or "⌘K", whichever the keyboard calls it.
+fn palette_hint() -> &'static str {
+    if crate::window::Platform::detect() == crate::window::Platform::Mac {
+        "⌘K  command palette"
+    } else {
+        "Ctrl K  command palette"
+    }
+}
+
 #[component]
 pub fn Sidebar() -> impl IntoView {
     let location = use_location();
@@ -41,6 +50,7 @@ pub fn Sidebar() -> impl IntoView {
                     }
                 }).collect_view()}
             </ul>
+            <p class="px-3 py-2 text-[11px] text-faint">{palette_hint()}</p>
         </nav>
     }
 }
