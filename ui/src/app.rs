@@ -11,6 +11,7 @@ use crate::{
     },
     keyboard::use_global_shortcuts,
     pages::{
+        capacity::Capacity,
         decisions::Decisions,
         deep_link::{DeepLink, NotFound},
         notes::Notes,
@@ -80,6 +81,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/projects") view=Projects />
                     <Route path=path!("/tasks") view=Tasks />
                     <Route path=path!("/people") view=People />
+                    <Route path=path!("/capacity") view=Capacity />
                     <Route path=path!("/teams") view=Teams />
                     <Route path=path!("/notes") view=Notes />
                     <Route path=path!("/decisions") view=Decisions />

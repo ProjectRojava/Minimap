@@ -103,12 +103,24 @@ pub fn risk_priority_text(r: &RiskItem) -> String {
 }
 
 pub fn load_text(p: &OverloadedPerson) -> String {
-    format!(
-        "{}% of capacity this week · {} task{}",
-        p.load_pct.round() as i64,
+    let tasks = format!(
+        "{} open task{}",
         p.open_tasks,
         if p.open_tasks == 1 { "" } else { "s" }
-    )
+    );
+    let mut parts = Vec::new();
+    if p.load_pct > 100.0 {
+        let week = p
+            .peak_week
+            .map(|w| format!(" in the week of {w}"))
+            .unwrap_or_default();
+        parts.push(format!("{}% of capacity{week}", p.load_pct.round() as i64));
+    }
+    parts.push(tasks);
+    if p.over_task_limit {
+        parts.push("over the open-task limit".to_owned());
+    }
+    parts.join(" · ")
 }
 
 /// "Fri 2027-03-05 (target 2027-03-12)" for a project row.
@@ -227,9 +239,31 @@ mod tests {
                 archived: false,
             },
             load_pct: 140.04,
+            peak_week: Some(date!(2027 - 03 - 01)),
             open_tasks: 1,
+            over_task_limit: false,
         };
-        assert_eq!(load_text(&p), "140% of capacity this week · 1 task");
+        assert_eq!(
+            load_text(&p),
+            "140% of capacity in the week of 2027-03-01 · 1 open task"
+        );
+        // Only the task-count flag: no percentage.
+        let many = OverloadedPerson {
+            load_pct: 40.0,
+            open_tasks: 12,
+            over_task_limit: true,
+            ..p.clone()
+        };
+        assert_eq!(load_text(&many), "12 open tasks · over the open-task limit");
+        let both = OverloadedPerson {
+            open_tasks: 12,
+            over_task_limit: true,
+            ..p
+        };
+        assert_eq!(
+            load_text(&both),
+            "140% of capacity in the week of 2027-03-01 · 12 open tasks · over the open-task limit"
+        );
     }
 
     #[test]

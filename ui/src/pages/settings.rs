@@ -65,6 +65,27 @@ pub fn Settings() -> impl IntoView {
         }
     };
 
+    let save_limit = move |v: String| match v.trim().parse::<u32>() {
+        Ok(n) => spawn_local(async move {
+            finish(
+                api::update_settings(UpdateSettings {
+                    capacity_task_limit: Some(n),
+                    ..Default::default()
+                })
+                .await,
+                toasts,
+                version,
+            );
+        }),
+        Err(_) => {
+            toasts.error(&AppError {
+                code: "invalid".into(),
+                message: "The open-task limit must be a whole number".into(),
+            });
+            version.bump();
+        }
+    };
+
     view! {
         <div class="flex h-full flex-col">
             <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons and project health"><span></span></PageHeader>
@@ -97,6 +118,22 @@ pub fn Settings() -> impl IntoView {
                         <p class="text-[11px] text-muted">
                             "An open waiting-on is stale once it is older than this, or past its expected date. "
                             "Snoozed ones are not stale until they resurface."
+                        </p>
+                    }.into_any(),
+                    _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+                }}
+            </Card>
+            <Card title="Capacity" description="When someone has too much on, whatever the estimates say.">
+                {move || match settings.get() {
+                    Some(Ok(s)) => view! {
+                        <div class="max-w-xs">
+                            <TextField label="Too many open tasks above" kind="number"
+                                value=s.capacity_task_limit.to_string() on_commit=save_limit />
+                        </div>
+                        <p class="text-[11px] text-muted">
+                            "A person with more open tasks than this is flagged on the Capacity screen and the Overview. "
+                            "It works even when estimates are missing. Weekly load uses each person's weekly hours and "
+                            "the hours per working day above."
                         </p>
                     }.into_any(),
                     _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),

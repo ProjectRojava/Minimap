@@ -309,6 +309,12 @@
           "markdownDescription": "Enables the create_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_capacity command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-capacity",
+          "markdownDescription": "Enables the get_capacity command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_critical_path command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-critical-path",
@@ -799,6 +805,12 @@
           "type": "string",
           "const": "deny-create-waiting-on",
           "markdownDescription": "Denies the create_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_capacity command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-capacity",
+          "markdownDescription": "Denies the get_capacity command without any pre-configured scope."
         },
         {
           "description": "Denies the get_critical_path command without any pre-configured scope.",
