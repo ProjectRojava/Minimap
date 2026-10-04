@@ -99,6 +99,7 @@ fn main() {
             commands::waiting_on::archive_waiting_on,
             commands::quick_add::parse_quick_add,
             commands::quick_add::commit_quick_add,
+            commands::overview::get_portfolio_overview,
             commands::impact::run_impact_analysis,
             commands::impact::preview_apply_slips,
             commands::impact::apply_slips,

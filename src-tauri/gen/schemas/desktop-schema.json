@@ -363,6 +363,12 @@
           "markdownDescription": "Enables the get_person_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_portfolio_overview command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-portfolio-overview",
+          "markdownDescription": "Enables the get_portfolio_overview command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_project command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-project",
@@ -835,6 +841,12 @@
           "type": "string",
           "const": "deny-get-person-detail",
           "markdownDescription": "Denies the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_portfolio_overview command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-portfolio-overview",
+          "markdownDescription": "Denies the get_portfolio_overview command without any pre-configured scope."
         },
         {
           "description": "Denies the get_project command without any pre-configured scope.",

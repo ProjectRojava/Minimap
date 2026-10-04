@@ -1,9 +1,9 @@
 use leptos::{prelude::*, task::spawn_local};
-use minimap_types::{AppError, UpdateSettings};
+use minimap_types::{AppError, HealthThresholds, UpdateSettings};
 
 use crate::{
     api,
-    components::form::TextField,
+    components::form::{TextField, BUTTON, COMPACT_INPUT},
     state::{finish, DataVersion, Toasts},
     theme::ThemeCtx,
     themes::{self, Kind, Theme},
@@ -101,6 +101,7 @@ pub fn Settings() -> impl IntoView {
                     _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 }}
             </section>
+            <HealthSettings />
             <p class="text-[11px] text-muted">"More settings (backups, encryption) arrive with the Settings feature."</p>
         </div>
     }
@@ -199,5 +200,102 @@ fn ThemeCard(
             </span>
             <span class="mt-1.5 block truncate">{theme.name}</span>
         </button>
+    }
+}
+
+/// When a signal turns a project's health amber or red.
+#[component]
+fn HealthSettings() -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let settings = LocalResource::new(move || {
+        version.track();
+        api::get_settings()
+    });
+    let save = move |new: HealthThresholds| {
+        spawn_local(async move {
+            finish(
+                api::update_settings(UpdateSettings {
+                    health: Some(new),
+                    ..Default::default()
+                })
+                .await,
+                toasts,
+                version,
+            );
+        });
+    };
+    view! {
+        <section class="space-y-2">
+            <h2 class="text-[11px] font-semibold uppercase tracking-wide text-muted">"Project health"</h2>
+            {move || match settings.get() {
+                Some(Ok(s)) => view! { <HealthRows current=s.health on_save=save /> }.into_any(),
+                Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+            }}
+        </section>
+    }
+}
+
+#[component]
+fn NumberCell(value: u32, #[prop(into)] on_commit: Callback<String>) -> impl IntoView {
+    view! {
+        <input type="number" min="1" class=format!("{COMPACT_INPUT} w-20")
+               prop:value=value.to_string()
+               on:change=move |ev| on_commit.run(event_target_value(&ev)) />
+    }
+}
+
+#[component]
+fn HealthRows(
+    current: HealthThresholds,
+    #[prop(into)] on_save: Callback<HealthThresholds>,
+) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    // One edited number: save it, or say it isn't a number and put the stored value back.
+    let edit = move |apply: fn(&mut HealthThresholds, u32)| {
+        move |v: String| match v.trim().parse::<u32>() {
+            Ok(n) => {
+                let mut t = current;
+                apply(&mut t, n);
+                on_save.run(t);
+            }
+            Err(_) => {
+                toasts.error(&AppError {
+                    code: "invalid".into(),
+                    message: "Thresholds are whole numbers".into(),
+                });
+                version.bump();
+            }
+        }
+    };
+    let late_amber = edit(|t, n| t.late_amber_days = n);
+    let late_red = edit(|t, n| t.late_red_days = n);
+    let risky_amber = edit(|t, n| t.risky_amber_pct = n);
+    let risky_red = edit(|t, n| t.risky_red_pct = n);
+    let unest_amber = edit(|t, n| t.unestimated_amber_pct = n);
+    let unest_red = edit(|t, n| t.unestimated_red_pct = n);
+    let reset = move |_| on_save.run(HealthThresholds::default());
+    view! {
+        <div class="grid max-w-xl grid-cols-[1fr_5rem_5rem] items-center gap-x-3 gap-y-1">
+            <span></span>
+            <span class="text-[11px] text-muted">"Amber at"</span>
+            <span class="text-[11px] text-muted">"Red at"</span>
+            <span>"Projected late (working days past the target)"</span>
+            <NumberCell value=current.late_amber_days on_commit=late_amber />
+            <NumberCell value=current.late_red_days on_commit=late_red />
+            <span>"Blocked or overdue (% of open tasks)"</span>
+            <NumberCell value=current.risky_amber_pct on_commit=risky_amber />
+            <NumberCell value=current.risky_red_pct on_commit=risky_red />
+            <span>"Without an estimate (% of open tasks)"</span>
+            <NumberCell value=current.unestimated_amber_pct on_commit=unest_amber />
+            <NumberCell value=current.unestimated_red_pct on_commit=unest_red />
+        </div>
+        <p class="text-[11px] text-muted">
+            "A project is as healthy as its worst signal. Amber can't be above red. "
+            "Used by the Overview, the project and objective panels, and the risk ranking."
+        </p>
+        <button class=BUTTON on:click=reset>"Reset to defaults"</button>
     }
 }

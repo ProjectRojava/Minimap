@@ -236,6 +236,9 @@ pub struct Settings {
     pub theme: String,
     /// Open waiting-ons older than this many days are stale.
     pub stale_waiting_days: u32,
+    /// When a project's lateness, blocked/overdue share or unestimated share turns its health
+    /// amber or red.
+    pub health: crate::HealthThresholds,
 }
 
 impl Default for Settings {
@@ -244,6 +247,7 @@ impl Default for Settings {
             hours_per_day: DEFAULT_HOURS_PER_DAY,
             theme: DEFAULT_THEME.to_owned(),
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
+            health: crate::HealthThresholds::default(),
         }
     }
 }
@@ -254,6 +258,7 @@ pub struct UpdateSettings {
     pub hours_per_day: Option<f64>,
     pub theme: Option<String>,
     pub stale_waiting_days: Option<u32>,
+    pub health: Option<crate::HealthThresholds>,
 }
 
 // ---------------------------------------------------------------- waiting-on

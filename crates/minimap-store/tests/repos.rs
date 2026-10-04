@@ -2500,3 +2500,69 @@ fn decision_items_carry_what_they_affect_and_replace() {
     assert_eq!(items.len(), 1);
     assert!(items[0].superseded_by.is_none());
 }
+
+#[test]
+fn health_thresholds_default_are_configurable_and_validated() {
+    let mut conn = db();
+    let defaults = HealthThresholds::default();
+    assert_eq!(settings::get(&conn).unwrap().health, defaults);
+
+    let custom = HealthThresholds {
+        late_amber_days: 2,
+        late_red_days: 10,
+        risky_amber_pct: 20,
+        risky_red_pct: 50,
+        unestimated_amber_pct: 60,
+        unestimated_red_pct: 90,
+    };
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            health: Some(custom),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(s.health, custom);
+    assert_eq!(settings::get(&conn).unwrap().health, custom);
+    // Other settings are untouched.
+    assert_eq!(s.hours_per_day, 8.0);
+
+    for bad in [
+        HealthThresholds {
+            late_amber_days: 0,
+            ..custom
+        },
+        HealthThresholds {
+            late_amber_days: 11,
+            late_red_days: 10,
+            ..custom
+        },
+        HealthThresholds {
+            risky_red_pct: 101,
+            ..custom
+        },
+        HealthThresholds {
+            unestimated_amber_pct: 95,
+            unestimated_red_pct: 90,
+            ..custom
+        },
+        HealthThresholds {
+            late_red_days: 366,
+            ..custom
+        },
+    ] {
+        let r = settings::update(
+            &mut conn,
+            UpdateSettings {
+                health: Some(bad),
+                hours_per_day: Some(6.0),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(r, Err(StoreError::Invalid(_))), "{bad:?}");
+    }
+    // A bad value alongside a good one changed nothing.
+    let after = settings::get(&conn).unwrap();
+    assert_eq!((after.health, after.hours_per_day), (custom, 8.0));
+}

@@ -6,12 +6,12 @@ use minimap_types::{
     Decision, DecisionFilter, DecisionRow, Edge, EdgeLink, ImpactReport, LinkOption, NewEdge,
     NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
     ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
-    PersonRow, PingResponse, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter,
-    ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, Schedule, ScheduleScope,
-    ScheduledTask, SearchFilter, SearchHit, Settings, Slip, Task, TaskDetail, TaskDisposition,
-    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote, UpdateObjective,
-    UpdatePerson, UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid,
-    WaitingOn, WaitingOnFilter, WaitingOnRow,
+    PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
+    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, Schedule,
+    ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Slip, Task, TaskDetail,
+    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote,
+    UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask, UpdateTeam,
+    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -58,6 +58,8 @@ struct NodeIdArg {
     node_id: Uuid,
 }
 
+// The Overview used to show this; kept for the `ping` command's own smoke test.
+#[allow(dead_code)]
 pub async fn ping() -> Result<PingResponse, AppError> {
     invoke("ping", &NoArgs {}).await
 }
@@ -451,6 +453,10 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+pub async fn get_portfolio_overview() -> Result<PortfolioOverview, AppError> {
+    invoke("get_portfolio_overview", &NoArgs {}).await
 }
 
 #[derive(Serialize)]

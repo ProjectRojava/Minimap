@@ -66,6 +66,7 @@
     "allow-archive-waiting-on",
     "allow-parse-quick-add",
     "allow-commit-quick-add",
+    "allow-get-portfolio-overview",
     "allow-run-impact-analysis",
     "allow-preview-apply-slips",
     "allow-apply-slips",

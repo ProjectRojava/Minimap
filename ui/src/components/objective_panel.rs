@@ -13,6 +13,7 @@ use crate::{
     components::{
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER, INPUT},
+        health_panel::ObjectiveHealthSection,
         people_panel::error_line,
     },
     labels::{humanize, objective_status_label, priority_option},
@@ -47,6 +48,7 @@ pub fn ObjectivePanel(id: Uuid) -> impl IntoView {
                 Some(Ok(o)) => view! { <ObjectiveFields objective=o /> }.into_any(),
             }}
         </Section>
+        <ObjectiveHealthSection objective=id />
         {move || match (detail.get(), candidates.get()) {
             (Some(Ok(d)), Some(Ok(c))) => view! {
                 <Contributions detail=d.clone() candidates=c />
