@@ -197,7 +197,12 @@ fn ThemeCard(
                 <span class="flex flex-1 flex-col gap-1 p-1.5">
                     <span class="h-1 w-3/4" style=format!("background:{}", k.fg)></span>
                     <span class="h-1 w-1/2" style=format!("background:{}", k.muted)></span>
-                    <span class="h-1 w-1/4" style=format!("background:{}", k.danger)></span>
+                    <span class="flex h-1 gap-0.5">
+                        <span class="w-1/4" style=format!("background:{}", k.accent)></span>
+                        <span class="w-1/4" style=format!("background:{}", k.success)></span>
+                        <span class="w-1/4" style=format!("background:{}", k.warning)></span>
+                        <span class="w-1/4" style=format!("background:{}", k.danger)></span>
+                    </span>
                 </span>
             </span>
             <span class="mt-1.5 block truncate">{theme.name}</span>

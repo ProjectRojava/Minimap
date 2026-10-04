@@ -18,7 +18,10 @@
   --fg: #d4d4d4;          /* primary text; never pure white */
   --muted: #9a9ca1;       /* secondary text */
   --faint: #64666b;       /* hints that are also available elsewhere */
-  --danger: #d9776f;      /* the only hue: errors and destructive actions */
+  --danger: #d9776f;      /* errors and destructive actions */
+  --accent: #6c9bd2;      /* the brand colour: current screen, primary buttons, focus, today */
+  --success: #7fb685;     /* good news: on track, absorbed, done */
+  --warning: #d7ba7d;     /* needs attention: amber health, stale, important */
   --scrim: rgb(0 0 0 / 0.35);
 }
 
@@ -33,6 +36,9 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-danger: var(--danger);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-scrim: var(--scrim);
 
   --font-sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -53,7 +59,7 @@
   }
   ::selection { background: var(--active); }
   input::placeholder, textarea::placeholder { color: var(--faint); }
-  :focus-visible { outline: 1px solid var(--line-strong); outline-offset: -1px; }
+  :focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
   select option { background: var(--panel); color: var(--fg); }
 
   /* Thin, quiet scrollbars like an editor. */
@@ -82,7 +88,7 @@
 .md hr { border: 0; border-top: 1px solid var(--line); margin: 0.9em 0; }
 .md table { border-collapse: collapse; }
 .md th, .md td { border: 1px solid var(--line); padding: 0.2rem 0.5rem; }
-.md a.mention { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.md a.mention { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .md a.mention:hover { background: var(--hover); }
 .md .mention.missing { color: var(--muted); }
 .md .link { text-decoration: underline dotted; text-underline-offset: 2px; }
@@ -102,7 +108,7 @@ input[type="checkbox"] {
   border-radius: 2px;
   background: var(--canvas);
 }
-input[type="checkbox"]:checked { background: var(--fg); border-color: var(--fg); }
+input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
 input[type="checkbox"]:checked::after {
   content: "";
   width: 8px;
@@ -124,14 +130,14 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .gantt .day-line { stroke: var(--line); stroke-width: 1; }
 .gantt .head-line { stroke: var(--line); stroke-width: 1; }
 .gantt .bar { fill: var(--muted); cursor: pointer; }
-.gantt .bar.critical { fill: var(--fg); }
+.gantt .bar.critical { fill: var(--accent); }
 .gantt .bar.done { fill: var(--faint); }
 .gantt .bar.late { fill: var(--danger); }
 .gantt .bar.unestimated { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 2; }
-.gantt .bar.critical.unestimated { stroke: var(--fg); }
+.gantt .bar.critical.unestimated { stroke: var(--accent); }
 .gantt .bar:hover { opacity: 0.8; }
 .gantt .slack { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 2; }
-.gantt .today { stroke: var(--fg); stroke-width: 1; }
+.gantt .today { stroke: var(--accent); stroke-width: 1; }
 .gantt .target { stroke: var(--danger); stroke-width: 1; stroke-dasharray: 4 3; }
-.gantt .today-label { fill: var(--fg); }
+.gantt .today-label { fill: var(--accent); }
 .gantt .target-label { fill: var(--danger); }

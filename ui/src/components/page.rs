@@ -28,10 +28,10 @@ pub fn Icon(
 pub const CHIP: &str = "inline-block rounded-sm border border-line px-1.5 text-[10px] leading-4 \
                         uppercase tracking-wide text-muted";
 
-/// A chip for something that needs attention: stronger border and text, no colour.
+/// A chip for something that needs attention or matters most: the warning colour.
 pub const CHIP_STRONG: &str =
-    "inline-block rounded-sm border border-line-strong px-1.5 text-[10px] \
-                               leading-4 font-medium uppercase tracking-wide text-fg";
+    "inline-block rounded-sm border border-warning/50 px-1.5 text-[10px] \
+                               leading-4 font-medium uppercase tracking-wide text-warning";
 
 /// The bar of filters under a page header.
 pub const FILTER_BAR: &str =
@@ -59,7 +59,7 @@ pub fn PageHeader(
 ) -> impl IntoView {
     view! {
         <header class="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
-            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-line bg-canvas text-muted">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-accent/30 bg-accent/10 text-accent">
                 <Icon name=icon />
             </span>
             <div class="min-w-0 shrink-0">
