@@ -1,5 +1,6 @@
 pub mod decisions;
 pub mod edges;
+pub mod impact;
 pub mod nodes;
 pub mod notes;
 pub mod objectives;

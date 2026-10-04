@@ -59,6 +59,7 @@ pub fn commands() -> Vec<Command> {
         action("New note", "note …", Action::Prefill("note ")),
         action("New decision", "decision …", Action::Prefill("decision ")),
         action("Resolve waiting-on…", "", Action::ResolveWaiting),
+        action("What if this slips?", "g f", Action::Go("/what-if")),
     ];
     all.extend(NAV.iter().filter(|n| n.enabled).map(|n| Command {
         label: format!("Go to {}", n.label),
@@ -705,11 +706,16 @@ mod tests {
         let all = commands();
         assert!(all.iter().any(|c| c.action == Action::Prefill("task ")));
         assert!(all.iter().any(|c| c.action == Action::ResolveWaiting));
-        let screens = all
-            .iter()
-            .filter(|c| matches!(c.action, Action::Go(_)))
-            .count();
-        assert_eq!(screens, NAV.iter().filter(|n| n.enabled).count());
+        // Every visible screen can be reached.
+        for n in NAV.iter().filter(|n| n.enabled) {
+            assert!(
+                all.iter().any(|c| c.action == Action::Go(n.path)),
+                "{}",
+                n.path
+            );
+        }
+        // "What if this slips?" is also offered by that name.
+        assert!(all.iter().any(|c| c.label == "What if this slips?"));
         assert!(all.iter().all(|c| !c.label.is_empty()));
     }
 

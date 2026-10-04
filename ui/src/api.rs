@@ -1,16 +1,17 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, AssigneeChoice, CreateDecision, CreateNote, CreateObjective, CreatePerson,
-    CreateProject, CreateTask, CreateTeam, CreateWaitingOn, Decision, DecisionFilter, DecisionRow,
-    Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail,
-    NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person,
-    PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Project, ProjectArchivePreview,
-    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview,
-    QuickResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Task,
-    TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision,
-    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask,
-    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, CreateDecision, CreateNote,
+    CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam, CreateWaitingOn,
+    Decision, DecisionFilter, DecisionRow, Edge, EdgeLink, ImpactReport, LinkOption, NewEdge,
+    NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
+    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
+    PersonRow, PingResponse, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter,
+    ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, Schedule, ScheduleScope,
+    ScheduledTask, SearchFilter, SearchHit, Settings, Slip, Task, TaskDetail, TaskDisposition,
+    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote, UpdateObjective,
+    UpdatePerson, UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid,
+    WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -450,6 +451,23 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+#[derive(Serialize)]
+struct SlipsArg {
+    slips: Vec<Slip>,
+}
+
+pub async fn run_impact_analysis(slips: Vec<Slip>) -> Result<ImpactReport, AppError> {
+    invoke("run_impact_analysis", &SlipsArg { slips }).await
+}
+
+pub async fn preview_apply_slips(slips: Vec<Slip>) -> Result<ApplyPreview, AppError> {
+    invoke("preview_apply_slips", &SlipsArg { slips }).await
+}
+
+pub async fn apply_slips(slips: Vec<Slip>) -> Result<ApplyResult, AppError> {
+    invoke("apply_slips", &SlipsArg { slips }).await
 }
 
 #[derive(Serialize)]
