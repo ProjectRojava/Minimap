@@ -1,7 +1,7 @@
 use minimap_types::{
     ActivityAction, CreatePerson, NodeType, Person, UpdatePerson, DEFAULT_WEEKLY_CAPACITY_HOURS,
 };
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -81,6 +81,14 @@ pub fn ensure_self(conn: &mut Connection, name: &str) -> Result<Person> {
 }
 
 pub fn create(conn: &mut Connection, input: CreatePerson) -> Result<Person> {
+    let tx = conn.transaction()?;
+    let created = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(created)
+}
+
+/// [`create`] inside a caller's transaction.
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreatePerson) -> Result<Person> {
     let at = now();
     let p = Person {
         id: Uuid::now_v7(),
@@ -97,8 +105,7 @@ pub fn create(conn: &mut Connection, input: CreatePerson) -> Result<Person> {
         archived_at: None,
     };
     validate(&p)?;
-    let tx = conn.transaction()?;
-    if p.is_self && get_self(&tx)?.is_some() {
+    if p.is_self && get_self(tx)?.is_some() {
         return Err(StoreError::Invalid("a self person already exists".into()));
     }
     tx.execute(
@@ -116,8 +123,7 @@ pub fn create(conn: &mut Connection, input: CreatePerson) -> Result<Person> {
             ts_opt_s(p.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::Person, p.id, &p)?;
-    tx.commit()?;
+    activity::record_created(tx, at, NodeType::Person, p.id, &p)?;
     Ok(p)
 }
 

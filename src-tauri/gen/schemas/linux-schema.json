@@ -231,6 +231,12 @@
           "markdownDescription": "Enables the archive_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the commit_quick_add command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-commit-quick-add",
+          "markdownDescription": "Enables the commit_quick_add command without any pre-configured scope."
+        },
+        {
           "description": "Enables the convert_checklist_item command without any pre-configured scope.",
           "type": "string",
           "const": "allow-convert-checklist-item",
@@ -471,6 +477,12 @@
           "markdownDescription": "Enables the list_teams command without any pre-configured scope."
         },
         {
+          "description": "Enables the parse_quick_add command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-parse-quick-add",
+          "markdownDescription": "Enables the parse_quick_add command without any pre-configured scope."
+        },
+        {
           "description": "Enables the parse_task_lines command without any pre-configured scope.",
           "type": "string",
           "const": "allow-parse-task-lines",
@@ -661,6 +673,12 @@
           "type": "string",
           "const": "deny-archive-waiting-on",
           "markdownDescription": "Denies the archive_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the commit_quick_add command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-commit-quick-add",
+          "markdownDescription": "Denies the commit_quick_add command without any pre-configured scope."
         },
         {
           "description": "Denies the convert_checklist_item command without any pre-configured scope.",
@@ -901,6 +919,12 @@
           "type": "string",
           "const": "deny-list-teams",
           "markdownDescription": "Denies the list_teams command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the parse_quick_add command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-parse-quick-add",
+          "markdownDescription": "Denies the parse_quick_add command without any pre-configured scope."
         },
         {
           "description": "Denies the parse_task_lines command without any pre-configured scope.",

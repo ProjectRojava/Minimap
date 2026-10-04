@@ -1,7 +1,7 @@
 use minimap_types::{
     CreateObjective, NodeType, Objective, ObjectiveStatus, UpdateObjective, DEFAULT_PRIORITY,
 };
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -43,6 +43,14 @@ pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Objective>>
 }
 
 pub fn create(conn: &mut Connection, input: CreateObjective) -> Result<Objective> {
+    let tx = conn.transaction()?;
+    let created = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(created)
+}
+
+/// [`create`] inside a caller's transaction.
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreateObjective) -> Result<Objective> {
     let at = now();
     let o = Objective {
         id: Uuid::now_v7(),
@@ -56,7 +64,6 @@ pub fn create(conn: &mut Connection, input: CreateObjective) -> Result<Objective
         archived_at: None,
     };
     validate(&o)?;
-    let tx = conn.transaction()?;
     tx.execute(
         &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)"),
         params![
@@ -71,8 +78,7 @@ pub fn create(conn: &mut Connection, input: CreateObjective) -> Result<Objective
             ts_opt_s(o.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::Objective, o.id, &o)?;
-    tx.commit()?;
+    activity::record_created(tx, at, NodeType::Objective, o.id, &o)?;
     Ok(o)
 }
 

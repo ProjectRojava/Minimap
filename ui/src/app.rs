@@ -6,8 +6,8 @@ use leptos_router::{
 
 use crate::{
     components::{
-        detail_pane::DetailPane, first_run::FirstRun, sidebar::Sidebar, titlebar::TitleBar,
-        toasts::ToastHost,
+        detail_pane::DetailPane, first_run::FirstRun, palette::PaletteHost, sidebar::Sidebar,
+        titlebar::TitleBar, toasts::ToastHost,
     },
     keyboard::use_global_shortcuts,
     pages::{
@@ -23,13 +23,14 @@ use crate::{
         teams::Teams,
         waiting_on::WaitingOn,
     },
-    state::{DataVersion, ListNav, Selection, Toasts},
+    state::{DataVersion, ListNav, PaletteOpen, Selection, Toasts},
     theme::ThemeCtx,
 };
 
 #[component]
 pub fn App() -> impl IntoView {
     provide_context(Selection(RwSignal::new(None)));
+    provide_context(PaletteOpen(RwSignal::new(false)));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
     provide_context(DataVersion::new());
@@ -85,6 +86,7 @@ fn Shell() -> impl IntoView {
             </main>
             <DetailPane />
             </div>
+            <PaletteHost />
             <ToastHost />
             <FirstRun />
         </div>

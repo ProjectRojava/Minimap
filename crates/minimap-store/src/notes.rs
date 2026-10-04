@@ -88,6 +88,14 @@ fn sync_mentions(tx: &Transaction, note: Uuid, body: &str, at: OffsetDateTime) -
 }
 
 pub fn create(conn: &mut Connection, input: CreateNote) -> Result<Note> {
+    let tx = conn.transaction()?;
+    let created = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(created)
+}
+
+/// [`create`] inside a caller's transaction.
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreateNote) -> Result<Note> {
     let at = now();
     let n = Note {
         id: Uuid::now_v7(),
@@ -100,7 +108,6 @@ pub fn create(conn: &mut Connection, input: CreateNote) -> Result<Note> {
         archived_at: None,
     };
     ensure_not_blank("title", &n.title)?;
-    let tx = conn.transaction()?;
     tx.execute(
         &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)"),
         params![
@@ -133,15 +140,14 @@ pub fn create(conn: &mut Connection, input: CreateNote) -> Result<Note> {
         }
     }
     activity::record(
-        &tx,
+        tx,
         at,
         NodeType::Note,
         n.id,
         ActivityAction::Created,
         &Value::Object(diff),
     )?;
-    sync_mentions(&tx, n.id, &n.body, at)?;
-    tx.commit()?;
+    sync_mentions(tx, n.id, &n.body, at)?;
     Ok(n)
 }
 

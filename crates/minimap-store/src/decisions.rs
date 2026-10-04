@@ -41,6 +41,14 @@ pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Decision>> 
 }
 
 pub fn create(conn: &mut Connection, input: CreateDecision) -> Result<Decision> {
+    let tx = conn.transaction()?;
+    let created = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(created)
+}
+
+/// [`create`] inside a caller's transaction.
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreateDecision) -> Result<Decision> {
     let at = now();
     let d = Decision {
         id: Uuid::now_v7(),
@@ -58,7 +66,6 @@ pub fn create(conn: &mut Connection, input: CreateDecision) -> Result<Decision> 
         archived_at: None,
     };
     ensure_not_blank("title", &d.title)?;
-    let tx = conn.transaction()?;
     tx.execute(
         &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)"),
         params![
@@ -74,8 +81,7 @@ pub fn create(conn: &mut Connection, input: CreateDecision) -> Result<Decision> 
             ts_opt_s(d.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::Decision, d.id, &d)?;
-    tx.commit()?;
+    activity::record_created(tx, at, NodeType::Decision, d.id, &d)?;
     Ok(d)
 }
 

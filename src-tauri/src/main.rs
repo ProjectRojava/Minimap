@@ -97,6 +97,8 @@ fn main() {
             commands::waiting_on::reopen_waiting_on,
             commands::waiting_on::snooze_waiting_on,
             commands::waiting_on::archive_waiting_on,
+            commands::quick_add::parse_quick_add,
+            commands::quick_add::commit_quick_add,
             commands::search::search,
             commands::decisions::list_decisions,
             commands::decisions::get_decision,

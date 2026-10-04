@@ -21,6 +21,16 @@ impl Selection {
     }
 }
 
+/// Whether the command palette is open (`Ctrl/Cmd+K`).
+#[derive(Clone, Copy)]
+pub struct PaletteOpen(pub RwSignal<bool>);
+
+impl PaletteOpen {
+    pub fn toggle(&self) {
+        self.0.update(|o| *o = !*o);
+    }
+}
+
 /// Rows of the list screen currently shown, so `j`/`k`/`Enter` work on any list.
 /// A list screen calls `set_items` with its rows and renders them with `NodeRow`.
 #[derive(Clone, Copy)]

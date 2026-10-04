@@ -23,3 +23,4 @@
 - [x] 09 Notes and @mentions (implemented; manual click-through pending). Mentions stored as `@[Name](node:id)`, checklist conversion, safe Markdown preview, autosave with folded activity
 - [x] 10 Decisions (implemented; manual click-through pending). Own node type; new `supersedes` edge (ADR-0006) marks the older decision superseded; deciding stamps today; decisions show under "Decisions" on affected nodes; a date-range filter is ready for the weekly review (19)
 - [x] 11 Search (implemented; manual click-through pending). FTS5 index kept by triggers (migration 0007), prefix + typo-tolerant matching (ADR-0007), sidebar box with `/`; the edge and @ pickers keep their own filtering for now
+- [x] 12 Command palette and quick-add (implemented; manual click-through pending). Ctrl/Cmd+K, grammar in `docs/quick-add-grammar.md`, preview with inline pick/create/skip, one-transaction commit; "What if this slips?" waits for impact analysis (14)

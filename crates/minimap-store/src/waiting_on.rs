@@ -1,5 +1,5 @@
 use minimap_types::{ActivityAction, CreateWaitingOn, NodeType, UpdateWaitingOn, WaitingOn};
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -36,6 +36,14 @@ pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<WaitingOn>>
 }
 
 pub fn create(conn: &mut Connection, input: CreateWaitingOn) -> Result<WaitingOn> {
+    let tx = conn.transaction()?;
+    let created = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(created)
+}
+
+/// [`create`] inside a caller's transaction.
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreateWaitingOn) -> Result<WaitingOn> {
     let at = now();
     let w = WaitingOn {
         id: Uuid::now_v7(),
@@ -50,7 +58,6 @@ pub fn create(conn: &mut Connection, input: CreateWaitingOn) -> Result<WaitingOn
         archived_at: None,
     };
     ensure_not_blank("description", &w.description)?;
-    let tx = conn.transaction()?;
     tx.execute(
         &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)"),
         params![
@@ -66,8 +73,7 @@ pub fn create(conn: &mut Connection, input: CreateWaitingOn) -> Result<WaitingOn
             ts_opt_s(w.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::WaitingOn, w.id, &w)?;
-    tx.commit()?;
+    activity::record_created(tx, at, NodeType::WaitingOn, w.id, &w)?;
     Ok(w)
 }
 
