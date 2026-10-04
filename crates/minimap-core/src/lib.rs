@@ -14,6 +14,7 @@ pub mod schedule;
 pub mod search;
 pub mod slug;
 pub mod tasks;
+pub mod this_week;
 pub mod waiting_on;
 
 use minimap_types::PingResponse;

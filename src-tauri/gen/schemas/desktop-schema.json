@@ -423,6 +423,12 @@
           "markdownDescription": "Enables the get_team_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_this_week command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-this-week",
+          "markdownDescription": "Enables the get_this_week command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-waiting-on",
@@ -553,6 +559,12 @@
           "type": "string",
           "const": "allow-reopen-waiting-on",
           "markdownDescription": "Enables the reopen_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the reschedule_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-reschedule-task",
+          "markdownDescription": "Enables the reschedule_task command without any pre-configured scope."
         },
         {
           "description": "Enables the resolve_waiting_on command without any pre-configured scope.",
@@ -903,6 +915,12 @@
           "markdownDescription": "Denies the get_team_detail command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_this_week command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-this-week",
+          "markdownDescription": "Denies the get_this_week command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-waiting-on",
@@ -1033,6 +1051,12 @@
           "type": "string",
           "const": "deny-reopen-waiting-on",
           "markdownDescription": "Denies the reopen_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the reschedule_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-reschedule-task",
+          "markdownDescription": "Denies the reschedule_task command without any pre-configured scope."
         },
         {
           "description": "Denies the resolve_waiting_on command without any pre-configured scope.",
