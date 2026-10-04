@@ -348,3 +348,40 @@ pub struct NoteDetail {
     pub mentions: Vec<NodeSummary>,
     pub checklist: Vec<ChecklistItem>,
 }
+
+// ----------------------------------------------------------------- decisions
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DecisionFilter {
+    pub status: Option<crate::DecisionStatus>,
+    /// Only decisions that affect this project, task or objective.
+    pub affects_id: Option<Uuid>,
+    /// Inclusive range on the decision date; undated decisions are left out when set.
+    pub date_from: Option<time::Date>,
+    pub date_to: Option<time::Date>,
+    /// Every word must appear in the title, context, decision or rationale.
+    pub text: Option<String>,
+}
+
+/// A decision and its links, before it is filtered and shortened for a list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DecisionItem {
+    pub decision: crate::Decision,
+    pub affects: Vec<NodeSummary>,
+    /// The newer decision that replaced this one, if any.
+    pub superseded_by: Option<NodeSummary>,
+}
+
+/// A decision as a list shows it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DecisionRow {
+    pub id: Uuid,
+    pub title: String,
+    pub status: crate::DecisionStatus,
+    pub decided_on: Option<time::Date>,
+    /// What was decided (or, failing that, the context), shortened.
+    pub excerpt: String,
+    pub affects: Vec<NodeSummary>,
+    pub superseded_by: Option<NodeSummary>,
+}

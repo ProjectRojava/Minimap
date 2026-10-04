@@ -1,6 +1,6 @@
 //! Display text for enums and numbers. Presentation only; rules live in core.
 
-use minimap_types::{ObjectiveStatus, ProjectStatus, TaskStatus};
+use minimap_types::{DecisionStatus, ObjectiveStatus, ProjectStatus, TaskStatus};
 
 /// The user's own call on an objective (computed health is shown separately, spec 15).
 pub fn objective_status_label(s: ObjectiveStatus) -> &'static str {
@@ -29,6 +29,14 @@ pub fn task_status_label(s: TaskStatus) -> &'static str {
         TaskStatus::Blocked => "Blocked",
         TaskStatus::Done => "Done",
         TaskStatus::Cancelled => "Cancelled",
+    }
+}
+
+pub fn decision_status_label(s: DecisionStatus) -> &'static str {
+    match s {
+        DecisionStatus::Proposed => "Proposed",
+        DecisionStatus::Decided => "Decided",
+        DecisionStatus::Superseded => "Superseded",
     }
 }
 

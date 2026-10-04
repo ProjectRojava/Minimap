@@ -11,12 +11,12 @@ use crate::{
     },
     keyboard::use_global_shortcuts,
     pages::{
+        decisions::Decisions,
         deep_link::{DeepLink, NotFound},
         notes::Notes,
         objectives::Objectives,
         overview::Overview,
         people::People,
-        placeholder::Placeholder,
         projects::Projects,
         settings::Settings,
         tasks::{Inbox, Tasks},
@@ -77,7 +77,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/people") view=People />
                     <Route path=path!("/teams") view=Teams />
                     <Route path=path!("/notes") view=Notes />
-                    <Route path=path!("/decisions") view=|| view! { <Placeholder title="Decisions" spec="10-decisions" /> } />
+                    <Route path=path!("/decisions") view=Decisions />
                     <Route path=path!("/waiting-on") view=WaitingOn />
                     <Route path=path!("/settings") view=Settings />
                     <Route path=path!("/:type/:id") view=DeepLink />

@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 
 use minimap_types::{
-    Contribution, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType, NoteItem,
-    ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
+    Contribution, DecisionItem, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
+    NoteItem, ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
     ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TaskDetail, TaskRow, TeamDetail,
     TeamRow, WaitingOnItem,
 };
@@ -12,8 +12,8 @@ use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::{
-    convert::*, edges, error::Result, nodes, notes, objectives, people, projects, tasks, teams,
-    waiting_on,
+    convert::*, decisions, edges, error::Result, nodes, notes, objectives, people, projects, tasks,
+    teams, waiting_on,
 };
 
 const ACTIVE_TASK: &str = "t.status IN ('todo','in_progress','blocked')";
@@ -566,4 +566,34 @@ pub fn note_item(conn: &Connection, id: Uuid) -> Result<NoteItem> {
     let note = notes::get(conn, id)?;
     let mentions = mentions_by_note(conn)?.remove(&id).unwrap_or_default();
     Ok(NoteItem { note, mentions })
+}
+
+/// Active decisions with what each affects and what replaced it, in storage order
+/// (filtering and ordering is `minimap-core::decisions`).
+pub fn decision_items(conn: &Connection) -> Result<Vec<DecisionItem>> {
+    let mut affects: HashMap<Uuid, Vec<NodeSummary>> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::Affects)? {
+        if e.from_type == NodeType::Decision {
+            affects
+                .entry(e.from_id)
+                .or_default()
+                .push(nodes::summary(conn, e.to())?);
+        }
+    }
+    for list in affects.values_mut() {
+        list.sort_by_key(|n| n.label.to_lowercase());
+    }
+    // Edges come back oldest first, so the last link wins when a decision was replaced twice.
+    let mut replaced_by: HashMap<Uuid, NodeSummary> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::Supersedes)? {
+        replaced_by.insert(e.to_id, nodes::summary(conn, e.from())?);
+    }
+    Ok(decisions::list(conn, false)?
+        .into_iter()
+        .map(|decision| DecisionItem {
+            affects: affects.remove(&decision.id).unwrap_or_default(),
+            superseded_by: replaced_by.remove(&decision.id),
+            decision,
+        })
+        .collect())
 }
