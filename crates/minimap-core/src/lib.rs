@@ -1,6 +1,7 @@
 //! Domain logic and graph algorithms. Pure: no IO, no SQLite.
 
 pub mod cycles;
+pub mod decisions;
 pub mod edge_rules;
 pub mod notes;
 pub mod objectives;

@@ -22,7 +22,7 @@ pub enum EdgeRuleError {
 pub fn must_be_acyclic(edge_type: EdgeType) -> bool {
     matches!(
         edge_type,
-        EdgeType::Blocks | EdgeType::DependsOn | EdgeType::ReportsTo
+        EdgeType::Blocks | EdgeType::DependsOn | EdgeType::ReportsTo | EdgeType::Supersedes
     )
 }
 
@@ -41,6 +41,7 @@ pub fn is_allowed(edge_type: EdgeType, from: NodeType, to: NodeType) -> bool {
         E::Mentions => from == N::Note,
         E::Affects => from == N::Decision && matches!(to, N::Project | N::Task | N::Objective),
         E::About => from == N::WaitingOn && matches!(to, N::Task | N::Project),
+        E::Supersedes => (from, to) == (N::Decision, N::Decision),
     }
 }
 
@@ -121,7 +122,11 @@ pub fn attr_schema(edge_type: EdgeType) -> Vec<AttrSpec> {
             },
             "'lead' or 'member'",
         )],
-        EdgeType::ReportsTo | EdgeType::Mentions | EdgeType::Affects | EdgeType::About => vec![],
+        EdgeType::ReportsTo
+        | EdgeType::Mentions
+        | EdgeType::Affects
+        | EdgeType::About
+        | EdgeType::Supersedes => vec![],
     }
 }
 
@@ -215,6 +220,7 @@ mod tests {
             (E::Affects, N::Decision, N::Objective),
             (E::About, N::WaitingOn, N::Task),
             (E::About, N::WaitingOn, N::Project),
+            (E::Supersedes, N::Decision, N::Decision),
         ];
         for &(e, f, t) in &allowed {
             assert!(is_allowed(e, f, t), "{e} {f}->{t}");
@@ -276,6 +282,7 @@ mod tests {
         assert!(must_be_acyclic(E::Blocks));
         assert!(must_be_acyclic(E::DependsOn));
         assert!(must_be_acyclic(E::ReportsTo));
+        assert!(must_be_acyclic(E::Supersedes));
         assert!(!must_be_acyclic(E::RelatesTo));
     }
 
@@ -293,7 +300,13 @@ mod tests {
         assert_eq!(keys(E::MemberOf), ["role"]);
         assert_eq!(keys(E::DependsOn), ["note"]);
         assert_eq!(keys(E::RelatesTo), ["note"]);
-        for e in [E::ReportsTo, E::Mentions, E::Affects, E::About] {
+        for e in [
+            E::ReportsTo,
+            E::Mentions,
+            E::Affects,
+            E::About,
+            E::Supersedes,
+        ] {
             assert!(keys(e).is_empty(), "{e}");
         }
         // Boundaries come from the schema.

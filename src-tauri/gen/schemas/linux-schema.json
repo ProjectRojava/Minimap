@@ -183,6 +183,12 @@
           "markdownDescription": "Enables the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Enables the archive_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-decision",
+          "markdownDescription": "Enables the archive_decision command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_note command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-note",
@@ -229,6 +235,12 @@
           "type": "string",
           "const": "allow-convert-checklist-item",
           "markdownDescription": "Enables the convert_checklist_item command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-decision",
+          "markdownDescription": "Enables the create_decision command without any pre-configured scope."
         },
         {
           "description": "Enables the create_note command without any pre-configured scope.",
@@ -283,6 +295,12 @@
           "type": "string",
           "const": "allow-create-waiting-on",
           "markdownDescription": "Enables the create_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-decision",
+          "markdownDescription": "Enables the get_decision command without any pre-configured scope."
         },
         {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
@@ -391,6 +409,12 @@
           "type": "string",
           "const": "allow-list-activity-for",
           "markdownDescription": "Enables the list_activity_for command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_decisions command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-decisions",
+          "markdownDescription": "Enables the list_decisions command without any pre-configured scope."
         },
         {
           "description": "Enables the list_edges_for command without any pre-configured scope.",
@@ -519,6 +543,12 @@
           "markdownDescription": "Enables the snooze_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the update_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-decision",
+          "markdownDescription": "Enables the update_decision command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_edge_attrs command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-edge-attrs",
@@ -579,6 +609,12 @@
           "markdownDescription": "Denies the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Denies the archive_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-decision",
+          "markdownDescription": "Denies the archive_decision command without any pre-configured scope."
+        },
+        {
           "description": "Denies the archive_note command without any pre-configured scope.",
           "type": "string",
           "const": "deny-archive-note",
@@ -625,6 +661,12 @@
           "type": "string",
           "const": "deny-convert-checklist-item",
           "markdownDescription": "Denies the convert_checklist_item command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-decision",
+          "markdownDescription": "Denies the create_decision command without any pre-configured scope."
         },
         {
           "description": "Denies the create_note command without any pre-configured scope.",
@@ -679,6 +721,12 @@
           "type": "string",
           "const": "deny-create-waiting-on",
           "markdownDescription": "Denies the create_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-decision",
+          "markdownDescription": "Denies the get_decision command without any pre-configured scope."
         },
         {
           "description": "Denies the get_node_summary command without any pre-configured scope.",
@@ -787,6 +835,12 @@
           "type": "string",
           "const": "deny-list-activity-for",
           "markdownDescription": "Denies the list_activity_for command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_decisions command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-decisions",
+          "markdownDescription": "Denies the list_decisions command without any pre-configured scope."
         },
         {
           "description": "Denies the list_edges_for command without any pre-configured scope.",
@@ -913,6 +967,12 @@
           "type": "string",
           "const": "deny-snooze-waiting-on",
           "markdownDescription": "Denies the snooze_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-decision",
+          "markdownDescription": "Denies the update_decision command without any pre-configured scope."
         },
         {
           "description": "Denies the update_edge_attrs command without any pre-configured scope.",

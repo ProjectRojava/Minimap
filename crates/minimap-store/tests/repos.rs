@@ -2351,3 +2351,152 @@ fn a_changed_line_is_not_converted_by_a_stale_request() {
     let ok = notes::convert_checklist_item(&mut conn, n.id, 2, "Book room").unwrap();
     assert_eq!(ok.title, "Book room");
 }
+
+fn make_decision(conn: &mut Connection, title: &str, status: Option<DecisionStatus>) -> Decision {
+    decisions::create(
+        conn,
+        CreateDecision {
+            title: title.into(),
+            context: String::new(),
+            decision: String::new(),
+            rationale: String::new(),
+            decided_on: None,
+            status,
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn deciding_stamps_a_date_unless_one_is_given() {
+    let mut conn = db();
+    let draft = make_decision(&mut conn, "Postgres", None);
+    assert_eq!(draft.status, DecisionStatus::Proposed);
+    assert_eq!(draft.decided_on, None);
+
+    let decided = decisions::update(
+        &mut conn,
+        draft.id,
+        UpdateDecision {
+            status: Some(DecisionStatus::Decided),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(decided.decided_on, Some(today()));
+
+    // Created as decided: dated too. An explicit date is kept.
+    assert_eq!(
+        make_decision(&mut conn, "x", Some(DecisionStatus::Decided)).decided_on,
+        Some(today())
+    );
+    let dated = decisions::create(
+        &mut conn,
+        CreateDecision {
+            title: "y".into(),
+            context: String::new(),
+            decision: String::new(),
+            rationale: String::new(),
+            decided_on: Some(time::macros::date!(2027 - 01 - 05)),
+            status: Some(DecisionStatus::Decided),
+        },
+    )
+    .unwrap();
+    assert_eq!(dated.decided_on, Some(time::macros::date!(2027 - 01 - 05)));
+
+    // Saving the same status again writes nothing.
+    let again = decisions::update(
+        &mut conn,
+        decided.id,
+        UpdateDecision {
+            status: Some(DecisionStatus::Decided),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(again.updated_at, decided.updated_at, "no-op writes nothing");
+}
+
+#[test]
+fn superseding_links_and_marks_in_one_transaction() {
+    let mut conn = db();
+    let old = make_decision(&mut conn, "Old", Some(DecisionStatus::Decided));
+    let new = make_decision(&mut conn, "New", Some(DecisionStatus::Decided));
+    decisions::supersede(&mut conn, new.id, old.id).unwrap();
+
+    assert_eq!(
+        decisions::get(&conn, old.id).unwrap().status,
+        DecisionStatus::Superseded
+    );
+    let links = edges::links_for_node(&conn, new.id).unwrap();
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].edge.edge_type, EdgeType::Supersedes);
+    assert!(links[0].outgoing);
+    // One activity row for the edge on the new decision, one status change on the old one.
+    assert!(actions(&conn, new.id).contains(&ActivityAction::EdgeAdded));
+    let old_history = history(&conn, old.id);
+    assert!(old_history
+        .iter()
+        .any(|a| a.diff.get("status").is_some_and(|s| s[1] == "superseded")));
+
+    // Repeating it fails and changes nothing further.
+    let before = history(&conn, old.id).len();
+    assert!(matches!(
+        decisions::supersede(&mut conn, new.id, old.id),
+        Err(StoreError::DuplicateEdge)
+    ));
+    assert_eq!(history(&conn, old.id).len(), before);
+
+    // An archived decision can't be superseded, and the failed attempt leaves no half-state.
+    let other = make_decision(&mut conn, "Other", Some(DecisionStatus::Decided));
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Decision, other.id)).unwrap();
+    assert!(decisions::supersede(&mut conn, new.id, other.id).is_err());
+    assert_eq!(
+        decisions::get(&conn, other.id).unwrap().status,
+        DecisionStatus::Decided
+    );
+}
+
+#[test]
+fn decision_items_carry_what_they_affect_and_replace() {
+    let mut conn = db();
+    let old = make_decision(&mut conn, "Old", Some(DecisionStatus::Decided));
+    let new = make_decision(&mut conn, "New", Some(DecisionStatus::Decided));
+    let project = projects::create(
+        &mut conn,
+        CreateProject {
+            title: "API".into(),
+            slug: None,
+            description: String::new(),
+            owner_person_id: None,
+            start_date: None,
+            target_date: None,
+            status: None,
+            priority: None,
+        },
+    )
+    .unwrap();
+    edges::add(
+        &mut conn,
+        NewEdge {
+            edge_type: EdgeType::Affects,
+            from: NodeRef::new(NodeType::Decision, new.id),
+            to: NodeRef::new(NodeType::Project, project.id),
+            attrs: json!({}),
+        },
+    )
+    .unwrap();
+    decisions::supersede(&mut conn, new.id, old.id).unwrap();
+
+    let items = views::decision_items(&conn).unwrap();
+    let of = |id| items.iter().find(|i| i.decision.id == id).unwrap();
+    assert_eq!(of(new.id).affects[0].label, "API");
+    assert_eq!(of(old.id).superseded_by.as_ref().unwrap().label, "New");
+    assert!(of(new.id).superseded_by.is_none());
+
+    // Archiving the replacement archives its link, so the old decision no longer points at it.
+    nodes::archive(&mut conn, NodeRef::new(NodeType::Decision, new.id)).unwrap();
+    let items = views::decision_items(&conn).unwrap();
+    assert_eq!(items.len(), 1);
+    assert!(items[0].superseded_by.is_none());
+}

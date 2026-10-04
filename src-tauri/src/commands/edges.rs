@@ -54,12 +54,17 @@ pub async fn list_link_options(node_type: NodeType) -> Result<Vec<LinkOption>, A
 
 #[tauri::command]
 pub async fn add_edge(state: State<'_, AppState>, new: NewEdge) -> Result<Edge, AppError> {
-    state
-        .run(move |conn| {
-            check_new_edge(conn, &new)?;
-            minimap_store::edges::add(conn, new).map_err(store_error)
-        })
-        .await
+    state.run(move |conn| add_edge_impl(conn, new)).await
+}
+
+pub(crate) fn add_edge_impl(conn: &mut Connection, new: NewEdge) -> Result<Edge, AppError> {
+    check_new_edge(conn, &new)?;
+    if new.edge_type == EdgeType::Supersedes {
+        // Also marks the older decision as superseded, in the same transaction.
+        return minimap_store::decisions::supersede(conn, new.from.id, new.to.id)
+            .map_err(store_error);
+    }
+    minimap_store::edges::add(conn, new).map_err(store_error)
 }
 
 /// Changes a link's attributes (e.g. a contribution's weight) after validating them.
