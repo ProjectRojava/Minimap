@@ -69,7 +69,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - edges: add_edge, remove_edge, list_edges_for(node_id)
 - graph: get_dependency_graph(scope), get_schedule(scope), get_critical_path(scope), run_impact_analysis(slips) (a scenario of one or more task/project slips), preview_apply_slips(slips), apply_slips(slips) (ADR-free: spec 14)
 - dashboard: get_portfolio_overview, get_capacity(from,to), get_waiting_on(open_only)
-- review: get_weekly_review(week_start)
+- review: get_weekly_review(week_start), render_report(report_kind, params)
 - quick_add: parse_quick_add(text) → preview; commit_quick_add(text)
 - export: export_markdown(report_kind, params, path)
 - settings: get_settings, update_settings, set_db_passphrase, backup_now(path)

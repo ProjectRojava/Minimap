@@ -10,6 +10,7 @@ pub mod overview;
 pub mod people;
 pub mod projects;
 pub mod quick_add;
+pub mod review;
 pub mod schedule;
 pub mod search;
 pub mod settings;

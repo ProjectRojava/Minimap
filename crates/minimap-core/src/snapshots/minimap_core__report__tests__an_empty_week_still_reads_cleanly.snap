@@ -1,0 +1,49 @@
+---
+source: crates/minimap-core/src/report.rs
+expression: "render(&empty(), DEFAULT_REPORT_TEMPLATE)"
+---
+# Weekly status report
+
+Week of 1 Mar 2027 to 7 Mar 2027 · prepared 5 Mar 2027
+
+## Summary
+
+- **Projects:** none scored
+- **Completed:** none
+- **Slipped:** none
+- **Blocked:** none
+- **Decisions:** none
+- **Over capacity:** nobody
+- **Waiting on others:** none
+
+## Objectives
+
+_No objectives yet._
+
+## Top risks
+
+_No risks to report._
+
+## Completed
+
+_No tasks were completed this week._
+
+## Slipped
+
+_Nothing slipped this week._
+
+## Blocked
+
+_Nothing is blocked._
+
+## Decisions
+
+_No decisions were made this week._
+
+## People and capacity
+
+_Nobody is over capacity._
+
+## Waiting on others
+
+_Nothing stale, and nothing resolved this week._

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-render-report"
+description = "Enables the render_report command without any pre-configured scope."
+commands.allow = ["render_report"]
+
+[[permission]]
+identifier = "deny-render-report"
+description = "Denies the render_report command without any pre-configured scope."
+commands.deny = ["render_report"]

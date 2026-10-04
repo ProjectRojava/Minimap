@@ -10,6 +10,7 @@ const THEME: &str = "theme";
 const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 const HEALTH: &str = "health";
 const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
+const REPORT_TEMPLATE: &str = "report_template";
 
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
@@ -67,6 +68,12 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.health = h;
         }
     }
+    if let Some(t) = read(conn, REPORT_TEMPLATE)?.and_then(|v| v.as_str().map(str::to_owned)) {
+        // A stored template that is no longer valid falls back to the built-in one.
+        if minimap_core::report::validate_template(&t).is_ok() {
+            s.report_template = t;
+        }
+    }
     if let Some(t) = read(conn, THEME)?.and_then(|v| v.as_str().map(str::to_owned)) {
         if valid_theme_id(&t) {
             s.theme = t;
@@ -108,7 +115,19 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             ));
         }
     }
+    // An empty text restores the built-in template.
+    let template = patch.report_template.as_deref().map(str::trim);
+    if let Some(t) = template.filter(|t| !t.is_empty()) {
+        minimap_core::report::validate_template(t).map_err(StoreError::Invalid)?;
+    }
     let tx = conn.transaction()?;
+    match (template, &patch.report_template) {
+        (Some(""), _) => {
+            tx.execute("DELETE FROM settings WHERE key = ?1", [REPORT_TEMPLATE])?;
+        }
+        (Some(_), Some(text)) => write(&tx, REPORT_TEMPLATE, &serde_json::json!(text))?,
+        _ => {}
+    }
     if let Some(h) = patch.health {
         write(&tx, HEALTH, &serde_json::to_value(h)?)?;
     }

@@ -243,6 +243,9 @@ pub struct Settings {
     /// When a project's lateness, blocked/overdue share or unestimated share turns its health
     /// amber or red.
     pub health: crate::HealthThresholds,
+    /// The Markdown template of the weekly status report (`{{placeholders}}`, see
+    /// `REPORT_PLACEHOLDERS`); the built-in default until edited.
+    pub report_template: String,
 }
 
 impl Default for Settings {
@@ -253,6 +256,7 @@ impl Default for Settings {
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
             health: crate::HealthThresholds::default(),
+            report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
         }
     }
 }
@@ -265,6 +269,8 @@ pub struct UpdateSettings {
     pub stale_waiting_days: Option<u32>,
     pub capacity_task_limit: Option<u32>,
     pub health: Option<crate::HealthThresholds>,
+    /// A new report template; an empty text restores the built-in one.
+    pub report_template: Option<String>,
 }
 
 // ---------------------------------------------------------------- waiting-on
