@@ -7,7 +7,11 @@ use minimap_types::{NodeRef, NodeType, Schedule, ScheduleScope, ScheduledTask, U
 
 use crate::{
     api,
-    components::{detail_pane::Section, form::BUTTON, people_panel::error_line},
+    components::{
+        detail_pane::Section,
+        form::{BUTTON, BUTTON_ON},
+        people_panel::error_line,
+    },
     state::{DataVersion, Selection},
     timeline::{
         day_text, describe, forecast_text, layout, visible_tasks, BarKind, Granularity, TickKind,
@@ -34,7 +38,7 @@ pub fn SchedulePanel(project: Uuid) -> impl IntoView {
 }
 
 fn button_class(active: bool) -> String {
-    format!("{BUTTON} {}", if active { "bg-active" } else { "" })
+    format!("{BUTTON} {}", if active { BUTTON_ON } else { "" })
 }
 
 #[component]

@@ -4,7 +4,7 @@ use minimap_types::{CreatePerson, NodeRef, NodeType};
 use crate::{
     api,
     components::{
-        form::{BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         page::{column_head, EmptyState, PageHeader, FORM_BAR},
     },
@@ -63,7 +63,7 @@ pub fn People() -> impl IntoView {
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon="people" title="People" subtitle="The people you work with, their teams and load">
-                <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
+                <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New person" }}
                 </button>
             </PageHeader>

@@ -9,11 +9,11 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
-        page::{column_head, EmptyState, GroupLabel, PageHeader, CHIP, FILTER_BAR, FORM_BAR},
+        page::{column_head, EmptyState, GroupLabel, PageHeader, FILTER_BAR, FORM_BAR},
     },
-    labels::{priority_short, project_status_label},
+    labels::{priority_short, project_status_label, project_status_tone},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
 
@@ -115,17 +115,13 @@ pub fn Projects() -> impl IntoView {
         });
     };
 
-    let toggle_class = move |on: bool| {
-        format!(
-            "{BUTTON} !rounded-none {}",
-            if on { "bg-active" } else { "" }
-        )
-    };
+    let toggle_class =
+        move |on: bool| format!("{BUTTON} !rounded-none {}", if on { BUTTON_ON } else { "" });
 
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon="projects" title="Projects" subtitle="Work with an owner, a target date and tasks">
-                <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
+                <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New project" }}
                 </button>
                 <div class="ml-auto flex" role="group" aria-label="Layout">
@@ -252,7 +248,7 @@ fn project_row(row: ProjectRow, index: usize) -> impl IntoView {
                     <span class="ml-2 font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</span>
                 </span>
                 <span class="truncate text-muted">{row.owner.map(|o| o.label).unwrap_or_default()}</span>
-                <span><span class=CHIP>{project_status_label(p.status)}</span></span>
+                <span><span class=project_status_tone(p.status).chip()>{project_status_label(p.status)}</span></span>
                 <span class="text-muted tabular-nums">{p.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
                 <span class="text-right tabular-nums text-muted">{tasks}</span>
             </div>

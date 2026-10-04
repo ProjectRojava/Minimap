@@ -4,7 +4,7 @@ use minimap_types::{CreateTeam, NodeRef, NodeType, Uuid};
 use crate::{
     api,
     components::{
-        form::{SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
+        form::{SelectField, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         page::{EmptyState, PageHeader, FORM_BAR},
         people_panel::team_options,
@@ -59,7 +59,7 @@ pub fn Teams() -> impl IntoView {
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon="teams" title="Teams" subtitle="How people are organised, nested as you need">
-                <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
+                <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New team" }}
                 </button>
             </PageHeader>
