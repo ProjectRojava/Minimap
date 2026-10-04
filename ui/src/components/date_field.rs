@@ -88,12 +88,12 @@ pub fn DateField(
 
     let input_class = if compact {
         "w-[6.75rem] rounded-sm border border-line bg-canvas px-1.5 py-0.5 text-[12px] tabular-nums text-fg \
-         focus:outline-none focus:border-line-strong"
+         focus:outline-none focus:border-accent"
     } else {
         INPUT
     };
     let button_class = "shrink-0 rounded-sm border border-line bg-canvas px-1.5 text-[12px] text-muted \
-                        hover:text-fg hover:border-line-strong focus:outline-none focus:border-line-strong";
+                        hover:text-fg hover:border-line-strong focus:outline-none focus:border-accent";
     let block = if compact { "inline-block" } else { "block" };
 
     view! {
@@ -155,7 +155,7 @@ pub fn DateField(
                                 let key = (c.y, c.m, c.d);
                                 let class = format!(
                                     "h-7 rounded-sm text-center tabular-nums {} {}",
-                                    if Some(key) == chosen { "bg-fg text-canvas" }
+                                    if Some(key) == chosen { "bg-accent text-canvas" }
                                     else if c.in_month { "text-fg hover:bg-hover" }
                                     else { "text-faint hover:bg-hover" },
                                     if key == today && Some(key) != chosen { "border border-line-strong" } else { "" });

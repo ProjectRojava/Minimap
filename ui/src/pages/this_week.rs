@@ -257,13 +257,13 @@ fn reschedule(id: Uuid, when: String, toasts: Toasts, version: DataVersion) {
 #[component]
 fn DayTile(day: WeekDay) -> impl IntoView {
     let class = if day.is_today {
-        "rounded-sm border border-line-strong bg-active px-2 py-1.5"
+        "rounded-sm border border-accent bg-accent/10 px-2 py-1.5"
     } else {
         "rounded-sm border border-line bg-panel px-2 py-1.5"
     };
     let summary = day_summary(&day);
     let head = if day.is_today {
-        "text-fg"
+        "text-accent"
     } else {
         "text-muted"
     };
@@ -342,7 +342,7 @@ fn TaskRowView(row: WeekTask, index: usize, today: Date) -> impl IntoView {
     view! {
         <NodeRow node=node index=index>
             <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
-                           text-[10px] text-transparent hover:text-fg"
+                           text-[10px] text-transparent hover:border-success hover:text-success"
                     title="Mark done" aria-label="Mark done"
                     on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version); }>"✓"</button>
             <span class="min-w-0 truncate">

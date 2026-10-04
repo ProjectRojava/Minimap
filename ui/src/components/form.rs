@@ -5,15 +5,15 @@ use minimap_types::{timefmt::parse_date, AppError, Date, Patch};
 
 pub const INPUT: &str =
     "w-full rounded-sm border border-line bg-canvas px-2 py-1 text-[13px] text-fg \
-    focus:outline-none focus:border-line-strong";
+    focus:outline-none focus:border-accent";
 pub const COMPACT_INPUT: &str =
     "rounded-sm border border-line bg-canvas px-1 py-0.5 text-[12px] text-fg \
-    focus:outline-none focus:border-line-strong";
+    focus:outline-none focus:border-accent";
 pub const BUTTON: &str = "rounded-sm border border-line px-2 py-0.5 text-[12px] text-fg \
     hover:bg-hover disabled:opacity-40";
 /// Monochrome "primary": inverted foreground/background instead of a brand colour.
 pub const BUTTON_PRIMARY: &str =
-    "rounded-sm border border-fg bg-fg px-2 py-0.5 text-[12px] text-canvas \
+    "rounded-sm border border-accent bg-accent px-2 py-0.5 text-[12px] text-canvas \
     hover:opacity-85 disabled:opacity-40";
 pub const BUTTON_DANGER: &str =
     "rounded-sm border border-line px-2 py-0.5 text-[12px] text-danger \

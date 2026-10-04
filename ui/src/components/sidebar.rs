@@ -33,8 +33,10 @@ fn NavLink(item: &'static NavItem, current: Memo<String>) -> impl IntoView {
                attr:aria-current=move || is_active().then_some("page")>
                 <span class=move || format!(
                           "absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full {}",
-                          if is_active() { "bg-fg" } else { "bg-transparent" })></span>
-                <Icon name=item.icon />
+                          if is_active() { "bg-accent" } else { "bg-transparent" })></span>
+                <span class=move || if is_active() { "text-accent" } else { "" }>
+                    <Icon name=item.icon />
+                </span>
                 <span class="flex-1 truncate">{item.label}</span>
                 <kbd class="rounded-sm border border-line px-1 font-mono text-[10px] leading-4 text-faint \
                             opacity-0 group-hover:opacity-100">

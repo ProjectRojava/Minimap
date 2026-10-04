@@ -350,10 +350,11 @@ fn task_row(t: &ImpactTask, on_click: impl Fn(leptos::ev::MouseEvent) + 'static)
         .then(|| format!("(absorbed {})", plural(t.absorbed_days, "day")));
     let late = late_text(t.late_after);
     let is_late = t.late_after.is_some();
+    // A slip that stops here is good news.
     let effect_class = if t.delay_days > 1e-9 {
         ""
     } else {
-        "text-muted"
+        "text-success"
     };
     view! {
         <div class=ROW on:click=on_click>

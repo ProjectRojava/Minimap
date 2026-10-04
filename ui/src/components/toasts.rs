@@ -16,7 +16,7 @@ pub fn ToastHost() -> impl IntoView {
                     let tone = if t.is_error {
                         "border-l-2 border-l-danger"
                     } else {
-                        ""
+                        "border-l-2 border-l-accent"
                     };
                     view! {
                         <div class=format!("flex items-start gap-3 rounded-sm border border-line bg-panel px-3 py-2 text-[13px] text-fg {tone}")>

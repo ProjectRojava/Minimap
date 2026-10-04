@@ -43,10 +43,11 @@ pub fn Overview() -> impl IntoView {
 /// A count of projects at one health level.
 #[component]
 fn StatTile(label: &'static str, value: u32, level: HealthLevel) -> impl IntoView {
-    let number = if level == HealthLevel::Red && value > 0 {
-        "text-danger"
-    } else {
-        "text-fg"
+    let number = match (level, value) {
+        (_, 0) | (HealthLevel::Idle, _) => "text-muted",
+        (HealthLevel::Red, _) => "text-danger",
+        (HealthLevel::Amber, _) => "text-warning",
+        (HealthLevel::Green, _) => "text-success",
     };
     view! {
         <div class="rounded-sm border border-line bg-panel px-3 py-2">
