@@ -597,3 +597,31 @@ pub fn decision_items(conn: &Connection) -> Result<Vec<DecisionItem>> {
         })
         .collect())
 }
+
+/// Open tasks that block each open task (from active `blocks` links), for "blocked by ...".
+pub fn open_blockers(conn: &Connection) -> Result<HashMap<Uuid, Vec<NodeSummary>>> {
+    let open: HashMap<Uuid, String> = tasks::list(conn, false)?
+        .into_iter()
+        .filter(|t| {
+            !matches!(
+                t.status,
+                minimap_types::TaskStatus::Done | minimap_types::TaskStatus::Cancelled
+            )
+        })
+        .map(|t| (t.id, t.title))
+        .collect();
+    let mut out: HashMap<Uuid, Vec<NodeSummary>> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::Blocks)? {
+        if let (Some(title), true) = (open.get(&e.from_id), open.contains_key(&e.to_id)) {
+            out.entry(e.to_id).or_default().push(NodeSummary {
+                node: NodeRef::new(NodeType::Task, e.from_id),
+                label: title.clone(),
+                archived: false,
+            });
+        }
+    }
+    for list in out.values_mut() {
+        list.sort_by_key(|n| n.label.to_lowercase());
+    }
+    Ok(out)
+}

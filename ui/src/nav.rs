@@ -17,10 +17,18 @@ pub struct NavItem {
 
 pub const NAV: &[NavItem] = &[
     NavItem {
+        label: "This week",
+        icon: "week",
+        group: "",
+        path: "/",
+        chord: 'w',
+        enabled: true,
+    },
+    NavItem {
         label: "Overview",
         icon: "overview",
         group: "",
-        path: "/",
+        path: "/overview",
         chord: 'o',
         enabled: true,
     },
@@ -31,14 +39,6 @@ pub const NAV: &[NavItem] = &[
         path: "/inbox",
         chord: 'i',
         enabled: true,
-    },
-    NavItem {
-        label: "This week",
-        icon: "week",
-        group: "",
-        path: "/this-week",
-        chord: 'w',
-        enabled: false,
     },
     NavItem {
         label: "Objectives",
@@ -261,8 +261,10 @@ mod tests {
         assert_eq!(chord_target("p"), Some("/projects"));
         assert_eq!(chord_target("T"), Some("/tasks"));
         assert_eq!(chord_target("Escape"), None);
+        // The landing screen is This week; Overview is its own screen.
+        assert_eq!(chord_target("w"), Some("/"));
+        assert_eq!(chord_target("o"), Some("/overview"));
         // Hidden entries have no chord.
-        assert_eq!(chord_target("w"), None);
         assert_eq!(chord_target("r"), None);
         assert_ne!(chord_target("g"), Some("/"));
     }

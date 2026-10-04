@@ -9,9 +9,9 @@ use minimap_types::{
     PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
     ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, Schedule,
     ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Slip, Task, TaskDetail,
-    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote,
-    UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask, UpdateTeam,
-    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision,
+    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask,
+    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -453,6 +453,26 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WeekArg {
+    week_start: Option<minimap_types::Date>,
+}
+
+pub async fn get_this_week(week_start: Option<minimap_types::Date>) -> Result<ThisWeek, AppError> {
+    invoke("get_this_week", &WeekArg { week_start }).await
+}
+
+#[derive(Serialize)]
+struct RescheduleArg {
+    id: Uuid,
+    when: String,
+}
+
+pub async fn reschedule_task(id: Uuid, when: String) -> Result<Task, AppError> {
+    invoke("reschedule_task", &RescheduleArg { id, when }).await
 }
 
 pub async fn get_portfolio_overview() -> Result<PortfolioOverview, AppError> {

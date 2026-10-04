@@ -14,6 +14,7 @@ mod quick_add;
 mod schedule;
 pub mod timefmt;
 mod views;
+mod week;
 
 pub use activity::*;
 pub use edges::*;
@@ -28,6 +29,7 @@ pub use schedule::*;
 pub use time::Date;
 pub use uuid::Uuid;
 pub use views::*;
+pub use week::*;
 
 /// Response of the `ping` command (M0 smoke test of the UI <-> Rust bridge).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
