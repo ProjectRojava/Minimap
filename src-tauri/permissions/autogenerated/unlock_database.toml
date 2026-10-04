@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-unlock-database"
+description = "Enables the unlock_database command without any pre-configured scope."
+commands.allow = ["unlock_database"]
+
+[[permission]]
+identifier = "deny-unlock-database"
+description = "Denies the unlock_database command without any pre-configured scope."
+commands.deny = ["unlock_database"]

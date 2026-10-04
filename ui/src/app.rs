@@ -7,7 +7,7 @@ use leptos_router::{
 use crate::{
     components::{
         detail_pane::DetailPane, first_run::FirstRun, palette::PaletteHost, sidebar::Sidebar,
-        titlebar::TitleBar, toasts::ToastHost,
+        titlebar::TitleBar, toasts::ToastHost, unlock::UnlockScreen,
     },
     keyboard::use_global_shortcuts,
     pages::{
@@ -52,8 +52,22 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Router>
-            <Shell />
+            <LockGate />
         </Router>
+    }
+}
+
+/// An encrypted database that is waiting for its key shows the unlock screen instead of the app
+/// (every command would answer "locked"); otherwise the app.
+#[component]
+fn LockGate() -> impl IntoView {
+    let status = LocalResource::new(crate::api::get_security_status);
+    view! {
+        {move || match status.get() {
+            None => view! { <div class="h-screen"></div> }.into_any(),
+            Some(Ok(s)) if s.locked => view! { <UnlockScreen /> }.into_any(),
+            Some(_) => view! { <Shell /> }.into_any(),
+        }}
     }
 }
 

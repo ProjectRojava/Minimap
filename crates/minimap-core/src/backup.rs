@@ -3,7 +3,7 @@
 //! Names carry the kind and the UTC time, so a backup folder explains itself and Minimap
 //! can tell its own files from anything else in the folder:
 //! `minimap-20270303-153000.db` (manual), `minimap-auto-…`, `minimap-pre-migration-v6-…`,
-//! `minimap-pre-restore-…`.
+//! `minimap-pre-restore-…`, `minimap-pre-encryption-…`.
 
 use minimap_types::BackupKind;
 use time::{Date, Duration, Month, OffsetDateTime, Time};
@@ -35,6 +35,7 @@ pub fn file_name(kind: BackupKind, at: OffsetDateTime, schema_version: u32) -> S
         BackupKind::Auto => "auto-".to_owned(),
         BackupKind::PreMigration => format!("pre-migration-v{schema_version}-"),
         BackupKind::PreRestore => "pre-restore-".to_owned(),
+        BackupKind::PreEncryption => "pre-encryption-".to_owned(),
     };
     format!("{PREFIX}{middle}{}{EXTENSION}", stamp(at))
 }
@@ -69,6 +70,9 @@ pub fn parse_name(name: &str) -> Option<(BackupKind, OffsetDateTime)> {
     }
     if let Some(stamp) = rest.strip_prefix("pre-restore-") {
         return Some((BackupKind::PreRestore, parse_stamp(stamp)?));
+    }
+    if let Some(stamp) = rest.strip_prefix("pre-encryption-") {
+        return Some((BackupKind::PreEncryption, parse_stamp(stamp)?));
     }
     if let Some(after) = rest.strip_prefix("pre-migration-v") {
         let (version, stamp) = after.split_once('-')?;
@@ -136,6 +140,10 @@ mod tests {
             file_name(BackupKind::PreRestore, at, 0),
             "minimap-pre-restore-20270303-153005.db"
         );
+        assert_eq!(
+            file_name(BackupKind::PreEncryption, at, 0),
+            "minimap-pre-encryption-20270303-153005.db"
+        );
     }
 
     #[test]
@@ -146,6 +154,7 @@ mod tests {
             BackupKind::Auto,
             BackupKind::PreMigration,
             BackupKind::PreRestore,
+            BackupKind::PreEncryption,
         ] {
             assert_eq!(parse_name(&file_name(kind, at, 12)), Some((kind, at)));
         }
@@ -239,7 +248,7 @@ mod tests {
         ) {
             let ta = OffsetDateTime::from_unix_timestamp(a).unwrap();
             let tb = OffsetDateTime::from_unix_timestamp(b).unwrap();
-            for kind in [BackupKind::Manual, BackupKind::Auto, BackupKind::PreMigration, BackupKind::PreRestore] {
+            for kind in [BackupKind::Manual, BackupKind::Auto, BackupKind::PreMigration, BackupKind::PreRestore, BackupKind::PreEncryption] {
                 let name = file_name(kind, ta, version);
                 prop_assert_eq!(parse_name(&name), Some((kind, ta)));
             }

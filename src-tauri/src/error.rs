@@ -15,6 +15,8 @@ pub fn store_error(e: StoreError) -> AppError {
         StoreError::Invalid(_) => "invalid",
         StoreError::Constraint(_) => "constraint",
         StoreError::DuplicateEdge => "duplicate",
+        StoreError::WrongKey => "wrong_key",
+        StoreError::BackupKeyNeeded => "backup_key_needed",
         StoreError::NotArchived { .. }
         | StoreError::AlreadyArchived { .. }
         | StoreError::NotArchivedYet { .. } => "state",
