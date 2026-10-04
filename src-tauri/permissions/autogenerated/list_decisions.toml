@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-decisions"
+description = "Enables the list_decisions command without any pre-configured scope."
+commands.allow = ["list_decisions"]
+
+[[permission]]
+identifier = "deny-list-decisions"
+description = "Denies the list_decisions command without any pre-configured scope."
+commands.deny = ["list_decisions"]

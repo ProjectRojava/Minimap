@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-archive-decision"
+description = "Enables the archive_decision command without any pre-configured scope."
+commands.allow = ["archive_decision"]
+
+[[permission]]
+identifier = "deny-archive-decision"
+description = "Denies the archive_decision command without any pre-configured scope."
+commands.deny = ["archive_decision"]
