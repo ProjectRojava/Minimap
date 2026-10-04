@@ -1,9 +1,9 @@
 use leptos::{prelude::*, task::spawn_local};
-use minimap_types::{AppError, HealthThresholds, UpdateSettings};
+use minimap_types::{AppError, HealthThresholds, UpdateSettings, REPORT_PLACEHOLDERS};
 
 use crate::{
     api,
-    components::form::{TextField, BUTTON, COMPACT_INPUT},
+    components::form::{TextField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT},
     components::page::{Card, PageHeader},
     state::{finish, DataVersion, Toasts},
     theme::ThemeCtx,
@@ -88,7 +88,7 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <div class="flex h-full flex-col">
-            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons and project health"><span></span></PageHeader>
+            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons, project health and the status report"><span></span></PageHeader>
             <div class="flex-1 overflow-y-auto">
             <div class="mx-auto max-w-3xl space-y-4 p-6">
             <Appearance />
@@ -140,6 +140,7 @@ pub fn Settings() -> impl IntoView {
                 }}
             </Card>
             <HealthSettings />
+            <ReportSettings />
             <p class="text-[11px] text-muted">"More settings (backups, encryption) arrive with the Settings feature."</p>
             </div>
             </div>
@@ -340,5 +341,74 @@ fn HealthRows(
             "Used by the Overview, the project and objective panels, and the risk ranking."
         </p>
         <button class=BUTTON on:click=reset>"Reset to defaults"</button>
+    }
+}
+
+/// The Markdown template of the weekly status report.
+#[component]
+fn ReportSettings() -> impl IntoView {
+    // Loaded once: other settings changing must not replace what is being typed here.
+    let settings = LocalResource::new(api::get_settings);
+    view! {
+        <Card title="Status report"
+              description="The template behind the weekly review's report. Write Markdown and place {{sections}} where they should go.">
+            {move || match settings.get() {
+                Some(Ok(s)) => view! { <TemplateEditor stored=s.report_template /> }.into_any(),
+                Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+            }}
+        </Card>
+    }
+}
+
+#[component]
+fn TemplateEditor(stored: String) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let saved = RwSignal::new(stored.clone());
+    let text = RwSignal::new(stored);
+    let dirty = move || text.get() != saved.get();
+    // A refused template keeps what was typed so it can be fixed.
+    let send = move |template: String| {
+        spawn_local(async move {
+            let patch = UpdateSettings {
+                report_template: Some(template),
+                ..Default::default()
+            };
+            match api::update_settings(patch).await {
+                Ok(s) => {
+                    saved.set(s.report_template.clone());
+                    text.set(s.report_template);
+                    toasts.info("Saved the report template");
+                }
+                Err(e) => toasts.error(&e),
+            }
+        });
+    };
+    let save = move |_| send(text.get_untracked());
+    let reset = move |_| send(String::new());
+    let names = REPORT_PLACEHOLDERS
+        .iter()
+        .map(|(name, what)| {
+            view! {
+                <code class="font-mono text-accent">{format!("{{{{{name}}}}}")}</code>
+                <span class="text-muted">{*what}</span>
+            }
+        })
+        .collect_view();
+    view! {
+        <textarea rows="20" spellcheck="false" aria-label="Status report template"
+            class=format!("{COMPACT_INPUT} w-full resize-y p-2 font-mono leading-5")
+            prop:value=move || text.get()
+            on:input=move |ev| text.set(event_target_value(&ev)) ></textarea>
+        <div class="flex items-center gap-2">
+            <button class=BUTTON_PRIMARY disabled=move || !dirty() on:click=save>"Save template"</button>
+            <button class=BUTTON title="Go back to the built-in template" on:click=reset>"Reset to default"</button>
+        </div>
+        <p class="text-[11px] text-muted">
+            "Each section placeholder fills in that part of the report without a heading, so the "
+            "template sets the headings, their order and which sections appear. The report is written "
+            "for a board or executive audience."
+        </p>
+        <div class="grid max-w-xl grid-cols-[10rem_1fr] gap-x-3 gap-y-0.5 text-[11px]">{names}</div>
     }
 }

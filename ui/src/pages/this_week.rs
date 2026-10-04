@@ -281,7 +281,12 @@ fn DayTile(day: WeekDay) -> impl IntoView {
 
 /// Complete / reschedule controls, shown when the row is hovered or has focus inside it.
 #[component]
-fn TaskActions(id: Uuid) -> impl IntoView {
+pub(crate) fn TaskActions(
+    id: Uuid,
+    /// Always visible instead of on hover (the weekly review's quick fixes).
+    #[prop(optional)]
+    always: bool,
+) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let typed = RwSignal::new(String::new());
@@ -298,7 +303,11 @@ fn TaskActions(id: Uuid) -> impl IntoView {
         }
     };
     view! {
-        <span class="ml-auto flex shrink-0 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100"
+        <span class=if always {
+                  "ml-auto flex shrink-0 items-center gap-1"
+              } else {
+                  "ml-auto flex shrink-0 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100"
+              }
               on:click=|ev| ev.stop_propagation()>
             <button class=BUTTON title="Move the due date to tomorrow" on:click=tomorrow>"Tomorrow"</button>
             <button class=BUTTON title="Move the due date to next Monday" on:click=next_week>"Next week"</button>

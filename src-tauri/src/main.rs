@@ -27,6 +27,7 @@ fn init_logging(dir: &std::path::Path) -> anyhow::Result<()> {
 
 fn main() {
     let result = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let dir = app.path().app_data_dir().context("resolve app data dir")?;
             fs::create_dir_all(&dir).context("create app data dir")?;
@@ -104,6 +105,9 @@ fn main() {
             commands::this_week::get_this_week,
             commands::this_week::reschedule_task,
             commands::overview::get_portfolio_overview,
+            commands::review::get_weekly_review,
+            commands::review::render_report,
+            commands::review::export_markdown,
             commands::impact::run_impact_analysis,
             commands::impact::preview_apply_slips,
             commands::impact::apply_slips,

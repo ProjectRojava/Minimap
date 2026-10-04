@@ -134,7 +134,7 @@ pub const NAV: &[NavItem] = &[
         group: "Review",
         path: "/weekly-review",
         chord: 'r',
-        enabled: false,
+        enabled: true,
     },
     NavItem {
         label: "Settings",
@@ -280,8 +280,9 @@ mod tests {
         // The landing screen is This week; Overview is its own screen.
         assert_eq!(chord_target("w"), Some("/"));
         assert_eq!(chord_target("o"), Some("/overview"));
-        // Hidden entries have no chord.
-        assert_eq!(chord_target("r"), None);
+        assert_eq!(chord_target("r"), Some("/weekly-review"));
+        // A chord that belongs to no screen goes nowhere.
+        assert_eq!(chord_target("z"), None);
         assert_ne!(chord_target("g"), Some("/"));
     }
 

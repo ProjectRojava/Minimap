@@ -1,0 +1,62 @@
+---
+source: crates/minimap-core/src/report.rs
+expression: "render(&busy(), DEFAULT_REPORT_TEMPLATE)"
+---
+# Weekly status report
+
+Week of 1 Mar 2027 to 7 Mar 2027 · prepared 5 Mar 2027
+
+## Summary
+
+- **Projects:** 1 off track, 1 at risk, 2 on track
+- **Completed:** 2 tasks, 1 project finished
+- **Slipped:** 3 items
+- **Blocked:** 2 tasks, 1 new this week
+- **Decisions:** 1 made
+- **Over capacity:** 2 people
+- **Waiting on others:** 1 stale, 1 resolved
+
+## Objectives
+
+| Objective | Health | Target | Why |
+|---|---|---|---|
+| Launch the EU region | Off track | 31 Mar 2027 | Projected 6 days late; 3 tasks overdue |
+| Cut cloud cost \| 20% | On track | — | On schedule |
+
+## Top risks
+
+1. **API launch** — Off track: Projected 6 days late
+2. **Security review** (task) — At risk
+
+_…and 3 more._
+
+## Completed
+
+- **Onboarding revamp** (project) finished Wed 3 Mar
+- Ship the \*beta\* (API launch · Priya) — Tue 2 Mar
+- Write runbook — Thu 4 Mar
+
+## Slipped
+
+- **API launch** (project) — target moved from Fri 19 Mar to Wed 31 Mar (8 working days later)
+- **Load test** (API launch · Priya) — due date moved from Wed 3 Mar to Mon 8 Mar (3 working days later)
+- **Pen test** — was due Tue 2 Mar, still open (3 days overdue)
+
+## Blocked
+
+- **Security review** (API launch · Priya) — blocked by Vendor contract, Legal sign-off · new this week
+- **Data migration** (API launch · Priya) — no open blocker recorded
+
+## Decisions
+
+- **Postgres over Mongo** — Use Postgres for all services. _(decided Tue 2 Mar; affects API launch)_
+
+## People and capacity
+
+- **Priya** — 135% of capacity in the week of Mon 8 Mar
+- **Sam** — 14 open tasks, above the limit
+
+## Waiting on others
+
+- **Raj** — Security review sign-off: waiting 20 days, expected Mon 1 Mar, overdue
+- Resolved: **Mia** — Budget approval (Wed 3 Mar)

@@ -13,6 +13,7 @@ minimap-types.workspace = true
 minimap-core.workspace = true
 minimap-store.workspace = true
 tauri.workspace = true
+tauri-plugin-dialog.workspace = true
 serde.workspace = true
 time.workspace = true
 serde_json.workspace = true
