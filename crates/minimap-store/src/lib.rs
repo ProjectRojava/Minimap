@@ -11,6 +11,7 @@ pub mod objectives;
 pub mod people;
 pub mod projects;
 mod repo;
+pub mod search;
 pub mod settings;
 pub mod tasks;
 pub mod teams;
@@ -39,6 +40,7 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!("../migrations/0004_project_slug_index.sql")),
         M::up(include_str!("../migrations/0005_settings.sql")),
         M::up(include_str!("../migrations/0006_waiting_on_follow_up.sql")),
+        M::up(include_str!("../migrations/0007_search.sql")),
     ])
 }
 
@@ -72,7 +74,23 @@ pub fn open_in_memory() -> Result<Connection> {
     init(Connection::open_in_memory()?)
 }
 
+/// SQL functions the schema's triggers call. Every connection that writes must have them
+/// (`init` does it before migrating).
+fn register_functions(conn: &Connection) -> rusqlite::Result<()> {
+    use rusqlite::functions::FunctionFlags;
+    conn.create_scalar_function(
+        "mention_text",
+        1,
+        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            let body: String = ctx.get(0)?;
+            Ok(minimap_core::notes::mentions_as_names(&body))
+        },
+    )
+}
+
 fn init(mut conn: Connection) -> Result<Connection> {
+    register_functions(&conn)?;
     // journal_mode returns a row, so it must be read rather than executed.
     conn.query_row("PRAGMA journal_mode = WAL", [], |_| Ok(()))?;
     conn.pragma_update(None, "foreign_keys", true)?;
@@ -92,7 +110,7 @@ mod tests {
     #[test]
     fn first_migration_runs() {
         let conn = open_in_memory().unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 6);
+        assert_eq!(schema_version(&conn).unwrap(), 7);
         let v: String = conn
             .query_row(
                 "SELECT value FROM app_meta WHERE key = 'created_by'",
@@ -120,6 +138,7 @@ mod migration_tests {
     #[test]
     fn slug_migration_backfills_unique_handles_for_existing_projects() {
         let mut conn = Connection::open_in_memory().unwrap();
+        register_functions(&conn).unwrap();
         migrations().to_version(&mut conn, 2).unwrap();
         for (id, title, archived) in [
             ("1", "API Launch", None),
@@ -156,12 +175,56 @@ mod migration_tests {
     }
 
     #[test]
+    fn search_migration_indexes_what_already_exists() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        register_functions(&conn).unwrap();
+        migrations().to_version(&mut conn, 6).unwrap();
+        conn.execute_batch(
+            "INSERT INTO notes (id, title, body, note_date, kind, created_at, updated_at, archived_at)
+               VALUES ('n1', 'Sync', 'ship the warehouse @[Priya](node:00000000-0000-0000-0000-0000000000ab)', '2027-01-01', 'general', 't', 't', NULL),
+                      ('n2', 'Old', 'warehouse again', '2027-01-01', 'general', 't', 't', 't');
+             INSERT INTO people (id, name, role_title, notes, created_at, updated_at)
+               VALUES ('p1', 'Priya', 'Engineer', '', 't', 't');",
+        )
+        .unwrap();
+        migrations().to_latest(&mut conn).unwrap();
+
+        // Search results need real uuids to build; the raw index is checked instead.
+        let rows = |q: &str| -> Vec<String> {
+            conn.prepare(
+                "SELECT d.node_id FROM search_index JOIN search_docs d ON d.rowid = search_index.rowid
+                 WHERE search_index MATCH ?1 ORDER BY d.node_id",
+            )
+            .unwrap()
+            .query_map([q], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+        };
+        assert_eq!(rows("warehouse"), ["n1", "n2"]);
+        assert_eq!(rows("priya"), ["n1", "p1"]);
+        assert!(
+            rows("0000000000ab").is_empty(),
+            "mention ids are not indexed"
+        );
+        let archived: i64 = conn
+            .query_row(
+                "SELECT archived FROM search_docs WHERE node_id = 'n2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(archived, 1);
+    }
+
+    #[test]
     fn upgrades_from_v1() {
         let mut conn = Connection::open_in_memory().unwrap();
+        register_functions(&conn).unwrap();
         migrations().to_version(&mut conn, 1).unwrap();
         assert_eq!(schema_version(&conn).unwrap(), 1);
         migrations().to_latest(&mut conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 6);
+        assert_eq!(schema_version(&conn).unwrap(), 7);
         let n: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('tasks','edges','activity')",

@@ -10,6 +10,7 @@ pub mod objective_panel;
 pub mod overlay;
 pub mod people_panel;
 pub mod project_panel;
+pub mod search_box;
 pub mod select;
 pub mod sidebar;
 pub mod task_list;
