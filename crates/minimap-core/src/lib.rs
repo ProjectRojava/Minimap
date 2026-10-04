@@ -3,6 +3,7 @@
 pub mod cycles;
 pub mod decisions;
 pub mod edge_rules;
+pub mod impact;
 pub mod notes;
 pub mod objectives;
 pub mod projects;

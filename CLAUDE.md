@@ -67,7 +67,7 @@ Each needs unit tests on small hand-built graphs and `proptest` for: no cycles a
 Thin: load, call core, persist, return. Take/return `minimap-types`; return `Result<T, AppError>` (`{code, message}`).
 - nodes: create_/update_/archive_/get_/list_* per type (filters: status, project, person, team, date range, text)
 - edges: add_edge, remove_edge, list_edges_for(node_id)
-- graph: get_dependency_graph(scope), get_critical_path(project_id|portfolio), run_impact_analysis(node_id, slip_days)
+- graph: get_dependency_graph(scope), get_schedule(scope), get_critical_path(scope), run_impact_analysis(slips) (a scenario of one or more task/project slips), preview_apply_slips(slips), apply_slips(slips) (ADR-free: spec 14)
 - dashboard: get_portfolio_overview, get_capacity(from,to), get_waiting_on(open_only)
 - review: get_weekly_review(week_start)
 - quick_add: parse_quick_add(text) → preview; commit_quick_add(text)

@@ -16,6 +16,7 @@ use crate::{
         objective_panel::WeightInput,
         people_panel::{error_line, NodeButtons},
         schedule_panel::SchedulePanel,
+        what_if_button::WhatIfButton,
     },
     labels::{humanize, priority_option, project_status_label},
     state::{finish, DataVersion, Selection, Toasts},
@@ -53,6 +54,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
                 <Objectives detail=d.clone() candidates=os />
                 <Dependencies detail=d.clone() candidates=ps />
                 <SchedulePanel project=id />
+                <WhatIfButton node=NodeRef::new(NodeType::Project, id) />
                 <Tasks detail=d.clone() />
                 <ArchiveProject detail=d />
             }.into_any(),

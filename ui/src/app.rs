@@ -22,8 +22,9 @@ use crate::{
         tasks::{Inbox, Tasks},
         teams::Teams,
         waiting_on::WaitingOn,
+        what_if::WhatIf,
     },
-    state::{DataVersion, ListNav, PaletteOpen, Selection, Toasts},
+    state::{DataVersion, ListNav, PaletteOpen, Scenario, Selection, Toasts},
     theme::ThemeCtx,
 };
 
@@ -31,6 +32,7 @@ use crate::{
 pub fn App() -> impl IntoView {
     provide_context(Selection(RwSignal::new(None)));
     provide_context(PaletteOpen(RwSignal::new(false)));
+    provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
     provide_context(DataVersion::new());
@@ -80,6 +82,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/notes") view=Notes />
                     <Route path=path!("/decisions") view=Decisions />
                     <Route path=path!("/waiting-on") view=WaitingOn />
+                    <Route path=path!("/what-if") view=WhatIf />
                     <Route path=path!("/settings") view=Settings />
                     <Route path=path!("/:type/:id") view=DeepLink />
                 </Routes>
