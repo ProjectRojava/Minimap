@@ -6,6 +6,7 @@ pub mod objectives;
 pub mod people;
 pub mod projects;
 pub mod quick_add;
+pub mod schedule;
 pub mod search;
 pub mod settings;
 pub mod system;

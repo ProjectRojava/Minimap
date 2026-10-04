@@ -11,6 +11,7 @@ pub mod overlay;
 pub mod palette;
 pub mod people_panel;
 pub mod project_panel;
+pub mod schedule_panel;
 pub mod search_box;
 pub mod select;
 pub mod sidebar;

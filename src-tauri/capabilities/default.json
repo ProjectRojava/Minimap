@@ -66,6 +66,8 @@
     "allow-archive-waiting-on",
     "allow-parse-quick-add",
     "allow-commit-quick-add",
+    "allow-get-schedule",
+    "allow-get-critical-path",
     "allow-search",
     "allow-list-decisions",
     "allow-get-decision",

@@ -7,10 +7,10 @@ use minimap_types::{
     NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person,
     PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Project, ProjectArchivePreview,
     ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview,
-    QuickResult, SearchFilter, SearchHit, Settings, Task, TaskDetail, TaskDisposition, TaskFilter,
-    TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
-    UpdateProject, UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
-    WaitingOnFilter, WaitingOnRow,
+    QuickResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Task,
+    TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision,
+    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask,
+    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -450,6 +450,22 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+#[derive(Serialize)]
+struct ScopeArg {
+    scope: ScheduleScope,
+}
+
+pub async fn get_schedule(scope: ScheduleScope) -> Result<Schedule, AppError> {
+    invoke("get_schedule", &ScopeArg { scope }).await
+}
+
+// Kept for parity with the `get_critical_path` command; the project panel reads the critical
+// tasks out of `get_schedule`.
+#[allow(dead_code)]
+pub async fn get_critical_path(scope: ScheduleScope) -> Result<Vec<ScheduledTask>, AppError> {
+    invoke("get_critical_path", &ScopeArg { scope }).await
 }
 
 #[derive(Serialize)]
