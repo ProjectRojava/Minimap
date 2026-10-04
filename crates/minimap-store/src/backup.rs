@@ -1,8 +1,10 @@
 //! Local backups (spec 20): SQLite's online backup API into a folder, listing, retention,
-//! checking a file before it is restored, and restoring into the live connection.
+//! checking a file before it is restored, and restoring.
 //!
-//! Backups are plain copies of the database file. When encryption lands (spec 21) the copies
-//! stay encrypted with the same key, because the backup API copies pages as they are.
+//! Backups of an encrypted database are encrypted with the same key (the copy is keyed before
+//! the pages are written; SQLCipher refuses to write an encrypted database into a plain file).
+//! Restoring a backup whose encryption differs from the live database's goes through
+//! `security::replace_live`, which re-keys the copy as it comes in.
 
 use std::{
     fs,
@@ -14,12 +16,13 @@ use minimap_core::backup::{display_time, file_name, parse_name, prune_plan};
 use minimap_types::{
     BackupCount, BackupEntry, BackupKind, RestorePreview, RestoreResult, UpdateSettings,
 };
-use rusqlite::{backup::Backup, Connection, OpenFlags, MAIN_DB};
+use rusqlite::{backup::Backup, Connection, OpenFlags};
 use time::OffsetDateTime;
 
 use crate::{
     convert::now,
     error::{Result, StoreError},
+    security::{self, FileState, Key},
     settings,
 };
 
@@ -46,17 +49,20 @@ fn entry_for(path: &Path, kind: BackupKind, at: OffsetDateTime, bytes: u64) -> B
         created: display_time(at),
         age_minutes: age,
         bytes,
+        encrypted: security::file_is_encrypted(path),
     }
 }
 
 /// Copies the live database into `dir` as a new backup file of `kind` and returns it. The copy
 /// is written under a temporary name and renamed once it has been checked, so a half-written
-/// file never looks like a backup. `schema_version` is only used in pre-migration names.
+/// file never looks like a backup. `key` is how the live database is keyed (the copy gets the
+/// same); `schema_version` is only used in pre-migration names.
 pub fn create(
     conn: &Connection,
     dir: &Path,
     kind: BackupKind,
     schema_version: u32,
+    key: &Key,
 ) -> Result<BackupEntry> {
     fs::create_dir_all(dir).map_err(|e| {
         io(
@@ -73,19 +79,21 @@ pub fn create(
     }
     let partial = target.with_extension("db.part");
     let _ = fs::remove_file(&partial);
-    let copied = copy_database(conn, &partial);
+    let copied = copy_database(conn, &partial, key);
     if let Err(e) = copied {
-        let _ = fs::remove_file(&partial);
+        security::secure_remove(&partial);
         return Err(e);
     }
     fs::rename(&partial, &target)
         .map_err(|e| io(&format!("Couldn't save the backup {}", target.display()), e))?;
+    security::restrict_permissions(&target);
     let bytes = fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
     Ok(entry_for(&target, kind, at, bytes))
 }
 
-fn copy_database(conn: &Connection, to: &Path) -> Result<()> {
+fn copy_database(conn: &Connection, to: &Path, key: &Key) -> Result<()> {
     let mut dest = Connection::open(to)?;
+    security::apply(&dest, key)?;
     {
         let backup = Backup::new(conn, &mut dest)?;
         backup.run_to_completion(PAGES_PER_STEP, Duration::from_millis(0), None)?;
@@ -161,25 +169,77 @@ const COUNTED: [(&str, &str); 8] = [
     ("Waiting on", "waiting_on"),
 ];
 
-/// Checks that `path` can be restored and says what is in it. Refuses (with a message meant
-/// for the user) a missing file, something that isn't a SQLite database, a database that fails
-/// its integrity check, one that isn't Minimap's, and one from a newer version.
-pub fn inspect(path: &Path, current_version: u32) -> Result<RestorePreview> {
+/// Opens a backup for reading with whichever key opens it. A plain file needs none; an
+/// encrypted one is tried with the live key, then the `extra` key the user supplied. Without
+/// a working key: `BackupKeyNeeded` when none was supplied, `WrongKey` when one was.
+fn open_backup(
+    path: &Path,
+    live: &Key,
+    extra: &[Key],
+    read_write: bool,
+) -> Result<(Connection, Key, fs::Metadata)> {
     let meta =
         fs::metadata(path).map_err(|_| invalid(format!("{} does not exist", path.display())))?;
     if !meta.is_file() {
         return Err(invalid("That is a folder, not a backup file"));
     }
-    let damaged = || {
-        invalid(
-            "This file isn't a usable Minimap backup: it is damaged, encrypted, or not a database",
-        )
+    let flags = if read_write {
+        OpenFlags::default()
+    } else {
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX
     };
-    let conn = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|_| damaged())?;
+    let damaged =
+        || invalid("This file isn't a usable Minimap backup: it is damaged or not a database");
+    match security::file_state(path)? {
+        FileState::Missing => Err(damaged()),
+        FileState::Plain => {
+            let conn = Connection::open_with_flags(path, flags).map_err(|_| damaged())?;
+            Ok((conn, Key::None, meta))
+        }
+        FileState::Encrypted => {
+            for key in std::iter::once(live).chain(extra.iter()) {
+                if key.is_none() {
+                    continue;
+                }
+                let Ok(conn) = Connection::open_with_flags(path, flags) else {
+                    continue;
+                };
+                if security::apply(&conn, key).is_ok() && security::verify(&conn).is_ok() {
+                    return Ok((conn, key.clone(), meta));
+                }
+            }
+            Err(if !extra.is_empty() {
+                StoreError::WrongKey
+            } else {
+                StoreError::BackupKeyNeeded
+            })
+        }
+    }
+}
+
+/// Checks that `path` can be restored and says what is in it. Refuses (with a message meant
+/// for the user) a missing file, something that isn't a SQLite database, a database that fails
+/// its integrity check, one that isn't Minimap's, and one from a newer version. An encrypted
+/// file is opened with `live` (the current key) or one of `extra` (keys the user typed).
+pub fn inspect(
+    path: &Path,
+    current_version: u32,
+    live: &Key,
+    extra: &[Key],
+) -> Result<RestorePreview> {
+    inspect_open(path, current_version, live, extra, false).map(|(preview, _, _)| preview)
+}
+
+fn inspect_open(
+    path: &Path,
+    current_version: u32,
+    live: &Key,
+    extra: &[Key],
+    read_write: bool,
+) -> Result<(RestorePreview, Connection, Key)> {
+    let (conn, key, meta) = open_backup(path, live, extra, read_write)?;
+    let damaged =
+        || invalid("This file isn't a usable Minimap backup: it is damaged or not a database");
     // Reading anything from a non-database fails here.
     let version: u32 = conn
         .pragma_query_value(None, "user_version", |r| r.get(0))
@@ -223,7 +283,7 @@ pub fn inspect(path: &Path, current_version: u32) -> Result<RestorePreview> {
             count: n,
         });
     }
-    Ok(RestorePreview {
+    let preview = RestorePreview {
         path: path.display().to_string(),
         file_name: path
             .file_name()
@@ -232,21 +292,41 @@ pub fn inspect(path: &Path, current_version: u32) -> Result<RestorePreview> {
         bytes: meta.len(),
         schema_version: version,
         current_schema_version: current_version,
+        encrypted: !key.is_none(),
         will_upgrade: version < current_version,
         counts,
-    })
+    };
+    Ok((preview, conn, key))
 }
 
 /// Replaces the live data with the backup at `src`. Order: check the file, save the current
-/// data as a `PreRestore` backup in `dir`, copy the backup over the live database (one
-/// SQLite transaction, so it is all or nothing), upgrade the schema if the backup is older,
-/// and keep this installation's backup settings (the backup's own would point elsewhere).
-pub fn restore(conn: &mut Connection, src: &Path, dir: &Path) -> Result<RestoreResult> {
+/// data as a `PreRestore` backup in `dir`, bring the backup in (SQLite's backup API when the
+/// backup and the live database are both encrypted or both plain, one transaction so it is all
+/// or nothing; otherwise a verified re-keyed copy swapped in), upgrade the schema if the backup
+/// is older, and keep this installation's backup settings (the backup's own would point
+/// elsewhere). `live` is the key the live database has; `extra` holds keys to try for a backup
+/// encrypted with another key.
+pub fn restore(
+    conn: &mut Connection,
+    src: &Path,
+    dir: &Path,
+    live: &Key,
+    extra: &[Key],
+) -> Result<RestoreResult> {
     let current = crate::schema_version(conn)?;
-    let preview = inspect(src, current)?;
+    let same_kind = |encrypted: bool| encrypted == !live.is_none();
+    let (preview, source, _) = inspect_open(src, current, live, extra, false)?;
     let kept = settings::get(conn)?;
-    let saved = create(conn, dir, BackupKind::PreRestore, current)?;
-    conn.restore(MAIN_DB, src, None::<fn(rusqlite::backup::Progress)>)?;
+    let saved = create(conn, dir, BackupKind::PreRestore, current, live)?;
+    if same_kind(preview.encrypted) {
+        let backup = Backup::new(&source, conn)?;
+        backup.run_to_completion(PAGES_PER_STEP, Duration::from_millis(0), None)?;
+    } else {
+        // Plain into encrypted or the other way: the export needs a writable handle.
+        drop(source);
+        let (_, writable, _) = inspect_open(src, current, live, extra, true)?;
+        security::replace_live(conn, Some(&writable), live, live)?;
+    }
     crate::upgrade(conn)?;
     settings::update(
         conn,
@@ -264,7 +344,7 @@ pub fn restore(conn: &mut Connection, src: &Path, dir: &Path) -> Result<RestoreR
 
 /// Before a schema upgrade: the database file at `db` is copied to `<its folder>/backups/`.
 /// Does nothing for a new or already current database.
-pub(crate) fn before_migration(conn: &Connection, db: &Path, latest: u32) -> Result<()> {
+pub(crate) fn before_migration(conn: &Connection, db: &Path, latest: u32, key: &Key) -> Result<()> {
     let version = crate::schema_version(conn)?;
     if version == 0 || version >= latest {
         return Ok(());
@@ -273,109 +353,17 @@ pub(crate) fn before_migration(conn: &Connection, db: &Path, latest: u32) -> Res
         .parent()
         .map(|p| p.join("backups"))
         .unwrap_or_else(|| PathBuf::from("backups"));
-    create(conn, &dir, BackupKind::PreMigration, version)?;
+    create(conn, &dir, BackupKind::PreMigration, version, key)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{open, people, tasks, LATEST_SCHEMA};
-    use minimap_types::{
-        AssigneeChoice, CreatePerson, CreateTask, NodeRef, NodeType, UpdateSettings,
-    };
-    use std::sync::atomic::{AtomicU32, Ordering};
-
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-
-    /// A fresh empty folder under the system temp dir.
-    fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "minimap-store-{name}-{}-{}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::SeqCst)
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn add_task(conn: &mut Connection, title: &str) {
-        tasks::create(
-            conn,
-            CreateTask {
-                title: title.into(),
-                assignee: AssigneeChoice::Nobody,
-                description: format!("About {title}"),
-                project_id: None,
-                status: None,
-                estimate_days: Some(2.0),
-                start_date: None,
-                due_date: None,
-                priority: None,
-            },
-        )
-        .unwrap();
-    }
-
-    fn add_person(conn: &mut Connection, name: &str) {
-        people::create(
-            conn,
-            CreatePerson {
-                name: name.into(),
-                role_title: String::new(),
-                email: None,
-                weekly_capacity_hours: None,
-                is_self: false,
-                notes: String::new(),
-            },
-        )
-        .unwrap();
-    }
-
-    /// Everything a user could see, as text: equal strings = identical data.
-    fn fingerprint(conn: &Connection) -> String {
-        let mut out = String::new();
-        for table in [
-            "objectives",
-            "projects",
-            "tasks",
-            "people",
-            "teams",
-            "notes",
-            "decisions",
-            "waiting_on",
-            "edges",
-            "activity",
-            "settings",
-        ] {
-            // This installation's own backup settings are kept across a restore on purpose.
-            let filter = if table == "settings" {
-                "WHERE key NOT IN ('backup_folder', 'auto_backup')"
-            } else {
-                ""
-            };
-            let mut stmt = conn
-                .prepare(&format!("SELECT * FROM {table} {filter} ORDER BY 1"))
-                .unwrap();
-            let cols = stmt.column_count();
-            let rows: Vec<String> = stmt
-                .query_map([], |r| {
-                    (0..cols)
-                        .map(|i| {
-                            r.get::<_, rusqlite::types::Value>(i)
-                                .map(|v| format!("{v:?}"))
-                        })
-                        .collect::<rusqlite::Result<Vec<_>>>()
-                        .map(|v| v.join("|"))
-                })
-                .unwrap()
-                .map(|r| r.unwrap())
-                .collect();
-            out.push_str(&format!("{table}:\n{}\n", rows.join("\n")));
-        }
-        out
-    }
+    use crate::security::Key;
+    use crate::test_support::{add_person, add_task, fingerprint, temp_dir};
+    use crate::{open, tasks, LATEST_SCHEMA};
+    use minimap_types::{NodeRef, NodeType, UpdateSettings};
 
     #[test]
     fn backup_modify_restore_gives_back_exactly_the_backed_up_data() {
@@ -388,7 +376,7 @@ mod tests {
             add_task(&mut conn, t);
         }
         let before = fingerprint(&conn);
-        let made = create(&conn, &backups, BackupKind::Manual, 0).unwrap();
+        let made = create(&conn, &backups, BackupKind::Manual, 0, &Key::None).unwrap();
         assert!(made.file_name.starts_with("minimap-2") && made.file_name.ends_with(".db"));
         assert!(!made.file_name.contains("auto"));
         assert!(made.bytes > 0);
@@ -418,7 +406,7 @@ mod tests {
         let after = fingerprint(&conn);
         assert_ne!(before, after);
 
-        let result = restore(&mut conn, Path::new(&made.path), &backups).unwrap();
+        let result = restore(&mut conn, Path::new(&made.path), &backups, &Key::None, &[]).unwrap();
         assert_eq!(result.restored_from, made.file_name);
         // Data matches the backup exactly, apart from this installation's backup settings.
         let restored = settings::get(&conn).unwrap();
@@ -439,7 +427,9 @@ mod tests {
         let saved = Path::new(&result.saved_current_as.path);
         assert!(saved.exists());
         assert_eq!(result.saved_current_as.kind, BackupKind::PreRestore);
-        let counts = inspect(saved, LATEST_SCHEMA).unwrap().counts;
+        let counts = inspect(saved, LATEST_SCHEMA, &Key::None, &[])
+            .unwrap()
+            .counts;
         let tasks_in_saved = counts.iter().find(|c| c.label == "Tasks").unwrap().count;
         assert_eq!(tasks_in_saved, 3, "3 original - 1 archived + 1 added");
         fs::remove_dir_all(&dir).unwrap();
@@ -452,10 +442,11 @@ mod tests {
         add_task(&mut conn, "Anything");
         let backups = dir.join("backups");
         for _ in 0..20 {
-            create(&conn, &backups, BackupKind::Auto, 0).unwrap();
+            create(&conn, &backups, BackupKind::Auto, 0, &Key::None).unwrap();
         }
-        let manual = create(&conn, &backups, BackupKind::Manual, 0).unwrap();
-        let premigration = create(&conn, &backups, BackupKind::PreMigration, 3).unwrap();
+        let manual = create(&conn, &backups, BackupKind::Manual, 0, &Key::None).unwrap();
+        let premigration =
+            create(&conn, &backups, BackupKind::PreMigration, 3, &Key::None).unwrap();
         fs::write(backups.join("notes.txt"), "mine").unwrap();
         assert_eq!(list(&backups).unwrap().len(), 22);
         let newest_auto: Vec<String> = list(&backups)
@@ -524,7 +515,7 @@ mod tests {
         let backups = dir.join("backups");
         let mut conn = open(&dir.join("minimap.db")).unwrap();
         add_task(&mut conn, "Mine");
-        let good = create(&conn, &backups, BackupKind::Manual, 0).unwrap();
+        let good = create(&conn, &backups, BackupKind::Manual, 0, &Key::None).unwrap();
         let before = fingerprint(&conn);
 
         // Not a database at all.
@@ -560,7 +551,7 @@ mod tests {
         fs::write(&truncated, &fs::read(&good.path).unwrap()[..6000]).unwrap();
 
         let cases: [(&Path, &str); 7] = [
-            (&garbage, "damaged, encrypted, or not a database"),
+            (&garbage, "different key"),
             (&torn, ""),
             (&newer, "newer version of Minimap"),
             (&foreign, "not a Minimap backup"),
@@ -569,7 +560,15 @@ mod tests {
             (&dir.join("missing.db"), "does not exist"),
         ];
         for (path, expect) in cases {
-            let err = restore(&mut conn, path, &backups).unwrap_err();
+            let err = restore(&mut conn, path, &backups, &Key::None, &[]).unwrap_err();
+            // Random bytes can't be told apart from an encrypted file: Minimap asks for a key.
+            if expect == "different key" {
+                assert!(
+                    matches!(err, StoreError::BackupKeyNeeded),
+                    "{path:?}: {err:?}"
+                );
+                continue;
+            }
             let StoreError::Invalid(message) = err else {
                 panic!("{path:?}: expected a refusal, got {err:?}");
             };
@@ -587,7 +586,7 @@ mod tests {
             "and save no pre-restore copy"
         );
         // The good one is accepted and described.
-        let preview = inspect(Path::new(&good.path), LATEST_SCHEMA).unwrap();
+        let preview = inspect(Path::new(&good.path), LATEST_SCHEMA, &Key::None, &[]).unwrap();
         assert!(!preview.will_upgrade);
         assert_eq!(preview.counts.len(), 8);
         assert_eq!(
@@ -623,10 +622,10 @@ mod tests {
         let backups = dir.join("backups");
         let mut conn = open(&dir.join("minimap.db")).unwrap();
         add_task(&mut conn, "Current");
-        let preview = inspect(&old, LATEST_SCHEMA).unwrap();
+        let preview = inspect(&old, LATEST_SCHEMA, &Key::None, &[]).unwrap();
         assert!(preview.will_upgrade);
         assert_eq!(preview.schema_version, 5);
-        restore(&mut conn, &old, &backups).unwrap();
+        restore(&mut conn, &old, &backups, &Key::None, &[]).unwrap();
         assert_eq!(crate::schema_version(&conn).unwrap(), LATEST_SCHEMA);
         assert_eq!(crate::objectives::list(&conn, false).unwrap().len(), 1);
         assert!(tasks::list(&conn, false).unwrap().is_empty());

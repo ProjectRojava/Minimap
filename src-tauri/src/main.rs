@@ -3,9 +3,13 @@
 
 mod commands;
 mod error;
+mod keystore;
 mod state;
 
-use std::{fs, sync::Mutex};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Context;
 use tauri::Manager;
@@ -44,11 +48,11 @@ fn main() {
             let dir = app.path().app_data_dir().context("resolve app data dir")?;
             fs::create_dir_all(&dir).context("create app data dir")?;
             init_logging(&dir)?;
-            let db_path = dir.join("minimap.db");
-            let conn = minimap_store::open(&db_path)
-                .map_err(|e| anyhow::anyhow!("open database {}: {e}", db_path.display()))?;
-            tracing::info!(path = %db_path.display(), "database opened");
-            let state = AppState::new(conn, dir);
+            let keys: Arc<dyn keystore::KeyStore> = Arc::new(keystore::OsKeyStore);
+            let vault = commands::security::boot(&dir, keys.as_ref())
+                .map_err(|e| anyhow::anyhow!("open the database: {e}"))?;
+            tracing::info!(locked = vault.conn.is_none(), "database ready");
+            let state = AppState::new(vault, dir, keys);
             app.manage(state.clone());
             spawn_auto_backup(state)?;
             Ok(())
@@ -116,6 +120,10 @@ fn main() {
             commands::quick_add::commit_quick_add,
             commands::graph::get_dependency_graph,
             commands::capacity::get_capacity,
+            commands::security::get_security_status,
+            commands::security::unlock_database,
+            commands::security::set_encryption,
+            commands::security::delete_unencrypted_backups,
             commands::backup::get_backup_status,
             commands::backup::backup_now,
             commands::backup::preview_restore,

@@ -24,6 +24,12 @@ pub enum StoreError {
     /// A database constraint (foreign key, unique, check) rejected the write.
     #[error("constraint violated: {0}")]
     Constraint(String),
+    /// The database is encrypted and the key given doesn't open it (or it isn't a database).
+    #[error("that key does not open the database")]
+    WrongKey,
+    /// A backup is encrypted with a key we were not given.
+    #[error("this backup is encrypted with a different key")]
+    BackupKeyNeeded,
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
 }

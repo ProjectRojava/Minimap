@@ -55,6 +55,11 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z",
             "M8 5v3.2l2 1.3",
         ],
+        "lock" => &[
+            "M3.5 7h9v6.5h-9z",
+            "M5.5 7V5a2.5 2.5 0 0 1 5 0v2",
+            "M8 9.5v2",
+        ],
         "review" => &[
             "M3 8a5 5 0 0 1 9-3",
             "M12 2.5V5H9.5",

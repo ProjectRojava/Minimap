@@ -4,16 +4,17 @@ use minimap_types::{
     Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, BackupEntry, BackupStatus,
     Capacity, CreateDecision, CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask,
     CreateTeam, CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge,
-    EdgeLink, ExportResult, GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary,
-    NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup,
-    ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse,
-    PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup,
-    ProjectLayout, QuickChoice, QuickPreview, QuickResult, ReportKind, ReportParams,
-    RestorePreview, RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit,
-    Settings, Slip, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail,
-    TeamRow, ThisWeek, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject,
-    UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter,
-    WaitingOnRow, WeeklyReview,
+    EdgeLink, EncryptionResult, ExportResult, GraphFilter, ImpactReport, LinkOption, NewEdge,
+    NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
+    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
+    PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
+    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, ReportKind,
+    ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope, ScheduledTask,
+    SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip, Task,
+    TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek,
+    UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
+    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    WeeklyReview,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -566,16 +567,53 @@ pub async fn backup_now(folder: Option<String>) -> Result<BackupEntry, AppError>
 }
 
 #[derive(Serialize)]
-struct PathArg {
+struct RestoreArg {
     path: String,
+    secret: Option<Secret>,
 }
 
-pub async fn preview_restore(path: String) -> Result<RestorePreview, AppError> {
-    invoke("preview_restore", &PathArg { path }).await
+/// `secret` is a passphrase or recovery key for a backup encrypted with another key.
+pub async fn preview_restore(
+    path: String,
+    secret: Option<Secret>,
+) -> Result<RestorePreview, AppError> {
+    invoke("preview_restore", &RestoreArg { path, secret }).await
 }
 
-pub async fn restore_backup(path: String) -> Result<RestoreResult, AppError> {
-    invoke("restore_backup", &PathArg { path }).await
+pub async fn restore_backup(
+    path: String,
+    secret: Option<Secret>,
+) -> Result<RestoreResult, AppError> {
+    invoke("restore_backup", &RestoreArg { path, secret }).await
+}
+
+pub async fn get_security_status() -> Result<SecurityStatus, AppError> {
+    invoke("get_security_status", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct SecretArg {
+    secret: Secret,
+}
+
+/// Opens a locked database with a passphrase or recovery key.
+pub async fn unlock_database(secret: Secret) -> Result<SecurityStatus, AppError> {
+    invoke("unlock_database", &SecretArg { secret }).await
+}
+
+#[derive(Serialize)]
+struct EncryptionArg {
+    request: SetEncryption,
+}
+
+/// Turns encryption on, changes how the key is kept, or turns it off.
+pub async fn set_encryption(request: SetEncryption) -> Result<EncryptionResult, AppError> {
+    invoke("set_encryption", &EncryptionArg { request }).await
+}
+
+/// Deletes backups that are not encrypted; returns how many.
+pub async fn delete_unencrypted_backups() -> Result<u32, AppError> {
+    invoke("delete_unencrypted_backups", &NoArgs {}).await
 }
 
 #[wasm_bindgen]

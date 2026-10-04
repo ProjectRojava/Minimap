@@ -14,9 +14,12 @@ pub mod projects;
 pub mod quick_add;
 mod repo;
 pub mod search;
+pub mod security;
 pub mod settings;
 pub mod tasks;
 pub mod teams;
+#[cfg(test)]
+mod test_support;
 pub mod views;
 pub mod waiting_on;
 
@@ -74,13 +77,23 @@ fn backfill_project_slugs(tx: &rusqlite::Transaction) -> rusqlite_migration::Hoo
 /// to the migration list.
 pub const LATEST_SCHEMA: u32 = 7;
 
-/// Opens (creating if needed) the database at `path`, applies pragmas and migrations. An existing
-/// database that needs upgrading is first copied to `backups/` next to it (spec 20); if that
-/// copy can't be made, nothing is migrated.
+/// Opens (creating if needed) the unencrypted database at `path`, applies pragmas and migrations.
+/// An existing database that needs upgrading is first copied to `backups/` next to it (spec 20);
+/// if that copy can't be made, nothing is migrated.
 pub fn open(path: &Path) -> Result<Connection> {
-    let conn = Connection::open(path)?;
-    backup::before_migration(&conn, path, LATEST_SCHEMA)?;
+    open_with_key(path, &security::Key::None)
+}
+
+/// [`open`] for a database that may be encrypted. A wrong key is `StoreError::WrongKey`.
+pub fn open_with_key(path: &Path, key: &security::Key) -> Result<Connection> {
+    let conn = security::connect(path, key)?;
+    backup::before_migration(&conn, path, LATEST_SCHEMA, key)?;
     init(conn)
+}
+
+/// [`open_with_key`] without the pre-migration backup (the schema is already current).
+pub(crate) fn open_with_key_unchecked(path: &Path, key: &security::Key) -> Result<Connection> {
+    init(security::connect(path, key)?)
 }
 
 /// In-memory database, for tests.

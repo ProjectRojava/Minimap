@@ -3,13 +3,13 @@
 
 use leptos::{prelude::*, task::spawn_local, web_sys};
 use minimap_types::{
-    BackupCount, BackupEntry, BackupKind, BackupStatus, RestorePreview, UpdateSettings,
+    BackupCount, BackupEntry, BackupKind, BackupStatus, RestorePreview, Secret, UpdateSettings,
 };
 
 use crate::{
     api,
     components::{
-        form::{BUTTON, BUTTON_DANGER, BUTTON_PRIMARY},
+        form::{BUTTON, BUTTON_DANGER, BUTTON_PRIMARY, INPUT},
         page::{Card, Tone},
     },
     state::{finish, DataVersion, Toasts},
@@ -47,6 +47,7 @@ pub fn kind_label(kind: BackupKind) -> &'static str {
         BackupKind::Auto => "daily",
         BackupKind::PreMigration => "before upgrade",
         BackupKind::PreRestore => "before restore",
+        BackupKind::PreEncryption => "before encryption change",
     }
 }
 
@@ -54,7 +55,9 @@ pub fn kind_tone(kind: BackupKind) -> Tone {
     match kind {
         BackupKind::Manual => Tone::Accent,
         BackupKind::Auto => Tone::Neutral,
-        BackupKind::PreMigration | BackupKind::PreRestore => Tone::Warning,
+        BackupKind::PreMigration | BackupKind::PreRestore | BackupKind::PreEncryption => {
+            Tone::Warning
+        }
     }
 }
 
@@ -89,17 +92,17 @@ pub fn BackupSettings() -> impl IntoView {
         version.track();
         api::get_backup_status()
     });
-    // The file being considered for restore, once checked.
-    let pending = RwSignal::new(Option::<RestorePreview>::None);
+    let restore = Restore::new();
     view! {
         <Card title="Backup"
               description="Copies of your data, made with SQLite's online backup so the app keeps working.">
             {move || match status.get() {
-                Some(Ok(s)) => view! { <Body status=s pending=pending /> }.into_any(),
+                Some(Ok(s)) => view! { <Body status=s restore=restore /> }.into_any(),
                 Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
-            {move || pending.get().map(|p| view! { <ConfirmRestore preview=p pending=pending /> })}
+            {move || restore.need_key.get().map(|p| view! { <KeyPrompt path=p restore=restore /> })}
+            {move || restore.pending.get().map(|p| view! { <ConfirmRestore preview=p restore=restore /> })}
         </Card>
     }
 }
@@ -111,7 +114,7 @@ fn save_settings(patch: UpdateSettings, toasts: Toasts, version: DataVersion) {
 }
 
 #[component]
-fn Body(status: BackupStatus, pending: RwSignal<Option<RestorePreview>>) -> impl IntoView {
+fn Body(status: BackupStatus, restore: Restore) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
 
@@ -167,20 +170,21 @@ fn Body(status: BackupStatus, pending: RwSignal<Option<RestorePreview>>) -> impl
     let pick_file = move |_| {
         spawn_local(async move {
             match api::pick_backup_file().await {
-                Ok(Some(path)) => check(path, pending, toasts),
+                Ok(Some(path)) => check(path, None, restore, toasts),
                 Ok(None) => {}
                 Err(e) => toasts.error(&e),
             }
         });
     };
 
+    let db_encrypted = status.database_encrypted;
     let last = last_text(status.last_backup.as_ref());
     let is_default = status.is_default_folder;
     let keep = status.keep_auto;
     let rows = status
         .backups
         .iter()
-        .map(|b| view! { <BackupRow entry=b.clone() pending=pending /> })
+        .map(|b| view! { <BackupRow entry=b.clone() restore=restore flag_plain=db_encrypted /> })
         .collect_view();
     let none = status.backups.is_empty();
     view! {
@@ -213,46 +217,114 @@ fn Body(status: BackupStatus, pending: RwSignal<Option<RestorePreview>>) -> impl
     }
 }
 
-/// Checks a file and, when it can be restored, asks for confirmation.
-fn check(path: String, pending: RwSignal<Option<RestorePreview>>, toasts: Toasts) {
+/// The signals of a restore in progress: the checked file, the key typed for it (when it was
+/// encrypted with another key) and the file waiting for such a key.
+#[derive(Clone, Copy)]
+struct Restore {
+    pending: RwSignal<Option<RestorePreview>>,
+    secret: RwSignal<Option<String>>,
+    need_key: RwSignal<Option<String>>,
+}
+
+impl Restore {
+    fn new() -> Self {
+        Self {
+            pending: RwSignal::new(None),
+            secret: RwSignal::new(None),
+            need_key: RwSignal::new(None),
+        }
+    }
+
+    fn clear(&self) {
+        self.pending.set(None);
+        self.secret.set(None);
+        self.need_key.set(None);
+    }
+}
+
+/// Checks a file and, when it can be restored, asks for confirmation. A backup encrypted with
+/// another key asks for that key first.
+fn check(path: String, secret: Option<String>, restore: Restore, toasts: Toasts) {
     spawn_local(async move {
-        match api::preview_restore(path).await {
-            Ok(preview) => pending.set(Some(preview)),
+        match api::preview_restore(path.clone(), secret.clone().map(Secret)).await {
+            Ok(preview) => {
+                restore.need_key.set(None);
+                restore.secret.set(secret);
+                restore.pending.set(Some(preview));
+            }
+            Err(e)
+                if e.code == "backup_key_needed" || (e.code == "wrong_key" && secret.is_some()) =>
+            {
+                restore.pending.set(None);
+                restore.need_key.set(Some(path));
+                if e.code == "wrong_key" {
+                    toasts.info("That passphrase or recovery key doesn't open this backup");
+                }
+            }
             Err(e) => toasts.error(&e),
         }
     });
 }
 
 #[component]
-fn BackupRow(entry: BackupEntry, pending: RwSignal<Option<RestorePreview>>) -> impl IntoView {
+fn KeyPrompt(path: String, restore: Restore) -> impl IntoView {
     let toasts = expect_context::<Toasts>();
-    let path = entry.path.clone();
+    let typed = RwSignal::new(String::new());
+    let go = {
+        let path = path.clone();
+        move || {
+            let text = typed.get_untracked();
+            if !text.trim().is_empty() {
+                check(path.clone(), Some(text), restore, toasts);
+            }
+        }
+    };
+    let go_click = go.clone();
     view! {
-        <div class="flex items-center gap-2 border-b border-line px-2 py-1 last:border-b-0">
-            <span class=kind_tone(entry.kind).chip()>{kind_label(entry.kind)}</span>
-            <span class="w-40 shrink-0 tabular-nums">{entry.created.clone()}</span>
-            <span class="min-w-0 flex-1 truncate text-[11px] text-muted" title=entry.file_name.clone()>
-                {format!("{} · {}", age_text(entry.age_minutes), entry.file_name)}
-            </span>
-            <span class="shrink-0 text-[11px] tabular-nums text-muted">{size_text(entry.bytes)}</span>
-            <button class=BUTTON on:click=move |_| check(path.clone(), pending, toasts)>"Restore…"</button>
+        <div class="space-y-2 rounded-sm border border-line bg-canvas p-3">
+            <p>"This backup is encrypted with a key Minimap doesn't have. Enter the passphrase or "
+               "recovery key it was encrypted with (it may be from before you changed keys)."</p>
+            <input type="password" autocomplete="off" class=INPUT prop:value=move || typed.get()
+                   on:input=move |ev| typed.set(event_target_value(&ev))
+                   on:keydown=move |ev| if ev.key() == "Enter" { go() } />
+            <div class="flex items-center gap-2">
+                <button class=BUTTON_PRIMARY on:click=move |_| go_click()>"Continue"</button>
+                <button class=BUTTON on:click=move |_| restore.clear()>"Cancel"</button>
+            </div>
         </div>
     }
 }
 
 #[component]
-fn ConfirmRestore(
-    preview: RestorePreview,
-    pending: RwSignal<Option<RestorePreview>>,
-) -> impl IntoView {
+fn BackupRow(entry: BackupEntry, restore: Restore, flag_plain: bool) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let path = entry.path.clone();
+    let plain = flag_plain && !entry.encrypted;
+    view! {
+        <div class="flex items-center gap-2 border-b border-line px-2 py-1 last:border-b-0">
+            <span class=kind_tone(entry.kind).chip()>{kind_label(entry.kind)}</span>
+            {plain.then(|| view! { <span class=Tone::Danger.chip() title="This backup is not encrypted">"unencrypted"</span> })}
+            <span class="w-40 shrink-0 tabular-nums">{entry.created.clone()}</span>
+            <span class="min-w-0 flex-1 truncate text-[11px] text-muted" title=entry.file_name.clone()>
+                {format!("{} · {}", age_text(entry.age_minutes), entry.file_name)}
+            </span>
+            <span class="shrink-0 text-[11px] tabular-nums text-muted">{size_text(entry.bytes)}</span>
+            <button class=BUTTON on:click=move |_| check(path.clone(), None, restore, toasts)>"Restore…"</button>
+        </div>
+    }
+}
+
+#[component]
+fn ConfirmRestore(preview: RestorePreview, restore: Restore) -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let path = preview.path.clone();
+    let secret = restore.secret.get_untracked();
     let busy = RwSignal::new(false);
-    let restore = move |_| {
-        let path = path.clone();
+    let do_restore = move |_| {
+        let (path, secret) = (path.clone(), secret.clone());
         busy.set(true);
         spawn_local(async move {
-            match api::restore_backup(path).await {
+            match api::restore_backup(path, secret.map(Secret)).await {
                 Ok(_) => {
                     // Start from a clean slate: every screen, the theme and the first-run check
                     // read the restored data.
@@ -285,11 +357,12 @@ fn ConfirmRestore(
             {upgrade}
             <p class="text-[11px] text-muted">
                 "Everything you have now is saved first as a \"before restore\" backup in the backup folder, "
-                "so you can come back to it. The app reloads afterwards."
+                "so you can come back to it. Your database keeps its current encryption setting. The app "
+                "reloads afterwards."
             </p>
             <div class="flex items-center gap-2">
-                <button class=BUTTON_DANGER disabled=move || busy.get() on:click=restore>"Restore"</button>
-                <button class=BUTTON disabled=move || busy.get() on:click=move |_| pending.set(None)>"Cancel"</button>
+                <button class=BUTTON_DANGER disabled=move || busy.get() on:click=do_restore>"Restore"</button>
+                <button class=BUTTON disabled=move || busy.get() on:click=move |_| restore.clear()>"Cancel"</button>
             </div>
         </div>
     }
@@ -307,6 +380,7 @@ mod tests {
             created: "2027-03-03 15:30 UTC".into(),
             age_minutes: minutes,
             bytes: 2048,
+            encrypted: true,
         }
     }
 
@@ -360,6 +434,7 @@ mod tests {
             BackupKind::Auto,
             BackupKind::PreMigration,
             BackupKind::PreRestore,
+            BackupKind::PreEncryption,
         ] {
             assert!(!kind_label(kind).is_empty());
         }
