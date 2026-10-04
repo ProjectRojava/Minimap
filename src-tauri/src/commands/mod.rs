@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod capacity;
 pub mod decisions;
 pub mod edges;

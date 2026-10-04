@@ -1,18 +1,19 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Capacity, CreateDecision,
-    CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
-    CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge, EdgeLink,
-    ExportResult, GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType,
-    Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup,
+    Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, BackupEntry, BackupStatus,
+    Capacity, CreateDecision, CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask,
+    CreateTeam, CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge,
+    EdgeLink, ExportResult, GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary,
+    NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup,
     ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse,
     PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup,
-    ProjectLayout, QuickChoice, QuickPreview, QuickResult, ReportKind, ReportParams, Schedule,
-    ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Settings, Slip, Task, TaskDetail,
-    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision,
-    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask,
-    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
+    ProjectLayout, QuickChoice, QuickPreview, QuickResult, ReportKind, ReportParams,
+    RestorePreview, RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit,
+    Settings, Slip, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail,
+    TeamRow, ThisWeek, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject,
+    UpdateSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter,
+    WaitingOnRow, WeeklyReview,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -550,8 +551,38 @@ pub async fn export_markdown(
     .await
 }
 
+pub async fn get_backup_status() -> Result<BackupStatus, AppError> {
+    invoke("get_backup_status", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct OptionalPathArg {
+    path: Option<String>,
+}
+
+/// Backs up into `folder` (the configured folder when `None`).
+pub async fn backup_now(folder: Option<String>) -> Result<BackupEntry, AppError> {
+    invoke("backup_now", &OptionalPathArg { path: folder }).await
+}
+
+#[derive(Serialize)]
+struct PathArg {
+    path: String,
+}
+
+pub async fn preview_restore(path: String) -> Result<RestorePreview, AppError> {
+    invoke("preview_restore", &PathArg { path }).await
+}
+
+pub async fn restore_backup(path: String) -> Result<RestoreResult, AppError> {
+    invoke("restore_backup", &PathArg { path }).await
+}
+
 #[wasm_bindgen]
 extern "C" {
+    #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "dialog"], js_name = open)]
+    async fn dialog_open_raw(options: JsValue) -> Result<JsValue, JsValue>;
+
     #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "dialog"], js_name = save)]
     async fn dialog_save_raw(options: JsValue) -> Result<JsValue, JsValue>;
 
@@ -562,7 +593,7 @@ extern "C" {
 #[derive(Serialize)]
 struct SaveFilter {
     name: &'static str,
-    extensions: [&'static str; 2],
+    extensions: Vec<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -573,6 +604,50 @@ struct SaveOptions {
     filters: [SaveFilter; 1],
 }
 
+#[derive(Serialize)]
+struct OpenOptions {
+    title: &'static str,
+    directory: bool,
+    multiple: bool,
+    filters: Vec<SaveFilter>,
+}
+
+async fn open_dialog(options: OpenOptions) -> Result<Option<String>, AppError> {
+    let options = options
+        .serialize(&serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true))
+        .map_err(ipc_error)?;
+    match dialog_open_raw(options).await {
+        Ok(v) if v.is_null() || v.is_undefined() => Ok(None),
+        Ok(v) => Ok(v.as_string()),
+        Err(e) => Err(ipc_error(format!("{e:?}"))),
+    }
+}
+
+/// The operating system's folder picker. `Ok(None)` = cancelled.
+pub async fn pick_folder() -> Result<Option<String>, AppError> {
+    open_dialog(OpenOptions {
+        title: "Choose the backup folder",
+        directory: true,
+        multiple: false,
+        filters: Vec::new(),
+    })
+    .await
+}
+
+/// The operating system's file picker for a Minimap backup (`.db`). `Ok(None)` = cancelled.
+pub async fn pick_backup_file() -> Result<Option<String>, AppError> {
+    open_dialog(OpenOptions {
+        title: "Choose a backup to restore",
+        directory: false,
+        multiple: false,
+        filters: vec![SaveFilter {
+            name: "Minimap backup",
+            extensions: vec!["db"],
+        }],
+    })
+    .await
+}
+
 /// The operating system's save dialog for a Markdown file. `Ok(None)` = cancelled.
 pub async fn save_dialog(default_name: &str) -> Result<Option<String>, AppError> {
     let options = SaveOptions {
@@ -580,7 +655,7 @@ pub async fn save_dialog(default_name: &str) -> Result<Option<String>, AppError>
         default_path: default_name.to_owned(),
         filters: [SaveFilter {
             name: "Markdown",
-            extensions: ["md", "markdown"],
+            extensions: vec!["md", "markdown"],
         }],
     }
     .serialize(&serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true))

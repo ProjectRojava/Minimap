@@ -1,6 +1,7 @@
 //! SQLite persistence: connection setup, migrations and repositories.
 
 pub mod activity;
+pub mod backup;
 mod convert;
 pub mod decisions;
 pub mod edges;
@@ -23,6 +24,11 @@ use std::path::Path;
 
 pub use error::{Result, StoreError};
 pub use rusqlite::Connection;
+
+/// The current time (UTC, millisecond precision).
+pub fn now() -> time::OffsetDateTime {
+    convert::now()
+}
 
 /// Today's date (UTC), the app's notion of "today".
 pub fn today() -> time::Date {
@@ -64,9 +70,16 @@ fn backfill_project_slugs(tx: &rusqlite::Transaction) -> rusqlite_migration::Hoo
     Ok(())
 }
 
-/// Opens (creating if needed) the database at `path`, applies pragmas and migrations.
+/// The schema version after the last migration (`PRAGMA user_version`); a test keeps it equal
+/// to the migration list.
+pub const LATEST_SCHEMA: u32 = 7;
+
+/// Opens (creating if needed) the database at `path`, applies pragmas and migrations. An existing
+/// database that needs upgrading is first copied to `backups/` next to it (spec 20); if that
+/// copy can't be made, nothing is migrated.
 pub fn open(path: &Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
+    backup::before_migration(&conn, path, LATEST_SCHEMA)?;
     init(conn)
 }
 
@@ -91,12 +104,19 @@ fn register_functions(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 fn init(mut conn: Connection) -> Result<Connection> {
-    register_functions(&conn)?;
+    upgrade(&mut conn)?;
+    Ok(conn)
+}
+
+/// Sets the pragmas and brings the schema to the latest version. Also run after a restore, whose
+/// backup may be from an older version.
+pub fn upgrade(conn: &mut Connection) -> Result<()> {
+    register_functions(conn)?;
     // journal_mode returns a row, so it must be read rather than executed.
     conn.query_row("PRAGMA journal_mode = WAL", [], |_| Ok(()))?;
     conn.pragma_update(None, "foreign_keys", true)?;
-    migrations().to_latest(&mut conn)?;
-    Ok(conn)
+    migrations().to_latest(conn)?;
+    Ok(())
 }
 
 /// Current schema version (`PRAGMA user_version`).
@@ -111,7 +131,7 @@ mod tests {
     #[test]
     fn first_migration_runs() {
         let conn = open_in_memory().unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 7);
+        assert_eq!(schema_version(&conn).unwrap(), LATEST_SCHEMA);
         let v: String = conn
             .query_row(
                 "SELECT value FROM app_meta WHERE key = 'created_by'",

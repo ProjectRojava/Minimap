@@ -237,6 +237,12 @@
           "markdownDescription": "Enables the archive_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the backup_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-backup-now",
+          "markdownDescription": "Enables the backup_now command without any pre-configured scope."
+        },
+        {
           "description": "Enables the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "allow-commit-quick-add",
@@ -313,6 +319,12 @@
           "type": "string",
           "const": "allow-export-markdown",
           "markdownDescription": "Enables the export_markdown command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_backup_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-backup-status",
+          "markdownDescription": "Enables the get_backup_status command without any pre-configured scope."
         },
         {
           "description": "Enables the get_capacity command without any pre-configured scope.",
@@ -567,6 +579,12 @@
           "markdownDescription": "Enables the preview_archive_project command without any pre-configured scope."
         },
         {
+          "description": "Enables the preview_restore command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-preview-restore",
+          "markdownDescription": "Enables the preview_restore command without any pre-configured scope."
+        },
+        {
           "description": "Enables the remove_edge command without any pre-configured scope.",
           "type": "string",
           "const": "allow-remove-edge",
@@ -601,6 +619,12 @@
           "type": "string",
           "const": "allow-resolve-waiting-on",
           "markdownDescription": "Enables the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the restore_backup command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-restore-backup",
+          "markdownDescription": "Enables the restore_backup command without any pre-configured scope."
         },
         {
           "description": "Enables the run_impact_analysis command without any pre-configured scope.",
@@ -759,6 +783,12 @@
           "markdownDescription": "Denies the archive_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Denies the backup_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-backup-now",
+          "markdownDescription": "Denies the backup_now command without any pre-configured scope."
+        },
+        {
           "description": "Denies the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "deny-commit-quick-add",
@@ -835,6 +865,12 @@
           "type": "string",
           "const": "deny-export-markdown",
           "markdownDescription": "Denies the export_markdown command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_backup_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-backup-status",
+          "markdownDescription": "Denies the get_backup_status command without any pre-configured scope."
         },
         {
           "description": "Denies the get_capacity command without any pre-configured scope.",
@@ -1089,6 +1125,12 @@
           "markdownDescription": "Denies the preview_archive_project command without any pre-configured scope."
         },
         {
+          "description": "Denies the preview_restore command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-preview-restore",
+          "markdownDescription": "Denies the preview_restore command without any pre-configured scope."
+        },
+        {
           "description": "Denies the remove_edge command without any pre-configured scope.",
           "type": "string",
           "const": "deny-remove-edge",
@@ -1123,6 +1165,12 @@
           "type": "string",
           "const": "deny-resolve-waiting-on",
           "markdownDescription": "Denies the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the restore_backup command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-restore-backup",
+          "markdownDescription": "Denies the restore_backup command without any pre-configured scope."
         },
         {
           "description": "Denies the run_impact_analysis command without any pre-configured scope.",
