@@ -25,6 +25,18 @@ fn init_logging(dir: &std::path::Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The daily backup: once at start (when the last one is over a day old), then hourly checks.
+fn spawn_auto_backup(state: AppState) -> anyhow::Result<()> {
+    std::thread::Builder::new()
+        .name("auto-backup".into())
+        .spawn(move || loop {
+            commands::backup::auto_backup_tick(&state);
+            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+        })
+        .context("start the automatic backup timer")?;
+    Ok(())
+}
+
 fn main() {
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -36,7 +48,9 @@ fn main() {
             let conn = minimap_store::open(&db_path)
                 .map_err(|e| anyhow::anyhow!("open database {}: {e}", db_path.display()))?;
             tracing::info!(path = %db_path.display(), "database opened");
-            app.manage(AppState::new(conn));
+            let state = AppState::new(conn, dir);
+            app.manage(state.clone());
+            spawn_auto_backup(state)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -102,6 +116,10 @@ fn main() {
             commands::quick_add::commit_quick_add,
             commands::graph::get_dependency_graph,
             commands::capacity::get_capacity,
+            commands::backup::get_backup_status,
+            commands::backup::backup_now,
+            commands::backup::preview_restore,
+            commands::backup::restore_backup,
             commands::this_week::get_this_week,
             commands::this_week::reschedule_task,
             commands::overview::get_portfolio_overview,

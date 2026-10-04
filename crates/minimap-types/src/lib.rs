@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 mod activity;
+mod backup;
 mod capacity;
 mod edges;
 mod enums;
@@ -20,6 +21,7 @@ mod views;
 mod week;
 
 pub use activity::*;
+pub use backup::*;
 pub use capacity::*;
 pub use edges::*;
 pub use enums::*;

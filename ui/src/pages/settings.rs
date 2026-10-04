@@ -4,7 +4,10 @@ use minimap_types::{AppError, HealthThresholds, UpdateSettings, REPORT_PLACEHOLD
 use crate::{
     api,
     components::form::{TextField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT},
-    components::page::{Card, PageHeader},
+    components::{
+        backup_settings::BackupSettings,
+        page::{Card, PageHeader},
+    },
     state::{finish, DataVersion, Toasts},
     theme::ThemeCtx,
     themes::{self, Kind, Theme},
@@ -88,7 +91,7 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <div class="flex h-full flex-col">
-            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons, project health and the status report"><span></span></PageHeader>
+            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons, health, backups and the status report"><span></span></PageHeader>
             <div class="flex-1 overflow-y-auto">
             <div class="mx-auto max-w-3xl space-y-4 p-6">
             <Appearance />
@@ -140,8 +143,9 @@ pub fn Settings() -> impl IntoView {
                 }}
             </Card>
             <HealthSettings />
+            <BackupSettings />
             <ReportSettings />
-            <p class="text-[11px] text-muted">"More settings (backups, encryption) arrive with the Settings feature."</p>
+            <p class="text-[11px] text-muted">"More settings (encryption, Google Drive) arrive with the Settings feature."</p>
             </div>
             </div>
         </div>

@@ -11,6 +11,8 @@ const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 const HEALTH: &str = "health";
 const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
 const REPORT_TEMPLATE: &str = "report_template";
+const BACKUP_FOLDER: &str = "backup_folder";
+const AUTO_BACKUP: &str = "auto_backup";
 
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
@@ -28,6 +30,12 @@ fn valid_theme_id(id: &str) -> bool {
         && id
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// A backup folder is a full path.
+fn valid_folder(path: &str) -> bool {
+    let p = std::path::Path::new(path);
+    !path.trim().is_empty() && path.len() <= 1000 && p.is_absolute()
 }
 
 fn read(conn: &Connection, key: &str) -> Result<Option<serde_json::Value>> {
@@ -73,6 +81,14 @@ pub fn get(conn: &Connection) -> Result<Settings> {
         if minimap_core::report::validate_template(&t).is_ok() {
             s.report_template = t;
         }
+    }
+    if let Some(f) = read(conn, BACKUP_FOLDER)?.and_then(|v| v.as_str().map(str::to_owned)) {
+        if valid_folder(&f) {
+            s.backup_folder = Some(f);
+        }
+    }
+    if let Some(on) = read(conn, AUTO_BACKUP)?.and_then(|v| v.as_bool()) {
+        s.auto_backup = on;
     }
     if let Some(t) = read(conn, THEME)?.and_then(|v| v.as_str().map(str::to_owned)) {
         if valid_theme_id(&t) {
@@ -120,7 +136,27 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     if let Some(t) = template.filter(|t| !t.is_empty()) {
         minimap_core::report::validate_template(t).map_err(StoreError::Invalid)?;
     }
+    // An empty text goes back to the default folder.
+    let folder = patch.backup_folder.as_deref().map(str::trim);
+    if let Some(f) = folder.filter(|f| !f.is_empty()) {
+        if !valid_folder(f) {
+            return Err(StoreError::Invalid(
+                "The backup folder must be a full path, like /home/you/Backups or C:\\Backups"
+                    .into(),
+            ));
+        }
+    }
     let tx = conn.transaction()?;
+    match folder {
+        Some("") => {
+            tx.execute("DELETE FROM settings WHERE key = ?1", [BACKUP_FOLDER])?;
+        }
+        Some(f) => write(&tx, BACKUP_FOLDER, &serde_json::json!(f))?,
+        None => {}
+    }
+    if let Some(on) = patch.auto_backup {
+        write(&tx, AUTO_BACKUP, &serde_json::json!(on))?;
+    }
     match (template, &patch.report_template) {
         (Some(""), _) => {
             tx.execute("DELETE FROM settings WHERE key = ?1", [REPORT_TEMPLATE])?;
