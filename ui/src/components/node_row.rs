@@ -19,7 +19,7 @@ pub fn NodeRow(node: NodeRef, index: usize, children: Children) -> impl IntoView
         <div
             role="row"
             class=move || format!(
-                "flex items-center gap-3 px-4 h-8 border-b border-line cursor-default select-none {}",
+                "group flex items-center gap-3 px-4 h-8 border-b border-line cursor-default select-none {}",
                 if is_open() { "bg-active shadow-[inset_2px_0_0_var(--color-fg)]" }
                 else if on_cursor() { "bg-hover shadow-[inset_2px_0_0_var(--color-muted)]" }
                 else { "hover:bg-hover" })

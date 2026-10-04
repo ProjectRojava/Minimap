@@ -51,16 +51,22 @@ fn weekday_named(name: &str) -> Option<Weekday> {
 /// - `today`, `tomorrow`
 /// - a weekday (`fri`, `friday`): the next one, **today if it is that day**
 /// - `next-fri`: that weekday **in the next calendar week** (Monday to Sunday)
+/// - `next-week`: the Monday of the next calendar week
 /// - `+3d`, `+2w`: days or weeks from today
 /// - an ISO date `2027-03-31`
 pub fn parse_when(text: &str, today: Date) -> Result<Date, String> {
-    let t = text.trim().to_lowercase();
+    // "next week" and "next-week" are the same.
+    let t = text.trim().to_lowercase().replace(' ', "-");
     let bad = || format!("\"{}\" isn't a date. {DATE_HELP}", text.trim());
     if t == "today" {
         return Ok(today);
     }
     if t == "tomorrow" {
         return Ok(today + Duration::days(1));
+    }
+    if t == "next-week" {
+        let to_next_monday = 7 - i64::from(today.weekday().number_days_from_monday());
+        return Ok(today + Duration::days(to_next_monday));
     }
     if let Some(day) = weekday_named(&t) {
         let ahead =
@@ -1144,6 +1150,27 @@ mod tests {
             date!(2027 - 03 - 08)
         );
         assert_eq!(parse_when("sun", sunday).unwrap(), sunday);
+    }
+
+    #[test]
+    fn next_week_is_the_next_monday_from_any_day() {
+        assert_eq!(
+            parse_when("next-week", TODAY).unwrap(),
+            date!(2027 - 03 - 08)
+        );
+        assert_eq!(
+            parse_when("Next Week", TODAY).unwrap(),
+            date!(2027 - 03 - 08)
+        );
+        // From a Monday it is a week away; from a Sunday, tomorrow.
+        assert_eq!(
+            parse_when("next-week", date!(2027 - 03 - 01)).unwrap(),
+            date!(2027 - 03 - 08)
+        );
+        assert_eq!(
+            parse_when("next-week", date!(2027 - 03 - 07)).unwrap(),
+            date!(2027 - 03 - 08)
+        );
     }
 
     #[test]

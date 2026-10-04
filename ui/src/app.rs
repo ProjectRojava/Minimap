@@ -21,6 +21,7 @@ use crate::{
         settings::Settings,
         tasks::{Inbox, Tasks},
         teams::Teams,
+        this_week::ThisWeek,
         waiting_on::WaitingOn,
         what_if::WhatIf,
     },
@@ -72,7 +73,8 @@ fn Shell() -> impl IntoView {
             <Sidebar />
             <main class="flex-1 min-w-0 overflow-y-auto">
                 <Routes fallback=NotFound>
-                    <Route path=path!("/") view=Overview />
+                    <Route path=path!("/") view=ThisWeek />
+                    <Route path=path!("/overview") view=Overview />
                     <Route path=path!("/inbox") view=Inbox />
                     <Route path=path!("/objectives") view=Objectives />
                     <Route path=path!("/projects") view=Projects />

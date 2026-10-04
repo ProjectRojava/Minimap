@@ -8,5 +8,6 @@ pub mod projects;
 pub mod settings;
 pub mod tasks;
 pub mod teams;
+pub mod this_week;
 pub mod waiting_on;
 pub mod what_if;

@@ -51,6 +51,7 @@ A marker not used by the kind is reported ("`est:` isn't used for a project"), n
 | `today`, `tomorrow` | |
 | `fri`, `friday`, `mon`... | the **next** such day; **today if it is that day** |
 | `next-fri`, `next-wed`... | that weekday **in the next calendar week** (Monday to Sunday) |
+| `next-week` (or `next week`) | the Monday of the next calendar week |
 | `+3d`, `+2w` | days / weeks from today |
 | `2027-03-31` | ISO date |
 
