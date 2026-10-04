@@ -12,12 +12,12 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{BUTTON, COMPACT_INPUT},
+        form::{BUTTON, BUTTON_SUCCESS, COMPACT_INPUT},
         node_row::NodeRow,
-        page::{EmptyState, GroupLabel, Hints, PageHeader, CHIP, CHIP_STRONG},
+        page::{EmptyState, GroupLabel, Hints, PageHeader, Tone, CHIP_STRONG},
         waiting_panel::age_text,
     },
-    labels::task_status_label,
+    labels::{task_status_label, task_status_tone},
     state::{finish, DataVersion, ListNav, Toasts},
     timeline::day_text,
 };
@@ -336,7 +336,9 @@ fn TaskRowView(row: WeekTask, index: usize, today: Date) -> impl IntoView {
         Some(format!("blocked by {}", names.join(", ")))
     };
     let status = match t.status {
-        TaskStatus::Blocked | TaskStatus::InProgress => Some(task_status_label(t.status)),
+        TaskStatus::Blocked | TaskStatus::InProgress => {
+            Some((task_status_tone(t.status), task_status_label(t.status)))
+        }
         _ => None,
     };
     view! {
@@ -350,7 +352,7 @@ fn TaskRowView(row: WeekTask, index: usize, today: Date) -> impl IntoView {
                 <span class="ml-2 text-muted">{project}</span>
             </span>
             {(t.priority <= 2).then(|| view! { <span class=CHIP_STRONG>{format!("P{}", t.priority)}</span> })}
-            {status.map(|s| view! { <span class=CHIP>{s}</span> })}
+            {status.map(|(tone, s)| view! { <span class=tone.chip()>{s}</span> })}
             {due.map(|(text, late)| view! {
                 <span class=if late { "shrink-0 text-danger" } else { "shrink-0 tabular-nums text-muted" }>{text}</span>
             })}
@@ -371,17 +373,21 @@ fn WaitingRowView(row: WaitingOnRow, index: usize) -> impl IntoView {
         .expected_by
         .map(|d| format!("expected {d}"))
         .unwrap_or_default();
-    let state = if row.stale { "stale" } else { "due" };
+    let (state, state_tone) = if row.stale {
+        ("stale", Tone::Warning)
+    } else {
+        ("due", Tone::Accent)
+    };
     view! {
         <NodeRow node=node index=index>
-            <span class=CHIP_STRONG>{state}</span>
+            <span class=state_tone.chip()>{state}</span>
             <span class="w-24 shrink-0 truncate text-muted">{row.person.label.clone()}</span>
             <span class="min-w-0 truncate font-medium">{row.waiting.description.clone()}</span>
             <span class="shrink-0 text-[11px] text-muted">{format!("waiting {}", age_text(row.age_days))}</span>
             <span class="shrink-0 text-[11px] tabular-nums text-muted">{expected}</span>
             <span class="ml-auto flex shrink-0 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100"
                   on:click=|ev| ev.stop_propagation()>
-                <button class=BUTTON on:click=move |_| resolve(id, toasts, version)>"Resolve"</button>
+                <button class=BUTTON_SUCCESS on:click=move |_| resolve(id, toasts, version)>"Resolve"</button>
                 <button class=BUTTON title="Hide it for 3 days"
                         on:click=move |_| {
                             spawn_local(async move {

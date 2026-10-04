@@ -9,15 +9,28 @@ pub const INPUT: &str =
 pub const COMPACT_INPUT: &str =
     "rounded-sm border border-line bg-canvas px-1 py-0.5 text-[12px] text-fg \
     focus:outline-none focus:border-accent";
+/// The default button: outlined grey, warming to the accent on hover.
 pub const BUTTON: &str = "rounded-sm border border-line px-2 py-0.5 text-[12px] text-fg \
-    hover:bg-hover disabled:opacity-40";
-/// Monochrome "primary": inverted foreground/background instead of a brand colour.
+    hover:border-accent/50 hover:bg-accent/10 hover:text-accent \
+    disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-transparent disabled:hover:text-fg";
+/// The main action of a form or dialog: filled with the accent.
 pub const BUTTON_PRIMARY: &str =
     "rounded-sm border border-accent bg-accent px-2 py-0.5 text-[12px] text-canvas \
     hover:opacity-85 disabled:opacity-40";
+/// A page's "new" action: the accent as a soft tint.
+pub const BUTTON_SOFT: &str =
+    "rounded-sm border border-accent/40 bg-accent/10 px-2 py-0.5 text-[12px] text-accent \
+    hover:bg-accent/20 disabled:opacity-40";
+/// Completing something: resolve, done.
+pub const BUTTON_SUCCESS: &str =
+    "rounded-sm border border-success/40 bg-success/10 px-2 py-0.5 text-[12px] text-success \
+    hover:bg-success/20 disabled:opacity-40";
+/// Destructive: archive, delete.
 pub const BUTTON_DANGER: &str =
-    "rounded-sm border border-line px-2 py-0.5 text-[12px] text-danger \
-    hover:bg-hover";
+    "rounded-sm border border-danger/40 bg-danger/10 px-2 py-0.5 text-[12px] text-danger \
+    hover:bg-danger/20 disabled:opacity-40";
+/// Extra classes for the selected button of a toggle group (add to `BUTTON`).
+pub const BUTTON_ON: &str = "border-accent/50 bg-accent/15 text-accent";
 
 /// Text input that reports its value once, when it loses focus or Enter is pressed,
 /// and only if it changed. The stored value is not pushed back into the box while typing.

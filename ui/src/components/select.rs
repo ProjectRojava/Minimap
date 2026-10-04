@@ -28,6 +28,9 @@ pub fn SelectField(
     /// DOM id of the button, so keyboard shortcuts can focus the control.
     #[prop(optional, into)]
     id: Option<String>,
+    /// Text colour class for the button, e.g. from a status tone (default: normal text).
+    #[prop(optional)]
+    tone: &'static str,
 ) -> impl IntoView {
     let options = StoredValue::new(options);
     let selected = RwSignal::new(current);
@@ -148,14 +151,15 @@ pub fn SelectField(
         }
     };
 
-    let button_class = if compact {
-        "flex max-w-full items-center justify-between gap-1 rounded-sm border border-line bg-canvas px-1.5 py-0.5 \
-         text-left text-[12px] text-fg hover:border-line-strong focus:outline-none focus:border-accent"
+    let text = if tone.is_empty() { "text-fg" } else { tone };
+    let button_class: String = if compact {
+        format!(
+            "flex max-w-full items-center justify-between gap-1 rounded-sm border border-line bg-canvas px-1.5 py-0.5 \
+             text-left text-[12px] {text} hover:border-line-strong focus:outline-none focus:border-accent"
+        )
     } else {
         // The same look as a text input.
-        Box::leak(
-            format!("{INPUT} flex items-center justify-between gap-2 text-left").into_boxed_str(),
-        )
+        format!("{INPUT} flex items-center justify-between gap-2 text-left")
     };
     let wrapper = if compact {
         "inline-block max-w-full"

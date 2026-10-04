@@ -8,11 +8,12 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{DateField, SelectField, BUTTON, COMPACT_INPUT},
+        form::{DateField, SelectField, BUTTON_SOFT, COMPACT_INPUT},
         node_row::NodeRow,
         note_panel::kind_label,
-        page::{column_head, EmptyState, Hints, PageHeader, CHIP, FILTER_BAR},
+        page::{column_head, EmptyState, Hints, PageHeader, FILTER_BAR},
     },
+    labels::note_kind_tone,
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
 
@@ -86,7 +87,7 @@ pub fn Notes() -> impl IntoView {
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon="notes" title="Notes" subtitle="Meeting notes and 1:1s, linked to the people and work they mention">
-                <button class=BUTTON on:click=move |_| create()>"New note"</button>
+                <button class=BUTTON_SOFT on:click=move |_| create()>"New note"</button>
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("Enter", "open")] />
             </PageHeader>
             <div class=FILTER_BAR>
@@ -142,7 +143,7 @@ fn NoteRowView(row: NoteRow, index: usize) -> impl IntoView {
         <NodeRow node=node index=index>
             <div class=COLS>
                 <span class="tabular-nums text-muted">{row.note_date.to_string()}</span>
-                <span><span class=CHIP>{kind_label(row.kind)}</span></span>
+                <span><span class=note_kind_tone(row.kind).chip()>{kind_label(row.kind)}</span></span>
                 <span class="truncate">
                     <span class="font-medium">{row.title}</span>
                     <span class="ml-2 text-muted">{row.excerpt}</span>

@@ -19,7 +19,7 @@ use crate::{
         schedule_panel::SchedulePanel,
         what_if_button::WhatIfButton,
     },
-    labels::{humanize, priority_option, project_status_label},
+    labels::{humanize, priority_option, project_status_label, project_status_tone},
     state::{finish, DataVersion, Selection, Toasts},
 };
 
@@ -156,7 +156,8 @@ fn ProjectFields(project: Project, people: Vec<PersonRow>) -> impl IntoView {
         </div>
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Status" options=status_options
-                current=project.status.as_str().to_owned() on_change=save_status />
+                current=project.status.as_str().to_owned() on_change=save_status
+                tone=project_status_tone(project.status).text() />
             <SelectField label="Priority" options=priority_options
                 current=project.priority.to_string() on_change=save_priority />
         </div>

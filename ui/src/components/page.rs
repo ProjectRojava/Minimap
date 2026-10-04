@@ -24,14 +24,53 @@ pub fn Icon(
     }
 }
 
-/// Small label used for statuses and kinds in lists.
+/// What a pill or status says, in colour: where something stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tone {
+    /// Nothing special: planned, general, cancelled.
+    Neutral,
+    /// Under way or notable: active, in progress, proposed, 1:1.
+    Accent,
+    /// Good: on track, done, decided, resolved.
+    Success,
+    /// Needs attention: at risk, blocked, paused, stale.
+    Warning,
+    /// Bad: off track, overdue.
+    Danger,
+}
+
+impl Tone {
+    /// A tinted pill: border, soft background and text in the tone's colour.
+    pub fn chip(self) -> &'static str {
+        match self {
+            Tone::Neutral => CHIP,
+            Tone::Accent => "inline-block rounded-sm border border-accent/40 bg-accent/10 px-1.5 text-[10px] leading-4 uppercase tracking-wide text-accent",
+            Tone::Success => "inline-block rounded-sm border border-success/40 bg-success/10 px-1.5 text-[10px] leading-4 uppercase tracking-wide text-success",
+            Tone::Warning => "inline-block rounded-sm border border-warning/40 bg-warning/10 px-1.5 text-[10px] leading-4 uppercase tracking-wide text-warning",
+            Tone::Danger => "inline-block rounded-sm border border-danger/40 bg-danger/10 px-1.5 text-[10px] leading-4 uppercase tracking-wide text-danger",
+        }
+    }
+
+    /// Just the text colour (for dropdown buttons and inline words).
+    pub fn text(self) -> &'static str {
+        match self {
+            Tone::Neutral => "text-fg",
+            Tone::Accent => "text-accent",
+            Tone::Success => "text-success",
+            Tone::Warning => "text-warning",
+            Tone::Danger => "text-danger",
+        }
+    }
+}
+
+/// Small label used for statuses and kinds in lists (the neutral pill).
 pub const CHIP: &str = "inline-block rounded-sm border border-line px-1.5 text-[10px] leading-4 \
                         uppercase tracking-wide text-muted";
 
-/// A chip for something that needs attention or matters most: the warning colour.
+/// A pill for what matters most or needs attention: the warning tone.
 pub const CHIP_STRONG: &str =
-    "inline-block rounded-sm border border-warning/50 px-1.5 text-[10px] \
-                               leading-4 font-medium uppercase tracking-wide text-warning";
+    "inline-block rounded-sm border border-warning/40 bg-warning/10 px-1.5 \
+                               text-[10px] leading-4 uppercase tracking-wide text-warning";
 
 /// The bar of filters under a page header.
 pub const FILTER_BAR: &str =
@@ -149,8 +188,36 @@ mod tests {
     }
 
     #[test]
+    fn every_tone_has_a_pill_and_a_text_colour_from_the_theme() {
+        let tones = [
+            Tone::Neutral,
+            Tone::Accent,
+            Tone::Success,
+            Tone::Warning,
+            Tone::Danger,
+        ];
+        let pills: std::collections::HashSet<_> = tones.iter().map(|t| t.chip()).collect();
+        assert_eq!(pills.len(), 5, "pills must be distinct");
+        for t in tones {
+            assert!(
+                t.chip().contains("rounded-sm") && t.chip().contains("text-"),
+                "{t:?}"
+            );
+            assert!(t.text().starts_with("text-"));
+        }
+        assert!(Tone::Accent.chip().contains("accent") && Tone::Danger.chip().contains("danger"));
+    }
+
+    #[test]
     fn chip_and_bars_use_only_theme_tokens() {
-        for class in [CHIP, CHIP_STRONG, FILTER_BAR, FORM_BAR] {
+        for class in [
+            CHIP,
+            CHIP_STRONG,
+            Tone::Success.chip(),
+            Tone::Warning.chip(),
+            FILTER_BAR,
+            FORM_BAR,
+        ] {
             for word in class.split_whitespace() {
                 assert!(
                     !["zinc", "gray", "slate", "red-", "emerald", "dark:", "shadow"]

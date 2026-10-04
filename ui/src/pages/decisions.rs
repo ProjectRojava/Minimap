@@ -9,11 +9,11 @@ use crate::{
     api,
     components::{
         decision_panel::status_options,
-        form::{SelectField, BUTTON, COMPACT_INPUT},
+        form::{SelectField, BUTTON_SOFT, COMPACT_INPUT},
         node_row::NodeRow,
-        page::{column_head, EmptyState, Hints, PageHeader, CHIP, FILTER_BAR},
+        page::{column_head, EmptyState, Hints, PageHeader, FILTER_BAR},
     },
-    labels::decision_status_label,
+    labels::{decision_status_label, decision_status_tone},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
 
@@ -75,7 +75,7 @@ pub fn Decisions() -> impl IntoView {
     view! {
         <div class="flex flex-col h-full">
             <PageHeader icon="decisions" title="Decisions" subtitle="What was decided, why, and what it touches">
-                <button class=BUTTON on:click=move |_| create()>"New decision"</button>
+                <button class=BUTTON_SOFT on:click=move |_| create()>"New decision"</button>
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("Enter", "open")] />
             </PageHeader>
             <div class=FILTER_BAR>
@@ -130,7 +130,7 @@ fn DecisionRowView(row: DecisionRow, index: usize) -> impl IntoView {
         <NodeRow node=node index=index>
             <div class=COLS>
                 <span class="tabular-nums text-muted">{when}</span>
-                <span><span class=CHIP>{decision_status_label(row.status)}</span></span>
+                <span><span class=decision_status_tone(row.status).chip()>{decision_status_label(row.status)}</span></span>
                 <span class=if dim { "truncate text-muted line-through decoration-faint" } else { "truncate" }>
                     <span class="font-medium">{row.title}</span>
                     <span class="ml-2 text-muted">{row.excerpt}</span>
