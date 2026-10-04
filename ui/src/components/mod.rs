@@ -3,6 +3,8 @@ pub mod decision_panel;
 pub mod detail_pane;
 pub mod first_run;
 pub mod form;
+pub mod health;
+pub mod health_panel;
 pub mod links_editor;
 pub mod node_row;
 pub mod note_panel;
