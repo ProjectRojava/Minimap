@@ -1,14 +1,15 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, AssigneeChoice, CreateNote, CreateObjective, CreatePerson, CreateProject,
-    CreateTask, CreateTeam, CreateWaitingOn, Edge, EdgeLink, LinkOption, NewEdge, NodeRef,
-    NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail,
-    ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow,
-    PingResponse, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup,
-    ProjectLayout, Settings, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team,
-    TeamDetail, TeamRow, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
-    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    Activity, AppError, AssigneeChoice, CreateDecision, CreateNote, CreateObjective, CreatePerson,
+    CreateProject, CreateTask, CreateTeam, CreateWaitingOn, Decision, DecisionFilter, DecisionRow,
+    Edge, EdgeLink, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail,
+    NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person,
+    PersonArchivePreview, PersonDetail, PersonRow, PingResponse, Project, ProjectArchivePreview,
+    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, Settings, Task, TaskDetail,
+    TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, UpdateDecision, UpdateNote,
+    UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateTask, UpdateTeam,
+    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -448,6 +449,31 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+}
+
+#[derive(Serialize)]
+struct DecisionListArg {
+    filter_by: DecisionFilter,
+}
+
+pub async fn list_decisions(filter_by: DecisionFilter) -> Result<Vec<DecisionRow>, AppError> {
+    invoke("list_decisions", &DecisionListArg { filter_by }).await
+}
+
+pub async fn get_decision(id: Uuid) -> Result<Decision, AppError> {
+    invoke("get_decision", &IdArg { id }).await
+}
+
+pub async fn create_decision(input: CreateDecision) -> Result<Decision, AppError> {
+    invoke("create_decision", &InputArg { input }).await
+}
+
+pub async fn update_decision(id: Uuid, patch: UpdateDecision) -> Result<Decision, AppError> {
+    invoke("update_decision", &PatchArg { id, patch }).await
+}
+
+pub async fn archive_decision(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_decision", &IdArg { id }).await
 }
 
 pub async fn list_notes(filter_by: NoteFilter) -> Result<Vec<NoteRow>, AppError> {

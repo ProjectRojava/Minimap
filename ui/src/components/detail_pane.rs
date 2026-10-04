@@ -4,9 +4,9 @@ use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeT
 use crate::{
     api,
     components::{
-        links_editor::LinksEditor, note_panel::NotePanel, objective_panel::ObjectivePanel,
-        people_panel::PersonPanel, project_panel::ProjectPanel, task_panel::TaskPanel,
-        team_panel::TeamPanel, waiting_panel::WaitingPanel,
+        decision_panel::DecisionPanel, links_editor::LinksEditor, note_panel::NotePanel,
+        objective_panel::ObjectivePanel, people_panel::PersonPanel, project_panel::ProjectPanel,
+        task_panel::TaskPanel, team_panel::TeamPanel, waiting_panel::WaitingPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -100,13 +100,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Task => view! { <TaskPanel id=node.id /> }.into_any(),
             NodeType::WaitingOn => view! { <WaitingPanel id=node.id /> }.into_any(),
             NodeType::Note => view! { <NotePanel id=node.id /> }.into_any(),
-            other => view! {
-                <Section title="Fields">
-                    <p class="text-muted">
-                        "Editable fields appear here once the " {type_label(other).to_lowercase()} " screens land."
-                    </p>
-                </Section>
-            }.into_any(),
+            NodeType::Decision => view! { <DecisionPanel id=node.id /> }.into_any(),
         }}
 
         <Section title="Links">
@@ -187,9 +181,11 @@ pub fn link_heading(edge_type: EdgeType, outgoing: bool) -> &'static str {
         (Mentions, true) => "Mentions",
         (Mentions, false) => "Mentioned in",
         (Affects, true) => "Affects",
-        (Affects, false) => "Affected by",
+        (Affects, false) => "Decisions",
         (About, true) => "About",
         (About, false) => "Waiting-ons",
+        (Supersedes, true) => "Supersedes",
+        (Supersedes, false) => "Superseded by",
     }
 }
 
@@ -290,6 +286,10 @@ mod tests {
     fn headings_cover_both_directions() {
         assert_eq!(link_heading(EdgeType::Blocks, true), "Blocks");
         assert_eq!(link_heading(EdgeType::Blocks, false), "Blocked by");
+        // On a project, task or objective the incoming `affects` links are its decisions.
+        assert_eq!(link_heading(EdgeType::Affects, false), "Decisions");
+        assert_eq!(link_heading(EdgeType::Supersedes, true), "Supersedes");
+        assert_eq!(link_heading(EdgeType::Supersedes, false), "Superseded by");
         for &t in EdgeType::ALL {
             assert_ne!(link_heading(t, true), "");
             assert_ne!(link_heading(t, false), "");

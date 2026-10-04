@@ -47,8 +47,9 @@ Matrix (enforce in core, reject anything else):
 | mentions | Note → any | — |
 | affects | Decision → Project/Task/Objective | — |
 | about | WaitingOn → Task/Project | — |
+| supersedes | Decision → Decision (newer → older) | — |
 
-Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `reports_to`, or team nesting; no self-edges; archiving a node archives its edges; hard delete only after archive, with UI confirmation.
+Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `supersedes`, `reports_to`, or team nesting; no self-edges; archiving a node archives its edges; hard delete only after archive, with UI confirmation.
 
 ### Activity log
 `activity(id, at, node_type, node_id, action [created/updated/archived/edge_added/edge_removed], diff JSON {field:[old,new]})`. Every write goes through a repository method that appends to `activity` in the same transaction.

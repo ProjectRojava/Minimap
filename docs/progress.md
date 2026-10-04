@@ -21,3 +21,4 @@
 - [x] 07 Edges, linking and cycle detection (implemented; manual click-through pending). Includes `relates_to`, the generic Links editor, schema-driven attribute validation
 - [x] 08 Waiting-on (implemented; manual click-through pending). Includes snooze (`follow_up_on`, migration 0006) and the stale-threshold setting; Overview/This week will consume it (15, 16)
 - [x] 09 Notes and @mentions (implemented; manual click-through pending). Mentions stored as `@[Name](node:id)`, checklist conversion, safe Markdown preview, autosave with folded activity
+- [x] 10 Decisions (implemented; manual click-through pending). Own node type; new `supersedes` edge (ADR-0006) marks the older decision superseded; deciding stamps today; decisions show under "Decisions" on affected nodes; a date-range filter is ready for the weekly review (19)

@@ -1,12 +1,14 @@
 use minimap_types::{
-    ActivityAction, CreateDecision, Decision, DecisionStatus, NodeType, UpdateDecision,
+    ActivityAction, CreateDecision, Decision, DecisionStatus, Edge, EdgeType, NewEdge, NodeRef,
+    NodeType, UpdateDecision,
 };
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
     activity,
     convert::*,
+    edges,
     error::Result,
     repo::{fetch, fetch_all},
 };
@@ -46,8 +48,11 @@ pub fn create(conn: &mut Connection, input: CreateDecision) -> Result<Decision> 
         context: input.context,
         decision: input.decision,
         rationale: input.rationale,
-        decided_on: input.decided_on,
         status: input.status.unwrap_or(DecisionStatus::Proposed),
+        // Deciding something puts a date on it.
+        decided_on: input
+            .decided_on
+            .or_else(|| (input.status == Some(DecisionStatus::Decided)).then(today)),
         created_at: at,
         updated_at: at,
         archived_at: None,
@@ -76,9 +81,22 @@ pub fn create(conn: &mut Connection, input: CreateDecision) -> Result<Decision> 
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateDecision) -> Result<Decision> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let new = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(new)
+}
+
+/// Moving a decision to `decided` without a date stamps today.
+fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateDecision) -> Result<Decision> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
+    if new.status == DecisionStatus::Decided
+        && old.status != DecisionStatus::Decided
+        && new.decided_on.is_none()
+    {
+        new.decided_on = Some(today());
+    }
     ensure_not_blank("title", &new.title)?;
     let diff = activity::diff(&old, &new)?;
     if diff.is_empty() {
@@ -101,13 +119,40 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateDecision) -> Result<
         ],
     )?;
     activity::record(
-        &tx,
+        tx,
         new.updated_at,
         NodeType::Decision,
         id,
         ActivityAction::Updated,
         &diff.into(),
     )?;
-    tx.commit()?;
     Ok(new)
+}
+
+/// `new` replaces `old`: adds the `supersedes` link and marks `old` as superseded, in one
+/// transaction (the matrix and loop checks are the caller's job).
+pub fn supersede(conn: &mut Connection, new: Uuid, old: Uuid) -> Result<Edge> {
+    let tx = conn.transaction()?;
+    let edge = edges::add_in_tx(
+        &tx,
+        NewEdge {
+            edge_type: EdgeType::Supersedes,
+            from: NodeRef::new(NodeType::Decision, new),
+            to: NodeRef::new(NodeType::Decision, old),
+            attrs: serde_json::json!({}),
+        },
+    )?;
+    let older = get(&tx, old)?;
+    if older.status != DecisionStatus::Superseded {
+        update_in_tx(
+            &tx,
+            old,
+            UpdateDecision {
+                status: Some(DecisionStatus::Superseded),
+                ..Default::default()
+            },
+        )?;
+    }
+    tx.commit()?;
+    Ok(edge)
 }

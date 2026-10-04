@@ -74,6 +74,7 @@ str_enum!(EdgeType {
     Mentions => "mentions",
     Affects => "affects",
     About => "about",
+    Supersedes => "supersedes",
 });
 
 str_enum!(ObjectiveStatus {

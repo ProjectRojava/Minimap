@@ -1,9 +1,9 @@
+pub mod decisions;
 pub mod deep_link;
 pub mod notes;
 pub mod objectives;
 pub mod overview;
 pub mod people;
-pub mod placeholder;
 pub mod projects;
 pub mod settings;
 pub mod tasks;

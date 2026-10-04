@@ -1,4 +1,5 @@
 pub mod date_field;
+pub mod decision_panel;
 pub mod detail_pane;
 pub mod first_run;
 pub mod form;
