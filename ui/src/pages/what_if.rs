@@ -12,6 +12,7 @@ use crate::{
     api,
     components::{
         form::{BUTTON, BUTTON_PRIMARY, COMPACT_INPUT},
+        page::{EmptyState, PageHeader, CHIP},
         what_if_button::DEFAULT_SLIP_DAYS,
     },
     nav::type_label,
@@ -171,10 +172,9 @@ pub fn WhatIf() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">"What if this slips?"</h1>
-                <span class="ml-auto text-[11px] text-muted">"Read-only until you apply it"</span>
-            </header>
+            <PageHeader icon="what-if" title="What if this slips?" subtitle="See what a delay would push, before it happens">
+                <span class=format!("{CHIP} ml-auto")>"Read-only until you apply it"</span>
+            </PageHeader>
             <div class="flex-1 overflow-y-auto">
                 <section class="px-4 py-3 border-b border-line">
                     <h2 class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">"Scenario"</h2>
@@ -188,7 +188,8 @@ pub fn WhatIf() -> impl IntoView {
                     None => view! { <p class="p-4 text-muted">"Working it out…"</p> }.into_any(),
                     Some(Err(e)) => view! { <p class="p-4 text-danger">{e.message}</p> }.into_any(),
                     Some(Ok(None)) => view! {
-                        <p class="p-4 text-muted">"Pick something above, or use \u{201c}What if this slips?\u{201d} on any task or project."</p>
+                        <EmptyState icon="what-if" title="Pick something that might slip"
+                            hint="Search for a task or project above, or use \u{201c}What if this slips?\u{201d} on any task or project." />
                     }.into_any(),
                     Some(Ok(Some(r))) => view! { <Report report=r /> }.into_any(),
                 }}

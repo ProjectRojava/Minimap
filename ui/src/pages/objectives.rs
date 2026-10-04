@@ -9,6 +9,7 @@ use crate::{
     components::{
         form::{DateField, SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
         node_row::NodeRow,
+        page::{column_head, EmptyState, GroupLabel, PageHeader, CHIP, CHIP_STRONG, FORM_BAR},
     },
     labels::{objective_status_label, priority_option, priority_short},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
@@ -89,8 +90,7 @@ pub fn Objectives() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">"Objectives"</h1>
+            <PageHeader icon="objectives" title="Objectives" subtitle="The outcomes your portfolio serves">
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New objective" }}
                 </button>
@@ -100,9 +100,9 @@ pub fn Objectives() -> impl IntoView {
                         on:click=move |_| by_quarter.update(|b| *b = !*b)>
                     "Group by quarter"
                 </button>
-            </header>
+            </PageHeader>
             <Show when=move || adding.get()>
-                <form class="flex items-end gap-2 px-4 py-2 border-b border-line bg-panel"
+                <form class=FORM_BAR
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Objective" autofocus prop:value=move || title.get()
                            on:input=move |ev| title.set(event_target_value(&ev)) />
@@ -112,7 +112,7 @@ pub fn Objectives() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
-            <div class=format!("{COLS} px-3 py-1 text-[11px] uppercase tracking-wide text-muted border-b border-line")>
+            <div class=column_head(COLS)>
                 <span>"Pri"</span><span>"Objective"</span><span>"Assessment"</span>
                 <span>"Target"</span><span class="text-right">"Work"</span>
             </div>
@@ -121,18 +121,15 @@ pub fn Objectives() -> impl IntoView {
                     None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load objectives."</p> }.into_any(),
                     Some(Ok(g)) if g.is_empty() => view! {
-                        <p class="p-4 text-muted">"No objectives yet. Add the outcomes your portfolio serves."</p>
+                        <EmptyState icon="objectives" title="No objectives yet"
+                            hint="Add the outcomes your portfolio serves, then link projects to them." />
                     }.into_any(),
                     Some(Ok(g)) => {
                         let mut index = 0;
                         let mut out = Vec::new();
                         for group in g {
                             if let Some(label) = group.label {
-                                out.push(view! {
-                                    <div class="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                                        {label} <span class="ml-1 font-normal text-faint">{group.rows.len()}</span>
-                                    </div>
-                                }.into_any());
+                                out.push(view! { <GroupLabel label=label count=group.rows.len() /> }.into_any());
                             }
                             for row in group.rows {
                                 out.push(objective_row(row, index).into_any());
@@ -161,17 +158,13 @@ fn objective_row(row: ObjectiveRow, index: usize) -> impl IntoView {
         o.status,
         ObjectiveStatus::AtRisk | ObjectiveStatus::OffTrack
     );
-    let status_class = if attention {
-        "text-fg font-medium"
-    } else {
-        "text-muted"
-    };
+    let status_class = if attention { CHIP_STRONG } else { CHIP };
     view! {
         <NodeRow node=node index=index>
             <div class=COLS>
                 <span class="text-muted tabular-nums">{priority_short(o.priority)}</span>
                 <span class="truncate font-medium">{o.title}</span>
-                <span class=status_class>{objective_status_label(o.status)}</span>
+                <span><span class=status_class>{objective_status_label(o.status)}</span></span>
                 <span class="text-muted tabular-nums">{o.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
                 <span class="text-right tabular-nums text-muted">{row.contribution_count}</span>
             </div>
