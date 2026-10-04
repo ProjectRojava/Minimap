@@ -79,6 +79,12 @@ pub const NAV: &[NavItem] = &[
         enabled: true,
     },
     NavItem {
+        label: "What if",
+        path: "/what-if",
+        chord: 'f',
+        enabled: true,
+    },
+    NavItem {
         label: "Weekly review",
         path: "/weekly-review",
         chord: 'r',

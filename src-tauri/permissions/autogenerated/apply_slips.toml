@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-apply-slips"
+description = "Enables the apply_slips command without any pre-configured scope."
+commands.allow = ["apply_slips"]
+
+[[permission]]
+identifier = "deny-apply-slips"
+description = "Denies the apply_slips command without any pre-configured scope."
+commands.deny = ["apply_slips"]

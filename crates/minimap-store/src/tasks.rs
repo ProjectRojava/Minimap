@@ -160,7 +160,25 @@ pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> 
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTask) -> Result<Task> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let task = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(task)
+}
+
+/// Applies several updates or none (one transaction); one activity row per changed task.
+pub fn update_many(conn: &mut Connection, updates: Vec<(Uuid, UpdateTask)>) -> Result<Vec<Task>> {
+    let tx = conn.transaction()?;
+    let tasks = updates
+        .into_iter()
+        .map(|(id, patch)| update_in_tx(&tx, id, patch))
+        .collect::<Result<Vec<_>>>()?;
+    tx.commit()?;
+    Ok(tasks)
+}
+
+/// [`update`] inside a caller's transaction.
+pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Result<Task> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     // completed_at follows status: set on entering `done`, cleared on leaving it.
@@ -195,13 +213,12 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTask) -> Result<Task
         ],
     )?;
     activity::record(
-        &tx,
+        tx,
         at,
         NodeType::Task,
         id,
         ActivityAction::Updated,
         &diff.into(),
     )?;
-    tx.commit()?;
     Ok(new)
 }

@@ -33,20 +33,20 @@ pub enum ScheduleError {
 // ------------------------------------------------------------------- calendar
 
 /// Index of the first working day on or after `d` (a weekend maps to the next Monday).
-fn working_index(d: Date) -> i64 {
+pub(crate) fn working_index(d: Date) -> i64 {
     let n = i64::from(d.to_julian_day()) - EPOCH_JD;
     n.div_euclid(7) * 5 + n.rem_euclid(7).min(5)
 }
 
 /// Index just past the last working day on or before `d`: the end of that day.
-fn end_index(d: Date) -> i64 {
+pub(crate) fn end_index(d: Date) -> i64 {
     let n = i64::from(d.to_julian_day()) - EPOCH_JD;
     let weekday = n.rem_euclid(7) < 5;
     working_index(d) + i64::from(weekday)
 }
 
 /// The date of working day `index`.
-fn date_of(index: i64) -> Date {
+pub(crate) fn date_of(index: i64) -> Date {
     let jd = EPOCH_JD + index.div_euclid(5) * 7 + index.rem_euclid(5);
     i32::try_from(jd)
         .ok()
@@ -89,6 +89,19 @@ pub fn compute(
     projects: &[Project],
     today: Date,
     scope: ScheduleScope,
+) -> Result<Schedule, ScheduleError> {
+    compute_with(tasks, edges, projects, today, scope, &HashMap::new())
+}
+
+/// [`compute`] with extra "not before" constraints (working-day offsets) on open tasks. Impact
+/// analysis uses them to model a slip: a task held until `baseline start + N`.
+pub fn compute_with(
+    tasks: &[Task],
+    edges: &[Edge],
+    projects: &[Project],
+    today: Date,
+    scope: ScheduleScope,
+    not_before: &HashMap<Uuid, f64>,
 ) -> Result<Schedule, ScheduleError> {
     let t0 = working_index(today);
     let offset = |d: Date| (working_index(d) - t0) as f64;
@@ -148,6 +161,9 @@ pub fn compute(
         let mut es: f64 = 0.0;
         if let Some(s) = nodes[i].task.start_date {
             es = es.max(offset(s));
+        }
+        if let Some(nb) = not_before.get(&nodes[i].task.id) {
+            es = es.max(*nb);
         }
         for e in graph.edges_directed(n, Direction::Incoming) {
             es = es.max(nodes[e.source().index()].ef + *e.weight());

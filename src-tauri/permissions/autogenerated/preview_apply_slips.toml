@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-preview-apply-slips"
+description = "Enables the preview_apply_slips command without any pre-configured scope."
+commands.allow = ["preview_apply_slips"]
+
+[[permission]]
+identifier = "deny-preview-apply-slips"
+description = "Denies the preview_apply_slips command without any pre-configured scope."
+commands.deny = ["preview_apply_slips"]

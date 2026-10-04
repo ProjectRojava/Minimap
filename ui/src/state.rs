@@ -31,6 +31,18 @@ impl PaletteOpen {
     }
 }
 
+/// The "what if" scenario being explored: slips on tasks or projects. "What if this slips?"
+/// buttons fill it and open the screen; the screen edits it.
+#[derive(Clone, Copy)]
+pub struct Scenario(pub RwSignal<Vec<minimap_types::Slip>>);
+
+impl Scenario {
+    /// Starts a scenario with one slip.
+    pub fn start(&self, node: NodeRef, days: u32) {
+        self.0.set(vec![minimap_types::Slip { node, days }]);
+    }
+}
+
 /// Rows of the list screen currently shown, so `j`/`k`/`Enter` work on any list.
 /// A list screen calls `set_items` with its rows and renders them with `NodeRow`.
 #[derive(Clone, Copy)]

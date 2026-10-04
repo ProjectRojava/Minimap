@@ -183,6 +183,12 @@
           "markdownDescription": "Enables the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Enables the apply_slips command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-apply-slips",
+          "markdownDescription": "Enables the apply_slips command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_decision command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-decision",
@@ -507,6 +513,12 @@
           "markdownDescription": "Enables the ping command without any pre-configured scope."
         },
         {
+          "description": "Enables the preview_apply_slips command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-preview-apply-slips",
+          "markdownDescription": "Enables the preview_apply_slips command without any pre-configured scope."
+        },
+        {
           "description": "Enables the preview_archive_person command without any pre-configured scope.",
           "type": "string",
           "const": "allow-preview-archive-person",
@@ -541,6 +553,12 @@
           "type": "string",
           "const": "allow-resolve-waiting-on",
           "markdownDescription": "Enables the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the run_impact_analysis command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-run-impact-analysis",
+          "markdownDescription": "Enables the run_impact_analysis command without any pre-configured scope."
         },
         {
           "description": "Enables the search command without any pre-configured scope.",
@@ -637,6 +655,12 @@
           "type": "string",
           "const": "deny-add-edge",
           "markdownDescription": "Denies the add_edge command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the apply_slips command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-apply-slips",
+          "markdownDescription": "Denies the apply_slips command without any pre-configured scope."
         },
         {
           "description": "Denies the archive_decision command without any pre-configured scope.",
@@ -963,6 +987,12 @@
           "markdownDescription": "Denies the ping command without any pre-configured scope."
         },
         {
+          "description": "Denies the preview_apply_slips command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-preview-apply-slips",
+          "markdownDescription": "Denies the preview_apply_slips command without any pre-configured scope."
+        },
+        {
           "description": "Denies the preview_archive_person command without any pre-configured scope.",
           "type": "string",
           "const": "deny-preview-archive-person",
@@ -997,6 +1027,12 @@
           "type": "string",
           "const": "deny-resolve-waiting-on",
           "markdownDescription": "Denies the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the run_impact_analysis command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-run-impact-analysis",
+          "markdownDescription": "Denies the run_impact_analysis command without any pre-configured scope."
         },
         {
           "description": "Denies the search command without any pre-configured scope.",

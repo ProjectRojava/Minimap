@@ -21,3 +21,4 @@ pub mod team_panel;
 pub mod titlebar;
 pub mod toasts;
 pub mod waiting_panel;
+pub mod what_if_button;

@@ -4,7 +4,8 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    timefmt::fmt_ts, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask, Uuid,
+    timefmt::fmt_ts, NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask,
+    Uuid,
 };
 
 use crate::{
@@ -13,6 +14,7 @@ use crate::{
         detail_pane::Section,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         people_panel::error_line,
+        what_if_button::WhatIfButton,
     },
     labels::{estimate_text, priority_option, task_status_label},
     state::{finish, DataVersion, Selection, Toasts},
@@ -33,6 +35,7 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
                 _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Section>
+        <WhatIfButton node=NodeRef::new(NodeType::Task, id) />
         <ArchiveTask id=id />
     }
 }
