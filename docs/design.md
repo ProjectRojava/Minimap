@@ -7,12 +7,25 @@ Flat, monochrome, IDE-like (think Zed): the work is the colour, the chrome is gr
 - **Flat.** No shadows, gradients or blur. Separate areas with a 1px `border-line` hairline or a `bg-panel` / `bg-canvas` change. Radius `rounded-sm` at most.
 - **Monochrome.** Hierarchy comes from `fg` / `muted` / `faint` text and weight, not hue. The one hue is `danger`, for errors and destructive actions. Status colours (health, overload) are added only where the colour carries meaning, and sparingly.
 - **Easy on the eye.** No pure black or white; low-contrast hairlines. `fg` and `muted` meet WCAG AA (≥ 4.5:1) on canvas and panel in every theme (enforced by tests; see Themes); `faint` (~2.5:1) is only for hints and icons that are also available elsewhere (shortcut hints, ✕), never for information you need to read.
-- **Dense.** 13px base text, 28px (`h-7`) rows, 40px (`h-10`) headers, 11px uppercase labels for section titles.
+- **Dense.** 13px base text, 32px (`h-8`) list rows with a hairline between them, 48px (`h-12`) page headers, 28px sidebar rows, 10px uppercase labels for section and column titles.
 - **Primary buttons** are inverted (`bg-fg text-canvas`), not coloured.
 - **No native pop-ups.** The OS toolkit draws a webview's `<select>` list, date picker and checkbox, and they ignore page colours. Use `SelectField` (themed dropdown) and `DateField` (ISO text box + themed calendar) instead of `<select>` and `<input type="date">`; checkboxes and number/search inputs are restyled in `ui/style/input.css`. Dates are always shown and typed as `YYYY-MM-DD`, never in the locale's format.
 
 ## Window chrome
 The native title bar is disabled; `TitleBar` (32px) draws the app name, a drag region and minimize / maximize / close (flat, `currentColor` line icons; close turns `danger` on hover). It sits above the sidebar, content and pane, so full-height overlays start at `top-8`. On macOS the native traffic lights overlay the bar. See ADR-0004.
+
+## Pages
+Every list screen is built from the same pieces (`ui/src/components/page.rs`), so they look and behave alike:
+- **`PageHeader`** (48px, `bg-panel`): a 28px icon tile (the screen's sidebar icon), the title (14px semibold), a one-line description (hidden below ~1024px), then the page's own buttons and toggles as children. **`Hints`** renders the keyboard shortcuts as key chips at the right (hidden below ~1280px).
+- **`FILTER_BAR`** under the header (search, dropdowns, date ranges); **`FORM_BAR`** (`bg-panel`) for the inline "new" forms.
+- **Column headings** (`column_head`): 28px, 10px uppercase, `bg-panel`, using the list's own grid so they line up with the rows; **`GroupLabel`** for group headings with a count chip.
+- **`NodeRow`**: 32px, hairline below, hover `bg-hover`, keyboard cursor `bg-hover` + a 2px muted left bar, open item `bg-active` + a 2px `fg` left bar (the same marker the sidebar uses).
+- **`CHIP`** for statuses and kinds; **`CHIP_STRONG`** (stronger border, `fg` text) for what needs attention. No colour: weight and border carry it.
+- **`EmptyState`** (icon tile, title, hint) instead of a bare sentence; **`Card`** (title, description, body) for Settings.
+- The Overview adds four **stat tiles** (red / amber / green / not scored) above its lists.
+
+## Sidebar
+`Sidebar` (208px, `bg-panel`): the search box in its own hairline-separated header; the screens in **groups** with 10px uppercase headings (none for the first group, then Plan, People, Log); a footer with Settings and a "Command palette" button showing the shortcut as key chips. Each entry is a 28px row with a 16px **line icon** (`currentColor`, 1.4px round stroke, path data in `ui/src/icons.rs`), the label, and a quiet `g x` key chip that appears on hover. The current screen has `bg-active`, medium weight, `text-fg` and a 2px `bg-fg` bar on its left edge; everything else is `text-muted` and turns `text-fg` on hover. Groups and icons come from the `group` and `icon` fields of `nav::NAV`, so a new screen is one table entry.
 
 ## Tokens
 | Utility | Use |

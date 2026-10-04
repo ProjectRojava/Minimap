@@ -10,6 +10,7 @@ use crate::{
         form::{DateField, SelectField, BUTTON, BUTTON_PRIMARY, INPUT},
         node_row::NodeRow,
         objective_panel::{candidate_value, parse_candidate},
+        page::{column_head, EmptyState, Hints, PageHeader, FILTER_BAR, FORM_BAR},
         waiting_panel::{age_text, snooze_options},
     },
     nav::type_label,
@@ -155,14 +156,13 @@ pub fn WaitingOn() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">"Waiting on"</h1>
+            <PageHeader icon="waiting" title="Waiting on" subtitle="What you are waiting for, from whom, and for how long">
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New" }}
                 </button>
-                <span class="ml-auto text-[11px] text-muted">"n new · j/k move · x resolve · s snooze 3 days"</span>
-            </header>
-            <div class="flex flex-wrap items-center gap-3 px-4 py-1.5 shrink-0 border-b border-line">
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "resolve"), ("s", "snooze 3 days")] />
+            </PageHeader>
+            <div class=FILTER_BAR>
                 {move || {
                     let options: Vec<(String, String)> = std::iter::once((String::new(), "Anyone".to_owned()))
                         .chain(match people.get() {
@@ -185,7 +185,7 @@ pub fn WaitingOn() -> impl IntoView {
                 </label>
             </div>
             <Show when=move || adding.get()>
-                <form class="flex flex-wrap items-end gap-2 px-4 py-2 border-b border-line bg-panel"
+                <form class=format!("{FORM_BAR} flex-wrap")
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=format!("{INPUT} !w-72") placeholder="What are you waiting for?" autofocus
                            prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
@@ -211,7 +211,7 @@ pub fn WaitingOn() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
-            <div class=format!("{COLS} px-3 py-1 text-[11px] uppercase tracking-wide text-muted border-b border-line")>
+            <div class=column_head(COLS)>
                 <span>"Age"</span><span>"Waiting for"</span><span>"From"</span><span>"About"</span>
                 <span>"Expected"</span><span></span>
             </div>
@@ -220,7 +220,8 @@ pub fn WaitingOn() -> impl IntoView {
                     None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load waiting-ons."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
-                        <p class="p-4 text-muted">"Nothing outstanding. Press n to note something you're waiting on."</p>
+                        <EmptyState icon="waiting" title="Nothing outstanding"
+                            hint="Press n to note something you're waiting on." />
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate()
                         .map(|(i, row)| view! { <WaitingRowView row=row index=i /> })

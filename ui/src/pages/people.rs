@@ -6,6 +6,7 @@ use crate::{
     components::{
         form::{BUTTON, BUTTON_PRIMARY, INPUT},
         node_row::NodeRow,
+        page::{column_head, EmptyState, PageHeader, FORM_BAR},
     },
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
@@ -61,14 +62,13 @@ pub fn People() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">"People"</h1>
+            <PageHeader icon="people" title="People" subtitle="The people you work with, their teams and load">
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New person" }}
                 </button>
-            </header>
+            </PageHeader>
             <Show when=move || adding.get()>
-                <form class="flex items-center gap-2 px-4 py-2 border-b border-line bg-panel"
+                <form class=FORM_BAR
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Name" autofocus prop:value=move || name.get()
                            on:input=move |ev| name.set(event_target_value(&ev)) />
@@ -77,7 +77,7 @@ pub fn People() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
-            <div class=format!("{COLS} px-3 py-1 text-[11px] uppercase tracking-wide text-muted border-b border-line")>
+            <div class=column_head(COLS)>
                 <span>"Name"</span><span>"Role"</span><span>"Teams"</span>
                 <span class="text-right">"Tasks"</span><span class="text-right">"Waiting"</span>
             </div>
@@ -86,7 +86,8 @@ pub fn People() -> impl IntoView {
                     None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load people."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
-                        <p class="p-4 text-muted">"No people yet. Add the people you work with."</p>
+                        <EmptyState icon="people" title="No people yet"
+                            hint="Add the people you work with; assign them tasks and track what you wait on." />
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate().map(|(i, p)| {
                         let node = NodeRef::new(NodeType::Person, p.person.id);

@@ -15,6 +15,7 @@ use crate::{
     components::{
         form::{date_patch, DateField, SelectField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT, INPUT},
         node_row::NodeRow,
+        page::{column_head, EmptyState, Hints, PageHeader, FILTER_BAR},
     },
     labels::{priority_option, task_status_label},
     state::{finish, DataVersion, ListNav, Toasts},
@@ -230,16 +231,13 @@ pub fn TaskList(inbox: bool) -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <header class="flex items-center gap-3 px-4 h-10 shrink-0 border-b border-line">
-                <h1 class="text-[13px] font-semibold">{if inbox { "Inbox" } else { "Tasks" }}</h1>
+            <PageHeader icon=if inbox { "inbox" } else { "tasks" } title=if inbox { "Inbox" } else { "Tasks" } subtitle="Work you or your team own, with estimates and due dates">
                 <button class=BUTTON on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New task" }}
                 </button>
-                <span class="ml-auto text-[11px] text-muted">
-                    "n new · j/k move · x done · s status · 1-5 priority · d due · a assignee"
-                </span>
-            </header>
-            <div class="flex flex-wrap items-center gap-2 px-4 py-1.5 shrink-0 border-b border-line">
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
+            </PageHeader>
+            <div class=FILTER_BAR>
                 <input class=format!("{COMPACT_INPUT} w-44") type="search" placeholder="Search tasks"
                        prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
                 {move || view! { <SelectField compact=true current=status.get_untracked()
@@ -309,7 +307,7 @@ pub fn TaskList(inbox: bool) -> impl IntoView {
                     <p class="text-[11px] text-muted">"Enter adds a task. Shift+Enter for a new line. Pasting several lines shows a preview first."</p>
                 </div>
             </Show>
-            <div class=format!("{COLS} px-3 py-1 text-[11px] uppercase tracking-wide text-muted border-b border-line")>
+            <div class=column_head(COLS)>
                 <span>"Status"</span><span>"Pri"</span><span>"Task"</span><span>"Project"</span>
                 <span>"Assignee"</span><span>"Due"</span>
             </div>
@@ -317,12 +315,17 @@ pub fn TaskList(inbox: bool) -> impl IntoView {
                 {move || match (rows.get(), people.get(), projects.get()) {
                     (Some(Ok(r)), Some(Ok(ps)), Some(Ok(pr))) => {
                         if r.is_empty() {
-                            let msg = if inbox {
-                                "The inbox is empty: every open task has a project."
+                            return if inbox {
+                                view! {
+                                    <EmptyState icon="inbox" title="Inbox zero"
+                                        hint="Every open task has a project. New tasks without one land here." />
+                                }.into_any()
                             } else {
-                                "No tasks match. Press n to add one, or adjust the filters."
+                                view! {
+                                    <EmptyState icon="tasks" title="No tasks match"
+                                        hint="Press n to add one, or adjust the filters." />
+                                }.into_any()
                             };
-                            return view! { <p class="p-4 text-muted">{msg}</p> }.into_any();
                         }
                         let people: Vec<(String, String)> = ps.iter().map(|p| (p.person.id.to_string(), p.person.name.clone())).collect();
                         let projects: Vec<(String, String)> = pr.iter().map(|p| (p.node.id.to_string(), p.label.clone())).collect();
