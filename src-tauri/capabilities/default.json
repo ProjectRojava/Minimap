@@ -64,6 +64,7 @@
     "allow-reopen-waiting-on",
     "allow-snooze-waiting-on",
     "allow-archive-waiting-on",
+    "allow-search",
     "allow-list-decisions",
     "allow-get-decision",
     "allow-create-decision",

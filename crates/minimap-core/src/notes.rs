@@ -77,6 +77,11 @@ fn replace_mentions(text: &str, f: impl Fn(&Mention) -> String) -> String {
     out
 }
 
+/// The body with every mention shown as `@Name` (what search indexes, so ids never match).
+pub fn mentions_as_names(body: &str) -> String {
+    replace_mentions(body, |m| format!("@{}", m.label))
+}
+
 /// Strips a list bullet (`-`, `*`, `+`) and returns what follows, if the line is `[ ] text`.
 fn unchecked_text(line: &str) -> Option<&str> {
     let mut s = line.trim_start();

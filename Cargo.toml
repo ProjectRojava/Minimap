@@ -19,7 +19,7 @@ thiserror = "2.0.21"
 anyhow = "1.0.104"
 uuid = { version = "1.26.1", features = ["serde"] }
 time = { version = "0.3.55", features = ["serde", "serde-human-readable", "serde-well-known", "formatting", "parsing", "macros"] }
-rusqlite = { version = "0.40.2", features = ["bundled-sqlcipher-vendored-openssl", "backup"] }
+rusqlite = { version = "0.40.2", features = ["bundled-sqlcipher-vendored-openssl", "backup", "functions"] }
 rusqlite_migration = "2.6.0"
 petgraph = "0.8.3"
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }

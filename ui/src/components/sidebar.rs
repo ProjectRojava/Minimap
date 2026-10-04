@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_location};
 
-use crate::nav::NAV;
+use crate::{components::search_box::SearchBox, nav::NAV};
 
 #[component]
 pub fn Sidebar() -> impl IntoView {
@@ -18,6 +18,7 @@ pub fn Sidebar() -> impl IntoView {
     view! {
         <nav class="w-52 shrink-0 flex flex-col border-r border-line bg-panel"
              aria-label="Main">
+            <SearchBox />
             <ul class="flex-1 overflow-y-auto px-2 py-2 space-y-px">
                 {NAV.iter().filter(|n| n.enabled).map(|n| {
                     let path = n.path;

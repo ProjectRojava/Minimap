@@ -519,6 +519,12 @@
           "markdownDescription": "Enables the resolve_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the search command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-search",
+          "markdownDescription": "Enables the search command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_assignee command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-assignee",
@@ -943,6 +949,12 @@
           "type": "string",
           "const": "deny-resolve-waiting-on",
           "markdownDescription": "Denies the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the search command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-search",
+          "markdownDescription": "Denies the search command without any pre-configured scope."
         },
         {
           "description": "Denies the set_assignee command without any pre-configured scope.",

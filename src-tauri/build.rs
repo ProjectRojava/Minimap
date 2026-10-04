@@ -59,6 +59,7 @@ const COMMANDS: &[&str] = &[
     "reopen_waiting_on",
     "snooze_waiting_on",
     "archive_waiting_on",
+    "search",
     "list_decisions",
     "get_decision",
     "create_decision",

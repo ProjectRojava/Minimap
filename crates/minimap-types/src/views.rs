@@ -385,3 +385,25 @@ pub struct DecisionRow {
     pub affects: Vec<NodeSummary>,
     pub superseded_by: Option<NodeSummary>,
 }
+
+// -------------------------------------------------------------------- search
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SearchFilter {
+    /// Only these node types; empty means every type.
+    pub types: Vec<crate::NodeType>,
+    pub include_archived: bool,
+    /// At most this many hits (default 20, never more than 100).
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SearchHit {
+    pub node: crate::NodeRef,
+    /// The node's name or title.
+    pub label: String,
+    pub archived: bool,
+    /// A short piece of the node's text around the match (empty when there is none).
+    pub snippet: String,
+}
