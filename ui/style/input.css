@@ -141,3 +141,23 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .gantt .target { stroke: var(--danger); stroke-width: 1; stroke-dasharray: 4 3; }
 .gantt .today-label { fill: var(--accent); }
 .gantt .target-label { fill: var(--danger); }
+
+/* Dependency graph (pages/graph.rs). Theme tokens only. */
+.dep { display: block; cursor: grab; user-select: none; }
+.dep:active { cursor: grabbing; }
+.dep text { font-family: inherit; }
+.dep .box { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
+.dep .label { fill: var(--fg); font-size: 12px; font-weight: 500; }
+.dep .sub { fill: var(--muted); font-size: 10px; }
+.dep .node { cursor: pointer; }
+.dep .node:hover .box { fill: var(--hover); }
+.dep .node.critical .box { stroke: var(--accent); stroke-width: 1.6; }
+.dep .node.late .box { stroke: var(--danger); stroke-width: 1.6; }
+.dep .node.blocked .box { stroke: var(--warning); stroke-width: 1.6; stroke-dasharray: 4 2; }
+.dep .node.done { opacity: 0.6; }
+.dep .node.context { opacity: 0.5; }
+.dep .edge { fill: none; stroke: var(--line-strong); stroke-width: 1.2; }
+.dep .edge.critical { stroke: var(--accent); stroke-width: 2; }
+.dep .arrow { fill: var(--line-strong); }
+.dep .arrow.critical { fill: var(--accent); }
+.dep .lag { fill: var(--muted); font-size: 10px; }

@@ -70,6 +70,13 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M6.5 10v3",
         ],
         "capacity" => &["M3 13V9", "M8 13V3", "M13 13V6", "M1.8 14h12.4"],
+        "graph" => &[
+            "M2.5 6.5h3v3h-3z",
+            "M10.5 2.5h3v3h-3z",
+            "M10.5 10.5h3v3h-3z",
+            "M5.5 8h2.5l2.5-3",
+            "M8 8l2.5 3",
+        ],
         "search" => &["M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M10.8 10.8 14 14"],
         "command" => &[
             "M5.5 5.5h5v5h-5z",
@@ -113,6 +120,7 @@ mod tests {
             "command",
             "search",
             "capacity",
+            "graph",
         ] {
             for d in paths(name).unwrap() {
                 assert!(d.starts_with('M'), "{name}: {d}");
