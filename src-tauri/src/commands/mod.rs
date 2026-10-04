@@ -1,6 +1,7 @@
 pub mod capacity;
 pub mod decisions;
 pub mod edges;
+pub mod graph;
 pub mod impact;
 pub mod nodes;
 pub mod notes;

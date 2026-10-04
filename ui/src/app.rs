@@ -14,6 +14,7 @@ use crate::{
         capacity::Capacity,
         decisions::Decisions,
         deep_link::{DeepLink, NotFound},
+        graph::Graph,
         notes::Notes,
         objectives::Objectives,
         overview::Overview,
@@ -82,6 +83,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/tasks") view=Tasks />
                     <Route path=path!("/people") view=People />
                     <Route path=path!("/capacity") view=Capacity />
+                    <Route path=path!("/graph") view=Graph />
                     <Route path=path!("/teams") view=Teams />
                     <Route path=path!("/notes") view=Notes />
                     <Route path=path!("/decisions") view=Decisions />
