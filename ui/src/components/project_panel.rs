@@ -13,6 +13,7 @@ use crate::{
     components::{
         detail_pane::Section,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
+        health_panel::ProjectHealthSection,
         objective_panel::WeightInput,
         people_panel::{error_line, NodeButtons},
         schedule_panel::SchedulePanel,
@@ -53,6 +54,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
             (Some(Ok(d)), Some(Ok(os)), Some(Ok(ps))) => view! {
                 <Objectives detail=d.clone() candidates=os />
                 <Dependencies detail=d.clone() candidates=ps />
+                <ProjectHealthSection project=id />
                 <SchedulePanel project=id />
                 <WhatIfButton node=NodeRef::new(NodeType::Project, id) />
                 <Tasks detail=d.clone() />

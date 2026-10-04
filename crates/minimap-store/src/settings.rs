@@ -8,6 +8,7 @@ use crate::error::{Result, StoreError};
 const HOURS_PER_DAY: &str = "hours_per_day";
 const THEME: &str = "theme";
 const STALE_WAITING_DAYS: &str = "stale_waiting_days";
+const HEALTH: &str = "health";
 
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
@@ -49,6 +50,14 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.stale_waiting_days = d;
         }
     }
+    if let Some(h) = read(conn, HEALTH)?
+        .and_then(|v| serde_json::from_value::<minimap_types::HealthThresholds>(v).ok())
+    {
+        // A stored value that is no longer valid falls back to the defaults.
+        if h.validate().is_ok() {
+            s.health = h;
+        }
+    }
     if let Some(t) = read(conn, THEME)?.and_then(|v| v.as_str().map(str::to_owned)) {
         if valid_theme_id(&t) {
             s.theme = t;
@@ -80,7 +89,13 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             ));
         }
     }
+    if let Some(h) = &patch.health {
+        h.validate().map_err(StoreError::Invalid)?;
+    }
     let tx = conn.transaction()?;
+    if let Some(h) = patch.health {
+        write(&tx, HEALTH, &serde_json::to_value(h)?)?;
+    }
     if let Some(h) = patch.hours_per_day {
         write(&tx, HOURS_PER_DAY, &serde_json::json!(h))?;
     }
