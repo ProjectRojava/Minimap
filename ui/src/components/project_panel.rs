@@ -15,6 +15,7 @@ use crate::{
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         objective_panel::WeightInput,
         people_panel::{error_line, NodeButtons},
+        schedule_panel::SchedulePanel,
     },
     labels::{humanize, priority_option, project_status_label},
     state::{finish, DataVersion, Selection, Toasts},
@@ -51,6 +52,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
             (Some(Ok(d)), Some(Ok(os)), Some(Ok(ps))) => view! {
                 <Objectives detail=d.clone() candidates=os />
                 <Dependencies detail=d.clone() candidates=ps />
+                <SchedulePanel project=id />
                 <Tasks detail=d.clone() />
                 <ArchiveProject detail=d />
             }.into_any(),

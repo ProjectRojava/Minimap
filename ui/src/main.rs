@@ -10,6 +10,7 @@ mod pages;
 mod state;
 mod theme;
 mod themes;
+mod timeline;
 mod window;
 
 fn main() {

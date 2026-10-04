@@ -7,6 +7,7 @@ pub mod notes;
 pub mod objectives;
 pub mod projects;
 pub mod quick_add;
+pub mod schedule;
 pub mod search;
 pub mod slug;
 pub mod tasks;

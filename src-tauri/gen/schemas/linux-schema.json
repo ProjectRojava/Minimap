@@ -303,6 +303,12 @@
           "markdownDescription": "Enables the create_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_critical_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-critical-path",
+          "markdownDescription": "Enables the get_critical_path command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_decision command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-decision",
@@ -361,6 +367,12 @@
           "type": "string",
           "const": "allow-get-project-detail",
           "markdownDescription": "Enables the get_project_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_schedule command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-schedule",
+          "markdownDescription": "Enables the get_schedule command without any pre-configured scope."
         },
         {
           "description": "Enables the get_self_person command without any pre-configured scope.",
@@ -747,6 +759,12 @@
           "markdownDescription": "Denies the create_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_critical_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-critical-path",
+          "markdownDescription": "Denies the get_critical_path command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_decision command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-decision",
@@ -805,6 +823,12 @@
           "type": "string",
           "const": "deny-get-project-detail",
           "markdownDescription": "Denies the get_project_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_schedule command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-schedule",
+          "markdownDescription": "Denies the get_schedule command without any pre-configured scope."
         },
         {
           "description": "Denies the get_self_person command without any pre-configured scope.",
