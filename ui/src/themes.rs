@@ -1,10 +1,13 @@
 //! Colour themes: plain data mapped onto the app's colour tokens (see `docs/design.md`).
 //!
-//! A theme is 11 colours. Established palettes (Nord, Catppuccin, Gruvbox, ...) are adapted
+//! A theme is 14 colours. Established palettes (Nord, Catppuccin, Gruvbox, ...) are adapted
 //! to those tokens; where a palette's own text colours are too faint to read comfortably
 //! (common for "comment" greys) or red on a dark background, `fg`, `muted` and `danger` are
 //! nudged toward white (dark themes) or black (light themes) until they pass the contrast
 //! tests below: text 4.5:1 on canvas, panel and the selected row (secondary text 3.5:1 there).
+//! `accent`, `success` and `warning` come from each palette's own blue/green/yellow and are
+//! held to 4.5:1 on canvas and panel and 3.5:1 on the selected row (they are used as text and
+//! as the background of primary buttons, whose label is the canvas colour).
 //! To add a theme: append an entry to [`ALL`] and run the tests.
 
 use minimap_types::DEFAULT_THEME;
@@ -36,15 +39,21 @@ pub struct Tokens {
     pub muted: &'static str,
     /// Hints that are also available elsewhere (shortcut labels, icons).
     pub faint: &'static str,
-    /// Errors and destructive actions: the only hue the UI uses.
+    /// Errors and destructive actions.
     pub danger: &'static str,
+    /// The brand colour: the current screen, primary buttons, focus, today, the critical path.
+    pub accent: &'static str,
+    /// Good news: on track, absorbed, done.
+    pub success: &'static str,
+    /// Needs attention: amber health, stale, important.
+    pub warning: &'static str,
     /// Dimming behind overlays (any CSS colour).
     pub scrim: &'static str,
 }
 
 impl Tokens {
     /// (CSS custom property, value) pairs, applied to the document root.
-    pub fn css_vars(&self) -> [(&'static str, &'static str); 11] {
+    pub fn css_vars(&self) -> [(&'static str, &'static str); 14] {
         [
             ("--canvas", self.canvas),
             ("--panel", self.panel),
@@ -56,6 +65,9 @@ impl Tokens {
             ("--muted", self.muted),
             ("--faint", self.faint),
             ("--danger", self.danger),
+            ("--accent", self.accent),
+            ("--success", self.success),
+            ("--warning", self.warning),
             ("--scrim", self.scrim),
         ]
     }
@@ -105,6 +117,9 @@ const fn t(
     muted: &'static str,
     faint: &'static str,
     danger: &'static str,
+    accent: &'static str,
+    success: &'static str,
+    warning: &'static str,
     scrim: &'static str,
 ) -> Tokens {
     Tokens {
@@ -118,6 +133,9 @@ const fn t(
         muted,
         faint,
         danger,
+        accent,
+        success,
+        warning,
         scrim,
     }
 }
@@ -128,7 +146,7 @@ pub const ALL: [Theme; 17] = [
         "Minimap Dark",
         t(
             "#1e1f21", "#19191b", "#26272a", "#2e2f33", "#2a2b2e", "#44464b", "#d4d4d4", "#9a9ca1",
-            "#64666b", "#d9776f", DARK_SCRIM,
+            "#64666b", "#d9776f", "#6c9bd2", "#7fb685", "#d7ba7d", DARK_SCRIM,
         ),
     ),
     light(
@@ -145,6 +163,9 @@ pub const ALL: [Theme; 17] = [
             "#636363",
             "#a0a0a0",
             "#b4423a",
+            "#2f6fb0",
+            "#2f7d4a",
+            "#946300",
             LIGHT_SCRIM,
         ),
     ),
@@ -153,7 +174,7 @@ pub const ALL: [Theme; 17] = [
         "One Dark",
         t(
             "#282c34", "#21252b", "#2c313a", "#3a3f4b", "#333842", "#4b5263", "#abb2bf", "#949dab",
-            "#636d83", "#e17078", DARK_SCRIM,
+            "#636d83", "#e17078", "#61afef", "#98c379", "#e5c07b", DARK_SCRIM,
         ),
     ),
     light(
@@ -170,6 +191,9 @@ pub const ALL: [Theme; 17] = [
             "#696c77",
             "#a0a1a7",
             "#ca1243",
+            "#3766cd",
+            "#3c7a3b",
+            "#916401",
             LIGHT_SCRIM,
         ),
     ),
@@ -178,7 +202,7 @@ pub const ALL: [Theme; 17] = [
         "Dracula",
         t(
             "#282a36", "#21222c", "#2f3140", "#44475a", "#343746", "#515470", "#f8f8f2", "#a9b2d6",
-            "#6272a4", "#ff5555", DARK_SCRIM,
+            "#6272a4", "#ff5555", "#bd93f9", "#50fa7b", "#ffb86c", DARK_SCRIM,
         ),
     ),
     dark(
@@ -186,7 +210,7 @@ pub const ALL: [Theme; 17] = [
         "Nord",
         t(
             "#2e3440", "#2a2f3a", "#3b4252", "#434c5e", "#3b4252", "#4c566a", "#d8dee9", "#a7b1c4",
-            "#6d7a93", "#d9838b", DARK_SCRIM,
+            "#6d7a93", "#d9838b", "#88c0d0", "#a3be8c", "#ebcb8b", DARK_SCRIM,
         ),
     ),
     dark(
@@ -194,7 +218,7 @@ pub const ALL: [Theme; 17] = [
         "Solarized Dark",
         t(
             "#002b36", "#073642", "#0b3f4c", "#12495a", "#0d4350", "#2a5f6d", "#a6b2b2", "#8ba0a3",
-            "#586e75", "#f2706d", DARK_SCRIM,
+            "#586e75", "#f2706d", "#55a4dc", "#93a51d", "#be971d", DARK_SCRIM,
         ),
     ),
     light(
@@ -211,6 +235,9 @@ pub const ALL: [Theme; 17] = [
             "#576c73",
             "#93a1a1",
             "#c4211f",
+            "#1f6ca5",
+            "#606e00",
+            "#836400",
             LIGHT_SCRIM,
         ),
     ),
@@ -219,7 +246,7 @@ pub const ALL: [Theme; 17] = [
         "Gruvbox Dark",
         t(
             "#282828", "#1d2021", "#32302f", "#3c3836", "#3c3836", "#504945", "#ebdbb2", "#a89984",
-            "#7c6f64", "#fb533f", DARK_SCRIM,
+            "#7c6f64", "#fb533f", "#83a598", "#b8bb26", "#fabd2f", DARK_SCRIM,
         ),
     ),
     light(
@@ -236,6 +263,9 @@ pub const ALL: [Theme; 17] = [
             "#665c54",
             "#a89984",
             "#9d0006",
+            "#076678",
+            "#67630c",
+            "#88580d",
             LIGHT_SCRIM,
         ),
     ),
@@ -244,7 +274,7 @@ pub const ALL: [Theme; 17] = [
         "Catppuccin Mocha",
         t(
             "#1e1e2e", "#181825", "#313244", "#45475a", "#313244", "#585b70", "#cdd6f4", "#a6adc8",
-            "#6c7086", "#f38ba8", DARK_SCRIM,
+            "#6c7086", "#f38ba8", "#89b4fa", "#a6e3a1", "#f9e2af", DARK_SCRIM,
         ),
     ),
     light(
@@ -261,6 +291,9 @@ pub const ALL: [Theme; 17] = [
             "#5c5f77",
             "#9ca0b0",
             "#d00f38",
+            "#1c5ee2",
+            "#2f7420",
+            "#8e5b12",
             LIGHT_SCRIM,
         ),
     ),
@@ -269,7 +302,7 @@ pub const ALL: [Theme; 17] = [
         "Tokyo Night",
         t(
             "#1a1b26", "#16161e", "#24283b", "#2f334d", "#292e42", "#3b4261", "#c0caf5", "#9aa5ce",
-            "#565f89", "#f7768e", DARK_SCRIM,
+            "#565f89", "#f7768e", "#7aa2f7", "#9ece6a", "#e0af68", DARK_SCRIM,
         ),
     ),
     dark(
@@ -277,7 +310,7 @@ pub const ALL: [Theme; 17] = [
         "GitHub Dark",
         t(
             "#0d1117", "#161b22", "#1c2128", "#262c36", "#30363d", "#484f58", "#e6edf3", "#8b949e",
-            "#6e7681", "#f85149", DARK_SCRIM,
+            "#6e7681", "#f85149", "#58a6ff", "#3fb950", "#d29922", DARK_SCRIM,
         ),
     ),
     dark(
@@ -285,7 +318,7 @@ pub const ALL: [Theme; 17] = [
         "Rosé Pine",
         t(
             "#191724", "#1f1d2e", "#26233a", "#403d52", "#26233a", "#403d52", "#e0def4", "#9692af",
-            "#6e6a86", "#eb6f92", DARK_SCRIM,
+            "#6e6a86", "#eb6f92", "#c4a7e7", "#7fc4a0", "#f6c177", DARK_SCRIM,
         ),
     ),
     light(
@@ -302,6 +335,9 @@ pub const ALL: [Theme; 17] = [
             "#6e6a86",
             "#9893a5",
             "#a45a6f",
+            "#7a6890",
+            "#3b7a6a",
+            "#966421",
             LIGHT_SCRIM,
         ),
     ),
@@ -310,7 +346,7 @@ pub const ALL: [Theme; 17] = [
         "Monokai",
         t(
             "#272822", "#1e1f1c", "#33342d", "#3e3d32", "#3a3b33", "#57584d", "#f8f8f2", "#a6a79d",
-            "#75715e", "#fa4989", DARK_SCRIM,
+            "#75715e", "#fa4989", "#66d9ef", "#a6e22e", "#e6db74", DARK_SCRIM,
         ),
     ),
 ];
@@ -430,9 +466,26 @@ mod tests {
                 }
             }
             for (surface_name, surface) in [("canvas", k.canvas), ("panel", k.panel)] {
-                let c = contrast(k.danger, surface);
-                if c < 4.5 {
-                    failures.push(format!("{} danger on {surface_name}: {c:.2} < 4.5", th.id));
+                for (name, colour) in [
+                    ("danger", k.danger),
+                    ("accent", k.accent),
+                    ("success", k.success),
+                    ("warning", k.warning),
+                ] {
+                    let c = contrast(colour, surface);
+                    if c < 4.5 {
+                        failures.push(format!("{} {name} on {surface_name}: {c:.2} < 4.5", th.id));
+                    }
+                }
+            }
+            for (name, colour) in [
+                ("accent", k.accent),
+                ("success", k.success),
+                ("warning", k.warning),
+            ] {
+                let c = contrast(colour, k.active);
+                if c < 3.5 {
+                    failures.push(format!("{} {name} on active: {c:.2} < 3.5", th.id));
                 }
             }
         }
@@ -459,6 +512,21 @@ mod tests {
                 "{} kind does not match its colours",
                 th.id
             );
+        }
+    }
+
+    #[test]
+    fn the_accent_and_status_colours_are_distinct_from_each_other_and_from_text() {
+        for th in &ALL {
+            let k = &th.tokens;
+            let all = [k.accent, k.success, k.warning, k.danger];
+            for (i, a) in all.iter().enumerate() {
+                for b in &all[i + 1..] {
+                    assert_ne!(a, b, "{} reuses a colour", th.id);
+                }
+                assert_ne!(*a, k.fg, "{}", th.id);
+                assert_ne!(*a, k.muted, "{}", th.id);
+            }
         }
     }
 

@@ -150,7 +150,7 @@ pub fn SelectField(
 
     let button_class = if compact {
         "flex max-w-full items-center justify-between gap-1 rounded-sm border border-line bg-canvas px-1.5 py-0.5 \
-         text-left text-[12px] text-fg hover:border-line-strong focus:outline-none focus:border-line-strong"
+         text-left text-[12px] text-fg hover:border-line-strong focus:outline-none focus:border-accent"
     } else {
         // The same look as a text input.
         Box::leak(

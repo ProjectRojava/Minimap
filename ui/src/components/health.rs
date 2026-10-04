@@ -1,7 +1,8 @@
 //! Health marks and wording shared by the Overview and the project and objective panels.
 //!
-//! The app is monochrome, so a level is a shape first and a colour second: red is a filled
-//! dot in the danger colour, amber a half-filled dot, green an empty one, not scored a dash.
+//! A level is a shape first and a colour second (so it still reads without colour): red is a
+//! filled dot in the danger colour, amber a half-filled dot in the warning colour, green an
+//! empty dot in the success colour, not scored a dash.
 //! The word is always available as a tooltip and to screen readers.
 
 use leptos::prelude::*;
@@ -33,8 +34,9 @@ pub fn level_label(l: HealthLevel) -> &'static str {
 fn level_class(l: HealthLevel) -> &'static str {
     match l {
         HealthLevel::Red => "text-danger",
-        HealthLevel::Amber => "text-fg",
-        HealthLevel::Green | HealthLevel::Idle => "text-faint",
+        HealthLevel::Amber => "text-warning",
+        HealthLevel::Green => "text-success",
+        HealthLevel::Idle => "text-faint",
     }
 }
 
