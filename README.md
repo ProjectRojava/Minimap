@@ -28,8 +28,10 @@ Minimap works fully offline without it. To store and sync your data through your
 
 1. In the [Google Cloud Console](https://console.cloud.google.com/) create a project and turn on the **Google Drive API**.
 2. Configure the OAuth consent screen, then create an **OAuth client ID** of type **Desktop app**.
-3. Either paste the client ID and secret in Settings → Google Drive → Advanced, or build with
-   `MINIMAP_GOOGLE_CLIENT_ID` and `MINIMAP_GOOGLE_CLIENT_SECRET` set in the environment.
+3. Copy `.env.example` to `.env` (git-ignored) and put the client ID and secret in it (or set
+   `MINIMAP_GOOGLE_CLIENT_ID` / `MINIMAP_GOOGLE_CLIENT_SECRET` in CI). The build bakes them into
+   the app, so users just click **Sign in with Google** and never see credentials. Rebuild after
+   changing them. (A build without them shows an Advanced box in Settings for testing.)
 
 Minimap asks only for the `drive.file` permission (it sees just the files it made). Google treats a
 desktop app's secret as non-confidential. Public distribution needs Google's consent-screen verification.
