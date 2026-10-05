@@ -1,5 +1,6 @@
 //! Domain logic and graph algorithms. Pure: no IO, no SQLite.
 
+pub mod attachments;
 pub mod backup;
 pub mod capacity;
 pub mod cycles;
@@ -18,6 +19,7 @@ pub mod report;
 pub mod schedule;
 pub mod search;
 pub mod slug;
+pub mod sync;
 pub mod tasks;
 pub mod this_week;
 pub mod waiting_on;

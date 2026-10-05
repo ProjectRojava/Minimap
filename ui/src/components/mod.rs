@@ -1,7 +1,9 @@
+pub mod attachments;
 pub mod backup_settings;
 pub mod date_field;
 pub mod decision_panel;
 pub mod detail_pane;
+pub mod drive_settings;
 pub mod first_run;
 pub mod form;
 pub mod health;
@@ -20,6 +22,7 @@ pub mod search_box;
 pub mod security_settings;
 pub mod select;
 pub mod sidebar;
+pub mod sync_status;
 pub mod task_list;
 pub mod task_panel;
 pub mod team_panel;

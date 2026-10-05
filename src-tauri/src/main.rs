@@ -5,6 +5,7 @@ mod commands;
 mod error;
 mod keystore;
 mod state;
+mod sync;
 
 use std::{
     fs,
@@ -44,17 +45,30 @@ fn spawn_auto_backup(state: AppState) -> anyhow::Result<()> {
 fn main() {
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // Attached pictures are shown through this protocol, never through a network address.
+        .register_asynchronous_uri_scheme_protocol("minimap-media", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let state = app.state::<AppState>();
+                responder.respond(commands::attachments::serve_media(
+                    &state,
+                    request.uri().path(),
+                ));
+            });
+        })
         .setup(|app| {
             let dir = app.path().app_data_dir().context("resolve app data dir")?;
             fs::create_dir_all(&dir).context("create app data dir")?;
             init_logging(&dir)?;
+            commands::attachments::clean_opened(&dir);
             let keys: Arc<dyn keystore::KeyStore> = Arc::new(keystore::OsKeyStore);
             let vault = commands::security::boot(&dir, keys.as_ref())
                 .map_err(|e| anyhow::anyhow!("open the database: {e}"))?;
             tracing::info!(locked = vault.conn.is_none(), "database ready");
             let state = AppState::new(vault, dir, keys);
             app.manage(state.clone());
-            spawn_auto_backup(state)?;
+            spawn_auto_backup(state.clone())?;
+            sync::spawn(state)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -153,10 +167,41 @@ fn main() {
             commands::notes::archive_note,
             commands::notes::render_markdown,
             commands::notes::convert_checklist_item,
+            commands::sync::get_sync_status,
+            commands::sync::update_sync_settings,
+            commands::sync::connect_drive,
+            commands::sync::cancel_drive_connect,
+            commands::sync::finish_drive_connect,
+            commands::sync::disconnect_drive,
+            commands::sync::sync_now,
+            commands::sync::list_drive_checkpoints,
+            commands::sync::recover_checkpoint,
+            commands::attachments::list_attachments,
+            commands::attachments::add_attachment,
+            commands::attachments::add_attachment_data,
+            commands::attachments::remove_attachment,
+            commands::attachments::open_attachment,
         ])
-        .run(tauri::generate_context!());
-    if let Err(e) = result {
-        eprintln!("error while running Minimap: {e}");
-        std::process::exit(1);
-    }
+        .build(tauri::generate_context!());
+    let app = match result {
+        Ok(app) => app,
+        Err(e) => {
+            eprintln!("error while running Minimap: {e}");
+            std::process::exit(1);
+        }
+    };
+    app.run(|handle, event| {
+        // On quit, save what is unsaved to Drive (waiting at most ten seconds; anything left
+        // stays marked and goes up at the next start).
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            let state = handle.state::<AppState>();
+            let engine = state.sync.engine.clone();
+            let (done, wait) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                engine.flush();
+                let _ = done.send(());
+            });
+            let _ = wait.recv_timeout(std::time::Duration::from_secs(10));
+        }
+    });
 }

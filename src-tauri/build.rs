@@ -96,6 +96,20 @@ const COMMANDS: &[&str] = &[
     "archive_note",
     "render_markdown",
     "convert_checklist_item",
+    "get_sync_status",
+    "update_sync_settings",
+    "connect_drive",
+    "cancel_drive_connect",
+    "finish_drive_connect",
+    "disconnect_drive",
+    "sync_now",
+    "list_drive_checkpoints",
+    "recover_checkpoint",
+    "list_attachments",
+    "add_attachment",
+    "add_attachment_data",
+    "remove_attachment",
+    "open_attachment",
 ];
 
 fn main() {

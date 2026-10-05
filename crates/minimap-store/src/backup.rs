@@ -91,7 +91,7 @@ pub fn create(
     Ok(entry_for(&target, kind, at, bytes))
 }
 
-fn copy_database(conn: &Connection, to: &Path, key: &Key) -> Result<()> {
+pub(crate) fn copy_database(conn: &Connection, to: &Path, key: &Key) -> Result<()> {
     let mut dest = Connection::open(to)?;
     security::apply(&dest, key)?;
     {
@@ -317,6 +317,9 @@ pub fn restore(
     let same_kind = |encrypted: bool| encrypted == !live.is_none();
     let (preview, source, _) = inspect_open(src, current, live, extra, false)?;
     let kept = settings::get(conn)?;
+    // Who this device is, its vault key and its Drive sign-in belong to this installation, not
+    // to the backup.
+    let local = crate::meta::local_rows(conn)?;
     let saved = create(conn, dir, BackupKind::PreRestore, current, live)?;
     if same_kind(preview.encrypted) {
         let backup = Backup::new(&source, conn)?;
@@ -328,6 +331,7 @@ pub fn restore(
         security::replace_live(conn, Some(&writable), live, live)?;
     }
     crate::upgrade(conn)?;
+    crate::meta::put_local_rows(conn, &local)?;
     settings::update(
         conn,
         UpdateSettings {
@@ -432,6 +436,37 @@ mod tests {
             .counts;
         let tasks_in_saved = counts.iter().find(|c| c.label == "Tasks").unwrap().count;
         assert_eq!(tasks_in_saved, 3, "3 original - 1 archived + 1 added");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn restoring_keeps_who_this_device_is_and_its_vault_key() {
+        let dir = temp_dir("restore-local");
+        let backups = dir.join("backups");
+        let mut conn = open(&dir.join("minimap.db")).unwrap();
+        add_task(&mut conn, "Before");
+        let made = create(&conn, &backups, BackupKind::Manual, 0, &Key::None).unwrap();
+        // After the backup: this device gets a name, a vault key and a sign-in.
+        crate::meta::set(&conn, crate::meta::DEVICE_NAME, "Laptop").unwrap();
+        crate::meta::set(&conn, crate::meta::DRIVE_TOKEN, "token").unwrap();
+        let id = crate::meta::device_id(&conn).unwrap();
+        let vault = crate::meta::ensure_vault_key(&conn).unwrap();
+
+        restore(&mut conn, Path::new(&made.path), &backups, &Key::None, &[]).unwrap();
+        assert_eq!(crate::meta::device_id(&conn).unwrap(), id);
+        assert_eq!(
+            crate::meta::get(&conn, crate::meta::DEVICE_NAME)
+                .unwrap()
+                .as_deref(),
+            Some("Laptop")
+        );
+        assert_eq!(
+            crate::meta::get(&conn, crate::meta::DRIVE_TOKEN)
+                .unwrap()
+                .as_deref(),
+            Some("token")
+        );
+        assert!(crate::meta::vault_key(&conn).unwrap().unwrap() == vault);
         fs::remove_dir_all(&dir).unwrap();
     }
 

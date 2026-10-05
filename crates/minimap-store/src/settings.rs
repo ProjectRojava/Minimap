@@ -14,6 +14,9 @@ const REPORT_TEMPLATE: &str = "report_template";
 const BACKUP_FOLDER: &str = "backup_folder";
 const AUTO_BACKUP: &str = "auto_backup";
 
+/// Settings that belong to this device and are never synced (or put in a snapshot).
+pub const LOCAL_ONLY: [&str; 3] = [THEME, BACKUP_FOLDER, AUTO_BACKUP];
+
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
         "INSERT INTO settings (key, value) VALUES (?1, ?2)

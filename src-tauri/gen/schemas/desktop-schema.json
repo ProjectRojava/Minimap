@@ -177,6 +177,18 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the add_attachment command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-add-attachment",
+          "markdownDescription": "Enables the add_attachment command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the add_attachment_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-add-attachment-data",
+          "markdownDescription": "Enables the add_attachment_data command without any pre-configured scope."
+        },
+        {
           "description": "Enables the add_edge command without any pre-configured scope.",
           "type": "string",
           "const": "allow-add-edge",
@@ -243,10 +255,22 @@
           "markdownDescription": "Enables the backup_now command without any pre-configured scope."
         },
         {
+          "description": "Enables the cancel_drive_connect command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-cancel-drive-connect",
+          "markdownDescription": "Enables the cancel_drive_connect command without any pre-configured scope."
+        },
+        {
           "description": "Enables the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "allow-commit-quick-add",
           "markdownDescription": "Enables the commit_quick_add command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the connect_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-connect-drive",
+          "markdownDescription": "Enables the connect_drive command without any pre-configured scope."
         },
         {
           "description": "Enables the convert_checklist_item command without any pre-configured scope.",
@@ -321,10 +345,22 @@
           "markdownDescription": "Enables the delete_unencrypted_backups command without any pre-configured scope."
         },
         {
+          "description": "Enables the disconnect_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-disconnect-drive",
+          "markdownDescription": "Enables the disconnect_drive command without any pre-configured scope."
+        },
+        {
           "description": "Enables the export_markdown command without any pre-configured scope.",
           "type": "string",
           "const": "allow-export-markdown",
           "markdownDescription": "Enables the export_markdown command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the finish_drive_connect command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-finish-drive-connect",
+          "markdownDescription": "Enables the finish_drive_connect command without any pre-configured scope."
         },
         {
           "description": "Enables the get_backup_status command without any pre-configured scope.",
@@ -441,6 +477,12 @@
           "markdownDescription": "Enables the get_settings command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-sync-status",
+          "markdownDescription": "Enables the get_sync_status command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_task command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-task",
@@ -495,10 +537,22 @@
           "markdownDescription": "Enables the list_activity_for command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_attachments command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-attachments",
+          "markdownDescription": "Enables the list_attachments command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_decisions command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-decisions",
           "markdownDescription": "Enables the list_decisions command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_drive_checkpoints command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-drive-checkpoints",
+          "markdownDescription": "Enables the list_drive_checkpoints command without any pre-configured scope."
         },
         {
           "description": "Enables the list_edges_for command without any pre-configured scope.",
@@ -555,6 +609,12 @@
           "markdownDescription": "Enables the list_teams command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_attachment command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-attachment",
+          "markdownDescription": "Enables the open_attachment command without any pre-configured scope."
+        },
+        {
           "description": "Enables the parse_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "allow-parse-quick-add",
@@ -595,6 +655,18 @@
           "type": "string",
           "const": "allow-preview-restore",
           "markdownDescription": "Enables the preview_restore command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the recover_checkpoint command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-recover-checkpoint",
+          "markdownDescription": "Enables the recover_checkpoint command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_attachment command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remove-attachment",
+          "markdownDescription": "Enables the remove_attachment command without any pre-configured scope."
         },
         {
           "description": "Enables the remove_edge command without any pre-configured scope.",
@@ -681,6 +753,12 @@
           "markdownDescription": "Enables the snooze_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Enables the sync_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-sync-now",
+          "markdownDescription": "Enables the sync_now command without any pre-configured scope."
+        },
+        {
           "description": "Enables the unlock_database command without any pre-configured scope.",
           "type": "string",
           "const": "allow-unlock-database",
@@ -729,6 +807,12 @@
           "markdownDescription": "Enables the update_settings command without any pre-configured scope."
         },
         {
+          "description": "Enables the update_sync_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-sync-settings",
+          "markdownDescription": "Enables the update_sync_settings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_task command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-task",
@@ -745,6 +829,18 @@
           "type": "string",
           "const": "allow-update-waiting-on",
           "markdownDescription": "Enables the update_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the add_attachment command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-add-attachment",
+          "markdownDescription": "Denies the add_attachment command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the add_attachment_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-add-attachment-data",
+          "markdownDescription": "Denies the add_attachment_data command without any pre-configured scope."
         },
         {
           "description": "Denies the add_edge command without any pre-configured scope.",
@@ -813,10 +909,22 @@
           "markdownDescription": "Denies the backup_now command without any pre-configured scope."
         },
         {
+          "description": "Denies the cancel_drive_connect command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-cancel-drive-connect",
+          "markdownDescription": "Denies the cancel_drive_connect command without any pre-configured scope."
+        },
+        {
           "description": "Denies the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "deny-commit-quick-add",
           "markdownDescription": "Denies the commit_quick_add command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the connect_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-connect-drive",
+          "markdownDescription": "Denies the connect_drive command without any pre-configured scope."
         },
         {
           "description": "Denies the convert_checklist_item command without any pre-configured scope.",
@@ -891,10 +999,22 @@
           "markdownDescription": "Denies the delete_unencrypted_backups command without any pre-configured scope."
         },
         {
+          "description": "Denies the disconnect_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-disconnect-drive",
+          "markdownDescription": "Denies the disconnect_drive command without any pre-configured scope."
+        },
+        {
           "description": "Denies the export_markdown command without any pre-configured scope.",
           "type": "string",
           "const": "deny-export-markdown",
           "markdownDescription": "Denies the export_markdown command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the finish_drive_connect command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-finish-drive-connect",
+          "markdownDescription": "Denies the finish_drive_connect command without any pre-configured scope."
         },
         {
           "description": "Denies the get_backup_status command without any pre-configured scope.",
@@ -1011,6 +1131,12 @@
           "markdownDescription": "Denies the get_settings command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-sync-status",
+          "markdownDescription": "Denies the get_sync_status command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_task command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-task",
@@ -1065,10 +1191,22 @@
           "markdownDescription": "Denies the list_activity_for command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_attachments command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-attachments",
+          "markdownDescription": "Denies the list_attachments command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_decisions command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-decisions",
           "markdownDescription": "Denies the list_decisions command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_drive_checkpoints command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-drive-checkpoints",
+          "markdownDescription": "Denies the list_drive_checkpoints command without any pre-configured scope."
         },
         {
           "description": "Denies the list_edges_for command without any pre-configured scope.",
@@ -1125,6 +1263,12 @@
           "markdownDescription": "Denies the list_teams command without any pre-configured scope."
         },
         {
+          "description": "Denies the open_attachment command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-attachment",
+          "markdownDescription": "Denies the open_attachment command without any pre-configured scope."
+        },
+        {
           "description": "Denies the parse_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "deny-parse-quick-add",
@@ -1165,6 +1309,18 @@
           "type": "string",
           "const": "deny-preview-restore",
           "markdownDescription": "Denies the preview_restore command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the recover_checkpoint command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-recover-checkpoint",
+          "markdownDescription": "Denies the recover_checkpoint command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_attachment command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remove-attachment",
+          "markdownDescription": "Denies the remove_attachment command without any pre-configured scope."
         },
         {
           "description": "Denies the remove_edge command without any pre-configured scope.",
@@ -1251,6 +1407,12 @@
           "markdownDescription": "Denies the snooze_waiting_on command without any pre-configured scope."
         },
         {
+          "description": "Denies the sync_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-sync-now",
+          "markdownDescription": "Denies the sync_now command without any pre-configured scope."
+        },
+        {
           "description": "Denies the unlock_database command without any pre-configured scope.",
           "type": "string",
           "const": "deny-unlock-database",
@@ -1297,6 +1459,12 @@
           "type": "string",
           "const": "deny-update-settings",
           "markdownDescription": "Denies the update_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_sync_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-sync-settings",
+          "markdownDescription": "Denies the update_sync_settings command without any pre-configured scope."
         },
         {
           "description": "Denies the update_task command without any pre-configured scope.",

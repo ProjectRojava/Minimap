@@ -7,8 +7,8 @@ Local-first, private desktop app: a command center for CTOs/CXOs/PMs. Models obj
 ## 1. Hard constraints (never violate)
 - **No Node.js, npm, yarn, pnpm, bun or Electron** in build, tooling or runtime. If a library assumes npm, find another way.
 - **Local-first, single user.** No server, accounts or login. People are records, not users.
-- **No telemetry or analytics.** Network features (e.g. Google Drive backup, importers) are allowed; user data only leaves the device to a destination the user has connected. See ADR-0002.
-- **All data in one SQLite file** in the OS app-data dir, with an encryption option (SQLCipher).
+- **No telemetry or analytics.** Network features (e.g. Google Drive storage, importers) are allowed; user data only leaves the device to a destination the user has connected. See ADR-0011.
+- **All structured data in one SQLite file** in the OS app-data dir, with an encryption option (SQLCipher). Attachments (media) are blobs stored alongside: on Google Drive plus a local cache (ADR-0011).
 - **Rust everywhere.** Backend, domain logic, frontend (WASM).
 
 ## 2. Stack
@@ -18,7 +18,7 @@ Check crates.io for current stable versions; pin in workspace `Cargo.toml`.
 **Bridge:** `app.withGlobalTauri: true`; `ui/src/api.rs` has a hand-written `wasm-bindgen` wrapper over `window.__TAURI__.core.invoke`, one typed async fn per command. All request/response types come from `minimap-types`.
 
 ## 3. Layout & dependency rules
-`crates/minimap-types` (DTOs/enums, no IO, wasm-compatible; depends on nothing internal) · `crates/minimap-core` (domain + graph algorithms, no IO/SQLite; depends only on types) · `crates/minimap-store` (SQLite, migrations, repos; depends on types, core only for validation) · `src-tauri` (commands in `src/commands/` one module per area, state, wiring; capabilities/) · `ui` (Leptos+Trunk; depends **only** on `minimap-types` — never rusqlite/petgraph/tauri) · `docs/decisions/` (ADRs) · `docs/quick-add-grammar.md` · `docs/progress.md`.
+`crates/minimap-types` (DTOs/enums, no IO, wasm-compatible; depends on nothing internal) · `crates/minimap-core` (domain + graph algorithms, no IO/SQLite; depends only on types) · `crates/minimap-store` (SQLite, migrations, repos, snapshot + merge for sync; depends on types, core only for validation) · `crates/minimap-sync` (Google Drive, OAuth, encryption of what is uploaded, the sync engine; no SQL; depends on types, core, store; ADR-0011) · `src-tauri` (commands in `src/commands/` one module per area, state, wiring; capabilities/) · `ui` (Leptos+Trunk; depends **only** on `minimap-types` — never rusqlite/petgraph/tauri) · `docs/decisions/` (ADRs) · `docs/quick-add-grammar.md` · `docs/progress.md`.
 Trunk↔Tauri: `beforeDevCommand: trunk serve --config ui/Trunk.toml`, `beforeBuildCommand: trunk build --release --config ui/Trunk.toml`, `devUrl: http://localhost:1420`, `frontendDist: ../ui/dist`.
 
 ## 4. Domain model
@@ -73,6 +73,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - quick_add: parse_quick_add(text) → preview; commit_quick_add(text)
 - export: export_markdown(report_kind, params, path)
 - settings: get_settings, update_settings, set_db_passphrase, backup_now(path)
+- drive (ADR-0011): get_sync_status, update_sync_settings, connect_drive, finish_drive_connect, cancel_drive_connect, disconnect_drive, sync_now, list_drive_checkpoints, recover_checkpoint; attachments: list_attachments, add_attachment, add_attachment_data, remove_attachment, open_attachment (+ the `minimap-media` protocol)
 Capabilities: frontend may call only these commands (app manifest) plus dialog/fs permissions export/backup need, plus the minimal window-control permissions the custom title bar needs (ADR-0004). Nothing broader.
 
 ## 7. UI (Leptos)
@@ -90,14 +91,14 @@ decision "Postgres over Mongo" affects:#api-launch
 `@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO; `fri` is today on a Friday, `next-wed` is that day in the next Mon-Sun week); no leading keyword = task · `est:` (3d, 4h) · `blocks:`/`for:`/`affects:` edges to a named node.
 
 ## 8. Storage, encryption, backup
-DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random key in the OS keychain via `keyring`, or a user passphrase (never a stored key); re-keying is a verified export-and-swap because SQLCipher can't encrypt in place (ADR-0010). `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). **Google Drive backup**: user connects a Google account (desktop OAuth: loopback redirect + PKCE, `drive.file` scope only, refresh token in OS keychain via `keyring`); backups are encrypted before upload; upload/list/restore/retention (keep last N) from Settings; network calls happen in the Rust backend, never the webview. Migrations run on startup in a transaction after a pre-migration backup.
+DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random key in the OS keychain via `keyring`, or a user passphrase (never a stored key); re-keying is a verified export-and-swap because SQLCipher can't encrypt in place (ADR-0010). `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). **Google Drive storage** (ADR-0011, spec 22): optional; once connected, every change autosaves an encrypted snapshot of the local DB to Drive (one file per device, 5 s idle, at most 30 s) and devices merge each other's snapshots automatically (row-level, newest `updated_at` wins, hard deletes via tombstones, invariants repaired and reported); no locks, no conflict dialogs. Hourly/daily checkpoints; attachments are encrypted content-addressed blobs on Drive with a local LRU cache. Everything uploaded is encrypted with a vault key (recovery key shown once). Without Drive the user is warned that data is on this device only. Desktop OAuth: loopback redirect + PKCE, `drive.file` scope only, refresh token in the OS keychain via `keyring` (local DB fallback); network calls happen in the Rust backend (`minimap-sync`), never the webview. The live DB never sits in a synced folder. Migrations run on startup in a transaction after a pre-migration backup.
 
 ## 9. Milestones (one at a time; each ends with tests passing, `cargo clippy --workspace -- -D warnings` clean, working `cargo tauri dev`)
 - **M0 Scaffold**: workspace, Tauri 2 + Leptos + Trunk + Tailwind; `ping` command shown in UI; SQLite opens + first migration; app-data path on Win/macOS/Linux; README w/ prerequisites (no npm). Done when `cargo tauri dev` shows "pong" and `cargo tauri build` produces an installer.
 - **M1 Core data**: all node tables, edges, activity, repos + tests; CRUD commands + list/detail screens; sidebar, detail pane; self person on first run.
 - **M2 Graph engine**: cycle detection w/ readable UI error; CPM, critical path, dependency graph view; impact analysis. Done when the seeded demo (3 projects, ~40 tasks, cross-project blocks) highlights the critical path correctly and a 5-day slip shows right downstream changes; `insta` snapshots.
 - **M3 People & exec layer**: capacity + heatmap; health with reasons + Overview; waiting-on, notes with `@`, decisions; command palette + quick-add (all section-7 examples work).
-- **M4 Review, export, security**: weekly review + Markdown export; SQLCipher w/ keychain key, backup + auto-backup, Google Drive backup; Settings. Done when encrypting an existing DB loses no data, a backup (local and from Drive) restores, and the review exports a readable report.
+- **M4 Review, export, security**: weekly review + Markdown export; SQLCipher w/ keychain key, backup + auto-backup, Google Drive storage with autosave and attachments; Settings. Done when encrypting an existing DB loses no data, a local backup and a Drive checkpoint restore, a second device picks up the Drive data, and the review exports a readable report.
 - **Later (do not build)**: PDF export (Typst), holidays, Jira/Linear/GitHub read-only importers, sync, shared snapshots, local AI summary.
 
 ## 10. Demo data

@@ -1,3 +1,4 @@
+pub mod attachments;
 pub mod backup;
 pub mod capacity;
 pub mod decisions;
@@ -16,6 +17,7 @@ pub mod schedule;
 pub mod search;
 pub mod security;
 pub mod settings;
+pub mod sync;
 pub mod system;
 pub mod tasks;
 pub mod teams;

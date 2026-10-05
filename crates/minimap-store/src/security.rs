@@ -41,6 +41,11 @@ impl RawKey {
         Ok(Self(bytes))
     }
 
+    /// The key bytes, for deriving subkeys. Never log or store what this returns.
+    pub fn expose(&self) -> &[u8; 32] {
+        &self.0
+    }
+
     /// 64 hex digits; dashes, spaces and case are ignored (a recovery key as it was shown).
     pub fn from_hex(text: &str) -> Option<Self> {
         let digits: Vec<u8> = text
@@ -302,7 +307,7 @@ fn quote_ident(name: &str) -> String {
 }
 
 /// Writes all of `source` into a new file `dest` keyed with `key` (plain for `Key::None`).
-fn build_copy(source: &Connection, dest: &Path, key: &Key) -> Result<()> {
+pub(crate) fn build_copy(source: &Connection, dest: &Path, key: &Key) -> Result<()> {
     if matches!(key, Key::Passphrase(p) if p.as_str().is_empty()) {
         return Err(StoreError::WrongKey);
     }
@@ -470,6 +475,11 @@ pub fn rekey(conn: &mut Connection, current: &Key, new: &Key) -> Result<()> {
 /// Opens `<dir>/minimap.db` with a recovery key (tests of the layers above use this to check a
 /// key does or does not open the file).
 #[doc(hidden)]
+/// Opens an encrypted file read-write with `key`, for other crates' tests.
+pub fn connect_for_tests(path: &Path, key: &Key) -> Result<Connection> {
+    connect(path, key)
+}
+
 pub fn open_with_key_for_tests(dir: &Path, recovery_key: &str) -> Result<Connection> {
     let raw = RawKey::from_hex(recovery_key).ok_or_else(|| invalid("not a key"))?;
     crate::open_with_key(&dir.join("minimap.db"), &Key::Raw(raw))
