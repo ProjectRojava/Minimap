@@ -33,7 +33,7 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 19 | [Weekly review and Markdown export](19-weekly-review-and-export.md) | M4 | Should | 15, 16 |
 | 20 | [Local backup and restore](20-local-backup-and-restore.md) | M4 | Must | 01 |
 | 21 | [Encryption](21-encryption.md) | M4 | Should | 20 |
-| 22 | [Google Drive backup](22-google-drive-backup.md) | M4 | Must | 20, 21 |
+| 22 | [Google Drive storage and autosave](22-google-drive-backup.md) | M4 | Must | 20, 21 |
 | 23 | [Settings](23-settings.md) | M4 | Must | 02 |
 | 24 | [Demo data](24-demo-data.md) | M2 | Must | 03–07 |
 | 25 | [Undo](25-undo.md) | M4 | Should | 01 |

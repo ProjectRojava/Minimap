@@ -72,6 +72,8 @@ pub(crate) fn fingerprint(conn: &Connection) -> String {
         "waiting_on",
         "edges",
         "activity",
+        "attachments",
+        "tombstones",
         "settings",
     ] {
         // This installation's own backup settings are kept across a restore on purpose.

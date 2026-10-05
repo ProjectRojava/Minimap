@@ -17,6 +17,7 @@ pub fn store_error(e: StoreError) -> AppError {
         StoreError::DuplicateEdge => "duplicate",
         StoreError::WrongKey => "wrong_key",
         StoreError::BackupKeyNeeded => "backup_key_needed",
+        StoreError::NewerData { .. } => "newer_data",
         StoreError::NotArchived { .. }
         | StoreError::AlreadyArchived { .. }
         | StoreError::NotArchivedYet { .. } => "state",

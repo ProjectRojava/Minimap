@@ -13,6 +13,7 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
+        attachments::{attach_files, files_of},
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_ON, INPUT},
         people_panel::{error_line, NodeButtons},
@@ -208,12 +209,107 @@ fn NoteEditor(note: Note) -> impl IntoView {
             }
         });
     };
-    // Mentions in the preview open the node they point at.
+    // Attached pictures in the preview get their address from the app's own protocol.
+    let preview_el: leptos::prelude::NodeRef<html::Div> = leptos::prelude::NodeRef::new();
+    Effect::new(move |_| {
+        rendered.track();
+        preview.track();
+        request_animation_frame(move || {
+            let Some(el) = preview_el.get() else { return };
+            let Ok(images) = el.query_selector_all("img[data-attachment]") else {
+                return;
+            };
+            for i in 0..images.length() {
+                let Some(img) = images
+                    .item(i)
+                    .and_then(|n| n.dyn_into::<web_sys::Element>().ok())
+                else {
+                    continue;
+                };
+                if let Some(id) = img
+                    .get_attribute("data-attachment")
+                    .and_then(|v: String| Uuid::parse_str(&v).ok())
+                {
+                    let _ = img.set_attribute("src", &api::attachment_url(id));
+                }
+            }
+        });
+    });
+    // Files pasted or dropped into the text become attachments of this note, and a link to each
+    // is put in at the caret.
+    let attach_here = move |files: Vec<web_sys::File>| {
+        if files.is_empty() {
+            return;
+        }
+        spawn_local(async move {
+            let node = NodeRef::new(NodeType::Note, id);
+            let added = attach_files(node, files, toasts).await;
+            if added.is_empty() {
+                return;
+            }
+            let Some(el) = area.get() else { return };
+            let current = el.value();
+            let caret = utf16_to_byte(
+                &current,
+                el.selection_start().ok().flatten().unwrap_or(0) as usize,
+            );
+            let links: String = added
+                .iter()
+                .map(|a| a.markdown.clone())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let before = &current[..caret];
+            let lead = if before.is_empty() || before.ends_with('\n') {
+                ""
+            } else {
+                "\n"
+            };
+            let new_text = format!("{before}{lead}{links}\n{}", &current[caret..]);
+            el.set_value(&new_text);
+            let pos = byte_to_utf16(&new_text, caret + lead.len() + links.len() + 1) as u32;
+            let _ = el.set_selection_range(pos, pos);
+            text.set(new_text);
+            schedule_save();
+            version.bump();
+        });
+    };
+    let on_paste = move |ev: leptos::ev::ClipboardEvent| {
+        let files = files_of(ev.clipboard_data().and_then(|d| d.files()));
+        if !files.is_empty() {
+            // A pasted picture (a screenshot) is a file, not text.
+            ev.prevent_default();
+            attach_here(files);
+        }
+    };
+    let on_drop = move |ev: leptos::ev::DragEvent| {
+        let files = files_of(ev.data_transfer().and_then(|d| d.files()));
+        if !files.is_empty() {
+            ev.prevent_default();
+            attach_here(files);
+        }
+    };
+    // Mentions in the preview open the node they point at; attachment links open the file.
     let open_mention = move |ev: leptos::ev::MouseEvent| {
-        let anchor = ev
+        let target = ev
             .target()
-            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
-            .and_then(|el| el.closest("a.mention").ok().flatten());
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok());
+        if let Some(a) = target
+            .as_ref()
+            .and_then(|el| el.closest("a.attachment-link").ok().flatten())
+        {
+            if let Some(file) = a
+                .get_attribute("data-attachment")
+                .and_then(|v| Uuid::parse_str(&v).ok())
+            {
+                spawn_local(async move {
+                    if let Err(e) = api::open_attachment(file).await {
+                        toasts.error(&e);
+                    }
+                });
+            }
+            return;
+        }
+        let anchor = target.and_then(|el| el.closest("a.mention").ok().flatten());
         if let Some(a) = anchor {
             let kind = a
                 .get_attribute("data-node-type")
@@ -317,6 +413,8 @@ fn NoteEditor(note: Note) -> impl IntoView {
                         refresh_picker();
                     }
                     on:click=move |_| refresh_picker()
+                    on:paste=on_paste
+                    on:drop=on_drop
                     on:blur=move |_| { typing.set(None); save_now(); }
                     on:keydown=on_keydown></textarea>
                 <Show when=move || !suggestions.get().is_empty()>
@@ -340,7 +438,7 @@ fn NoteEditor(note: Note) -> impl IntoView {
                 </Show>
             </div>
             <Show when=move || preview.get()>
-                <div class="md min-h-24 rounded-sm border border-line p-2" on:click=open_mention
+                <div node_ref=preview_el class="md min-h-24 rounded-sm border border-line p-2" on:click=open_mention
                      inner_html=move || rendered.get()></div>
             </Show>
         </Section>

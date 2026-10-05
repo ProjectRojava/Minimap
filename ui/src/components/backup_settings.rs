@@ -36,8 +36,10 @@ pub fn size_text(bytes: u64) -> String {
         format!("{bytes} B")
     } else if b < KB * KB {
         format!("{:.1} KB", b / KB)
-    } else {
+    } else if b < KB * KB * KB {
         format!("{:.1} MB", b / (KB * KB))
+    } else {
+        format!("{:.1} GB", b / (KB * KB * KB))
     }
 }
 
@@ -48,6 +50,8 @@ pub fn kind_label(kind: BackupKind) -> &'static str {
         BackupKind::PreMigration => "before upgrade",
         BackupKind::PreRestore => "before restore",
         BackupKind::PreEncryption => "before encryption change",
+        BackupKind::PreSync => "before sync",
+        BackupKind::PreRecover => "before recovery",
     }
 }
 
@@ -55,9 +59,11 @@ pub fn kind_tone(kind: BackupKind) -> Tone {
     match kind {
         BackupKind::Manual => Tone::Accent,
         BackupKind::Auto => Tone::Neutral,
-        BackupKind::PreMigration | BackupKind::PreRestore | BackupKind::PreEncryption => {
-            Tone::Warning
-        }
+        BackupKind::PreMigration
+        | BackupKind::PreRestore
+        | BackupKind::PreEncryption
+        | BackupKind::PreSync
+        | BackupKind::PreRecover => Tone::Warning,
     }
 }
 
@@ -403,6 +409,8 @@ mod tests {
         assert_eq!(size_text(1024), "1.0 KB");
         assert_eq!(size_text(1536), "1.5 KB");
         assert_eq!(size_text(5 * 1024 * 1024), "5.0 MB");
+        assert_eq!(size_text(1024 * 1024 * 1024 - 1), "1024.0 MB");
+        assert_eq!(size_text(2 * 1024 * 1024 * 1024), "2.0 GB");
     }
 
     #[test]
@@ -435,6 +443,8 @@ mod tests {
             BackupKind::PreMigration,
             BackupKind::PreRestore,
             BackupKind::PreEncryption,
+            BackupKind::PreSync,
+            BackupKind::PreRecover,
         ] {
             assert!(!kind_label(kind).is_empty());
         }

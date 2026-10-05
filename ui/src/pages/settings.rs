@@ -6,6 +6,7 @@ use crate::{
     components::form::{TextField, BUTTON, BUTTON_PRIMARY, COMPACT_INPUT},
     components::{
         backup_settings::BackupSettings,
+        drive_settings::DriveSettings,
         page::{Card, PageHeader},
         security_settings::SecuritySettings,
     },
@@ -92,9 +93,10 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <div class="flex h-full flex-col">
-            <PageHeader icon="settings" title="Settings" subtitle="Appearance, time, waiting-ons, health, encryption, backups and the status report"><span></span></PageHeader>
+            <PageHeader icon="settings" title="Settings" subtitle="Google Drive, appearance, time, waiting-ons, health, encryption, backups and the status report"><span></span></PageHeader>
             <div class="flex-1 overflow-y-auto">
             <div class="mx-auto max-w-3xl space-y-4 p-6">
+            <DriveSettings />
             <Appearance />
             <Card title="Time" description="How estimates and working days are measured.">
                 {move || match settings.get() {
@@ -147,7 +149,7 @@ pub fn Settings() -> impl IntoView {
             <SecuritySettings />
             <BackupSettings />
             <ReportSettings />
-            <p class="text-[11px] text-muted">"More settings (encryption, Google Drive) arrive with the Settings feature."</p>
+            <p class="text-[11px] text-muted">"More settings arrive with the Settings feature."</p>
             </div>
             </div>
         </div>

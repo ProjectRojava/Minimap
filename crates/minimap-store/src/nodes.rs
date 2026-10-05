@@ -161,9 +161,16 @@ pub fn delete(conn: &mut Connection, node: NodeRef) -> Result<()> {
         "DELETE FROM edges WHERE from_id = ?1 OR to_id = ?1",
         [id_s(node.id)],
     )?;
+    crate::attachments::delete_for_node(&tx, node.id)?;
     tx.execute(
         &format!("DELETE FROM {} WHERE id = ?1", table(node.node_type)),
         [id_s(node.id)],
+    )?;
+    // The deletion must reach the other devices, and the item must never come back from them.
+    tx.execute(
+        "INSERT INTO tombstones (kind, id, deleted_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(kind, id) DO UPDATE SET deleted_at = excluded.deleted_at",
+        params![node.node_type.as_str(), id_s(node.id), ts_s(now())],
     )?;
     activity::record(
         &tx,

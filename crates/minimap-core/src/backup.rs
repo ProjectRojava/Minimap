@@ -36,6 +36,8 @@ pub fn file_name(kind: BackupKind, at: OffsetDateTime, schema_version: u32) -> S
         BackupKind::PreMigration => format!("pre-migration-v{schema_version}-"),
         BackupKind::PreRestore => "pre-restore-".to_owned(),
         BackupKind::PreEncryption => "pre-encryption-".to_owned(),
+        BackupKind::PreSync => "pre-sync-".to_owned(),
+        BackupKind::PreRecover => "pre-recover-".to_owned(),
     };
     format!("{PREFIX}{middle}{}{EXTENSION}", stamp(at))
 }
@@ -73,6 +75,12 @@ pub fn parse_name(name: &str) -> Option<(BackupKind, OffsetDateTime)> {
     }
     if let Some(stamp) = rest.strip_prefix("pre-encryption-") {
         return Some((BackupKind::PreEncryption, parse_stamp(stamp)?));
+    }
+    if let Some(stamp) = rest.strip_prefix("pre-sync-") {
+        return Some((BackupKind::PreSync, parse_stamp(stamp)?));
+    }
+    if let Some(stamp) = rest.strip_prefix("pre-recover-") {
+        return Some((BackupKind::PreRecover, parse_stamp(stamp)?));
     }
     if let Some(after) = rest.strip_prefix("pre-migration-v") {
         let (version, stamp) = after.split_once('-')?;
@@ -144,6 +152,14 @@ mod tests {
             file_name(BackupKind::PreEncryption, at, 0),
             "minimap-pre-encryption-20270303-153005.db"
         );
+        assert_eq!(
+            file_name(BackupKind::PreSync, at, 0),
+            "minimap-pre-sync-20270303-153005.db"
+        );
+        assert_eq!(
+            file_name(BackupKind::PreRecover, at, 0),
+            "minimap-pre-recover-20270303-153005.db"
+        );
     }
 
     #[test]
@@ -155,6 +171,8 @@ mod tests {
             BackupKind::PreMigration,
             BackupKind::PreRestore,
             BackupKind::PreEncryption,
+            BackupKind::PreSync,
+            BackupKind::PreRecover,
         ] {
             assert_eq!(parse_name(&file_name(kind, at, 12)), Some((kind, at)));
         }

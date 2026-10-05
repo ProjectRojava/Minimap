@@ -4,9 +4,10 @@ use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeT
 use crate::{
     api,
     components::{
-        decision_panel::DecisionPanel, links_editor::LinksEditor, note_panel::NotePanel,
-        objective_panel::ObjectivePanel, people_panel::PersonPanel, project_panel::ProjectPanel,
-        task_panel::TaskPanel, team_panel::TeamPanel, waiting_panel::WaitingPanel,
+        attachments::Attachments, decision_panel::DecisionPanel, links_editor::LinksEditor,
+        note_panel::NotePanel, objective_panel::ObjectivePanel, people_panel::PersonPanel,
+        project_panel::ProjectPanel, task_panel::TaskPanel, team_panel::TeamPanel,
+        waiting_panel::WaitingPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -102,6 +103,8 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Note => view! { <NotePanel id=node.id /> }.into_any(),
             NodeType::Decision => view! { <DecisionPanel id=node.id /> }.into_any(),
         }}
+
+        <Attachments node=node />
 
         <Section title="Links">
             {move || match links.get() {

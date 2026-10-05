@@ -17,6 +17,11 @@ pub enum BackupKind {
     /// Taken before encryption is turned on, off or re-keyed, and removed once that succeeded:
     /// `minimap-pre-encryption-YYYYMMDD-HHMMSS.db`.
     PreEncryption,
+    /// Taken before another device's data is first merged in, or before a merge that removes
+    /// many items (spec 22): `minimap-pre-sync-YYYYMMDD-HHMMSS.db`. Never deleted by Minimap.
+    PreSync,
+    /// Taken before items are recovered from a Drive checkpoint: `minimap-pre-recover-…`.
+    PreRecover,
 }
 
 /// How many automatic backups are kept.

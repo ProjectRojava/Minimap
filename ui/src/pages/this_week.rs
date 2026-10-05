@@ -15,6 +15,7 @@ use crate::{
         form::{BUTTON, BUTTON_SUCCESS, COMPACT_INPUT},
         node_row::NodeRow,
         page::{EmptyState, GroupLabel, Hints, PageHeader, Tone, CHIP_STRONG},
+        sync_status::SyncBanner,
         waiting_panel::age_text,
     },
     labels::{task_status_label, task_status_tone},
@@ -217,6 +218,7 @@ fn Body(week: Week, week_start: RwSignal<Option<Date>>) -> impl IntoView {
             <Hints keys=&[("j/k", "move"), ("Enter", "open"), ("x", "done")] />
         </PageHeader>
         <div class="min-h-0 flex-1 overflow-y-auto">
+            <SyncBanner />
             <div class="grid grid-cols-7 gap-1.5 border-b border-line px-4 py-3">{strip}</div>
             {overdue}{due}{blocked}{progress}{waiting}{ones}
             {empty.then(|| view! {

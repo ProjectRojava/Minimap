@@ -21,6 +21,19 @@ sudo apt install pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
 
 macOS needs Xcode command line tools; Windows needs the MSVC build tools and WebView2.
 
+### Google Drive (optional)
+
+Minimap works fully offline without it. To store and sync your data through your own Google Drive
+(Settings → Google Drive), Google needs an OAuth client for the app:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/) create a project and turn on the **Google Drive API**.
+2. Configure the OAuth consent screen, then create an **OAuth client ID** of type **Desktop app**.
+3. Either paste the client ID and secret in Settings → Google Drive → Advanced, or build with
+   `MINIMAP_GOOGLE_CLIENT_ID` and `MINIMAP_GOOGLE_CLIENT_SECRET` set in the environment.
+
+Minimap asks only for the `drive.file` permission (it sees just the files it made). Google treats a
+desktop app's secret as non-confidential. Public distribution needs Google's consent-screen verification.
+
 ## Run
 
 ```bash

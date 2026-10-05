@@ -30,6 +30,9 @@ pub enum StoreError {
     /// A backup is encrypted with a key we were not given.
     #[error("this backup is encrypted with a different key")]
     BackupKeyNeeded,
+    /// Data from a newer version of Minimap (a snapshot saved by another device).
+    #[error("this data is from a newer version of Minimap (format {found}, this one understands up to {supported})")]
+    NewerData { found: u32, supported: u32 },
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
 }
