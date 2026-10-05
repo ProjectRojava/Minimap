@@ -6,8 +6,14 @@ use leptos_router::{
 
 use crate::{
     components::{
-        detail_pane::DetailPane, first_run::FirstRun, palette::PaletteHost, sidebar::Sidebar,
-        titlebar::TitleBar, toasts::ToastHost, unlock::UnlockScreen,
+        detail_pane::DetailPane,
+        first_run::FirstRun,
+        palette::PaletteHost,
+        sidebar::Sidebar,
+        sync_status::{use_sync_status, StatusBar},
+        titlebar::TitleBar,
+        toasts::ToastHost,
+        unlock::UnlockScreen,
     },
     keyboard::use_global_shortcuts,
     pages::{
@@ -75,6 +81,9 @@ fn LockGate() -> impl IntoView {
 #[component]
 fn Shell() -> impl IntoView {
     use_global_shortcuts();
+    // Google Drive status, polled for the status bar, banners and Settings; a merge from another
+    // computer reloads every screen.
+    use_sync_status();
     let list = expect_context::<ListNav>();
     // Rows belong to the screen that registered them; clear them on route change.
     let location = leptos_router::hooks::use_location();
@@ -111,6 +120,7 @@ fn Shell() -> impl IntoView {
             </main>
             <DetailPane />
             </div>
+            <StatusBar />
             <PaletteHost />
             <ToastHost />
             <FirstRun />

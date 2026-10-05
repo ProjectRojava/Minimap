@@ -40,6 +40,10 @@ pub fn FirstRun() -> impl IntoView {
                     <p class="text-[13px] text-muted">
                         "What should we call you? You can change this later."
                     </p>
+                    <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-[12px]">
+                        "Minimap keeps your data on this computer only. To back it up and use it on "
+                        "other computers, connect Google Drive in Settings (you can do that any time)."
+                    </p>
                     <input class=INPUT autofocus prop:value=move || name.get()
                            on:input=move |ev| name.set(event_target_value(&ev)) />
                     <button class=BUTTON_PRIMARY type="submit">"Continue"</button>

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-drive-checkpoints"
+description = "Enables the list_drive_checkpoints command without any pre-configured scope."
+commands.allow = ["list_drive_checkpoints"]
+
+[[permission]]
+identifier = "deny-list-drive-checkpoints"
+description = "Denies the list_drive_checkpoints command without any pre-configured scope."
+commands.deny = ["list_drive_checkpoints"]

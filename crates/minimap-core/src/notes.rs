@@ -224,7 +224,11 @@ fn node_type_attr(t: NodeType) -> &'static str {
 /// - `@[Name](node:id)` mentions become `<a class="mention" data-node-type=… data-node-id=…>` with
 ///   the node's *current* name (a missing node renders as plain `@Name`);
 /// - other links lose their `href` (the app never navigates away; the address stays in `title`);
-/// - images become their alt text (nothing is fetched).
+/// - images become their alt text (nothing is fetched), except attachments (spec 22):
+///   `![name](attachment:<id>)` becomes `<img class="attachment-img" data-attachment=<id>>` with no
+///   address (the app gives it one that points at its own `minimap-media` protocol), and
+///   `[name](attachment:<id>)` becomes `<a class="attachment-link" data-attachment=<id>>`;
+///   an id that isn't a valid uuid is treated like any other image or link.
 ///
 /// `resolve` looks a node up by id (type, current label), if it exists and is active.
 pub fn render(body: &str, resolve: &dyn Fn(Uuid) -> Option<(NodeType, String)>) -> String {
@@ -242,15 +246,53 @@ pub fn render(body: &str, resolve: &dyn Fn(Uuid) -> Option<(NodeType, String)>) 
         Missing,
         /// An ordinary link: show its text, never navigate.
         Plain,
+        /// A link to an attachment: an anchor the app opens itself.
+        Attachment,
+    }
+
+    fn attachment_id(dest: &str) -> Option<Uuid> {
+        dest.strip_prefix("attachment:")
+            .and_then(|i| Uuid::parse_str(i).ok())
     }
 
     let mut events: Vec<Event> = Vec::new();
     let mut link = Link::None;
+    // An attachment image being read: its id and the alt text gathered so far.
+    let mut image: Option<(Uuid, String)> = None;
     for event in Parser::new_ext(body, options) {
+        if let Some((_, alt)) = image.as_mut() {
+            match event {
+                Event::Text(t) | Event::Code(t) | Event::Html(t) | Event::InlineHtml(t) => {
+                    alt.push_str(&t);
+                }
+                Event::End(TagEnd::Image) => {
+                    if let Some((id, alt)) = image.take() {
+                        events.push(Event::Html(CowStr::from(format!(
+                            "<img class=\"attachment-img\" data-attachment=\"{id}\" alt=\"{}\">",
+                            escape(&alt)
+                        ))));
+                    }
+                }
+                _ => {}
+            }
+            continue;
+        }
         match event {
             // Raw HTML is text. Images are just their alt text (the children are text events).
             Event::Html(h) | Event::InlineHtml(h) => events.push(Event::Text(h)),
-            Event::Start(Tag::Image { .. }) | Event::End(TagEnd::Image) => {}
+            Event::Start(Tag::Image { dest_url, .. }) => {
+                if let Some(id) = attachment_id(&dest_url) {
+                    image = Some((id, String::new()));
+                }
+            }
+            Event::End(TagEnd::Image) => {}
+            Event::Start(Tag::Link { dest_url, .. }) if attachment_id(&dest_url).is_some() => {
+                let id = attachment_id(&dest_url).unwrap_or_default();
+                link = Link::Attachment;
+                events.push(Event::Html(CowStr::from(format!(
+                    "<a class=\"attachment-link\" data-attachment=\"{id}\">"
+                ))));
+            }
             Event::Start(Tag::Link { dest_url, .. }) => {
                 let mention = dest_url
                     .strip_prefix("node:")
@@ -282,8 +324,12 @@ pub fn render(body: &str, resolve: &dyn Fn(Uuid) -> Option<(NodeType, String)>) 
                 }
             }
             Event::End(TagEnd::Link) => {
-                if matches!(link, Link::Missing | Link::Plain) {
-                    events.push(Event::Html(CowStr::from("</span>")));
+                match link {
+                    Link::Missing | Link::Plain => {
+                        events.push(Event::Html(CowStr::from("</span>")));
+                    }
+                    Link::Attachment => events.push(Event::Html(CowStr::from("</a>"))),
+                    Link::None | Link::Found => {}
                 }
                 link = Link::None;
             }
@@ -305,6 +351,53 @@ mod tests {
 
     fn id(n: u128) -> Uuid {
         Uuid::from_u128(n)
+    }
+
+    #[test]
+    fn attachments_render_as_pictures_and_links_the_app_can_open() {
+        let a = id(0xA);
+        let nobody = |_: Uuid| None;
+        let html = render(&format!("![the *map*](attachment:{a})"), &nobody);
+        assert_eq!(
+            html.trim(),
+            format!(
+                "<p><img class=\"attachment-img\" data-attachment=\"{a}\" alt=\"the map\"></p>"
+            )
+        );
+        let html = render(&format!("See [the plan](attachment:{a}) now"), &nobody);
+        assert!(
+            html.contains(&format!(
+                "<a class=\"attachment-link\" data-attachment=\"{a}\">the plan</a>"
+            )),
+            "{html}"
+        );
+        // No address anywhere: nothing can be fetched or navigated to.
+        assert!(!html.contains("href") && !html.contains("src"), "{html}");
+    }
+
+    #[test]
+    fn the_alt_text_of_an_attachment_picture_cannot_break_out() {
+        let a = id(0xA);
+        let html = render(
+            &format!("![\"><script>x</script>](attachment:{a})"),
+            &|_| None,
+        );
+        assert!(!html.contains("<script"), "{html}");
+        assert!(html.contains("&quot;&gt;&lt;script&gt;"), "{html}");
+    }
+
+    #[test]
+    fn other_images_and_bad_attachment_ids_stay_as_they_were() {
+        let nobody = |_: Uuid| None;
+        // A web image still shows only its alt text, and nothing is fetched.
+        let html = render("![logo](https://example.com/x.png)", &nobody);
+        assert_eq!(html.trim(), "<p>logo</p>");
+        assert!(!html.contains("img"));
+        // Not a uuid: an ordinary image / link.
+        assert_eq!(render("![x](attachment:nope)", &nobody).trim(), "<p>x</p>");
+        let html = render("[x](attachment:nope)", &nobody);
+        assert!(html.contains("<span class=\"link\""), "{html}");
+        assert!(!html.contains("data-attachment"));
     }
 
     #[test]

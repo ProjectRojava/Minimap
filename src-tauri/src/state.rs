@@ -6,7 +6,12 @@ use std::{
 use minimap_store::{security::Key, Connection};
 use minimap_types::{AppError, KeyMethod};
 
-use crate::{error::app_error, keystore::KeyStore};
+use crate::{
+    error::app_error,
+    keystore::KeyStore,
+    sync::{SyncHub, TauriHost},
+};
+use minimap_sync::Engine;
 
 /// The open database and how it is keyed. `conn` is `None` while an encrypted database waits for
 /// its key (the app shows the unlock screen and every other command answers `locked`).
@@ -57,14 +62,22 @@ pub struct AppState {
     /// The app's data folder (the database, the log and the default backup folder live here).
     pub data_dir: PathBuf,
     pub keys: Arc<dyn KeyStore>,
+    /// Google Drive sync (spec 22): the engine and the sign-in in progress.
+    pub sync: Arc<SyncHub>,
 }
 
 impl AppState {
     pub fn new(vault: Vault, data_dir: PathBuf, keys: Arc<dyn KeyStore>) -> Self {
+        let db = Arc::new(Mutex::new(vault));
+        let host = Arc::new(TauriHost {
+            db: db.clone(),
+            data_dir: data_dir.clone(),
+        });
         Self {
-            db: Arc::new(Mutex::new(vault)),
+            db,
             data_dir,
             keys,
+            sync: Arc::new(SyncHub::new(Engine::new(host))),
         }
     }
 
@@ -87,11 +100,22 @@ impl AppState {
     {
         let db = self.db.clone();
         let keys = self.keys.clone();
+        let engine = self.sync.engine.clone();
         tauri::async_runtime::spawn_blocking(move || {
             let mut vault = db
                 .lock()
                 .map_err(|_| app_error("internal", "database lock poisoned"))?;
-            f(&mut vault, keys.as_ref())
+            let before = vault.conn.as_ref().map(Connection::total_changes);
+            let result = f(&mut vault, keys.as_ref());
+            // Any command that wrote (even one that then failed half way) leaves changes to
+            // save to Drive. The count is per connection, so a swapped connection counts too.
+            let after = vault.conn.as_ref().map(Connection::total_changes);
+            if before != after {
+                if let Some(conn) = vault.conn.as_ref() {
+                    engine.note_change(conn);
+                }
+            }
+            result
         })
         .await
         .map_err(|e| app_error("internal", e))?

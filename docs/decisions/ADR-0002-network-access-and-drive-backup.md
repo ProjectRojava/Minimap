@@ -1,5 +1,7 @@
 # ADR-0002: Allow network access; add Google Drive backup
 
+**Status: Superseded by [ADR-0011](ADR-0011-google-drive-storage-and-autosave.md)** (Google Drive as the store of record, with autosave and media). The network-access rules below are carried over there; the backup-only Drive design is replaced.
+
 ## Context
 The original spec forbade network access by default. Users need off-device backups of their work, and Google Drive is the requested destination.
 

@@ -1,20 +1,22 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AppError, ApplyPreview, ApplyResult, AssigneeChoice, BackupEntry, BackupStatus,
-    Capacity, CreateDecision, CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask,
-    CreateTeam, CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge,
-    EdgeLink, EncryptionResult, ExportResult, GraphFilter, ImpactReport, LinkOption, NewEdge,
+    Activity, AddAttachment, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Attachment,
+    BackupEntry, BackupStatus, Capacity, CheckpointInfo, ConnectOutcome, CreateDecision,
+    CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
+    CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge, EdgeLink,
+    EncryptionResult, ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption, NewEdge,
     NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
     ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
     PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
-    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, ReportKind,
-    ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope, ScheduledTask,
-    SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip, Task,
-    TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek,
-    UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
-    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
-    WeeklyReview,
+    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult,
+    RecoverCheckpoint, RecoverResult, ReportKind, ReportParams, RestorePreview, RestoreResult,
+    Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus,
+    SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter,
+    TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision, UpdateNote, UpdateObjective,
+    UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam,
+    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
+    ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -894,4 +896,149 @@ mod tests {
             "missing rename_all = \"camelCase\": {offenders:?}"
         );
     }
+}
+
+// ------------------------------------------------------------------ Google Drive and attachments (spec 22)
+
+#[derive(Serialize)]
+struct RequestArg<T> {
+    request: T,
+}
+
+/// What the status bar and Settings show: connected or local only, saved or not, devices.
+pub async fn get_sync_status() -> Result<SyncStatus, AppError> {
+    invoke("get_sync_status", &NoArgs {}).await
+}
+
+pub async fn update_sync_settings(request: UpdateSyncSettings) -> Result<SyncStatus, AppError> {
+    invoke("update_sync_settings", &RequestArg { request }).await
+}
+
+/// Opens the browser to sign in to Google and waits for the answer (up to five minutes).
+pub async fn connect_drive() -> Result<ConnectOutcome, AppError> {
+    invoke("connect_drive", &NoArgs {}).await
+}
+
+pub async fn cancel_drive_connect() -> Result<(), AppError> {
+    invoke("cancel_drive_connect", &NoArgs {}).await
+}
+
+/// The recovery key that opens data already on Drive.
+pub async fn finish_drive_connect(recovery_key: Secret) -> Result<ConnectOutcome, AppError> {
+    invoke(
+        "finish_drive_connect",
+        &RequestArg {
+            request: FinishConnect { recovery_key },
+        },
+    )
+    .await
+}
+
+pub async fn disconnect_drive() -> Result<SyncStatus, AppError> {
+    invoke("disconnect_drive", &NoArgs {}).await
+}
+
+pub async fn sync_now() -> Result<SyncStatus, AppError> {
+    invoke("sync_now", &NoArgs {}).await
+}
+
+pub async fn list_drive_checkpoints() -> Result<Vec<CheckpointInfo>, AppError> {
+    invoke("list_drive_checkpoints", &NoArgs {}).await
+}
+
+pub async fn recover_checkpoint(name: String) -> Result<RecoverResult, AppError> {
+    invoke(
+        "recover_checkpoint",
+        &RequestArg {
+            request: RecoverCheckpoint { name },
+        },
+    )
+    .await
+}
+
+pub async fn list_attachments(node: NodeRef) -> Result<Vec<Attachment>, AppError> {
+    invoke("list_attachments", &NodeArg { node }).await
+}
+
+/// Attaches the file at `path` (from [`pick_attachment`]).
+pub async fn add_attachment(node: NodeRef, path: String) -> Result<Attachment, AppError> {
+    invoke(
+        "add_attachment",
+        &RequestArg {
+            request: AddAttachment { node, path },
+        },
+    )
+    .await
+}
+
+pub async fn remove_attachment(id: Uuid) -> Result<(), AppError> {
+    invoke("remove_attachment", &IdArg { id }).await
+}
+
+/// Opens an attachment with the program the system uses for that kind of file.
+pub async fn open_attachment(id: Uuid) -> Result<(), AppError> {
+    invoke("open_attachment", &IdArg { id }).await
+}
+
+#[wasm_bindgen]
+extern "C" {
+    /// The same `invoke`, with a binary body and headers (for files pasted or dropped).
+    #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
+    async fn invoke_bytes_raw(
+        cmd: &str,
+        body: &js_sys::Uint8Array,
+        options: JsValue,
+    ) -> Result<JsValue, JsValue>;
+
+    /// The address the webview uses for a custom protocol (it differs between systems).
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = convertFileSrc)]
+    fn convert_file_src(path: &str, protocol: &str) -> String;
+}
+
+/// The address of an attached picture, served by the app's `minimap-media` protocol.
+pub fn attachment_url(id: Uuid) -> String {
+    convert_file_src(&id.to_string(), "minimap-media")
+}
+
+/// Attaches a file that arrived as data (pasted or dropped) to `node`.
+pub async fn add_attachment_file(
+    node: NodeRef,
+    file: &web_sys::File,
+) -> Result<Attachment, AppError> {
+    let buffer = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
+        .await
+        .map_err(|e| ipc_error(format!("Couldn't read the file: {e:?}")))?;
+    let bytes = js_sys::Uint8Array::new(&buffer);
+    let headers = js_sys::Object::new();
+    let encoded_name = js_sys::encode_uri_component(&file.name());
+    for (k, v) in [
+        ("x-node-type", node.node_type.as_str().to_owned()),
+        ("x-node-id", node.id.to_string()),
+        ("x-file-name", String::from(encoded_name)),
+    ] {
+        js_sys::Reflect::set(&headers, &JsValue::from_str(k), &JsValue::from_str(&v))
+            .map_err(|e| ipc_error(format!("{e:?}")))?;
+    }
+    let options = js_sys::Object::new();
+    js_sys::Reflect::set(&options, &JsValue::from_str("headers"), &headers)
+        .map_err(|e| ipc_error(format!("{e:?}")))?;
+    match invoke_bytes_raw("add_attachment_data", &bytes, options.into()).await {
+        Ok(v) => serde_wasm_bindgen::from_value(v).map_err(ipc_error),
+        Err(e) => Err(serde_wasm_bindgen::from_value::<AppError>(e.clone())
+            .unwrap_or_else(|_| ipc_error(format!("{e:?}")))),
+    }
+}
+
+/// The operating system's file picker for something to attach. `Ok(None)` = cancelled.
+pub async fn pick_attachment() -> Result<Option<String>, AppError> {
+    open_dialog(OpenOptions {
+        title: "Attach a file",
+        directory: false,
+        multiple: false,
+        filters: vec![SaveFilter {
+            name: "Images, documents, spreadsheets, presentations",
+            extensions: ATTACHMENT_EXTENSIONS.to_vec(),
+        }],
+    })
+    .await
 }

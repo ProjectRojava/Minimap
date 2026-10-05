@@ -1,11 +1,14 @@
 //! SQLite persistence: connection setup, migrations and repositories.
 
 pub mod activity;
+pub mod attachments;
 pub mod backup;
 mod convert;
 pub mod decisions;
 pub mod edges;
 mod error;
+pub mod merge;
+pub mod meta;
 pub mod nodes;
 pub mod notes;
 pub mod objectives;
@@ -16,6 +19,7 @@ mod repo;
 pub mod search;
 pub mod security;
 pub mod settings;
+pub mod snapshot;
 pub mod tasks;
 pub mod teams;
 #[cfg(test)]
@@ -51,6 +55,7 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!("../migrations/0005_settings.sql")),
         M::up(include_str!("../migrations/0006_waiting_on_follow_up.sql")),
         M::up(include_str!("../migrations/0007_search.sql")),
+        M::up(include_str!("../migrations/0008_sync.sql")),
     ])
 }
 
@@ -75,7 +80,7 @@ fn backfill_project_slugs(tx: &rusqlite::Transaction) -> rusqlite_migration::Hoo
 
 /// The schema version after the last migration (`PRAGMA user_version`); a test keeps it equal
 /// to the migration list.
-pub const LATEST_SCHEMA: u32 = 7;
+pub const LATEST_SCHEMA: u32 = 8;
 
 /// Opens (creating if needed) the unencrypted database at `path`, applies pragmas and migrations.
 /// An existing database that needs upgrading is first copied to `backups/` next to it (spec 20);
@@ -258,7 +263,7 @@ mod migration_tests {
         migrations().to_version(&mut conn, 1).unwrap();
         assert_eq!(schema_version(&conn).unwrap(), 1);
         migrations().to_latest(&mut conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 7);
+        assert_eq!(schema_version(&conn).unwrap(), 8);
         let n: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('tasks','edges','activity')",

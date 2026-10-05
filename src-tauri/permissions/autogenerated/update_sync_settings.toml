@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-sync-settings"
+description = "Enables the update_sync_settings command without any pre-configured scope."
+commands.allow = ["update_sync_settings"]
+
+[[permission]]
+identifier = "deny-update-sync-settings"
+description = "Denies the update_sync_settings command without any pre-configured scope."
+commands.deny = ["update_sync_settings"]

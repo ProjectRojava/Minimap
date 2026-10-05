@@ -31,6 +31,11 @@ pub trait KeyStore: Send + Sync {
     fn set(&self, slot: Slot, key: &RawKey) -> Result<(), String>;
     /// Removes a slot; a slot that is already empty is fine.
     fn delete(&self, slot: Slot) -> Result<(), String>;
+
+    /// A named secret that is not the database key (the Google refresh token).
+    fn get_secret(&self, name: &str) -> Result<Option<String>, String>;
+    fn set_secret(&self, name: &str, value: &str) -> Result<(), String>;
+    fn delete_secret(&self, name: &str) -> Result<(), String>;
 }
 
 const SERVICE: &str = "app.minimap.desktop";
@@ -81,6 +86,30 @@ impl KeyStore for OsKeyStore {
             Err(e) => Err(describe(&e)),
         }
     }
+
+    fn get_secret(&self, name: &str) -> Result<Option<String>, String> {
+        let entry = keyring::Entry::new(SERVICE, name).map_err(|e| describe(&e))?;
+        match entry.get_password() {
+            Ok(text) => Ok(Some(text)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(describe(&e)),
+        }
+    }
+
+    fn set_secret(&self, name: &str, value: &str) -> Result<(), String> {
+        keyring::Entry::new(SERVICE, name)
+            .map_err(|e| describe(&e))?
+            .set_password(value)
+            .map_err(|e| describe(&e))
+    }
+
+    fn delete_secret(&self, name: &str) -> Result<(), String> {
+        let entry = keyring::Entry::new(SERVICE, name).map_err(|e| describe(&e))?;
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(describe(&e)),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -92,6 +121,7 @@ pub(crate) mod memory {
     /// A keychain in memory, for tests; can be made unavailable or made to refuse writes.
     pub struct MemoryKeyStore {
         pub slots: Mutex<HashMap<Slot, RawKey>>,
+        pub secrets: Mutex<HashMap<String, String>>,
         pub available: bool,
         pub refuse_current_writes: bool,
     }
@@ -100,6 +130,7 @@ pub(crate) mod memory {
         pub fn new() -> Self {
             Self {
                 slots: Mutex::new(HashMap::new()),
+                secrets: Mutex::new(HashMap::new()),
                 available: true,
                 refuse_current_writes: false,
             }
@@ -143,6 +174,26 @@ pub(crate) mod memory {
         fn delete(&self, slot: Slot) -> Result<(), String> {
             self.availability()?;
             self.slots.lock().unwrap().remove(&slot);
+            Ok(())
+        }
+
+        fn get_secret(&self, name: &str) -> Result<Option<String>, String> {
+            self.availability()?;
+            Ok(self.secrets.lock().unwrap().get(name).cloned())
+        }
+
+        fn set_secret(&self, name: &str, value: &str) -> Result<(), String> {
+            self.availability()?;
+            self.secrets
+                .lock()
+                .unwrap()
+                .insert(name.to_owned(), value.to_owned());
+            Ok(())
+        }
+
+        fn delete_secret(&self, name: &str) -> Result<(), String> {
+            self.availability()?;
+            self.secrets.lock().unwrap().remove(name);
             Ok(())
         }
     }
