@@ -70,8 +70,9 @@ pub fn existing_text(account: &str, devices: u32) -> String {
 
 /// What is missing before the Connect button can work.
 pub fn connect_blocker(s: &SyncStatus) -> Option<&'static str> {
-    (!s.client_configured)
-        .then_some("Add a Google OAuth client first (see Advanced below), then connect.")
+    (!s.client_configured).then_some(
+        "This build has no Google sign-in set up. Add an OAuth client under Advanced below.",
+    )
 }
 
 /// Why a Drive state calls for a coloured box in the card.
@@ -194,13 +195,15 @@ fn Disconnected(phase: RwSignal<Phase>) -> impl IntoView {
             _ => view! {
                 <div class="flex flex-wrap items-center gap-2">
                     <button class=BUTTON_PRIMARY disabled=move || blocker().is_some() on:click=connect>
-                        "Connect Google Drive"
+                        "Sign in with Google"
                     </button>
                     {move || blocker().map(|b| view! { <span class="text-[11px] text-muted">{b}</span> })}
                 </div>
             }.into_any(),
         }}
-        <ClientSettings />
+        // Only a build without Google credentials of its own asks for them; users of a normal
+        // build just sign in.
+        {move || ctx.status.get().is_some_and(|s| !s.client_built_in).then(|| view! { <ClientSettings /> })}
     }
 }
 
@@ -654,7 +657,7 @@ mod tests {
     fn connecting_needs_an_oauth_client_and_says_so() {
         assert!(connect_blocker(&status(false))
             .unwrap()
-            .contains("OAuth client"));
+            .contains("no Google sign-in"));
         assert!(connect_blocker(&status(true)).is_none());
     }
 

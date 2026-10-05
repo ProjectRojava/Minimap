@@ -112,7 +112,41 @@ const COMMANDS: &[&str] = &[
     "open_attachment",
 ];
 
+/// Bakes the Google OAuth client into the app so users just click "Sign in with Google": the
+/// values come from the environment or from a git-ignored `.env` at the repository root (see
+/// `.env.example`). They are read with `option_env!` in `src/sync.rs`.
+fn google_client_from_env_file() {
+    println!("cargo:rerun-if-changed=../.env");
+    println!("cargo:rerun-if-env-changed=MINIMAP_GOOGLE_CLIENT_ID");
+    println!("cargo:rerun-if-env-changed=MINIMAP_GOOGLE_CLIENT_SECRET");
+    let Ok(text) = std::fs::read_to_string("../.env") else {
+        return;
+    };
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let (key, value) = (
+            key.trim(),
+            value.trim().trim_matches(|c| c == '"' || c == '\''),
+        );
+        let wanted = matches!(
+            key,
+            "MINIMAP_GOOGLE_CLIENT_ID" | "MINIMAP_GOOGLE_CLIENT_SECRET"
+        );
+        // A variable already set in the environment wins over the file.
+        if wanted && !value.is_empty() && std::env::var_os(key).is_none() {
+            println!("cargo:rustc-env={key}={value}");
+        }
+    }
+}
+
 fn main() {
+    google_client_from_env_file();
     tauri_build::try_build(
         tauri_build::Attributes::new()
             .app_manifest(tauri_build::AppManifest::new().commands(COMMANDS)),
