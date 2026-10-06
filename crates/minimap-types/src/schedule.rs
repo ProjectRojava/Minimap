@@ -1,4 +1,4 @@
-//! Schedule and critical path (spec 13). All times are **working days** (Mon-Fri) counted from
+//! Schedule and critical path (spec 13). All times are **working days** (Mon-Fri unless Settings say otherwise) counted from
 //! today's working day: offset 0 is today (or the next Monday when today is a weekend), 1 the
 //! next working day, negative offsets are the past. A task spanning `es..ef` occupies those
 //! working days; `ef` is the end of the last one.

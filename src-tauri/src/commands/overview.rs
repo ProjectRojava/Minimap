@@ -31,6 +31,7 @@ pub(crate) fn overview_impl(conn: &mut Connection) -> Result<PortfolioOverview, 
         people: &people,
         today,
         hours_per_day: settings.hours_per_day,
+        work_week: settings.work_week,
         thresholds: settings.health,
         task_limit: settings.capacity_task_limit,
     });

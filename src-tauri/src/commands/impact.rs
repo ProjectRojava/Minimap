@@ -29,6 +29,9 @@ fn with_world<T>(
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let objectives = minimap_store::objectives::list(conn, false).map_err(store_error)?;
     let people = minimap_store::people::list(conn, false).map_err(store_error)?;
+    let work_week = minimap_store::settings::get(conn)
+        .map_err(store_error)?
+        .work_week;
     let world = World {
         tasks: &tasks,
         edges: &edges,
@@ -36,6 +39,7 @@ fn with_world<T>(
         objectives: &objectives,
         people: &people,
         today: minimap_store::today(),
+        work_week,
     };
     f(&world).map_err(impact_error)
 }

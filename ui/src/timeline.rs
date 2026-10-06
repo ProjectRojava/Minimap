@@ -135,15 +135,20 @@ pub fn layout(
     let mut ticks = Vec::new();
     for (i, d) in schedule.days.iter().enumerate() {
         let x = i as f64 * ppd;
-        let monday = d.weekday().number_days_from_monday() == 0;
-        if monday || i == 0 {
+        // A new (Monday-first) week starts at the first working day after the weekday number
+        // goes back down: Monday normally, Tuesday when Monday isn't worked.
+        let new_week = i > 0
+            && schedule.days.get(i - 1).is_some_and(|prev| {
+                d.weekday().number_days_from_monday() < prev.weekday().number_days_from_monday()
+            });
+        if new_week || i == 0 {
             ticks.push(Tick {
                 x,
                 label: format!("{} {}", short_month(*d), d.day()),
                 kind: TickKind::Week,
             });
         }
-        if granularity == Granularity::Days && !(monday || i == 0) {
+        if granularity == Granularity::Days && !(new_week || i == 0) {
             ticks.push(Tick {
                 x,
                 label: String::new(),
@@ -362,6 +367,26 @@ mod tests {
         // Feb 25 (first column), then Mondays Mar 1 and Mar 8.
         assert_eq!(labels, ["Feb 25", "Mar 1", "Mar 8"]);
         assert_eq!(l.ticks[1].x, 2.0 * 8.0);
+    }
+
+    #[test]
+    fn a_week_that_skips_monday_still_gets_its_tick_on_its_first_working_day() {
+        // Tuesday to Friday weeks (Monday not worked): ticks at the first column and at each
+        // Tuesday.
+        let mut s = schedule(vec![]);
+        let mut days = Vec::new();
+        let mut d = date!(2027 - 03 - 02); // Tuesday
+        while days.len() < 8 {
+            if (1..5).contains(&d.weekday().number_days_from_monday()) {
+                days.push(d);
+            }
+            d = d.next_day().unwrap();
+        }
+        s.days = days;
+        let l = layout(&s, Granularity::Weeks, false, None);
+        let labels: Vec<&str> = l.ticks.iter().map(|t| t.label.as_str()).collect();
+        assert_eq!(labels, ["Mar 2", "Mar 9"]);
+        assert_eq!(l.ticks[1].x, 4.0 * 8.0);
     }
 
     #[test]

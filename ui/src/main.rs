@@ -8,6 +8,7 @@ mod labels;
 mod mentions;
 mod nav;
 mod pages;
+mod settings_tab;
 mod state;
 mod theme;
 mod themes;

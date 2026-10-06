@@ -51,6 +51,8 @@ const COMMANDS: &[&str] = &[
     "create_tasks_bulk",
     "get_settings",
     "update_settings",
+    "get_data_info",
+    "show_data_folder",
     "get_waiting_on",
     "get_waiting_on_detail",
     "create_waiting_on",

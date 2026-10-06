@@ -1,6 +1,4 @@
-use minimap_types::{
-    ActivityAction, CreatePerson, NodeType, Person, UpdatePerson, DEFAULT_WEEKLY_CAPACITY_HOURS,
-};
+use minimap_types::{ActivityAction, CreatePerson, NodeType, Person, UpdatePerson};
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 use uuid::Uuid;
 
@@ -95,9 +93,10 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreatePerson) -> Result<Pers
         name: input.name,
         role_title: input.role_title,
         email: input.email,
-        weekly_capacity_hours: input
-            .weekly_capacity_hours
-            .unwrap_or(DEFAULT_WEEKLY_CAPACITY_HOURS),
+        weekly_capacity_hours: match input.weekly_capacity_hours {
+            Some(h) => h,
+            None => crate::settings::default_weekly_capacity_hours(tx)?,
+        },
         is_self: input.is_self,
         notes: input.notes,
         created_at: at,

@@ -11,7 +11,7 @@ use minimap_types::{
     Activity, Date, DecisionFilter, DecisionItem, DecisionStatus, NodeRef, NodeSummary, NodeType,
     Objective, ObjectiveStatus, PortfolioOverview, Project, ProjectStatus, ReviewBlocked,
     ReviewDone, ReviewFinished, ReviewSlip, SlipKind, TaskRow, TaskStatus, Uuid, WaitingOnFilter,
-    WaitingOnItem, WeekTask, WeeklyReview,
+    WaitingOnItem, WeekTask, WeeklyReview, WorkWeek,
 };
 use time::Duration;
 
@@ -34,6 +34,8 @@ pub struct ReviewInput {
     /// Any date in the week; today's week when `None`.
     pub week_of: Option<Date>,
     pub stale_days: u32,
+    /// Slips are counted in working days of this work week.
+    pub work_week: WorkWeek,
 }
 
 /// First and last day of the week containing `d` (Monday and Sunday).
@@ -116,13 +118,14 @@ pub fn build(input: ReviewInput) -> WeeklyReview {
     let task_summary = |r: &TaskRow| summary_of(NodeType::Task, r.task.id, &r.task.title);
 
     // ---- slipped
+    let week = input.work_week;
     let mut slipped: Vec<ReviewSlip> = Vec::new();
     let mut slipped_tasks: HashSet<Uuid> = HashSet::new();
     for (id, (from, to)) in date_moves(&entries, NodeType::Task, "due_date") {
         let Some(row) = tasks.get(&id).filter(|r| is_open(r)) else {
             continue;
         };
-        let days = (end_index(to) - end_index(from)).max(0) as u32;
+        let days = (end_index(week, to) - end_index(week, from)).max(0) as u32;
         if to > from && days > 0 {
             slipped_tasks.insert(id);
             slipped.push(ReviewSlip {
@@ -162,7 +165,7 @@ pub fn build(input: ReviewInput) -> WeeklyReview {
             let Some(name) = names.get(&id) else {
                 continue;
             };
-            let days = (end_index(to) - end_index(from)).max(0) as u32;
+            let days = (end_index(week, to) - end_index(week, from)).max(0) as u32;
             if to > from && days > 0 {
                 slipped.push(ReviewSlip {
                     node: summary_of(node_type, id, name),
@@ -439,6 +442,7 @@ mod tests {
             today: TODAY,
             week_of: None,
             stale_days: 7,
+            work_week: WorkWeek::MON_FRI,
         }
     }
 
@@ -485,6 +489,30 @@ mod tests {
             (Some(date!(2027 - 03 - 05)), Some(date!(2027 - 03 - 08)))
         );
         assert_eq!(s.days, 1, "Friday to Monday is one working day");
+    }
+
+    #[test]
+    fn slips_count_only_the_days_the_work_week_works() {
+        // In a Sunday-to-Thursday week Friday is a day off, so moving a due date from Friday to
+        // Monday spans two working days (Sunday and Monday), not one.
+        let mut i = input();
+        i.work_week = WorkWeek::from_days(&[6, 0, 1, 2, 3]).unwrap();
+        i.tasks = vec![task(
+            1,
+            "Ship",
+            TaskStatus::Todo,
+            Some(date!(2027 - 03 - 08)),
+        )];
+        i.activity = vec![entry(
+            1,
+            NodeType::Task,
+            1,
+            at(date!(2027 - 03 - 02), 10),
+            json!({"due_date": ["2027-03-05", "2027-03-08"]}),
+        )];
+        let r = build(i);
+        assert_eq!(r.slipped.len(), 1);
+        assert_eq!(r.slipped[0].days, 2);
     }
 
     #[test]

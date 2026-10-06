@@ -25,7 +25,7 @@ Every list screen is built from the same pieces (`ui/src/components/page.rs`), s
 - **Column headings** (`column_head`): 28px, 10px uppercase, `bg-panel`, using the list's own grid so they line up with the rows; **`GroupLabel`** for group headings with a count chip.
 - **`NodeRow`**: 32px, hairline below, hover `bg-hover`, keyboard cursor `bg-hover` + a 2px muted left bar, open item `bg-active` + a 2px `fg` left bar (the same marker the sidebar uses).
 - **`CHIP`** for statuses and kinds; **`CHIP_STRONG`** (stronger border, `fg` text) for what needs attention. No colour: weight and border carry it.
-- **`EmptyState`** (icon tile, title, hint) instead of a bare sentence; **`Card`** (title, description, body) for Settings.
+- **`EmptyState`** (icon tile, title, hint) instead of a bare sentence; **`Card`** (title, description, body) for Settings. Settings is a **tab strip** under the page header (a 2px accent underline marks the current tab, muted text for the rest; `role=tablist`, arrow keys move) with one scrolling column of cards per tab; the table of tabs is `ui/src/settings_tab.rs`.
 - The Overview adds four **stat tiles** (red / amber / green / not scored) above its lists.
 
 ## Sidebar

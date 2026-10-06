@@ -46,6 +46,7 @@ pub(crate) fn review_impl(
         today,
         week_of: week_start,
         stale_days: settings.stale_waiting_days,
+        work_week: settings.work_week,
     }))
 }
 

@@ -11,6 +11,7 @@ use minimap_types::{SyncState, SyncStatus, UpdateSyncSettings};
 use crate::{
     api,
     components::page::{Icon, Tone},
+    settings_tab::Tab,
     state::DataVersion,
 };
 
@@ -102,14 +103,14 @@ pub fn StatusBar() -> impl IntoView {
                 let warning = s.warning.clone();
                 let device = s.device_name.clone();
                 view! {
-                    <A href="/settings" attr:class="flex items-center gap-1.5 hover:text-fg" attr:title=hint>
+                    <A href=Tab::Data.path() attr:class="flex items-center gap-1.5 hover:text-fg" attr:title=hint>
                         <Icon name="cloud" size="h-3.5 w-3.5" />
                         <span class=tone.chip()>{s.summary.clone()}</span>
                     </A>
                     {local_only.then(|| view! {
                         <span class="hidden sm:inline">
                             "Your data is stored on this device only. "
-                            <A href="/settings" attr:class="text-accent hover:underline">"Connect Google Drive"</A>
+                            <A href=Tab::Data.path() attr:class="text-accent hover:underline">"Connect Google Drive"</A>
                         </span>
                     })}
                     {warning.map(|w| {
@@ -148,7 +149,7 @@ pub fn SyncBanner() -> impl IntoView {
                         "Connect Google Drive and your work is saved automatically and kept in step on every computer you use."
                     </p>
                     <div class="flex flex-wrap items-center gap-2">
-                        <A href="/settings" attr:class=crate::components::form::BUTTON_PRIMARY>"Connect Google Drive"</A>
+                        <A href=Tab::Data.path() attr:class=crate::components::form::BUTTON_PRIMARY>"Connect Google Drive"</A>
                         <button class=crate::components::form::BUTTON on:click=hide>"Remind me in a week"</button>
                     </div>
                 </div>
@@ -157,7 +158,7 @@ pub fn SyncBanner() -> impl IntoView {
                 <div class="mx-4 mt-3 space-y-1 rounded-sm border border-danger/40 bg-danger/10 p-3" role="alert">
                     <p class="font-medium text-danger">"Google Drive needs you"</p>
                     <p>{state_hint(&s)}</p>
-                    <A href="/settings" attr:class=crate::components::form::BUTTON>"Open Google Drive settings"</A>
+                    <A href=Tab::Data.path() attr:class=crate::components::form::BUTTON>"Open Google Drive settings"</A>
                 </div>
             }.into_any()),
             _ => s.warning.map(|w| view! {
