@@ -84,7 +84,18 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateObjective) -> Result<O
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateObjective) -> Result<Objective> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let new = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(new)
+}
+
+/// [`update`] inside a caller's transaction.
+pub(crate) fn update_in_tx(
+    tx: &Transaction,
+    id: Uuid,
+    patch: UpdateObjective,
+) -> Result<Objective> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     validate(&new)?;
@@ -108,13 +119,12 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateObjective) -> Result
         ],
     )?;
     activity::record(
-        &tx,
+        tx,
         new.updated_at,
         NodeType::Objective,
         id,
         minimap_types::ActivityAction::Updated,
         &diff.into(),
     )?;
-    tx.commit()?;
     Ok(new)
 }

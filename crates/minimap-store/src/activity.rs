@@ -126,6 +126,25 @@ pub fn list_between(conn: &Connection, from: time::Date, to: time::Date) -> Resu
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// The rowid of the newest activity row (0 when there is none): a marker to ask [`since`] about
+/// what a command wrote.
+pub fn latest_rowid(conn: &Connection) -> Result<i64> {
+    Ok(
+        conn.query_row("SELECT COALESCE(MAX(rowid), 0) FROM activity", [], |r| {
+            r.get(0)
+        })?,
+    )
+}
+
+/// The rows written after `marker` (from [`latest_rowid`]), oldest first.
+pub fn since(conn: &Connection, marker: i64) -> Result<Vec<Activity>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COLS} FROM activity WHERE rowid > ?1 ORDER BY rowid"
+    ))?;
+    let rows = stmt.query_map([marker], from_row)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 pub fn count(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("SELECT COUNT(*) FROM activity", [], |r| r.get(0))?)
 }

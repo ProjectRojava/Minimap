@@ -146,12 +146,17 @@ pub async fn restore_backup(
     secret: Option<Secret>,
 ) -> Result<RestoreResult, AppError> {
     let data_dir = state.data_dir.clone();
-    state
+    let result = state
         .run_vault(move |vault, _| {
             let (conn, key) = vault.parts()?;
             restore_impl(conn, &data_dir, &path, key, secret.as_ref())
         })
-        .await
+        .await;
+    if result.is_ok() {
+        // Everything was replaced: undo steps would refer to data that is gone.
+        state.forget_undo();
+    }
+    result
 }
 
 pub(crate) fn restore_impl(

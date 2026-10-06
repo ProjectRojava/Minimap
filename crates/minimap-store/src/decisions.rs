@@ -93,7 +93,7 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateDecision) -> Result<
 }
 
 /// Moving a decision to `decided` without a date stamps today.
-fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateDecision) -> Result<Decision> {
+pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateDecision) -> Result<Decision> {
     let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);

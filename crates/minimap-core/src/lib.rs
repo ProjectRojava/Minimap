@@ -22,6 +22,7 @@ pub mod slug;
 pub mod sync;
 pub mod tasks;
 pub mod this_week;
+pub mod undo;
 pub mod waiting_on;
 pub mod weekly_review;
 

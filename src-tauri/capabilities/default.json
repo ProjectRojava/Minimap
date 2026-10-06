@@ -59,6 +59,8 @@
     "allow-get-data-info",
     "allow-show-data-folder",
     "allow-seed-demo-data",
+    "allow-undo-last",
+    "allow-redo-last",
     "allow-get-waiting-on",
     "allow-get-waiting-on-detail",
     "allow-create-waiting-on",
