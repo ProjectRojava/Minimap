@@ -21,6 +21,7 @@ use crate::{
         decisions::Decisions,
         deep_link::{DeepLink, NotFound},
         graph::Graph,
+        help::Help,
         notes::Notes,
         objectives::Objectives,
         overview::Overview,
@@ -115,6 +116,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/what-if") view=WhatIf />
                     <Route path=path!("/weekly-review") view=WeeklyReview />
                     <Route path=path!("/settings") view=Settings />
+                    <Route path=path!("/help") view=Help />
                     <Route path=path!("/:type/:id") view=DeepLink />
                 </Routes>
             </main>
