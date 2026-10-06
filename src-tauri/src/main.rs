@@ -124,6 +124,7 @@ fn main() {
             commands::settings::update_settings,
             commands::settings::get_data_info,
             commands::settings::show_data_folder,
+            commands::demo::seed_demo_data,
             commands::waiting_on::get_waiting_on,
             commands::waiting_on::get_waiting_on_detail,
             commands::waiting_on::create_waiting_on,

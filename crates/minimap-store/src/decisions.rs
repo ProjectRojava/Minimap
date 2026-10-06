@@ -139,8 +139,15 @@ fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateDecision) -> Result<Dec
 /// transaction (the matrix and loop checks are the caller's job).
 pub fn supersede(conn: &mut Connection, new: Uuid, old: Uuid) -> Result<Edge> {
     let tx = conn.transaction()?;
+    let edge = supersede_in_tx(&tx, new, old)?;
+    tx.commit()?;
+    Ok(edge)
+}
+
+/// [`supersede`] inside a caller's transaction.
+pub(crate) fn supersede_in_tx(tx: &Transaction, new: Uuid, old: Uuid) -> Result<Edge> {
     let edge = edges::add_in_tx(
-        &tx,
+        tx,
         NewEdge {
             edge_type: EdgeType::Supersedes,
             from: NodeRef::new(NodeType::Decision, new),
@@ -148,10 +155,10 @@ pub fn supersede(conn: &mut Connection, new: Uuid, old: Uuid) -> Result<Edge> {
             attrs: serde_json::json!({}),
         },
     )?;
-    let older = get(&tx, old)?;
+    let older = get(tx, old)?;
     if older.status != DecisionStatus::Superseded {
         update_in_tx(
-            &tx,
+            tx,
             old,
             UpdateDecision {
                 status: Some(DecisionStatus::Superseded),
@@ -159,6 +166,5 @@ pub fn supersede(conn: &mut Connection, new: Uuid, old: Uuid) -> Result<Edge> {
             },
         )?;
     }
-    tx.commit()?;
     Ok(edge)
 }

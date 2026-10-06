@@ -79,7 +79,18 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateWaitingOn) -> Result<W
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateWaitingOn) -> Result<WaitingOn> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let updated = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(updated)
+}
+
+/// [`update`] inside a caller's transaction.
+pub(crate) fn update_in_tx(
+    tx: &Transaction,
+    id: Uuid,
+    patch: UpdateWaitingOn,
+) -> Result<WaitingOn> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     ensure_not_blank("description", &new.description)?;
@@ -104,13 +115,12 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateWaitingOn) -> Result
         ],
     )?;
     activity::record(
-        &tx,
+        tx,
         new.updated_at,
         NodeType::WaitingOn,
         id,
         ActivityAction::Updated,
         &diff.into(),
     )?;
-    tx.commit()?;
     Ok(new)
 }

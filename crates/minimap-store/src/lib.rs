@@ -5,6 +5,7 @@ pub mod attachments;
 pub mod backup;
 mod convert;
 pub mod decisions;
+pub mod demo;
 pub mod edges;
 mod error;
 pub mod merge;

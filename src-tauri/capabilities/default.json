@@ -58,6 +58,7 @@
     "allow-update-settings",
     "allow-get-data-info",
     "allow-show-data-folder",
+    "allow-seed-demo-data",
     "allow-get-waiting-on",
     "allow-get-waiting-on-detail",
     "allow-create-waiting-on",

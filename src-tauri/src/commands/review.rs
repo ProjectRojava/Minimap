@@ -9,7 +9,7 @@ use minimap_types::{AppError, Date, ExportResult, ReportKind, ReportParams, Week
 use tauri::State;
 
 use crate::{
-    commands::overview::overview_impl,
+    commands::overview::overview_at,
     error::{app_error, store_error},
     state::AppState,
 };
@@ -29,9 +29,17 @@ pub(crate) fn review_impl(
     conn: &mut Connection,
     week_start: Option<Date>,
 ) -> Result<WeeklyReview, AppError> {
-    let today = minimap_store::today();
+    review_at(conn, minimap_store::today(), week_start)
+}
+
+/// [`review_impl`] as of `today` (the demo-data snapshot tests fix it).
+pub(crate) fn review_at(
+    conn: &mut Connection,
+    today: Date,
+    week_start: Option<Date>,
+) -> Result<WeeklyReview, AppError> {
     let (from, to) = week_of(week_start.unwrap_or(today));
-    let overview = overview_impl(conn)?;
+    let overview = overview_at(conn, today)?;
     let conn: &Connection = conn;
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     Ok(build(ReviewInput {
@@ -68,9 +76,19 @@ pub(crate) fn report_impl(
     kind: ReportKind,
     params: &ReportParams,
 ) -> Result<String, AppError> {
+    report_at(conn, minimap_store::today(), kind, params)
+}
+
+/// [`report_impl`] as of `today` (the demo-data snapshot tests fix it).
+pub(crate) fn report_at(
+    conn: &mut Connection,
+    today: Date,
+    kind: ReportKind,
+    params: &ReportParams,
+) -> Result<String, AppError> {
     match kind {
         ReportKind::WeeklyStatus => {
-            let review = review_impl(conn, params.week_start)?;
+            let review = review_at(conn, today, params.week_start)?;
             let settings = minimap_store::settings::get(conn).map_err(store_error)?;
             Ok(report::render(&review, &settings.report_template))
         }

@@ -24,7 +24,7 @@ Compute when work will actually finish and which tasks drive the end date.
 ## Acceptance criteria
 - [x] Hand-built graphs in unit tests produce expected ES/EF/LS/LF and critical path. *(diamond with exact numbers and dates, weekends, start dates, lag, done tasks, cancelled tasks, cross-project, targets early and generous)*
 - [x] Proptest: slack ≥ 0 when backward pass uses latest finish. *(also: starts are tight so nothing can move earlier, every link and lag honoured, a later target adds exactly the same slack, calendar round-trips)*
-- [ ] With demo data the critical path matches an `insta` snapshot. *(deferred: demo data is spec 24, and `insta` isn't available offline; the hand-built tests assert exact values instead)*
+- [x] With demo data the critical path matches an `insta` snapshot. *(spec 24: `the_schedule_and_critical_path_of_the_demo_data` in `src-tauri/src/commands/demo.rs` snapshots every project's forecast and the critical path of each project on a fixed Wednesday; the hand-built tests still assert exact values)*
 
 ## Decisions
 - **Negative slack is allowed** (your answer). Slack is `LS - ES` against the project's deadline: its target date, or, with none, its own projected finish (so slack is never negative without a target, which is the proptest). With an unrealistic target the late tasks show "late by N working days", and the project shows "target …: late by N working days".
