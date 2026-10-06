@@ -44,6 +44,28 @@ fn from_row(r: &Row) -> rusqlite::Result<Attachment> {
     })
 }
 
+/// Every attachment row, removed ones included, oldest first (the full export).
+pub fn list_records(conn: &Connection) -> Result<Vec<minimap_types::AttachmentRecord>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COLS} FROM attachments ORDER BY created_at, id"
+    ))?;
+    let rows = stmt.query_map([], |r| {
+        let size: i64 = r.get(6)?;
+        Ok(minimap_types::AttachmentRecord {
+            id: col_uuid(r, 0)?,
+            node_type: col_enum(r, 1)?,
+            node_id: col_uuid(r, 2)?,
+            sha256: r.get(3)?,
+            file_name: r.get(4)?,
+            mime_type: r.get(5)?,
+            size_bytes: u64::try_from(size).unwrap_or(0),
+            created_at: col_ts(r, 7)?,
+            archived_at: col_ts_opt(r, 8)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 pub fn get(conn: &Connection, id: Uuid) -> Result<Attachment> {
     conn.query_row(
         &format!("SELECT {COLS} FROM attachments WHERE id = ?1"),

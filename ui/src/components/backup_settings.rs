@@ -126,7 +126,7 @@ fn Body(status: BackupStatus, restore: Restore) -> impl IntoView {
 
     let change_folder = move |_| {
         spawn_local(async move {
-            match api::pick_folder().await {
+            match api::pick_folder("Choose the backup folder").await {
                 Ok(Some(folder)) => save_settings(
                     UpdateSettings {
                         backup_folder: Some(folder),

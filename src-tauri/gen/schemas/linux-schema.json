@@ -351,6 +351,12 @@
           "markdownDescription": "Enables the disconnect_drive command without any pre-configured scope."
         },
         {
+          "description": "Enables the export_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-export-all",
+          "markdownDescription": "Enables the export_all command without any pre-configured scope."
+        },
+        {
           "description": "Enables the export_markdown command without any pre-configured scope.",
           "type": "string",
           "const": "allow-export-markdown",
@@ -1033,6 +1039,12 @@
           "type": "string",
           "const": "deny-disconnect-drive",
           "markdownDescription": "Denies the disconnect_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the export_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-export-all",
+          "markdownDescription": "Denies the export_all command without any pre-configured scope."
         },
         {
           "description": "Denies the export_markdown command without any pre-configured scope.",

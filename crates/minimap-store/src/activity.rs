@@ -115,6 +115,13 @@ pub fn list_recent(conn: &Connection, limit: u32) -> Result<Vec<Activity>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// The whole history, oldest first (the full export).
+pub fn list_all(conn: &Connection) -> Result<Vec<Activity>> {
+    let mut stmt = conn.prepare(&format!("SELECT {COLS} FROM activity ORDER BY at, rowid"))?;
+    let rows = stmt.query_map([], from_row)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// Activity from `from` through `to` (inclusive UTC days), oldest first.
 pub fn list_between(conn: &Connection, from: time::Date, to: time::Date) -> Result<Vec<Activity>> {
     let start = fmt_ts(from.midnight().assume_utc());
