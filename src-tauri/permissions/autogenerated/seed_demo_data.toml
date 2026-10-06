@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-seed-demo-data"
+description = "Enables the seed_demo_data command without any pre-configured scope."
+commands.allow = ["seed_demo_data"]
+
+[[permission]]
+identifier = "deny-seed-demo-data"
+description = "Denies the seed_demo_data command without any pre-configured scope."
+commands.deny = ["seed_demo_data"]

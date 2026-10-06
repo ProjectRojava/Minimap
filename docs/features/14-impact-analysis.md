@@ -16,7 +16,7 @@ Show the downstream effect of a slip before it happens. The product's headline f
 - Read-only: nothing is saved.
 
 ## Acceptance criteria
-- [ ] Demo data: a 5-day slip on a chosen task matches an `insta` snapshot. *(deferred: demo data is spec 24 and `insta` isn't available offline; hand-built tests assert exact numbers, dates and the absorbed/passed split instead)*
+- [x] Demo data: a 5-day slip on a chosen task matches an `insta` snapshot. *(spec 24: `a_five_day_slip_on_the_eu_clusters_ripples_as_expected` slips "Provision EU network and clusters" by 5 working days and snapshots the tasks (incoming/absorbed/delay, dates, newly late), projects, objectives and people; hand-built tests still assert exact numbers)*
 - [x] Proptest: impact never moves any task earlier; absorbed + passed-on = slip at every step. *(also: no task moves more than the total slip, unreachable tasks are never reported, more slip never means less delay, and applying the plan reproduces the scenario)*
 
 ## Decisions

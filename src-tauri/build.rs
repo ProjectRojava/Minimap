@@ -53,6 +53,7 @@ const COMMANDS: &[&str] = &[
     "update_settings",
     "get_data_info",
     "show_data_folder",
+    "seed_demo_data",
     "get_waiting_on",
     "get_waiting_on_detail",
     "create_waiting_on",

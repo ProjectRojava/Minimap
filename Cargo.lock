@@ -2937,6 +2937,7 @@ name = "minimap"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "insta",
  "keyring",
  "minimap-core",
  "minimap-store",

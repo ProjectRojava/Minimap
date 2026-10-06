@@ -1,6 +1,6 @@
 use minimap_core::overview::{build, OverviewWorld};
 use minimap_store::Connection;
-use minimap_types::{AppError, PortfolioOverview, WaitingOnFilter};
+use minimap_types::{AppError, Date, PortfolioOverview, WaitingOnFilter};
 use tauri::State;
 
 use crate::{commands::waiting_on::list_impl, error::store_error, state::AppState};
@@ -15,6 +15,14 @@ pub async fn get_portfolio_overview(
 }
 
 pub(crate) fn overview_impl(conn: &mut Connection) -> Result<PortfolioOverview, AppError> {
+    overview_at(conn, minimap_store::today())
+}
+
+/// [`overview_impl`] as of `today` (the demo-data snapshot tests fix it).
+pub(crate) fn overview_at(
+    conn: &mut Connection,
+    today: Date,
+) -> Result<PortfolioOverview, AppError> {
     let conn: &Connection = conn;
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     let tasks = minimap_store::tasks::list(conn, false).map_err(store_error)?;
@@ -22,7 +30,6 @@ pub(crate) fn overview_impl(conn: &mut Connection) -> Result<PortfolioOverview, 
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let objectives = minimap_store::objectives::list(conn, false).map_err(store_error)?;
     let people = minimap_store::people::list(conn, false).map_err(store_error)?;
-    let today = minimap_store::today();
     let mut overview = build(&OverviewWorld {
         tasks: &tasks,
         edges: &edges,

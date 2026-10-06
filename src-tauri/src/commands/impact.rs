@@ -1,7 +1,7 @@
 use minimap_core::impact::{analyze, apply_plan, ImpactError, World};
 use minimap_store::Connection;
 use minimap_types::{
-    AppError, ApplyPreview, ApplyResult, ImpactReport, NodeType, Patch, Slip, UpdateTask,
+    AppError, ApplyPreview, ApplyResult, Date, ImpactReport, NodeType, Patch, Slip, UpdateTask,
 };
 use tauri::State;
 
@@ -24,6 +24,15 @@ fn with_world<T>(
     conn: &Connection,
     f: impl FnOnce(&World) -> Result<T, ImpactError>,
 ) -> Result<T, AppError> {
+    with_world_at(conn, minimap_store::today(), f)
+}
+
+/// [`with_world`] as of `today` (the demo-data snapshot tests fix it).
+pub(crate) fn with_world_at<T>(
+    conn: &Connection,
+    today: Date,
+    f: impl FnOnce(&World) -> Result<T, ImpactError>,
+) -> Result<T, AppError> {
     let tasks = minimap_store::tasks::list(conn, false).map_err(store_error)?;
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
@@ -38,7 +47,7 @@ fn with_world<T>(
         projects: &projects,
         objectives: &objectives,
         people: &people,
-        today: minimap_store::today(),
+        today,
         work_week,
     };
     f(&world).map_err(impact_error)

@@ -1,5 +1,5 @@
 use minimap_types::{ActivityAction, CreateTeam, NodeType, Team, UpdateTeam};
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -33,6 +33,14 @@ pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Team>> {
 }
 
 pub fn create(conn: &mut Connection, input: CreateTeam) -> Result<Team> {
+    let tx = conn.transaction()?;
+    let created = create_in_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(created)
+}
+
+/// [`create`] inside a caller's transaction.
+pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTeam) -> Result<Team> {
     let at = now();
     let t = Team {
         id: Uuid::now_v7(),
@@ -44,7 +52,6 @@ pub fn create(conn: &mut Connection, input: CreateTeam) -> Result<Team> {
         archived_at: None,
     };
     ensure_not_blank("name", &t.name)?;
-    let tx = conn.transaction()?;
     tx.execute(
         &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7)"),
         params![
@@ -57,8 +64,7 @@ pub fn create(conn: &mut Connection, input: CreateTeam) -> Result<Team> {
             ts_opt_s(t.archived_at),
         ],
     )?;
-    activity::record_created(&tx, at, NodeType::Team, t.id, &t)?;
-    tx.commit()?;
+    activity::record_created(tx, at, NodeType::Team, t.id, &t)?;
     Ok(t)
 }
 

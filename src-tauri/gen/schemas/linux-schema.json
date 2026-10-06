@@ -729,6 +729,12 @@
           "markdownDescription": "Enables the search command without any pre-configured scope."
         },
         {
+          "description": "Enables the seed_demo_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-seed-demo-data",
+          "markdownDescription": "Enables the seed_demo_data command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_assignee command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-assignee",
@@ -1393,6 +1399,12 @@
           "type": "string",
           "const": "deny-search",
           "markdownDescription": "Denies the search command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the seed_demo_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-seed-demo-data",
+          "markdownDescription": "Denies the seed_demo_data command without any pre-configured scope."
         },
         {
           "description": "Denies the set_assignee command without any pre-configured scope.",

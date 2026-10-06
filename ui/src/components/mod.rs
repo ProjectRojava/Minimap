@@ -4,6 +4,7 @@ pub mod data_settings;
 pub mod date_field;
 pub mod decision_panel;
 pub mod detail_pane;
+pub mod developer_settings;
 pub mod drive_settings;
 pub mod first_run;
 pub mod form;

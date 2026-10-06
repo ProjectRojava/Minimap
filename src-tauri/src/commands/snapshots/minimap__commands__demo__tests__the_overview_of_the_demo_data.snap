@@ -1,0 +1,24 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+COUNTS: 0 red, 1 amber, 2 green, 0 not scored
+
+OBJECTIVE Launch in the EU (P1, AtRisk, target 2027-05-17): Green 68 [EU Region is amber: projected 2 working days late (target 2027-03-29); on track: finishes 2027-03-31, target 2027-05-17]
+  EU Region (weight 1): Amber 52 [projected 2 working days late (target 2027-03-29); 1 task overdue, 1 blocked (2 of 12 open); 3 of 12 open tasks have no estimate] | finish 2027-03-31 target 2027-03-29 | 12 open, 1 overdue, 1 blocked, 3 unestimated
+  Security and Compliance (weight 0.5): Green 100 [on track: projected 2027-03-30, target 2027-04-19 (14 working days to spare)] | finish 2027-03-30 target 2027-04-19 | 9 open, 0 overdue, 0 blocked, 0 unestimated
+
+OBJECTIVE Cut platform costs by 20% (P2, OnTrack, target 2027-07-01): Green 100 [on track: finishes 2027-03-25, target 2027-07-01; all 1 contributor on track]
+  Platform Cost Reduction (weight 1): Green 100 [on track: projected 2027-03-25, target 2027-05-03 (27 working days to spare)] | finish 2027-03-25 target 2027-05-03 | 11 open, 0 overdue, 0 blocked, 0 unestimated
+
+RISKS (0 more)
+  Project EU Region | Amber 52 [projected 2 working days late (target 2027-03-29); 1 task overdue, 1 blocked (2 of 12 open); 3 of 12 open tasks have no estimate] | score 72 priority 1
+  Task Customer communications plan | Red 25 [overdue (due 2027-02-26)] | score 56 priority 2
+
+OVERLOADED
+  Tomás Alvarez | 220% in week of 2027-03-01 | 7 open tasks
+
+STALE WAITING-ONS
+  Security review sign-off | Raj Patel | 12 days overdue
+
+WARNINGS: 0

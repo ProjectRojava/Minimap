@@ -12,6 +12,7 @@ use crate::{
     components::{
         backup_settings::BackupSettings,
         data_settings::DataLocation,
+        developer_settings::DeveloperSettings,
         drive_settings::DriveSettings,
         page::{Card, PageHeader},
         security_settings::SecuritySettings,
@@ -42,15 +43,15 @@ fn focus_tab(tab: Tab) {
 /// The row of tabs. Arrow keys, Home and End move between them.
 #[component]
 fn TabBar(current: Signal<Tab>, #[prop(into)] on_select: Callback<Tab>) -> impl IntoView {
-    let buttons = Tab::ALL
+    let buttons = Tab::visible()
         .into_iter()
         .map(|tab| {
             let key = move |ev: ev::KeyboardEvent| {
                 let next = match ev.key().as_str() {
                     "ArrowRight" => Some(tab.step(1)),
                     "ArrowLeft" => Some(tab.step(-1)),
-                    "Home" => Some(Tab::ALL[0]),
-                    "End" => Some(Tab::ALL[Tab::ALL.len() - 1]),
+                    "Home" => Tab::visible().first().copied(),
+                    "End" => Tab::visible().last().copied(),
                     _ => None,
                 };
                 if let Some(next) = next {
@@ -154,6 +155,7 @@ pub fn Settings() -> impl IntoView {
                     <BackupSettings />
                 }.into_any())}
                 {panel(Tab::Security, view! { <SecuritySettings /> }.into_any())}
+                {Tab::Developer.is_shown().then(|| panel(Tab::Developer, view! { <DeveloperSettings /> }.into_any()))}
             </div>
         </div>
     }
