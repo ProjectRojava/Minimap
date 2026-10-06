@@ -303,7 +303,13 @@ async fn join(
 ) -> Result<ConnectOutcome, AppError> {
     let engine = state.sync.engine.clone();
     let remote: Arc<dyn Remote> = remote;
-    blocking(move || engine.join_existing(remote, key).map_err(sync_error)).await
+    let outcome = blocking(move || engine.join_existing(remote, key).map_err(sync_error)).await;
+    if outcome.is_ok() {
+        // This computer adopted, or merged in, another's data: earlier undo steps no longer
+        // describe what is here.
+        state.forget_undo();
+    }
+    outcome
 }
 
 /// Gives up on a sign-in that is waiting for the browser (or forgets one that is waiting for the
@@ -434,7 +440,12 @@ pub async fn recover_checkpoint(
     request: RecoverCheckpoint,
 ) -> Result<RecoverResult, AppError> {
     let engine = state.sync.engine.clone();
-    blocking(move || engine.recover(&request.name).map_err(sync_error)).await
+    let result = blocking(move || engine.recover(&request.name).map_err(sync_error)).await;
+    if result.is_ok() {
+        // Old copies came back as new edits: earlier undo steps no longer describe the data.
+        state.forget_undo();
+    }
+    result
 }
 
 #[cfg(test)]

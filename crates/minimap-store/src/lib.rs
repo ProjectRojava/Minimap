@@ -25,6 +25,7 @@ pub mod tasks;
 pub mod teams;
 #[cfg(test)]
 mod test_support;
+pub mod undo;
 pub mod views;
 pub mod waiting_on;
 

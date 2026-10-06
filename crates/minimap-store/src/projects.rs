@@ -138,13 +138,20 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateProject) -> Result<Pro
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateProject) -> Result<Project> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let new = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(new)
+}
+
+/// [`update`] inside a caller's transaction.
+pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateProject) -> Result<Project> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     new.slug = new.slug.trim().to_owned();
     validate(&new)?;
     if new.slug != old.slug && old.archived_at.is_none() {
-        ensure_slug_free(&tx, &new.slug, Some(id))?;
+        ensure_slug_free(tx, &new.slug, Some(id))?;
     }
     let diff = activity::diff(&old, &new)?;
     if diff.is_empty() {
@@ -169,14 +176,13 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateProject) -> Result<P
         ],
     )?;
     activity::record(
-        &tx,
+        tx,
         new.updated_at,
         NodeType::Project,
         id,
         ActivityAction::Updated,
         &diff.into(),
     )?;
-    tx.commit()?;
     Ok(new)
 }
 

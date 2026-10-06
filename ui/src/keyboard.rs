@@ -1,4 +1,4 @@
-//! Global keyboard shortcuts: `g` chords, `/` search, Ctrl/Cmd+K palette, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
+//! Global keyboard shortcuts: `g` chords, `/` search, Ctrl/Cmd+K palette, Ctrl/Cmd+Z undo, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
 
 use leptos::{ev, prelude::*, web_sys};
 use leptos_router::hooks::use_navigate;
@@ -6,8 +6,8 @@ use wasm_bindgen::JsCast;
 
 use crate::{
     components::search_box::focus_search,
-    nav::{chord_target, is_row_key, is_typing_target, CHORD_WINDOW_MS},
-    state::{ListNav, PaletteOpen, Selection},
+    nav::{chord_target, is_row_key, is_typing_target, undo_key, UndoKey, CHORD_WINDOW_MS},
+    state::{undo_or_redo, DataVersion, ListNav, PaletteOpen, Selection, Toasts},
 };
 
 /// Installs the window keydown handler. Must be called inside the `<Router>`.
@@ -16,6 +16,8 @@ pub fn use_global_shortcuts() {
     let selection = expect_context::<Selection>();
     let list = expect_context::<ListNav>();
     let palette = expect_context::<PaletteOpen>();
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
     // When `g` was pressed, in ms since the epoch (0 = no chord pending).
     let chord_started = StoredValue::new(0.0_f64);
 
@@ -26,15 +28,26 @@ pub fn use_global_shortcuts() {
             palette.toggle();
             return;
         }
-        if e.ctrl_key() || e.meta_key() || e.alt_key() {
-            return; // leave other Ctrl/Cmd combos (copy/paste) alone
-        }
         let (tag, editable) = e
             .target()
             .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
             .map(|el| (el.tag_name(), el.is_content_editable()))
             .unwrap_or_default();
         let key = e.key();
+
+        // Ctrl/Cmd+Z undoes the last change and Ctrl/Cmd+Shift+Z (or Ctrl+Y) redoes it, except
+        // in a text field, where the field's own undo of what was typed stays.
+        if let Some(which) = undo_key(&key, e.ctrl_key(), e.meta_key(), e.shift_key(), e.alt_key())
+        {
+            if !is_typing_target(&tag, editable) {
+                e.prevent_default();
+                undo_or_redo(which == UndoKey::Redo, toasts, version);
+            }
+            return;
+        }
+        if e.ctrl_key() || e.meta_key() || e.alt_key() {
+            return; // leave other Ctrl/Cmd combos (copy/paste) alone
+        }
 
         if is_typing_target(&tag, editable) {
             if key == "Escape" {

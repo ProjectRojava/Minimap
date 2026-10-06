@@ -244,3 +244,24 @@ pub fn finish<T>(result: Result<T, AppError>, toasts: Toasts, version: DataVersi
         }
     }
 }
+
+/// Undo (or redo) the last change, as the keyboard shortcut and the palette do: the answer is a
+/// toast ("Undone: archived task X", or why nothing was), and views reload when something changed.
+pub fn undo_or_redo(redo: bool, toasts: Toasts, version: DataVersion) {
+    leptos::task::spawn_local(async move {
+        let result = if redo {
+            crate::api::redo_last().await
+        } else {
+            crate::api::undo_last().await
+        };
+        match result {
+            Ok(outcome) => {
+                toasts.info(outcome.message);
+                if outcome.done {
+                    version.bump();
+                }
+            }
+            Err(e) => toasts.error(&e),
+        }
+    });
+}

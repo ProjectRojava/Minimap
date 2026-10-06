@@ -10,6 +10,7 @@ use crate::{
     error::app_error,
     keystore::KeyStore,
     sync::{SyncHub, TauriHost},
+    undo::{record_since, UndoStack},
 };
 use minimap_sync::Engine;
 
@@ -64,6 +65,8 @@ pub struct AppState {
     pub keys: Arc<dyn KeyStore>,
     /// Google Drive sync (spec 22): the engine and the sign-in in progress.
     pub sync: Arc<SyncHub>,
+    /// Undo and redo (spec 25): this session's steps. Lives in memory only.
+    pub undo: Arc<Mutex<UndoStack>>,
 }
 
 impl AppState {
@@ -78,6 +81,15 @@ impl AppState {
             data_dir,
             keys,
             sync: Arc::new(SyncHub::new(Engine::new(host))),
+            undo: Arc::new(Mutex::new(UndoStack::default())),
+        }
+    }
+
+    /// Forgets the undo history. For when the data is replaced wholesale (a restore, adopting
+    /// another computer's data) and old steps would mean nothing.
+    pub fn forget_undo(&self) {
+        if let Ok(mut stack) = self.undo.lock() {
+            stack.clear();
         }
     }
 
@@ -88,7 +100,16 @@ impl AppState {
         T: Send + 'static,
         F: FnOnce(&mut Connection) -> Result<T, AppError> + Send + 'static,
     {
-        self.run_vault(move |vault, _| f(vault.parts()?.0)).await
+        let undo = self.undo.clone();
+        self.run_vault(move |vault, _| {
+            let conn = vault.parts()?.0;
+            // What the command writes becomes one undo step (spec 25).
+            let marker = minimap_store::activity::latest_rowid(conn).unwrap_or(i64::MAX);
+            let result = f(conn);
+            record_since(conn, &undo, marker);
+            result
+        })
+        .await
     }
 
     /// Like [`run`](Self::run) but with the whole vault (key included) and the keychain, and it

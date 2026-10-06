@@ -23,4 +23,5 @@ pub mod system;
 pub mod tasks;
 pub mod teams;
 pub mod this_week;
+pub mod undo;
 pub mod waiting_on;
