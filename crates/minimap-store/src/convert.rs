@@ -68,6 +68,18 @@ pub fn id_s(id: Uuid) -> String {
     id.to_string()
 }
 
+/// A repeat rule as stored: JSON text, or NULL.
+pub fn recurrence_s(r: Option<&minimap_types::Recurrence>) -> Option<String> {
+    r.and_then(|r| serde_json::to_string(r).ok())
+}
+
+/// A stored repeat rule. One that no longer reads (damaged, or from a newer version) is no rule:
+/// the item still loads.
+pub fn col_recurrence(r: &Row, i: usize) -> rusqlite::Result<Option<minimap_types::Recurrence>> {
+    let s: Option<String> = r.get(i)?;
+    Ok(s.and_then(|s| serde_json::from_str(&s).ok()))
+}
+
 pub fn id_opt_s(id: Option<Uuid>) -> Option<String> {
     id.map(id_s)
 }

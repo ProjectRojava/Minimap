@@ -9,13 +9,14 @@ use crate::{
 };
 
 /// What the demo data holds, for the card.
-pub const CONTENTS: [&str; 6] = [
+pub const CONTENTS: [&str; 7] = [
     "2 objectives and 3 projects; \"EU Region\" is at risk (projected two working days late, one task overdue, one blocked)",
     "40 tasks across the projects and the inbox, with blocks links between projects",
     "8 people (you and 7 others) in 2 nested teams, with reporting lines; one person is overloaded",
     "3 notes (a 1:1 with mentions and a checklist), 5 decisions (one replaced by another)",
     "3 waiting-ons: one stale, one resolved this week",
     "This week's events: a task finished, two due dates moved later, one task newly blocked",
+    "Repeating work: a monthly task, a task every 12 weeks, and a weekly 1:1 note",
 ];
 
 #[component]

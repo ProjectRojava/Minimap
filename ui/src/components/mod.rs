@@ -20,6 +20,7 @@ pub mod page;
 pub mod palette;
 pub mod people_panel;
 pub mod project_panel;
+pub mod repeat_field;
 pub mod schedule_panel;
 pub mod search_box;
 pub mod security_settings;

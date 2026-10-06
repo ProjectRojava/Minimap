@@ -269,6 +269,7 @@ fn PersonNotes(detail: PersonDetail) -> impl IntoView {
             body: format!("{}\n\n", mention_token(&name, id)),
             note_date: None,
             kind: Some(NoteKind::OneOnOne),
+            recurrence: None,
         };
         spawn_local(async move {
             if let Some(n) = finish(api::create_note(input).await, toasts, version) {

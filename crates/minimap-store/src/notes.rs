@@ -1,7 +1,7 @@
 use minimap_core::notes as rules;
 use minimap_types::{
     ActivityAction, AssigneeChoice, CreateNote, CreateTask, EdgeType, NewEdge, NodeRef, NodeType,
-    Note, NoteKind, Task, UpdateNote,
+    Note, NoteKind, Patch, Task, UpdateNote,
 };
 use rusqlite::{params, Connection, Row, Transaction};
 use serde_json::{json, Map, Value};
@@ -19,7 +19,8 @@ use crate::{
 };
 
 const TABLE: &str = "notes";
-const COLS: &str = "id, title, body, note_date, kind, created_at, updated_at, archived_at";
+const COLS: &str =
+    "id, title, body, note_date, kind, created_at, updated_at, archived_at, recurrence";
 
 fn from_row(r: &Row) -> rusqlite::Result<Note> {
     Ok(Note {
@@ -31,6 +32,7 @@ fn from_row(r: &Row) -> rusqlite::Result<Note> {
         created_at: col_ts(r, 5)?,
         updated_at: col_ts(r, 6)?,
         archived_at: col_ts_opt(r, 7)?,
+        recurrence: col_recurrence(r, 8)?,
     })
 }
 
@@ -87,6 +89,60 @@ fn sync_mentions(tx: &Transaction, note: Uuid, body: &str, at: OffsetDateTime) -
     Ok(())
 }
 
+fn validate_rule(n: &Note) -> Result<()> {
+    match &n.recurrence {
+        Some(rule) => minimap_core::recurrence::validate(rule).map_err(StoreError::Invalid),
+        None => Ok(()),
+    }
+}
+
+/// Makes the notes of repeating series that have come due (spec 27): for each note that
+/// repeats, when the rule's next date after the note's own has come, a new note for that date
+/// (only the latest such date, never one per missed week) with the same title and kind, the
+/// rule's template and the previous note's open checklist items; the rule moves to the new
+/// note. Returns how many were made. Safe to call as often as you like.
+pub fn generate_due(conn: &mut Connection, today: time::Date) -> Result<u32> {
+    let heads: Vec<Note> = conn
+        .prepare(&format!(
+            "SELECT {COLS} FROM {TABLE} WHERE recurrence IS NOT NULL AND archived_at IS NULL ORDER BY note_date, id"
+        ))?
+        .query_map([], from_row)?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut made = 0;
+    for head in heads {
+        let Some(rule) = head.recurrence.clone() else {
+            continue;
+        };
+        let Some(date) =
+            minimap_core::recurrence::due_note_date(rule.cadence, head.note_date, today)
+        else {
+            continue;
+        };
+        let tx = conn.transaction()?;
+        create_in_tx(
+            &tx,
+            CreateNote {
+                title: head.title.clone(),
+                body: minimap_core::recurrence::new_note_body(rule.template.as_deref(), &head.body),
+                note_date: Some(date),
+                kind: Some(head.kind),
+                recurrence: Some(rule),
+            },
+        )?;
+        update_in_tx(
+            &tx,
+            head.id,
+            UpdateNote {
+                recurrence: Patch::Clear,
+                ..Default::default()
+            },
+        )?;
+        tx.commit()?;
+        made += 1;
+    }
+    Ok(made)
+}
+
 pub fn create(conn: &mut Connection, input: CreateNote) -> Result<Note> {
     let tx = conn.transaction()?;
     let created = create_in_tx(&tx, input)?;
@@ -103,13 +159,15 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateNote) -> Result<Note> 
         body: input.body,
         note_date: input.note_date.unwrap_or_else(today),
         kind: input.kind.unwrap_or(NoteKind::General),
+        recurrence: input.recurrence,
         created_at: at,
         updated_at: at,
         archived_at: None,
     };
     ensure_not_blank("title", &n.title)?;
+    validate_rule(&n)?;
     tx.execute(
-        &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)"),
+        &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)"),
         params![
             id_s(n.id),
             n.title,
@@ -119,6 +177,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateNote) -> Result<Note> 
             ts_s(n.created_at),
             ts_s(n.updated_at),
             ts_opt_s(n.archived_at),
+            recurrence_s(n.recurrence.as_ref()),
         ],
     )?;
     // Like `record_created`, but with the body reduced to its size.
@@ -163,19 +222,21 @@ fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateNote) -> Result<Note> {
     let mut new = old.clone();
     patch.apply(&mut new);
     ensure_not_blank("title", &new.title)?;
+    validate_rule(&new)?;
     let mut diff = activity::diff(&old, &new)?;
     if diff.is_empty() {
         return Ok(old);
     }
     new.updated_at = now();
     tx.execute(
-        &format!("UPDATE {TABLE} SET title=?2, body=?3, note_date=?4, kind=?5, updated_at=?6 WHERE id=?1"),
+        &format!("UPDATE {TABLE} SET title=?2, body=?3, note_date=?4, kind=?5, recurrence=?6, updated_at=?7 WHERE id=?1"),
         params![
             id_s(id),
             new.title,
             new.body,
             date_s(Some(new.note_date)),
             new.kind.as_str(),
+            recurrence_s(new.recurrence.as_ref()),
             ts_s(new.updated_at),
         ],
     )?;
@@ -245,6 +306,7 @@ pub fn convert_checklist_item(
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         },
     )?;
     let converted = rules::convert_line(&body, line, &task.title, task.id)

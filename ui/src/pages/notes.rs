@@ -67,6 +67,7 @@ pub fn Notes() -> impl IntoView {
                 body: String::new(),
                 note_date: None,
                 kind: NoteKind::from_str(&kind.get_untracked()).ok(),
+                recurrence: None,
             };
             if let Some(n) = finish(api::create_note(input).await, toasts, version) {
                 selection.open(NodeRef::new(NodeType::Note, n.id));

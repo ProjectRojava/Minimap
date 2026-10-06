@@ -17,12 +17,12 @@
 
 use std::collections::HashMap;
 
-use minimap_core::this_week::monday_of;
+use minimap_core::{recurrence::parse_every, this_week::monday_of};
 use minimap_types::{
     mention_token, AssigneeChoice, CreateDecision, CreateNote, CreateObjective, CreatePerson,
     CreateProject, CreateTask, CreateTeam, CreateWaitingOn, DecisionStatus, DemoSummary, EdgeType,
-    NewEdge, NodeRef, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, TaskStatus,
-    UpdateTask, UpdateWaitingOn,
+    NewEdge, NodeRef, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence,
+    TaskStatus, UpdateTask, UpdateWaitingOn,
 };
 use rusqlite::{params, Connection, Transaction};
 use time::{Date, Duration, OffsetDateTime, Time};
@@ -71,6 +71,8 @@ struct Task {
     priority: u8,
     /// `allocation_pct` of the assignment when it is not the whole of the person's time.
     allocation: Option<u32>,
+    /// A repeat rule as typed after `every:` (`month`, `12w`, ...), taken from the due date.
+    repeats: Option<&'static str>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -96,6 +98,7 @@ const fn t(
         due,
         priority,
         allocation: None,
+        repeats: None,
     }
 }
 
@@ -144,8 +147,9 @@ fn task_table() -> Vec<Task> {
         t("s5", "GDPR impact assessment", Some(SEC), "priya", Todo, Some(4.0), Some(7), Some(20), 2),
         // Half of Maya's time, to show an allocation below 100%.
         Task { allocation: Some(50), ..t("s6", "SOC 2 gap assessment", Some(SEC), "maya", Todo, Some(5.0), Some(21), Some(35), 3) },
-        t("s7", "Quarterly access review", Some(SEC), "priya", Todo, Some(2.0), None, Some(14), 3),
-        t("s8", "Rotate service credentials", Some(SEC), "jin", Todo, Some(2.0), Some(7), Some(14), 3),
+        // Repeats: finishing it makes the next one.
+        Task { repeats: Some("month"), ..t("s7", "Monthly access review", Some(SEC), "priya", Todo, Some(2.0), None, Some(14), 3) },
+        Task { repeats: Some("12w"), ..t("s8", "Rotate service credentials", Some(SEC), "jin", Todo, Some(2.0), Some(7), Some(14), 3) },
         t("s9", "Security training roll-out", Some(SEC), "sam", Todo, Some(3.0), Some(14), Some(40), 4),
         t("s10", "Incident response drill", Some(SEC), "priya", Todo, Some(2.0), Some(10), Some(30), 3),
         // ---- Inbox
@@ -433,6 +437,14 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
                 start_date: spec.start.map(d),
                 due_date: spec.due.map(d),
                 priority: Some(spec.priority),
+                recurrence: spec
+                    .repeats
+                    .map(|text| {
+                        parse_every(text, spec.due.map_or(today, d))
+                            .map(Recurrence::from)
+                            .map_err(StoreError::Invalid)
+                    })
+                    .transpose()?,
             },
         )?;
         if let Some(pct) = spec.allocation {
@@ -475,6 +487,14 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             body: one_on_one,
             note_date: Some(d(0)),
             kind: Some(NoteKind::OneOnOne),
+            // Every week on the day it was held; each new one starts with who it is with.
+            recurrence: Some(Recurrence {
+                cadence: parse_every("week", d(0)).map_err(StoreError::Invalid)?,
+                template: Some(format!(
+                    "With {}\n\n## Agenda\n\n- ",
+                    s.mention("Priya Nair", priya)
+                )),
+            }),
         },
     )?;
     let leadership = format!(
@@ -491,6 +511,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             body: leadership,
             note_date: Some(d(-5)),
             kind: Some(NoteKind::Meeting),
+            recurrence: None,
         },
     )?;
     notes::create_in_tx(
@@ -500,6 +521,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             body: "Compared two vendors and a small in-house router.\n\n- Vendors: faster to start, per-request pricing grows with traffic.\n- In-house: more work now, flat cost, we already know the services.\n\nLeaning in-house; see the decision.\n".into(),
             note_date: Some(d(-12)),
             kind: Some(NoteKind::General),
+            recurrence: None,
         },
     )?;
 

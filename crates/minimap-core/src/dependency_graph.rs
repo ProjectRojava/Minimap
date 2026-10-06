@@ -487,6 +487,7 @@ mod tests {
             due_date: None,
             completed_at: None,
             priority: 3,
+            recurrence: None,
             created_at: OffsetDateTime::UNIX_EPOCH,
             updated_at: OffsetDateTime::UNIX_EPOCH,
             archived_at: None,

@@ -124,6 +124,7 @@ mod tests {
                 start_date: None,
                 due_date: None,
                 priority: None,
+                recurrence: None,
             },
         )
         .unwrap()
@@ -328,6 +329,7 @@ mod tests {
                 assignee: minimap_types::QuickAssignee::Person(minimap_types::Ref::New(0)),
                 blocks: vec![],
                 objectives: vec![],
+                recurrence: None,
             },
         };
         assert!(minimap_store::quick_add::commit(&mut conn, plan).is_err());

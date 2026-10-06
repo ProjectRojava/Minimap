@@ -225,6 +225,7 @@ mod tests {
                 start_date: None,
                 due_date: None,
                 priority: None,
+                recurrence: None,
             },
         )
         .unwrap();
@@ -389,7 +390,7 @@ mod tests {
         let mut conn = demo();
         let stack = Mutex::new(UndoStack::default());
         command(&mut conn, &stack, |c| new_task(c, "Older"));
-        let t = task(&conn, "Quarterly access review");
+        let t = task(&conn, "Savings review with finance");
         command(&mut conn, &stack, |c| {
             minimap_store::tasks::update(
                 c,

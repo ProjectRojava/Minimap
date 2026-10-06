@@ -38,6 +38,7 @@ pub(crate) fn add_task(conn: &mut Connection, title: &str) {
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         },
     )
     .unwrap();

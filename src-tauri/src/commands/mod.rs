@@ -14,6 +14,7 @@ pub mod overview;
 pub mod people;
 pub mod projects;
 pub mod quick_add;
+pub mod recurrence;
 pub mod review;
 pub mod schedule;
 pub mod search;

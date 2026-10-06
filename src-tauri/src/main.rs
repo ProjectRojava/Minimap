@@ -32,6 +32,19 @@ fn init_logging(dir: &std::path::Path) -> anyhow::Result<()> {
 }
 
 /// The daily backup: once at start (when the last one is over a day old), then hourly checks.
+/// Makes the notes of repeating series on their dates (spec 27): at start, then every ten
+/// minutes, so a note appears on its day whether or not the app was open then.
+fn spawn_recurring_notes(state: AppState) -> anyhow::Result<()> {
+    std::thread::Builder::new()
+        .name("recurring-notes".into())
+        .spawn(move || loop {
+            commands::recurrence::generate_due_notes_tick(&state);
+            std::thread::sleep(std::time::Duration::from_secs(10 * 60));
+        })
+        .context("start the repeating notes timer")?;
+    Ok(())
+}
+
 fn spawn_auto_backup(state: AppState) -> anyhow::Result<()> {
     std::thread::Builder::new()
         .name("auto-backup".into())
@@ -69,6 +82,7 @@ fn main() {
             let state = AppState::new(vault, dir, keys);
             app.manage(state.clone());
             spawn_auto_backup(state.clone())?;
+            spawn_recurring_notes(state.clone())?;
             sync::spawn(state)?;
             Ok(())
         })
@@ -127,6 +141,7 @@ fn main() {
             commands::settings::show_data_folder,
             commands::demo::seed_demo_data,
             commands::export::export_all,
+            commands::recurrence::set_recurrence,
             commands::undo::undo_last,
             commands::undo::redo_last,
             commands::waiting_on::get_waiting_on,

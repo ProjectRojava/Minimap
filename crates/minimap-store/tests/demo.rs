@@ -173,6 +173,7 @@ fn it_only_fills_an_empty_database_and_a_refusal_changes_nothing() {
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         },
     )
     .unwrap();
@@ -301,4 +302,36 @@ fn the_demo_data_is_searchable() {
     let conn = seeded(TODAY);
     let hits = search::run(&conn, "\"gateway\"*", &[], false, 20).unwrap();
     assert!(hits.len() >= 4, "{}", hits.len());
+}
+
+#[test]
+fn some_things_repeat() {
+    let conn = seeded(TODAY);
+    let rules: Vec<(String, String)> = tasks::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .filter_map(|t| t.recurrence.map(|r| (t.title, r.describe())))
+        .collect();
+    assert_eq!(rules.len(), 2, "{rules:?}");
+    assert!(
+        rules.contains(&("Monthly access review".into(), "monthly on the 17th".into())),
+        "{rules:?}"
+    );
+    assert!(
+        rules.contains(&(
+            "Rotate service credentials".into(),
+            "every 12 weeks on Wednesday".into()
+        )),
+        "{rules:?}"
+    );
+    // The 1:1 repeats weekly on the day it was held, and every new one starts with its person.
+    let note = notes::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .find(|n| n.recurrence.is_some())
+        .unwrap();
+    assert_eq!(note.title, "1:1 with Priya");
+    let rule = note.recurrence.unwrap();
+    assert_eq!(rule.describe(), "every Wednesday");
+    assert!(rule.template.unwrap().contains("@[Priya Nair](node:"));
 }

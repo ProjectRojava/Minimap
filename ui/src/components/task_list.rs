@@ -18,7 +18,7 @@ use crate::{
             INPUT,
         },
         node_row::NodeRow,
-        page::{column_head, EmptyState, Hints, PageHeader, FILTER_BAR},
+        page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
     },
     labels::{priority_option, task_status_label, task_status_tone},
     state::{finish, DataVersion, ListNav, Toasts},
@@ -186,6 +186,7 @@ pub fn TaskList(inbox: bool) -> impl IntoView {
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         };
         spawn_local(async move {
             if finish(api::create_task(input).await, toasts, version).is_some() {
@@ -363,6 +364,11 @@ fn TaskRowView(
     };
 
     let t = row.task;
+    // "↻" after the title of a task that repeats; hover says how.
+    let repeats = t
+        .recurrence
+        .as_ref()
+        .map(|r| format!("Repeats {}", r.describe()));
     let closed = matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled);
     let project_options: Vec<(String, String)> =
         std::iter::once((String::new(), "No project".to_owned()))
@@ -442,7 +448,12 @@ fn TaskRowView(
                 <span on:click=|ev| ev.stop_propagation()>
                     <SelectField compact=true options=priority_options() current=priority_now on_change=on_priority />
                 </span>
-                <span class=title_class>{t.title}</span>
+                <span class="flex min-w-0 items-center gap-1.5">
+                    <span class=title_class>{t.title}</span>
+                    {repeats.map(|text| view! {
+                        <span class=Tone::Neutral.chip() title=text>"↻"</span>
+                    })}
+                </span>
                 <span on:click=|ev| ev.stop_propagation()>
                     <SelectField compact=true options=project_options current=project_now on_change=on_project />
                 </span>

@@ -6,7 +6,8 @@ use time::{Date, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-    DecisionStatus, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, TaskStatus,
+    DecisionStatus, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence,
+    TaskStatus,
 };
 
 pub const DEFAULT_PRIORITY: u8 = 3;
@@ -168,6 +169,9 @@ pub struct Task {
     #[serde(with = "time::serde::rfc3339::option")]
     pub completed_at: Option<OffsetDateTime>,
     pub priority: u8,
+    /// Repeats by this rule: finishing it makes the next one (spec 27).
+    #[serde(default)]
+    pub recurrence: Option<Recurrence>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -206,6 +210,8 @@ pub struct CreateTask {
     pub due_date: Option<Date>,
     #[serde(default)]
     pub priority: Option<u8>,
+    #[serde(default)]
+    pub recurrence: Option<Recurrence>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -219,6 +225,7 @@ pub struct UpdateTask {
     pub start_date: Patch<Date>,
     pub due_date: Patch<Date>,
     pub priority: Option<u8>,
+    pub recurrence: Patch<Recurrence>,
 }
 
 impl UpdateTask {
@@ -231,6 +238,7 @@ impl UpdateTask {
         self.start_date.apply(&mut t.start_date);
         self.due_date.apply(&mut t.due_date);
         set(&mut t.priority, self.priority);
+        self.recurrence.apply(&mut t.recurrence);
     }
 }
 
@@ -340,6 +348,9 @@ pub struct Note {
     pub body: String,
     pub note_date: Date,
     pub kind: NoteKind,
+    /// Repeats by this rule: a new note is made on each date (spec 27).
+    #[serde(default)]
+    pub recurrence: Option<Recurrence>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -358,6 +369,8 @@ pub struct CreateNote {
     pub note_date: Option<Date>,
     #[serde(default)]
     pub kind: Option<NoteKind>,
+    #[serde(default)]
+    pub recurrence: Option<Recurrence>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -367,6 +380,7 @@ pub struct UpdateNote {
     pub body: Option<String>,
     pub note_date: Option<Date>,
     pub kind: Option<NoteKind>,
+    pub recurrence: Patch<Recurrence>,
 }
 
 impl UpdateNote {
@@ -375,6 +389,7 @@ impl UpdateNote {
         set(&mut n.body, self.body);
         set(&mut n.note_date, self.note_date);
         set(&mut n.kind, self.kind);
+        self.recurrence.apply(&mut n.recurrence);
     }
 }
 
