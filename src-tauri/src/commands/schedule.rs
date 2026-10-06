@@ -1,6 +1,6 @@
 use minimap_core::schedule::{compute, critical_path};
 use minimap_store::Connection;
-use minimap_types::{AppError, Schedule, ScheduleScope, ScheduledTask};
+use minimap_types::{AppError, Date, Schedule, ScheduleScope, ScheduledTask};
 use tauri::State;
 
 use crate::{
@@ -31,6 +31,15 @@ pub async fn get_critical_path(
 }
 
 pub(crate) fn schedule_impl(conn: &Connection, scope: ScheduleScope) -> Result<Schedule, AppError> {
+    schedule_at(conn, minimap_store::today(), scope)
+}
+
+/// [`schedule_impl`] as of `today` (the demo-data snapshot tests fix it).
+pub(crate) fn schedule_at(
+    conn: &Connection,
+    today: Date,
+    scope: ScheduleScope,
+) -> Result<Schedule, AppError> {
     if let ScheduleScope::Project(id) = scope {
         minimap_store::projects::get(conn, id).map_err(store_error)?;
     }
@@ -41,15 +50,8 @@ pub(crate) fn schedule_impl(conn: &Connection, scope: ScheduleScope) -> Result<S
     let work_week = minimap_store::settings::get(conn)
         .map_err(store_error)?
         .work_week;
-    compute(
-        &tasks,
-        &edges,
-        &projects,
-        minimap_store::today(),
-        work_week,
-        scope,
-    )
-    .map_err(|e| app_error("cycle", e.to_string()))
+    compute(&tasks, &edges, &projects, today, work_week, scope)
+        .map_err(|e| app_error("cycle", e.to_string()))
 }
 
 #[cfg(test)]

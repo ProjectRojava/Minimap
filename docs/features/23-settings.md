@@ -1,6 +1,6 @@
 # 23 — Settings
 
-Status: Implemented — awaiting manual check (Developer tab waits for spec 24) · Milestone: M4 · Priority: Must
+Status: Implemented — awaiting manual check · Milestone: M4 · Priority: Must
 Depends on: 02
 
 ## Goal
@@ -19,6 +19,7 @@ One place for app configuration.
   | **Reports** | The Markdown template of the weekly status report |
   | **Data & backup** | **Data location** (new), Google Drive (22), Backup and restore (20) |
   | **Security** | Encryption (21) |
+  | **Developer** (debug builds only) | Demo data (24) |
 - **Working days** (new, `Settings.work_week`, stored as a list of weekday numbers, Monday = 0; default Monday to Friday, at least one day). Threaded through core as `WorkWeek`: the schedule/critical path (`schedule::working_index/end_index/date_of` now take the week), impact analysis (incl. `late_working_days`), capacity (a week has as many working days as the work week; capacity days = weekly hours / hours per day, unchanged), the Overview, the dependency graph and the weekly review's slip counts. The Gantt axis only contains working days and marks a new week at its first working day. Weeks themselves still run Monday to Sunday (This week, the review, the heatmap columns). Quick-add dates (`fri`, `+3d`) are calendar dates and unchanged. Synced between devices like any other non-device setting.
 - **Default weekly capacity** (new, `Settings.default_weekly_capacity_hours`, > 0 and <= 168, default 40): used by `people::create` when no capacity is given (UI "New person", quick-add, `@name` creation). Existing people are untouched.
 - **Data location** (new): `get_data_info` (database path, folder, size, schema version, encrypted, log path) and `show_data_folder` (opens the app's own data folder in the file manager; takes no path, so it can only open that folder). Read-only.
@@ -26,7 +27,7 @@ One place for app configuration.
 - Commands: `get_settings`, `update_settings` (unchanged names; all-or-nothing validation), plus `get_data_info`, `show_data_folder`.
 
 **Out / later**
-- **Developer tab** (seed demo data in debug builds): needs spec 24's `seed_demo_data`. When 24 lands, add `Tab::Developer` (shown only in debug builds) to `settings_tab.rs` and a panel in `pages/settings.rs`.
+- **Developer tab** (seed demo data in debug builds): added by spec 24 (`Tab::Developer`, `components/developer_settings.rs`).
 
 ## Acceptance criteria
 - [x] Every setting persists across restarts (rows in the `settings` table; tested in the store) and takes effect without a restart: the work week, hours per day, thresholds and default capacity are read by each command call, the theme is applied at once.

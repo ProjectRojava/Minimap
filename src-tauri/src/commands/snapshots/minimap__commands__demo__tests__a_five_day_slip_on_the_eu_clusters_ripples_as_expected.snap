@@ -1,0 +1,32 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+SUMMARY: 10 moved, 0 absorbing, 8 newly late tasks, 0 projects, 0 objectives, 7 people, worst 5.0 wd
+
+TASKS
+  * Provision EU network and clusters | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-10 -> 2027-03-17 | due 2027-03-10 late - -> 5 NEWLY LATE
+  EU CDN and DNS | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-15 -> 2027-03-22 | due 2027-03-17 late - -> 3 NEWLY LATE
+  EU status page and monitoring | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-16 -> 2027-03-23 | due 2027-03-18 late - -> 3 NEWLY LATE
+  EU support runbook | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-15 -> 2027-03-22 | due 2027-03-15 late - -> 5 NEWLY LATE
+  Replicate the customer data pipeline | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-24 -> 2027-03-31 | due 2027-03-29 late - -> 2 NEWLY LATE
+  Regional auth and tenancy | in 5.0 absorbed 3.0 delay 2.0 | finish 2027-03-22 -> 2027-03-24 | due 2027-03-22 late - -> 2 NEWLY LATE
+  Security review sign-off | in 2.0 absorbed 0.0 delay 2.0 | finish 2027-03-24 -> 2027-03-26 | due 2027-04-05 late - -> -
+  Load test the EU stack | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-30 -> 2027-04-06 | due 2027-03-29 late 1 -> 6
+  Beta customer onboarding | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-31 -> 2027-04-07 | due 2027-04-02 late - -> 3 NEWLY LATE
+  Go-live checklist | in 5.0 absorbed 0.0 delay 5.0 | finish 2027-03-31 -> 2027-04-07 | due 2027-03-31 late - -> 5 NEWLY LATE
+
+PROJECTS
+  EU Region | delay 5.0, 9 tasks | finish 2027-03-31 -> 2027-04-07 | target 2027-03-29 late 2 -> 7
+
+OBJECTIVES
+  Launch in the EU | delay 5.0 | finish 2027-03-31 -> 2027-04-07 | target 2027-05-17 late - -> - | via EU Region
+
+PEOPLE
+  Elena Rossi | worst delay 5.0 | EU support runbook (+5.0)
+  Jin Park | worst delay 5.0 | EU status page and monitoring (+5.0)
+  Maya Chen | worst delay 5.0 | Load test the EU stack (+5.0); Regional auth and tenancy (+2.0)
+  Priya Nair | worst delay 5.0 | Go-live checklist (+5.0)
+  Sam Okafor | worst delay 5.0 | Beta customer onboarding (+5.0)
+  Tomás Alvarez | worst delay 5.0 | EU CDN and DNS (+5.0); Provision EU network and clusters (+5.0); Replicate the customer data pipeline (+5.0)
+  Raj Patel | worst delay 2.0 | Security review sign-off (+2.0)

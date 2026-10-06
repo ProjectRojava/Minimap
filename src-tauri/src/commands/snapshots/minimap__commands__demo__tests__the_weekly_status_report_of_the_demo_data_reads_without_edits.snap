@@ -1,0 +1,56 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: text
+---
+# Weekly status report
+
+Week of 1 Mar 2027 to 7 Mar 2027 · prepared 3 Mar 2027
+
+## Summary
+
+- **Projects:** 1 at risk, 2 on track
+- **Completed:** 2 tasks
+- **Slipped:** 2 items
+- **Blocked:** 1 task, 1 new this week
+- **Decisions:** 1 made
+- **Over capacity:** 1 person
+- **Waiting on others:** 1 stale, 1 resolved
+
+## Objectives
+
+| Objective | Health | Target | Why |
+|---|---|---|---|
+| Launch in the EU | On track | 17 May 2027 | EU Region is amber: projected 2 working days late (target 2027-03-29) |
+| Cut platform costs by 20% | On track | 1 Jul 2027 | on track: finishes 2027-03-25, target 2027-07-01 |
+
+## Top risks
+
+1. **EU Region** — At risk: projected 2 working days late (target 2027-03-29); 1 task overdue, 1 blocked (2 of 12 open)
+2. **Customer communications plan** (task) — Off track: overdue (due 2027-02-26)
+
+## Completed
+
+- Data residency design (EU Region · Maya Chen) — Wed 3 Mar
+- Weekly cost report automation (Platform Cost Reduction · Jin Park) — Mon 1 Mar
+
+## Slipped
+
+- **Security review sign-off** (Security and Compliance · Raj Patel) — due date moved from Mon 29 Mar to Mon 5 Apr (5 working days later)
+- **Replicate the customer data pipeline** (EU Region · Tomás Alvarez) — due date moved from Wed 24 Mar to Mon 29 Mar (3 working days later)
+
+## Blocked
+
+- **EU support runbook** (EU Region · Elena Rossi) — blocked by Provision EU network and clusters · new this week
+
+## Decisions
+
+- **Run EU data on self-managed Postgres** — Run Postgres ourselves in Frankfurt, with replicas in the same region. _(decided Mon 1 Mar; affects EU Region)_
+
+## People and capacity
+
+- **Tomás Alvarez** — 220% of capacity in the week of Mon 1 Mar
+
+## Waiting on others
+
+- **Raj Patel** — Security review sign-off: waiting 12 days, expected Mon 1 Mar, overdue
+- Resolved: **Elena Rossi** — Brand assets for the EU launch page (Mon 1 Mar)

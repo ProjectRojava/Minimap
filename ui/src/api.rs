@@ -4,18 +4,18 @@ use minimap_types::{
     Activity, AddAttachment, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Attachment,
     BackupEntry, BackupStatus, Capacity, CheckpointInfo, ConnectOutcome, CreateDecision,
     CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
-    CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge,
-    EdgeLink, EncryptionResult, ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption,
-    NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
-    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
-    PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
-    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult,
-    RecoverCheckpoint, RecoverResult, ReportKind, ReportParams, RestorePreview, RestoreResult,
-    Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus,
-    SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter,
-    TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision, UpdateNote, UpdateObjective,
-    UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam,
-    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
+    CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DemoSummary, DependencyGraph,
+    Edge, EdgeLink, EncryptionResult, ExportResult, FinishConnect, GraphFilter, ImpactReport,
+    LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow,
+    Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview,
+    PersonDetail, PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview,
+    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview,
+    QuickResult, RecoverCheckpoint, RecoverResult, ReportKind, ReportParams, RestorePreview,
+    RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret,
+    SecurityStatus, SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition,
+    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision, UpdateNote,
+    UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask,
+    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
     ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -395,6 +395,12 @@ pub async fn update_settings(patch: UpdateSettings) -> Result<Settings, AppError
 /// Where the data lives (database file, folder, size, schema, encryption, log).
 pub async fn get_data_info() -> Result<DataInfo, AppError> {
     invoke("get_data_info", &NoArgs {}).await
+}
+
+/// Adds the demo dataset to an empty database (debug builds only; the backend refuses in a
+/// release build).
+pub async fn seed_demo_data() -> Result<DemoSummary, AppError> {
+    invoke("seed_demo_data", &NoArgs {}).await
 }
 
 /// Opens the app's data folder in the file manager.

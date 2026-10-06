@@ -1,0 +1,24 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+PROJECTS
+EU Region: finish 2027-03-31 target 2027-03-29 late 2 wd; 12 open, 3 unestimated, 5 critical
+Platform Cost Reduction: finish 2027-03-25 target 2027-05-03 late - wd; 11 open, 0 unestimated, 2 critical
+Security and Compliance: finish 2027-03-30 target 2027-04-19 late - wd; 9 open, 0 unestimated, 1 critical
+
+CRITICAL PATH: EU Region
+  Provision EU network and clusters | 2027-03-03 -> 2027-03-10 | slack -2.0
+  Replicate the customer data pipeline | 2027-03-15 -> 2027-03-24 | slack -2.0
+  Load test the EU stack | 2027-03-25 -> 2027-03-30 | slack -2.0
+  Beta customer onboarding | 2027-03-31 -> 2027-03-31 | slack -2.0
+  Go-live checklist | 2027-03-31 -> 2027-03-31 | slack -2.0
+
+CRITICAL PATH: Security and Compliance
+  SOC 2 gap assessment | 2027-03-24 -> 2027-03-30 | slack 14.0
+
+CRITICAL PATH: Platform Cost Reduction
+  Gateway: design rate limiting | 2027-03-03 -> 2027-03-05 | slack 27.0
+  Gateway: build the routing layer | 2027-03-08 -> 2027-03-15 | slack 27.0
+  Gateway: migrate the first five services | 2027-03-16 -> 2027-03-24 | slack 27.0
+  Savings review with finance | 2027-03-25 -> 2027-03-25 | slack 27.0

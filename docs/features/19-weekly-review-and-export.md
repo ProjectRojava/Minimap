@@ -15,7 +15,7 @@ A guided 15-minute weekly ritual that ends with a status report the user can sen
 - Tauri dialog plugin with only the save-dialog permission.
 
 ## Acceptance criteria
-- [x] With demo data, the report is readable without edits and matches an `insta` snapshot. *(Two `insta` snapshots in core: a week with something in every section, and an empty week; both read cleanly without edits. Demo data itself is spec 24; the fixture is hand-built.)*
+- [x] With demo data, the report is readable without edits and matches an `insta` snapshot. *(Two `insta` snapshots in core: a week with something in every section, and an empty week; both read cleanly without edits. The demo data (spec 24) adds `the_weekly_status_report_of_the_demo_data_reads_without_edits`: a full report for a week with every section filled.)*
 - [x] Export writes only to the path the user chose. *(`export_markdown` only accepts an absolute path ending in `.md`/`.markdown` in an existing folder, builds the whole report before touching the disk, writes that one file and nothing else; tests check the folder holds exactly the chosen file, and that refused paths write nothing.)*
 
 ## Decisions

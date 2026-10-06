@@ -14,7 +14,7 @@ The "minimap": one screen that tells an executive what's at risk and why, withou
 - Command: `get_portfolio_overview()`.
 
 ## Acceptance criteria
-- [x] Demo data's at-risk project shows amber/red with correct reasons. *(a hand-built "at risk" project in the core tests: 3 working days late, one overdue task, one unestimated, with the exact reason texts; red with stricter thresholds. Demo data itself is spec 24.)*
+- [x] Demo data's at-risk project shows amber/red with correct reasons. *(a hand-built "at risk" project in the core tests: 3 working days late, one overdue task, one unestimated, with the exact reason texts; red with stricter thresholds. With the real demo data (spec 24) EU Region is amber, projected 2 working days late with one overdue and one blocked task of 12, and the rest green; the `the_overview_of_the_demo_data` snapshot also asserts exactly one overloaded person and one stale waiting-on.)*
 - [x] Clicking any item opens its detail pane. *(every row opens its node; unverified by hand)*
 - [x] Overview loads in < 200 ms with demo data. *(40 projects / 2,000 tasks / 30 people: 7 ms release, 29 ms debug; `cargo test -p minimap --release overview_speed -- --ignored --nocapture`)*
 
