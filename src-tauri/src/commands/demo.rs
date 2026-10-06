@@ -1,10 +1,14 @@
 //! Demo data (spec 24): fills an empty database with a realistic dataset. Developer-only: the
 //! command refuses in release builds and the Settings tab that offers it is not shown there.
 
-use minimap_types::{AppError, Date, DemoSummary};
+use std::path::Path;
+
+use minimap_store::{security::Key, Connection};
+use minimap_types::{AppError, Date, DemoRemoval, DemoStatus, DemoSummary};
 use tauri::State;
 
 use crate::{
+    commands::backup::backup_now_impl,
     error::{app_error, store_error},
     state::AppState,
 };
@@ -43,6 +47,54 @@ pub async fn seed_demo_data(state: State<'_, AppState>) -> Result<DemoSummary, A
     Ok(summary)
 }
 
+/// Is there demo data in this database, and what would removing it do? Changes nothing. Works
+/// in every build: the demo data may have been added by a development build and be shown by a
+/// released one.
+#[tauri::command]
+pub async fn get_demo_status(state: State<'_, AppState>) -> Result<DemoStatus, AppError> {
+    state
+        .run(|conn| minimap_store::demo_remove::status(conn).map_err(store_error))
+        .await
+}
+
+/// Removes the demo data and only that: a backup is saved first, the user's own items are kept
+/// and detached from what goes, and the removal is all or nothing.
+#[tauri::command]
+pub async fn remove_demo_data(state: State<'_, AppState>) -> Result<DemoRemoval, AppError> {
+    let data_dir = state.data_dir.clone();
+    // Through `run_vault` (it needs the key to back up an encrypted database): the removal is
+    // not a step to undo, and older steps may refer to what is gone.
+    let removal = state
+        .run_vault(move |vault, _| {
+            let (conn, key) = vault.parts()?;
+            remove_impl(conn, &data_dir, key)
+        })
+        .await?;
+    state.forget_undo();
+    Ok(removal)
+}
+
+pub(crate) fn remove_impl(
+    conn: &mut Connection,
+    data_dir: &Path,
+    key: &Key,
+) -> Result<DemoRemoval, AppError> {
+    if !minimap_store::demo_remove::status(conn)
+        .map_err(store_error)?
+        .found
+    {
+        return Err(app_error("invalid", "There is no demo data to remove."));
+    }
+    // If the backup can't be made nothing is removed.
+    let backup = backup_now_impl(conn, data_dir, None, key)?;
+    let (removed, impact) = minimap_store::demo_remove::remove(conn).map_err(store_error)?;
+    Ok(DemoRemoval {
+        removed,
+        impact,
+        backup: Some(backup.path),
+    })
+}
+
 pub(crate) fn seed_impl(
     conn: &mut minimap_store::Connection,
     today: Date,
@@ -62,6 +114,43 @@ mod tests {
         assert!(release.message.contains("debug builds"));
         let drive = refusal(true, true).unwrap();
         assert!(drive.message.contains("Disconnect Google Drive"));
+    }
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "minimap-demo-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn removing_demo_data_saves_a_backup_first_and_leaves_an_empty_database() {
+        let data = temp_dir("remove");
+        let mut conn = minimap_store::open(&data.join("minimap.db")).unwrap();
+        seed_impl(&mut conn, minimap_store::today()).unwrap();
+        let status = minimap_store::demo_remove::status(&conn).unwrap();
+        assert!(status.found);
+
+        let removal = remove_impl(&mut conn, &data, &Key::None).unwrap();
+        assert_eq!(removal.removed.tasks, 40);
+        // The backup exists and still holds the demo data: it is the way back.
+        let backup = std::path::PathBuf::from(removal.backup.unwrap());
+        assert!(backup.starts_with(data.join("backups")) && backup.exists());
+        let copy = minimap_store::open(&backup).unwrap();
+        assert_eq!(minimap_store::tasks::list(&copy, false).unwrap().len(), 40);
+        // The live database is back to nothing but me.
+        assert!(minimap_store::tasks::list(&conn, false).unwrap().is_empty());
+        assert!(!minimap_store::demo_remove::status(&conn).unwrap().found);
+        // And a second removal has nothing to do.
+        let again = remove_impl(&mut conn, &data, &Key::None).unwrap_err();
+        assert_eq!(again.code, "invalid");
+        assert!(again.message.contains("no demo data"));
     }
 
     #[test]

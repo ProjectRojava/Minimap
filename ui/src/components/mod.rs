@@ -3,6 +3,7 @@ pub mod backup_settings;
 pub mod data_settings;
 pub mod date_field;
 pub mod decision_panel;
+pub mod demo_data_settings;
 pub mod detail_pane;
 pub mod developer_settings;
 pub mod drive_settings;

@@ -54,6 +54,8 @@ const COMMANDS: &[&str] = &[
     "get_data_info",
     "show_data_folder",
     "seed_demo_data",
+    "get_demo_status",
+    "remove_demo_data",
     "export_all",
     "set_recurrence",
     "undo_last",

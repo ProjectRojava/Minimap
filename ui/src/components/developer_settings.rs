@@ -53,7 +53,7 @@ pub fn DeveloperSettings() -> impl IntoView {
             <p class="text-[11px] text-muted">
                 "Works on an empty database only (nothing but your own \"me\"), and it is all or nothing. "
                 "Dates are set around today. It is refused while Google Drive is connected, so it can't "
-                "end up in your real Drive. To start again, use a fresh data folder or restore an empty backup."
+                "end up in your real Drive. To remove it again, use Settings → Data & backup → Demo data, which appears while the database holds demo data (in every build)."
             </p>
         </Card>
     }

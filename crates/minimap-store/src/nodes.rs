@@ -156,8 +156,15 @@ pub(crate) fn unarchive_in_tx(tx: &rusqlite::Transaction, node: NodeRef) -> Resu
 /// Fails with `Constraint` if other records still reference the node.
 pub fn delete(conn: &mut Connection, node: NodeRef) -> Result<()> {
     let tx = conn.transaction()?;
-    ensure_not_self(&tx, node)?;
-    if archived_at(&tx, node)?.is_none() {
+    delete_in_tx(&tx, node)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// [`delete`] inside a caller's transaction, so several deletes can be one atomic write.
+pub(crate) fn delete_in_tx(tx: &rusqlite::Transaction, node: NodeRef) -> Result<()> {
+    ensure_not_self(tx, node)?;
+    if archived_at(tx, node)?.is_none() {
         return Err(StoreError::NotArchived {
             node_type: node.node_type,
             id: node.id,
@@ -167,7 +174,7 @@ pub fn delete(conn: &mut Connection, node: NodeRef) -> Result<()> {
         "DELETE FROM edges WHERE from_id = ?1 OR to_id = ?1",
         [id_s(node.id)],
     )?;
-    crate::attachments::delete_for_node(&tx, node.id)?;
+    crate::attachments::delete_for_node(tx, node.id)?;
     tx.execute(
         &format!("DELETE FROM {} WHERE id = ?1", table(node.node_type)),
         [id_s(node.id)],
@@ -179,19 +186,18 @@ pub fn delete(conn: &mut Connection, node: NodeRef) -> Result<()> {
         params![node.node_type.as_str(), id_s(node.id), ts_s(now())],
     )?;
     activity::record(
-        &tx,
+        tx,
         now(),
         node.node_type,
         node.id,
         ActivityAction::Deleted,
         &json!({}),
     )?;
-    tx.commit()?;
     Ok(())
 }
 
 /// Column holding the human-readable name of each node type.
-fn label_column(node_type: NodeType) -> &'static str {
+pub(crate) fn label_column(node_type: NodeType) -> &'static str {
     match node_type {
         NodeType::Person | NodeType::Team => "name",
         NodeType::WaitingOn => "description",
