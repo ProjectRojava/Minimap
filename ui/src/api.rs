@@ -5,18 +5,18 @@ use minimap_types::{
     BackupEntry, BackupStatus, Capacity, CheckpointInfo, ConnectOutcome, CreateDecision,
     CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
     CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DemoSummary, DependencyGraph,
-    Edge, EdgeLink, EncryptionResult, ExportResult, FinishConnect, GraphFilter, ImpactReport,
-    LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow,
-    Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview,
-    PersonDetail, PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview,
-    ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview,
-    QuickResult, RecoverCheckpoint, RecoverResult, ReportKind, ReportParams, RestorePreview,
-    RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret,
-    SecurityStatus, SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition,
-    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UndoOutcome, UpdateDecision,
-    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings,
-    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
-    WeeklyReview, ATTACHMENT_EXTENSIONS,
+    Edge, EdgeLink, EncryptionResult, ExportAllResult, ExportFormat, ExportResult, FinishConnect,
+    GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note,
+    NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping,
+    Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse, PortfolioOverview,
+    Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout,
+    QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint, RecoverResult, ReportKind,
+    ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope, ScheduledTask,
+    SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip, SyncStatus,
+    Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek,
+    UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject,
+    UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
+    WaitingOnFilter, WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -397,6 +397,17 @@ pub async fn get_data_info() -> Result<DataInfo, AppError> {
     invoke("get_data_info", &NoArgs {}).await
 }
 
+#[derive(Serialize)]
+struct ExportAllArgs {
+    path: String,
+    format: ExportFormat,
+}
+
+/// Writes everything (JSON, and optionally Markdown) into a new folder inside `path`.
+pub async fn export_all(path: String, format: ExportFormat) -> Result<ExportAllResult, AppError> {
+    invoke("export_all", &ExportAllArgs { path, format }).await
+}
+
 /// Takes back the last change this session (up to 20 steps).
 pub async fn undo_last() -> Result<UndoOutcome, AppError> {
     invoke("undo_last", &NoArgs {}).await
@@ -690,9 +701,9 @@ async fn open_dialog(options: OpenOptions) -> Result<Option<String>, AppError> {
 }
 
 /// The operating system's folder picker. `Ok(None)` = cancelled.
-pub async fn pick_folder() -> Result<Option<String>, AppError> {
+pub async fn pick_folder(title: &'static str) -> Result<Option<String>, AppError> {
     open_dialog(OpenOptions {
-        title: "Choose the backup folder",
+        title,
         directory: true,
         multiple: false,
         filters: Vec::new(),

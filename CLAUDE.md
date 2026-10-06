@@ -74,6 +74,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - export: export_markdown(report_kind, params, path)
 - settings: get_settings, update_settings, get_data_info, show_data_folder, set_db_passphrase, backup_now(path)
 - undo: undo_last, redo_last (spec 25: Ctrl/Cmd+Z; built from the activity log, session only)
+- export: export_all(path, format) (spec 26: JSON files per node type + edges + activity + manifest into a new folder, optional Markdown)
 - drive (ADR-0011): get_sync_status, update_sync_settings, connect_drive, finish_drive_connect, cancel_drive_connect, disconnect_drive, sync_now, list_drive_checkpoints, recover_checkpoint; attachments: list_attachments, add_attachment, add_attachment_data, remove_attachment, open_attachment (+ the `minimap-media` protocol)
 Capabilities: frontend may call only these commands (app manifest) plus dialog/fs permissions export/backup need, plus the minimal window-control permissions the custom title bar needs (ADR-0004). Nothing broader.
 
@@ -113,6 +114,7 @@ DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mod
 - All SQL in `minimap-store`, parameterized only. Every write is a transaction that also writes the activity row.
 - ADR in `docs/decisions/` for any significant architectural choice or deviation from this file.
 - Undo (spec 25) works from the activity log, so **every write goes through a repository function that logs it** (already the rule) and a new kind of row or diff key must be considered in `minimap_core::undo` (undoable, ignored or irreversible). A new nullable field on an `Update*` type goes in `store::undo::nullable_fields` (a test enforces it).
+- The full export (spec 26) is everything the user put in the database: a **new table or node type** is added to `DataExport` (types), `store::export::collect`, the files `commands/export.rs` writes, and the README text in `core::export_md::readme`; a new column on an existing node type is exported automatically (the structs are the files), but check `export_md` if it should read well in Markdown.
 - Small commits, one logical change each.
 
 ## 12. Commands

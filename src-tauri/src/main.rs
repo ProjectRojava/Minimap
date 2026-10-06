@@ -126,6 +126,7 @@ fn main() {
             commands::settings::get_data_info,
             commands::settings::show_data_folder,
             commands::demo::seed_demo_data,
+            commands::export::export_all,
             commands::undo::undo_last,
             commands::undo::redo_last,
             commands::waiting_on::get_waiting_on,

@@ -59,6 +59,7 @@
     "allow-get-data-info",
     "allow-show-data-folder",
     "allow-seed-demo-data",
+    "allow-export-all",
     "allow-undo-last",
     "allow-redo-last",
     "allow-get-waiting-on",

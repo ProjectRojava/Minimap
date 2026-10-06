@@ -14,6 +14,7 @@ use crate::{
         data_settings::DataLocation,
         developer_settings::DeveloperSettings,
         drive_settings::DriveSettings,
+        export_settings::ExportSettings,
         page::{Card, PageHeader},
         security_settings::SecuritySettings,
     },
@@ -153,6 +154,7 @@ pub fn Settings() -> impl IntoView {
                     <DataLocation />
                     <DriveSettings />
                     <BackupSettings />
+                    <ExportSettings />
                 }.into_any())}
                 {panel(Tab::Security, view! { <SecuritySettings /> }.into_any())}
                 {Tab::Developer.is_shown().then(|| panel(Tab::Developer, view! { <DeveloperSettings /> }.into_any()))}
