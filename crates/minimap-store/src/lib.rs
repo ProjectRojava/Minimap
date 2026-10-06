@@ -8,6 +8,7 @@ pub mod decisions;
 pub mod demo;
 pub mod edges;
 mod error;
+pub mod export;
 pub mod merge;
 pub mod meta;
 pub mod nodes;

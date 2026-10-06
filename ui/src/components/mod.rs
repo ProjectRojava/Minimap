@@ -6,6 +6,7 @@ pub mod decision_panel;
 pub mod detail_pane;
 pub mod developer_settings;
 pub mod drive_settings;
+pub mod export_settings;
 pub mod first_run;
 pub mod form;
 pub mod health;

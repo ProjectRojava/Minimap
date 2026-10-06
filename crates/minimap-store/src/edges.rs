@@ -71,6 +71,13 @@ pub fn list_active(conn: &Connection) -> Result<Vec<Edge>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// Every edge, removed ones included (the full export).
+pub fn list_all(conn: &Connection) -> Result<Vec<Edge>> {
+    let mut stmt = conn.prepare(&format!("SELECT {COLS} FROM edges ORDER BY created_at, id"))?;
+    let rows = stmt.query_map([], from_row)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// Active edges of one type (input for cycle checks).
 pub fn list_active_of_type(conn: &Connection, edge_type: EdgeType) -> Result<Vec<Edge>> {
     let mut stmt = conn.prepare(&format!(
