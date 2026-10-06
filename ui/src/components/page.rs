@@ -129,10 +129,19 @@ pub fn Hints(keys: &'static [(&'static str, &'static str)]) -> impl IntoView {
 
 /// "Quarter 1 2027  3": a group heading inside a list.
 #[component]
-pub fn GroupLabel(#[prop(into)] label: String, count: usize) -> impl IntoView {
+pub fn GroupLabel(
+    #[prop(into)] label: String,
+    count: usize,
+    /// Shows the objective as its coloured chip instead of the plain label.
+    #[prop(optional)]
+    objective: Option<minimap_types::NodeSummary>,
+) -> impl IntoView {
     view! {
         <div class="flex items-center gap-2 px-4 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
-            {label}
+            {match objective {
+                Some(o) => view! { <crate::components::objective_colour::ObjectiveChip objective=o /> }.into_any(),
+                None => label.into_any(),
+            }}
             <span class="rounded-sm border border-line px-1 font-normal leading-4 text-faint">{count}</span>
         </div>
     }

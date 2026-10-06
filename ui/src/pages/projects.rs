@@ -11,6 +11,7 @@ use crate::{
     components::{
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
+        objective_colour::{use_objective_colours, ObjectiveChips},
         page::{column_head, EmptyState, GroupLabel, PageHeader, FILTER_BAR, FORM_BAR},
     },
     labels::{priority_short, project_status_label, project_status_tone},
@@ -18,7 +19,7 @@ use crate::{
 };
 
 const COLS: &str =
-    "grid w-full items-center gap-3 grid-cols-[2rem_minmax(0,1fr)_8rem_5.5rem_6.5rem_3.5rem]";
+    "grid w-full items-center gap-3 grid-cols-[2rem_minmax(0,1fr)_13rem_8rem_5.5rem_6.5rem_3.5rem]";
 
 /// "3/5", or empty when the project has no tasks.
 fn progress(row: &ProjectRow) -> String {
@@ -214,39 +215,49 @@ fn status_options() -> Vec<(String, String)> {
 fn ListView(groups: Vec<ProjectGroup>) -> impl IntoView {
     let mut index = 0;
     let mut out = Vec::new();
+    let colours = use_objective_colours();
     for group in groups {
-        out.push(
-            view! {
-                <GroupLabel label=group.label.clone() count=group.rows.len() />
-            }
-            .into_any(),
-        );
+        let objective = group.objective.clone();
+        out.push(match objective.clone() {
+            Some(o) => view! { <GroupLabel label=group.label.clone() count=group.rows.len() objective=o /> }.into_any(),
+            None => view! { <GroupLabel label=group.label.clone() count=group.rows.len() /> }.into_any(),
+        });
+        // Under an objective's heading every row wears that objective's colour.
+        let edge = objective.map(|o| colours.objective_edge(o.node.id));
         for row in group.rows {
-            out.push(project_row(row, index).into_any());
+            out.push(project_row(row, index, edge).into_any());
             index += 1;
         }
     }
     view! {
         <div class=column_head(COLS)>
-            <span>"Pri"</span><span>"Project"</span><span>"Owner"</span><span>"Status"</span>
+            <span>"Pri"</span><span>"Project"</span><span>"Objective"</span><span>"Owner"</span><span>"Status"</span>
             <span>"Target"</span><span class="text-right">"Tasks"</span>
         </div>
         <div class="flex-1 overflow-y-auto" role="table">{out}</div>
     }
 }
 
-fn project_row(row: ProjectRow, index: usize) -> impl IntoView {
+fn project_row(row: ProjectRow, index: usize, edge: Option<Signal<Option<u16>>>) -> impl IntoView {
     let node = node_of(&row);
     let tasks = progress(&row);
+    let colours = use_objective_colours();
+    // Outside an objective's group the edge is the colour of the project's first objective.
+    let edge = edge.unwrap_or_else(|| {
+        let objectives = row.objectives.clone();
+        Signal::derive(move || colours.first_hue(&objectives))
+    });
+    let objectives = row.objectives.clone();
     let p = row.project;
     view! {
-        <NodeRow node=node index=index>
+        <NodeRow node=node index=index hue=edge>
             <div class=COLS>
                 <span class="text-muted tabular-nums">{priority_short(p.priority)}</span>
                 <span class="truncate">
                     <span class="font-medium">{p.title}</span>
                     <span class="ml-2 font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</span>
                 </span>
+                <ObjectiveChips objectives=objectives max=1 />
                 <span class="truncate text-muted">{row.owner.map(|o| o.label).unwrap_or_default()}</span>
                 <span><span class=project_status_tone(p.status).chip()>{project_status_label(p.status)}</span></span>
                 <span class="text-muted tabular-nums">{p.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
@@ -330,6 +341,10 @@ fn BoardCard(
     let node = node_of(&row);
     let (id, status) = (row.project.id, row.project.status);
     let tasks = progress(&row);
+    let colours = use_objective_colours();
+    let objectives = row.objectives.clone();
+    let hue_objectives = row.objectives.clone();
+    let hue = Signal::derive(move || colours.first_hue(&hue_objectives));
     let p = row.project;
     let is_open = move || selection.0.get() == Some(node);
     let on_cursor = move || list.cursor.get() == Some(index);
@@ -338,8 +353,10 @@ fn BoardCard(
     view! {
         <div
             draggable="true"
+            style=move || hue.get().map(|h| format!("--obj-h: {h}")).unwrap_or_default()
             class=move || format!(
-                "cursor-default select-none rounded-sm border border-line p-2 {} {}",
+                "cursor-default select-none rounded-sm border border-line p-2 {} {} {}",
+                if hue.get().is_some() { "obj-bar" } else { "" },
                 if is_open() { "bg-active" }
                 else if on_cursor() { "bg-hover shadow-[inset_2px_0_0_var(--color-muted)]" }
                 else { "bg-canvas hover:bg-hover" },
@@ -365,6 +382,9 @@ fn BoardCard(
                 <span class="text-[11px] tabular-nums text-muted">{priority_short(p.priority)}</span>
             </div>
             <div class="font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</div>
+            {(!objectives.is_empty()).then(|| view! {
+                <div class="mt-1"><ObjectiveChips objectives=objectives /></div>
+            })}
             <div class="mt-1 flex flex-wrap gap-x-2 text-[11px] text-muted">
                 {row.owner.map(|o| view! { <span>{o.label}</span> })}
                 {p.target_date.map(|d| view! { <span class="tabular-nums">{d.to_string()}</span> })}

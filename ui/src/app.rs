@@ -85,6 +85,8 @@ fn Shell() -> impl IntoView {
     // Google Drive status, polled for the status bar, banners and Settings; a merge from another
     // computer reloads every screen.
     use_sync_status();
+    // One hue per objective, worn by its projects and tasks (ADR-0012).
+    crate::components::objective_colour::ObjectiveColours::provide();
     let list = expect_context::<ListNav>();
     // Rows belong to the screen that registered them; clear them on route change.
     let location = leptos_router::hooks::use_location();

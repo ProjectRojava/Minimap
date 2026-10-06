@@ -126,6 +126,24 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 input[type="search"]::-webkit-search-cancel-button,
 input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 
+/* Objective colours (ADR-0012, components/objective_colour.rs). An element gets its hue from an
+   inline `--obj-h`; saturation and lightness come from the theme's kind, so a hue reads on every
+   theme. The two pairs below are mirrored by DARK_SL / LIGHT_SL (a test keeps them in step). */
+:root { --obj-s: 55%; --obj-l: 70%; }
+:root[data-kind="light"] { --obj-s: 55%; --obj-l: 32%; }
+.obj-dot, .obj-chip, .obj-edge, .obj-bar { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
+.obj-dot { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 9999px; background: var(--obj); }
+.obj-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0; height: 18px;
+  padding: 0 6px; border-radius: 2px; font-size: 11px; line-height: 16px; color: var(--fg);
+  text-transform: none; letter-spacing: normal; font-weight: 500;
+  background: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.16);
+  border: 1px solid hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.55);
+}
+.obj-chip > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.obj-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--obj); }
+.obj-bar { border-left: 3px solid var(--obj); }
+
 /* Schedule timeline (components/schedule_panel.rs). Theme tokens only. */
 .gantt { display: block; }
 .gantt text { fill: var(--muted); font-size: 10px; font-family: inherit; }

@@ -9,6 +9,8 @@ The **Projects** screen has two layouts, switched at the top right:
 - **List**: projects grouped under the objective they contribute to (a project under several objectives appears under each; ones under none are listed last), then by status and priority.
 - **Board**: five columns (planned, active, paused, done, cancelled). **Drag a card to another column** to change its status.
 
+Each project shows the **objectives** it contributes to as coloured chips (the list has an *Objective* column; a card on the board has them under its title), and a coloured edge in the colour of its first objective. Under an objective's heading in the list, rows take that heading's colour. Colours are explained under [Objectives](help:objectives).
+
 Filters narrow by status, owner or objective. *New project* opens a short form.
 
 ## The handle
