@@ -4,9 +4,9 @@ use minimap_types::{
     Activity, AddAttachment, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Attachment,
     BackupEntry, BackupStatus, Capacity, CheckpointInfo, ConnectOutcome, CreateDecision,
     CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
-    CreateWaitingOn, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge, EdgeLink,
-    EncryptionResult, ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption, NewEdge,
-    NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
+    CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DependencyGraph, Edge,
+    EdgeLink, EncryptionResult, ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption,
+    NewEdge, NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
     ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
     PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
     ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult,
@@ -390,6 +390,16 @@ pub async fn get_settings() -> Result<Settings, AppError> {
 
 pub async fn update_settings(patch: UpdateSettings) -> Result<Settings, AppError> {
     invoke("update_settings", &SettingsPatchArg { patch }).await
+}
+
+/// Where the data lives (database file, folder, size, schema, encryption, log).
+pub async fn get_data_info() -> Result<DataInfo, AppError> {
+    invoke("get_data_info", &NoArgs {}).await
+}
+
+/// Opens the app's data folder in the file manager.
+pub async fn show_data_folder() -> Result<(), AppError> {
+    invoke("show_data_folder", &NoArgs {}).await
 }
 
 pub async fn list_link_options(node_type: NodeType) -> Result<Vec<LinkOption>, AppError> {

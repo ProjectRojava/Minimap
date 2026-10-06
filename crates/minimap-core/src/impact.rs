@@ -21,7 +21,7 @@ use minimap_types::{
     ApplyPreview, DateChange, Edge, EdgeType, ImpactObjective, ImpactPerson, ImpactPersonTask,
     ImpactProject, ImpactReport, ImpactSummary, ImpactTask, NodeRef, NodeSummary, NodeType,
     Objective, Person, Project, Schedule, ScheduleScope, ScheduledTask, Slip, Task, TaskStatus,
-    Uuid,
+    Uuid, WorkWeek,
 };
 use time::Date;
 
@@ -61,11 +61,12 @@ pub struct World<'a> {
     pub objectives: &'a [Objective],
     pub people: &'a [Person],
     pub today: Date,
+    pub work_week: WorkWeek,
 }
 
 /// Working days by which `finish` is past `due` (the end of the due day), if it is.
-pub fn late_working_days(finish: Date, due: Date) -> Option<u32> {
-    let d = end_index(finish) - end_index(due);
+pub fn late_working_days(week: WorkWeek, finish: Date, due: Date) -> Option<u32> {
+    let d = end_index(week, finish) - end_index(week, due);
     (d > 0).then_some(d as u32)
 }
 
@@ -110,6 +111,7 @@ fn scenario(world: &World, slips: &[Slip]) -> Result<Scenario, ImpactError> {
         world.edges,
         world.projects,
         world.today,
+        world.work_week,
         ScheduleScope::Portfolio,
     )?;
     let base_tasks = by_id(&base);
@@ -179,6 +181,7 @@ fn scenario(world: &World, slips: &[Slip]) -> Result<Scenario, ImpactError> {
             world.edges,
             world.projects,
             world.today,
+            world.work_week,
             ScheduleScope::Portfolio,
             &not_before,
         )?;
@@ -273,8 +276,8 @@ pub fn analyze(world: &World, slips: &[Slip]) -> Result<ImpactReport, ImpactErro
             continue;
         }
         let due = task_by_id.get(&b.id).and_then(|t| t.due_date);
-        let late_before = due.and_then(|d| late_working_days(b.finish, d));
-        let late_after = due.and_then(|d| late_working_days(s.finish, d));
+        let late_before = due.and_then(|d| late_working_days(world.work_week, b.finish, d));
+        let late_after = due.and_then(|d| late_working_days(world.work_week, s.finish, d));
         tasks.push(ImpactTask {
             id: b.id,
             title: b.title.clone(),
@@ -417,8 +420,12 @@ pub fn analyze(world: &World, slips: &[Slip]) -> Result<ImpactReport, ImpactErro
         if delay <= EPS {
             continue;
         }
-        let late_before = o.target_date.and_then(|t| late_working_days(old.1, t));
-        let late_after = o.target_date.and_then(|t| late_working_days(new.1, t));
+        let late_before = o
+            .target_date
+            .and_then(|t| late_working_days(world.work_week, old.1, t));
+        let late_after = o
+            .target_date
+            .and_then(|t| late_working_days(world.work_week, new.1, t));
         let mut names: Vec<String> = list
             .iter()
             .filter(|c| c.new.0 > c.old.0 + EPS)
@@ -540,7 +547,8 @@ pub fn analyze(world: &World, slips: &[Slip]) -> Result<ImpactReport, ImpactErro
 pub fn apply_plan(world: &World, slips: &[Slip]) -> Result<ApplyPreview, ImpactError> {
     let sc = scenario(world, slips)?;
     let base = by_id(&sc.base);
-    let t0 = working_index(world.today);
+    let week = world.work_week;
+    let t0 = working_index(week, world.today);
     let mut changes = Vec::new();
     for t in world
         .tasks
@@ -557,10 +565,10 @@ pub fn apply_plan(world: &World, slips: &[Slip]) -> Result<ApplyPreview, ImpactE
         if held <= EPS {
             continue;
         }
-        let new_start = date_of(t0 + (b.es + held + EPS).floor() as i64);
+        let new_start = date_of(week, t0 + (b.es + held + EPS).floor() as i64);
         let new_due = t
             .due_date
-            .map(|d| date_of(end_index(d) - 1 + held.ceil() as i64));
+            .map(|d| date_of(week, end_index(week, d) - 1 + held.ceil() as i64));
         changes.push(DateChange {
             task_id: t.id,
             title: t.title.clone(),
@@ -725,6 +733,7 @@ mod tests {
                 objectives: &self.objectives,
                 people: &self.people,
                 today: MON,
+                work_week: WorkWeek::MON_FRI,
             }
         }
 
@@ -1134,12 +1143,19 @@ mod tests {
     }
 
     fn finishes(f: &Fixture, tasks: &[Task]) -> HashMap<Uuid, f64> {
-        compute(tasks, &f.edges, &f.projects, MON, ScheduleScope::Portfolio)
-            .unwrap()
-            .tasks
-            .iter()
-            .map(|t| (t.id, t.ef))
-            .collect()
+        compute(
+            tasks,
+            &f.edges,
+            &f.projects,
+            MON,
+            WorkWeek::MON_FRI,
+            ScheduleScope::Portfolio,
+        )
+        .unwrap()
+        .tasks
+        .iter()
+        .map(|t| (t.id, t.ef))
+        .collect()
     }
 
     #[test]

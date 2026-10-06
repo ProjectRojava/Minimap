@@ -38,8 +38,18 @@ pub(crate) fn schedule_impl(conn: &Connection, scope: ScheduleScope) -> Result<S
     let edges = minimap_store::edges::list_active_of_type(conn, minimap_types::EdgeType::Blocks)
         .map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
-    compute(&tasks, &edges, &projects, minimap_store::today(), scope)
-        .map_err(|e| app_error("cycle", e.to_string()))
+    let work_week = minimap_store::settings::get(conn)
+        .map_err(store_error)?
+        .work_week;
+    compute(
+        &tasks,
+        &edges,
+        &projects,
+        minimap_store::today(),
+        work_week,
+        scope,
+    )
+    .map_err(|e| app_error("cycle", e.to_string()))
 }
 
 #[cfg(test)]
@@ -79,6 +89,50 @@ mod tests {
             },
         )
         .unwrap();
+    }
+
+    #[test]
+    fn the_schedule_follows_the_work_week_in_settings_at_once() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let p = minimap_store::projects::create(
+            &mut conn,
+            CreateProject {
+                title: "API".into(),
+                slug: None,
+                description: String::new(),
+                owner_person_id: None,
+                start_date: None,
+                target_date: None,
+                status: None,
+                priority: None,
+            },
+        )
+        .unwrap()
+        .id;
+        task(&mut conn, "Long", p, 20.0);
+        let days_off = |s: &minimap_types::Schedule, week: minimap_types::WorkWeek| {
+            s.days
+                .iter()
+                .filter(|d| !week.contains_weekday(d.weekday()))
+                .count()
+        };
+        let default = schedule_impl(&conn, ScheduleScope::Portfolio).unwrap();
+        assert_eq!(days_off(&default, minimap_types::WorkWeek::MON_FRI), 0);
+        let four = minimap_types::WorkWeek::from_days(&[0, 1, 2, 3]).unwrap();
+        minimap_store::settings::update(
+            &mut conn,
+            minimap_types::UpdateSettings {
+                work_week: Some(four),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let s = schedule_impl(&conn, ScheduleScope::Portfolio).unwrap();
+        assert_eq!(days_off(&s, four), 0, "no Friday on the axis");
+        // Twenty days of work take five weeks of four days instead of four weeks of five.
+        let finish = s.projects[0].projected_finish.unwrap();
+        let before = default.projects[0].projected_finish.unwrap();
+        assert!(finish > before, "{finish} should be later than {before}");
     }
 
     #[test]

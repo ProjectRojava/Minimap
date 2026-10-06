@@ -1,6 +1,6 @@
 //! Critical-path scheduling over `blocks` links (CLAUDE.md section 5.3). Pure.
 //!
-//! Time is counted in **working days** (Mon-Fri) from today's working day; see
+//! Time is counted in **working days** (the Settings work week, Mon-Fri by default) from today's working day; see
 //! `minimap_types::schedule`. The forward pass runs over every open task, so cross-project
 //! `blocks` links delay the tasks they should whatever the scope. The backward pass runs over
 //! the scope only, against each project's deadline: its target date, or (with none) its own
@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use minimap_types::{
     Edge, EdgeType, Project, ProjectForecast, Schedule, ScheduleScope, ScheduledTask, Task,
-    TaskStatus, Uuid,
+    TaskStatus, Uuid, WorkWeek,
 };
 use petgraph::{algo::toposort, graph::DiGraph, visit::EdgeRef, Direction};
 use time::Date;
@@ -32,22 +32,24 @@ pub enum ScheduleError {
 
 // ------------------------------------------------------------------- calendar
 
-/// Index of the first working day on or after `d` (a weekend maps to the next Monday).
-pub(crate) fn working_index(d: Date) -> i64 {
+/// Index of the first working day on or after `d` (a day off maps to the next working day).
+pub(crate) fn working_index(week: WorkWeek, d: Date) -> i64 {
     let n = i64::from(d.to_julian_day()) - EPOCH_JD;
-    n.div_euclid(7) * 5 + n.rem_euclid(7).min(5)
+    n.div_euclid(7) * i64::from(week.days_per_week())
+        + i64::from(week.before(n.rem_euclid(7) as u8))
 }
 
 /// Index just past the last working day on or before `d`: the end of that day.
-pub(crate) fn end_index(d: Date) -> i64 {
+pub(crate) fn end_index(week: WorkWeek, d: Date) -> i64 {
     let n = i64::from(d.to_julian_day()) - EPOCH_JD;
-    let weekday = n.rem_euclid(7) < 5;
-    working_index(d) + i64::from(weekday)
+    working_index(week, d) + i64::from(week.contains(n.rem_euclid(7) as u8))
 }
 
 /// The date of working day `index`.
-pub(crate) fn date_of(index: i64) -> Date {
-    let jd = EPOCH_JD + index.div_euclid(5) * 7 + index.rem_euclid(5);
+pub(crate) fn date_of(week: WorkWeek, index: i64) -> Date {
+    let k = i64::from(week.days_per_week());
+    let weekday = i64::from(week.nth(index.rem_euclid(k) as u32));
+    let jd = EPOCH_JD + index.div_euclid(k) * 7 + weekday;
     i32::try_from(jd)
         .ok()
         .and_then(|jd| Date::from_julian_day(jd).ok())
@@ -88,9 +90,10 @@ pub fn compute(
     edges: &[Edge],
     projects: &[Project],
     today: Date,
+    week: WorkWeek,
     scope: ScheduleScope,
 ) -> Result<Schedule, ScheduleError> {
-    compute_with(tasks, edges, projects, today, scope, &HashMap::new())
+    compute_with(tasks, edges, projects, today, week, scope, &HashMap::new())
 }
 
 /// [`compute`] with extra "not before" constraints (working-day offsets) on open tasks. Impact
@@ -100,13 +103,14 @@ pub fn compute_with(
     edges: &[Edge],
     projects: &[Project],
     today: Date,
+    week: WorkWeek,
     scope: ScheduleScope,
     not_before: &HashMap<Uuid, f64>,
 ) -> Result<Schedule, ScheduleError> {
-    let t0 = working_index(today);
-    let offset = |d: Date| (working_index(d) - t0) as f64;
-    let end_offset = |d: Date| (end_index(d) - t0) as f64;
-    let day_at = |offset: i64| date_of(t0 + offset);
+    let t0 = working_index(week, today);
+    let offset = |d: Date| (working_index(week, d) - t0) as f64;
+    let end_offset = |d: Date| (end_index(week, d) - t0) as f64;
+    let day_at = |offset: i64| date_of(week, t0 + offset);
 
     let live: Vec<&Task> = tasks
         .iter()
@@ -351,6 +355,26 @@ mod tests {
 
     // 2027-03-01 is a Monday.
     const MON: Date = date!(2027 - 03 - 01);
+
+    // The tests below mostly use Monday to Friday; these shadow the real functions.
+    fn working_index(d: Date) -> i64 {
+        super::working_index(WorkWeek::MON_FRI, d)
+    }
+    fn end_index(d: Date) -> i64 {
+        super::end_index(WorkWeek::MON_FRI, d)
+    }
+    fn date_of(i: i64) -> Date {
+        super::date_of(WorkWeek::MON_FRI, i)
+    }
+    fn compute(
+        tasks: &[Task],
+        edges: &[Edge],
+        projects: &[Project],
+        today: Date,
+        scope: ScheduleScope,
+    ) -> Result<Schedule, ScheduleError> {
+        super::compute(tasks, edges, projects, today, WorkWeek::MON_FRI, scope)
+    }
 
     fn id(n: u128) -> Uuid {
         Uuid::from_u128(n)
@@ -852,6 +876,65 @@ mod tests {
         (tasks, edges)
     }
 
+    // ------------------------------------------------- other work weeks (spec 23)
+
+    fn week_of(days: &[u8]) -> WorkWeek {
+        WorkWeek::from_days(days).unwrap()
+    }
+
+    #[test]
+    fn a_four_day_week_skips_friday_to_sunday() {
+        let w = week_of(&[0, 1, 2, 3]);
+        let wed = date!(2027 - 03 - 03);
+        let thu = date!(2027 - 03 - 04);
+        let fri = date!(2027 - 03 - 05);
+        let next_mon = date!(2027 - 03 - 08);
+        assert_eq!(
+            super::working_index(w, fri),
+            super::working_index(w, next_mon)
+        );
+        assert_eq!(super::end_index(w, fri), super::end_index(w, thu));
+        // Wednesday, Thursday, then Monday.
+        let start = super::working_index(w, wed);
+        assert_eq!(super::date_of(w, start + 2), next_mon);
+        assert_eq!(super::date_of(w, start + 1), thu);
+    }
+
+    #[test]
+    fn a_sunday_to_thursday_week_schedules_on_those_days_only() {
+        let w = week_of(&[6, 0, 1, 2, 3]);
+        // A task of 3 days starting on a Thursday: Thu, Sun, Mon.
+        let thu = date!(2027 - 03 - 04);
+        let mut t = task(1, "T", Some(3.0));
+        t.start_date = Some(thu);
+        let s = super::compute(&[t], &[], &[], thu, w, ScheduleScope::Portfolio).unwrap();
+        let t = get(&s, "T");
+        assert_eq!(t.start, thu);
+        assert_eq!(t.finish, date!(2027 - 03 - 08));
+        assert!(s.days.iter().all(|d| w.contains_weekday(d.weekday())));
+        // Today is a Friday (a day off): the work starts on Sunday.
+        let fri = date!(2027 - 03 - 05);
+        let s = super::compute(
+            &[task(2, "U", Some(1.0))],
+            &[],
+            &[],
+            fri,
+            w,
+            ScheduleScope::Portfolio,
+        )
+        .unwrap();
+        assert_eq!(get(&s, "U").start, date!(2027 - 03 - 07));
+    }
+
+    #[test]
+    fn the_default_week_gives_the_same_schedule_as_before() {
+        assert_eq!(WorkWeek::default(), WorkWeek::MON_FRI);
+        let tasks = [task(1, "A", Some(7.0))];
+        let s = compute(&tasks, &[], &[], MON, ScheduleScope::Portfolio).unwrap();
+        // Monday + 7 working days ends on the Tuesday of the following week.
+        assert_eq!(get(&s, "A").finish, date!(2027 - 03 - 09));
+    }
+
     proptest! {
         /// Without a target the deadline is the projected finish: nothing has negative slack,
         /// every task fits between its earliest and latest dates, and something is critical.
@@ -916,6 +999,27 @@ mod tests {
         fn calendar_arithmetic_round_trips(i in -2000i64..4000) {
             prop_assert_eq!(working_index(date_of(i)), i);
             prop_assert_eq!(end_index(date_of(i)), i + 1);
+        }
+
+        /// For any work week: working days map to themselves, days off map to the next working
+        /// day (start) or the previous one (end), and the index never goes backwards.
+        #[test]
+        fn calendar_arithmetic_holds_for_any_work_week(mask in 1u8..128, i in -1500i64..3000, offset in 0i64..20000) {
+            let days: Vec<u8> = (0..7).filter(|d| mask & (1 << d) != 0).collect();
+            let w = WorkWeek::from_days(&days).unwrap();
+            let d = super::date_of(w, i);
+            prop_assert!(w.contains_weekday(d.weekday()));
+            prop_assert_eq!(super::working_index(w, d), i);
+            prop_assert_eq!(super::end_index(w, d), i + 1);
+            let any = date!(2010 - 01 - 01) + time::Duration::days(offset);
+            let start = super::working_index(w, any);
+            prop_assert!(super::date_of(w, start) >= any);
+            prop_assert!(super::date_of(w, start - 1) < any);
+            let next = any.next_day().unwrap();
+            prop_assert!(super::working_index(w, next) >= start);
+            let end = super::end_index(w, any);
+            prop_assert!(super::date_of(w, end - 1) <= any);
+            prop_assert!(super::date_of(w, end) > any);
         }
     }
 }

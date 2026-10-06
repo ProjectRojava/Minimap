@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use minimap_types::{
     Date, DependencyGraph, Edge, EdgeType, GraphEdge, GraphFilter, GraphLevel, GraphNode, NodeRef,
     NodeType, Project, ProjectStatus, ScheduleScope, ScheduledTask, Task, TaskStatus, Team, Uuid,
+    WorkWeek,
 };
 
 use crate::{
@@ -46,6 +47,7 @@ pub struct GraphInput<'a> {
     pub projects: &'a [Project],
     pub teams: &'a [Team],
     pub today: Date,
+    pub work_week: WorkWeek,
 }
 
 /// A node before layout.
@@ -108,6 +110,7 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
         input.edges,
         input.projects,
         input.today,
+        input.work_week,
         ScheduleScope::Portfolio,
     )
     .map_err(|_| GraphError::Cycle)?;
@@ -272,6 +275,7 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
         input.edges,
         input.projects,
         input.today,
+        input.work_week,
         ScheduleScope::Portfolio,
     )
     .ok();
@@ -553,6 +557,7 @@ mod tests {
                     projects: &self.projects,
                     teams: &self.teams,
                     today: MON,
+                    work_week: WorkWeek::MON_FRI,
                 },
                 &filter,
             )
