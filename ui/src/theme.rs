@@ -53,6 +53,15 @@ fn apply(theme: &Theme) {
         },
     );
     let _ = root.set_attribute("data-theme", theme.id);
+    // Objective colours pick their lightness from this (input.css).
+    let _ = root.set_attribute(
+        "data-kind",
+        if theme.kind == Kind::Dark {
+            "dark"
+        } else {
+            "light"
+        },
+    );
 }
 
 /// The selected theme id (or `system`), reactive. Provided as a context from `App`.

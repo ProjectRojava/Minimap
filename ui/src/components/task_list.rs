@@ -14,10 +14,11 @@ use crate::{
     api,
     components::{
         form::{
-            date_patch, DateField, SelectField, BUTTON, BUTTON_PRIMARY, BUTTON_SOFT, COMPACT_INPUT,
-            INPUT,
+            date_patch, DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT,
+            COMPACT_INPUT, INPUT,
         },
         node_row::NodeRow,
+        objective_colour::{use_objective_colours, ObjectiveDot},
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
     },
     labels::{priority_option, task_status_label, task_status_tone},
@@ -28,7 +29,7 @@ const COLS: &str =
     "grid w-full items-center gap-2 grid-cols-[6.5rem_3.5rem_minmax(0,1fr)_9rem_8rem_8.5rem]";
 
 /// Next status for the `s` key: to do -> in progress -> done -> to do.
-fn next_status(s: TaskStatus) -> TaskStatus {
+pub fn next_status(s: TaskStatus) -> TaskStatus {
     match s {
         TaskStatus::Todo | TaskStatus::Blocked | TaskStatus::Cancelled => {
             if s == TaskStatus::Todo {
@@ -70,34 +71,164 @@ fn priority_options() -> Vec<(String, String)> {
         .collect()
 }
 
+/// The filters of the Tasks screen. They live outside the list and the board so switching
+/// between the two keeps what you searched for.
+#[derive(Clone, Copy)]
+pub struct TaskFilters {
+    pub text: RwSignal<String>,
+    pub status: RwSignal<String>,
+    pub project: RwSignal<String>,
+    pub assignee: RwSignal<String>,
+    pub due_from: RwSignal<String>,
+    pub due_to: RwSignal<String>,
+    /// List: show done tasks. Board: show the Cancelled column.
+    pub show_closed: RwSignal<bool>,
+}
+
+impl TaskFilters {
+    pub fn new() -> Self {
+        Self {
+            text: RwSignal::new(String::new()),
+            status: RwSignal::new(String::new()),
+            project: RwSignal::new(String::new()),
+            assignee: RwSignal::new(String::new()),
+            due_from: RwSignal::new(String::new()),
+            due_to: RwSignal::new(String::new()),
+            show_closed: RwSignal::new(false),
+        }
+    }
+
+    /// The request for the current filters (reads the signals, so call it inside a resource).
+    /// The board asks for finished tasks too and ignores the status filter: its columns are the
+    /// statuses.
+    pub fn request(&self, inbox: bool, board: bool) -> TaskFilter {
+        let t = self.text.get();
+        TaskFilter {
+            status: if board {
+                None
+            } else {
+                TaskStatus::from_str(&self.status.get()).ok()
+            },
+            project_id: Uuid::parse_str(&self.project.get()).ok(),
+            assignee_id: Uuid::parse_str(&self.assignee.get()).ok(),
+            due_from: parse_date(&self.due_from.get()).ok(),
+            due_to: parse_date(&self.due_to.get()).ok(),
+            text: (!t.trim().is_empty()).then_some(t),
+            no_project: inbox,
+            include_closed: board || self.show_closed.get(),
+        }
+    }
+}
+
+impl Default for TaskFilters {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The filter bar of the Tasks and Inbox screens. On the board there is no status filter (the
+/// columns are the statuses) and the checkbox reveals the Cancelled column.
 #[component]
-pub fn TaskList(inbox: bool) -> impl IntoView {
+pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let people = LocalResource::new(move || {
+        version.track();
+        api::list_people()
+    });
+    let projects = LocalResource::new(move || {
+        version.track();
+        api::list_node_summaries(NodeType::Project)
+    });
+    let TaskFilters {
+        text,
+        status,
+        project,
+        assignee,
+        due_from,
+        due_to,
+        show_closed,
+    } = filters;
+    view! {
+        <div class=FILTER_BAR>
+            <input class=format!("{COMPACT_INPUT} w-44") type="search" placeholder="Search tasks"
+                   prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
+            {(!board).then(|| view! {
+                {move || view! { <SelectField compact=true current=status.get_untracked()
+                    options=any_status_options() on_change=move |v: String| status.set(v) /> }}
+            })}
+            {(!inbox).then(|| view! {
+                {move || {
+                    let options: Vec<(String, String)> = std::iter::once((String::new(), "Any project".to_owned()))
+                        .chain(match projects.get() {
+                            Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
+                            _ => Vec::new(),
+                        })
+                        .collect();
+                    view! { <SelectField compact=true current=project.get_untracked() options=options
+                                         on_change=move |v: String| project.set(v) /> }
+                }}
+            })}
+            {move || {
+                let options: Vec<(String, String)> = std::iter::once((String::new(), "Anyone".to_owned()))
+                    .chain(match people.get() {
+                        Some(Ok(p)) => p.into_iter().map(|p| (p.person.id.to_string(), p.person.name)).collect(),
+                        _ => Vec::new(),
+                    })
+                    .collect();
+                view! { <SelectField compact=true current=assignee.get_untracked() options=options
+                                     on_change=move |v: String| assignee.set(v) /> }
+            }}
+            <label class="flex items-center gap-1 text-[11px] text-muted">"Due"
+                <DateField compact=true current=due_from.get_untracked()
+                           on_commit=move |v: String| due_from.set(v) />
+                "to"
+                <DateField compact=true current=due_to.get_untracked()
+                           on_commit=move |v: String| due_to.set(v) />
+            </label>
+            <label class="flex items-center gap-1 text-[11px] text-muted">
+                <input type="checkbox" prop:checked=move || show_closed.get()
+                       on:change=move |ev| show_closed.set(event_target_checked(&ev)) />
+                {if board { "Show cancelled" } else { "Show done" }}
+            </label>
+        </div>
+    }
+}
+
+/// The List / Board switch in the header of the Tasks screen (`board` is true on the board).
+#[component]
+pub fn LayoutToggle(board: RwSignal<bool>) -> impl IntoView {
+    let class =
+        move |on: bool| format!("{BUTTON} !rounded-none {}", if on { BUTTON_ON } else { "" });
+    view! {
+        <div class="flex" role="group" aria-label="Layout">
+            <button class=move || class(!board.get()) aria-pressed=move || (!board.get()).to_string()
+                    on:click=move |_| board.set(false)>"List"</button>
+            <button class=move || class(board.get()) aria-pressed=move || board.get().to_string()
+                    on:click=move |_| board.set(true)>"Board"</button>
+        </div>
+    }
+}
+
+#[component]
+pub fn TaskList(
+    inbox: bool,
+    /// Filters shared with the board; the inbox makes its own.
+    #[prop(optional)]
+    filters: Option<TaskFilters>,
+    /// Given on the Tasks screen, which can switch to the board.
+    #[prop(optional)]
+    layout: Option<RwSignal<bool>>,
+) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let list = expect_context::<ListNav>();
 
-    // Filters.
-    let status = RwSignal::new(String::new());
-    let project = RwSignal::new(String::new());
-    let assignee = RwSignal::new(String::new());
-    let text = RwSignal::new(String::new());
-    let due_from = RwSignal::new(String::new());
-    let due_to = RwSignal::new(String::new());
-    let show_closed = RwSignal::new(false);
+    let filters = filters.unwrap_or_default();
+    let project = filters.project;
 
     let rows = LocalResource::new(move || {
         version.track();
-        let t = text.get();
-        api::list_tasks(TaskFilter {
-            status: TaskStatus::from_str(&status.get()).ok(),
-            project_id: Uuid::parse_str(&project.get()).ok(),
-            assignee_id: Uuid::parse_str(&assignee.get()).ok(),
-            due_from: parse_date(&due_from.get()).ok(),
-            due_to: parse_date(&due_to.get()).ok(),
-            text: (!t.trim().is_empty()).then_some(t),
-            no_project: inbox,
-            include_closed: show_closed.get(),
-        })
+        api::list_tasks(filters.request(inbox, false))
     });
     let people = LocalResource::new(move || {
         version.track();
@@ -239,48 +370,10 @@ pub fn TaskList(inbox: bool) -> impl IntoView {
                 <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New task" }}
                 </button>
+                {layout.map(|board| view! { <span class="ml-auto"><LayoutToggle board=board /></span> })}
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
             </PageHeader>
-            <div class=FILTER_BAR>
-                <input class=format!("{COMPACT_INPUT} w-44") type="search" placeholder="Search tasks"
-                       prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
-                {move || view! { <SelectField compact=true current=status.get_untracked()
-                    options=any_status_options() on_change=move |v: String| status.set(v) /> }}
-                {(!inbox).then(|| view! {
-                    {move || {
-                        let options: Vec<(String, String)> = std::iter::once((String::new(), "Any project".to_owned()))
-                            .chain(match projects.get() {
-                                Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
-                                _ => Vec::new(),
-                            })
-                            .collect();
-                        view! { <SelectField compact=true current=project.get_untracked() options=options
-                                             on_change=move |v: String| project.set(v) /> }
-                    }}
-                })}
-                {move || {
-                    let options: Vec<(String, String)> = std::iter::once((String::new(), "Anyone".to_owned()))
-                        .chain(match people.get() {
-                            Some(Ok(p)) => p.into_iter().map(|p| (p.person.id.to_string(), p.person.name)).collect(),
-                            _ => Vec::new(),
-                        })
-                        .collect();
-                    view! { <SelectField compact=true current=assignee.get_untracked() options=options
-                                         on_change=move |v: String| assignee.set(v) /> }
-                }}
-                <label class="flex items-center gap-1 text-[11px] text-muted">"Due"
-                    <DateField compact=true current=due_from.get_untracked()
-                               on_commit=move |v: String| due_from.set(v) />
-                    "to"
-                    <DateField compact=true current=due_to.get_untracked()
-                               on_commit=move |v: String| due_to.set(v) />
-                </label>
-                <label class="flex items-center gap-1 text-[11px] text-muted">
-                    <input type="checkbox" prop:checked=move || show_closed.get()
-                           on:change=move |ev| show_closed.set(event_target_checked(&ev)) />
-                    "Show done"
-                </label>
-            </div>
+            <FilterControls filters=filters inbox=inbox board=false />
             <Show when=move || adding.get()>
                 <div class="px-4 py-2 border-b border-line bg-panel space-y-2">
                     <textarea class=INPUT rows="1" autofocus
@@ -364,6 +457,10 @@ fn TaskRowView(
     };
 
     let t = row.task;
+    // The row wears the colour of the objective its project serves (ADR-0012).
+    let colours = use_objective_colours();
+    let project_id = t.project_id;
+    let edge = Signal::derive(move || colours.first_hue(&colours.of_project(project_id)));
     // "↻" after the title of a task that repeats; hover says how.
     let repeats = t
         .recurrence
@@ -438,7 +535,7 @@ fn TaskRowView(
     let due_id = format!("task-due-{id}");
 
     view! {
-        <NodeRow node=node index=index>
+        <NodeRow node=node index=index hue=edge>
             <div class=COLS>
                 // Controls must not open the pane when clicked.
                 <span on:click=|ev| ev.stop_propagation()>
@@ -449,6 +546,9 @@ fn TaskRowView(
                     <SelectField compact=true options=priority_options() current=priority_now on_change=on_priority />
                 </span>
                 <span class="flex min-w-0 items-center gap-1.5">
+                    {move || colours.of_project(project_id).into_iter().next().map(|o| view! {
+                        <ObjectiveDot objective=o />
+                    })}
                     <span class=title_class>{t.title}</span>
                     {repeats.map(|text| view! {
                         <span class=Tone::Neutral.chip() title=text>"↻"</span>

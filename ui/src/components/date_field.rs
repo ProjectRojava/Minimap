@@ -14,7 +14,7 @@ const CALENDAR_W: f64 = 232.0;
 const CALENDAR_H: f64 = 262.0;
 
 /// Today's date in the user's local time zone.
-fn today_ymd() -> (i32, u32, u32) {
+pub(crate) fn today_ymd() -> (i32, u32, u32) {
     let now = js_sys::Date::new_0();
     (
         now.get_full_year() as i32,

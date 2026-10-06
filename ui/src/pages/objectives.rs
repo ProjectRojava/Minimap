@@ -1,6 +1,7 @@
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    timefmt::parse_date, CreateObjective, NodeRef, NodeType, ObjectiveGrouping, ObjectiveRow,
+    timefmt::parse_date, CreateObjective, NodeRef, NodeSummary, NodeType, ObjectiveGrouping,
+    ObjectiveRow,
 };
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
     components::{
         form::{DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
+        objective_colour::{use_objective_colours, ObjectiveDot},
         page::{column_head, EmptyState, GroupLabel, PageHeader, FORM_BAR},
     },
     labels::{objective_status_label, objective_status_tone, priority_option, priority_short},
@@ -153,11 +155,20 @@ fn objective_row(row: ObjectiveRow, index: usize) -> impl IntoView {
     let o = row.objective;
     let node = NodeRef::new(NodeType::Objective, o.id);
     let status_class = objective_status_tone(o.status).chip();
+    let edge = use_objective_colours().objective_edge(o.id);
+    let summary = NodeSummary {
+        node,
+        label: o.title.clone(),
+        archived: false,
+    };
     view! {
-        <NodeRow node=node index=index>
+        <NodeRow node=node index=index hue=edge>
             <div class=COLS>
                 <span class="text-muted tabular-nums">{priority_short(o.priority)}</span>
-                <span class="truncate font-medium">{o.title}</span>
+                <span class="flex min-w-0 items-center gap-2">
+                    <ObjectiveDot objective=summary />
+                    <span class="truncate font-medium">{o.title}</span>
+                </span>
                 <span><span class=status_class>{objective_status_label(o.status)}</span></span>
                 <span class="text-muted tabular-nums">{o.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
                 <span class="text-right tabular-nums text-muted">{row.contribution_count}</span>
