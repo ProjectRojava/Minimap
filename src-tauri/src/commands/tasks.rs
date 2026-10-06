@@ -182,6 +182,7 @@ pub(crate) fn create_tasks_bulk_impl(
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         })
         .collect();
     minimap_store::tasks::create_many(conn, inputs).map_err(store_error)

@@ -45,6 +45,7 @@ fn task(conn: &mut Connection, title: &str) -> Task {
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         },
     )
     .unwrap()
@@ -104,6 +105,7 @@ fn one_of_each(conn: &mut Connection) -> Vec<NodeRef> {
             body: "hello".into(),
             note_date: None,
             kind: Some(NoteKind::OneOnOne),
+            recurrence: None,
         },
     )
     .unwrap();
@@ -460,6 +462,7 @@ fn invalid_input_is_rejected_and_writes_nothing() {
         start_date: None,
         due_date: None,
         priority,
+        recurrence: None,
     };
     assert!(matches!(
         tasks::create(&mut conn, bad("  ", None)),
@@ -1380,6 +1383,7 @@ fn task_in(conn: &mut Connection, title: &str, project: Uuid) -> Task {
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         },
     )
     .unwrap()
@@ -1554,6 +1558,7 @@ fn new_task(title: &str, assignee: AssigneeChoice) -> CreateTask {
         start_date: None,
         due_date: None,
         priority: None,
+        recurrence: None,
     }
 }
 
@@ -2038,6 +2043,7 @@ fn make_note(conn: &mut Connection, title: &str, body: &str) -> Note {
             body: body.into(),
             note_date: None,
             kind: None,
+            recurrence: None,
         },
     )
     .unwrap()

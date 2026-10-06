@@ -173,10 +173,16 @@ pub(crate) fn nullable_fields(node_type: NodeType) -> &'static [&'static str] {
     match node_type {
         NodeType::Objective => &["target_date"],
         NodeType::Project => &["owner_person_id", "start_date", "target_date"],
-        NodeType::Task => &["project_id", "estimate_days", "start_date", "due_date"],
+        NodeType::Task => &[
+            "project_id",
+            "estimate_days",
+            "start_date",
+            "due_date",
+            "recurrence",
+        ],
         NodeType::Person => &["email"],
         NodeType::Team => &["parent_team_id"],
-        NodeType::Note => &[],
+        NodeType::Note => &["recurrence"],
         NodeType::Decision => &["decided_on"],
         NodeType::WaitingOn => &["expected_by", "follow_up_on", "resolved_on"],
     }
@@ -262,6 +268,10 @@ mod tests {
         assert_eq!(listed(NodeType::Task), patch_fields::<UpdateTask>());
         assert_eq!(listed(NodeType::Person), patch_fields::<UpdatePerson>());
         assert_eq!(listed(NodeType::Team), patch_fields::<UpdateTeam>());
+        assert_eq!(
+            listed(NodeType::Note),
+            patch_fields::<minimap_types::UpdateNote>()
+        );
         assert_eq!(listed(NodeType::Decision), patch_fields::<UpdateDecision>());
         assert_eq!(
             listed(NodeType::WaitingOn),

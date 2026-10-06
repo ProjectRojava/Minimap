@@ -26,6 +26,7 @@ fn task(conn: &mut Connection, title: &str) -> Uuid {
             start_date: None,
             due_date: None,
             priority: None,
+            recurrence: None,
         },
     )
     .unwrap()

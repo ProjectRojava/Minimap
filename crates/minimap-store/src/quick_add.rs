@@ -100,6 +100,7 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
             assignee,
             blocks,
             objectives,
+            recurrence,
         } => {
             let assignee = match assignee {
                 QuickAssignee::Default => AssigneeChoice::Me,
@@ -118,6 +119,7 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
                     start_date,
                     due_date,
                     priority,
+                    recurrence,
                 },
             )?;
             let me = NodeRef::new(NodeType::Task, t.id);
@@ -184,19 +186,29 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
             kind,
             note_date,
             mentions,
+            recurrence,
         } => {
             // Mentions in the body become `mentions` links when the note is created.
             let mut tokens = Vec::with_capacity(mentions.len());
             for m in &mentions {
                 tokens.push(mention_token(&m.label, resolve(&m.target)?.id));
             }
+            let body = tokens.join(" ");
+            // A repeating note's next ones start like this one (so a 1:1 keeps its person).
+            let recurrence = recurrence.map(|mut rule| {
+                if rule.template.is_none() && !body.is_empty() {
+                    rule.template = Some(body.clone());
+                }
+                rule
+            });
             let n = notes::create_in_tx(
                 &tx,
                 CreateNote {
                     title,
-                    body: tokens.join(" "),
+                    body,
                     note_date,
                     kind: Some(kind),
+                    recurrence,
                 },
             )?;
             NodeRef::new(NodeType::Note, n.id)
@@ -293,6 +305,7 @@ fn create_new(tx: &Transaction, node_type: NodeType, name: String) -> Result<Nod
                     start_date: None,
                     due_date: None,
                     priority: None,
+                    recurrence: None,
                 },
             )?
             .id

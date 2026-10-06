@@ -8,6 +8,8 @@ project Q1 EU region owner:@me target:2027-03-31 for:"Launch EU"
 wait @raj on "Security review sign-off" by:next-wed
 note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
+task Board update every:mon
+note 1:1 @priya every:wed
 ```
 
 ## Shape of a line
@@ -31,6 +33,7 @@ decision "Postgres over Mongo" affects:#api-launch
 | `owner:` | the owner (same as `@name`) | project |
 | `about:` | the task or project a wait is about (`#project` also works) | wait |
 | `affects:` | a project, task or objective (repeatable; `#x` means a project) | decision |
+| `every:` | repeats: `day`, `mon`..`sun` (weekly on that day), `week`, `2w` / `2w:fri` (every N weeks), `month` / `month:15` (a day of the month). A weekday or day not given comes from the due date (or today). Without a due date (a note: date) it starts on the rule's first date | task, note |
 | `date:` | the note's date / the decision's date | note, decision |
 | `kind:` | `1:1`, `meeting`, `general` | note |
 | `status:` | `proposed` or `decided` | decision |
@@ -44,6 +47,9 @@ A marker not used by the kind is reported ("`est:` isn't used for a project"), n
 - **wait**: needs a description and an `@person`. The linking word `on` right after the person is dropped: `wait @raj on "Sign-off"` and `wait @raj Sign-off` are the same.
 - **note**: a 1:1 needs a person and is titled `1:1 with <name>` unless you give a title; `kind:meeting` with no title is titled "Meeting"; a general note needs a title. Mentioned people/projects become `@[Name](node:id)` in the body, so they link automatically.
 - **decision**: needs a title; created as proposed unless `status:decided`.
+
+### Repeating
+Finishing a repeating task makes the next one (same title, description, project, estimate, priority, assignee and objectives) due on the rule's next date after the one it was due on, never in the past. A repeating note makes its next one on each date (see spec 27). The preview shows "Repeats: every Monday".
 
 ## Dates
 | text | means |

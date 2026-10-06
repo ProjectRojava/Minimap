@@ -248,6 +248,7 @@ mod tests {
                 start_date: None,
                 due_date: None,
                 priority: None,
+                recurrence: None,
             },
         )
         .unwrap();

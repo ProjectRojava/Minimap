@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-recurrence"
+description = "Enables the set_recurrence command without any pre-configured scope."
+commands.allow = ["set_recurrence"]
+
+[[permission]]
+identifier = "deny-set-recurrence"
+description = "Denies the set_recurrence command without any pre-configured scope."
+commands.deny = ["set_recurrence"]

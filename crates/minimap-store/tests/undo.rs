@@ -157,6 +157,7 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
                 start_date: None,
                 due_date: Some(date!(2027 - 03 - 10)),
                 priority: Some(2),
+                recurrence: None,
             },
         )
         .unwrap();
@@ -182,6 +183,7 @@ fn creating_many_tasks_is_one_step() {
                     start_date: None,
                     due_date: None,
                     priority: None,
+                    recurrence: None,
                 })
                 .collect(),
         )
@@ -217,7 +219,7 @@ fn updating_fields_including_clearing_a_date_and_finishing_a_task() {
         .unwrap();
     });
     // Finishing sets completed_at and undoing clears it again.
-    let t = task(&conn, "Quarterly access review");
+    let t = task(&conn, "Savings review with finance");
     round_trip(&mut conn, |c| {
         tasks::update(
             c,
@@ -229,7 +231,7 @@ fn updating_fields_including_clearing_a_date_and_finishing_a_task() {
         )
         .unwrap();
     });
-    let reopened = task(&conn, "Quarterly access review");
+    let reopened = task(&conn, "Savings review with finance");
     assert!(reopened.completed_at.is_none() && reopened.status == TaskStatus::Todo);
 }
 
@@ -449,7 +451,7 @@ fn superseding_a_decision_is_undone_with_its_status() {
 #[test]
 fn a_change_made_since_refuses_the_undo_and_writes_nothing() {
     let mut conn = demo();
-    let t = task(&conn, "Quarterly access review");
+    let t = task(&conn, "Savings review with finance");
     let rows = wrote(&mut conn, |c| {
         tasks::update(
             c,
@@ -583,6 +585,7 @@ fn undoing_a_creation_never_deletes_anything() {
                 start_date: None,
                 due_date: None,
                 priority: None,
+                recurrence: None,
             },
         )
         .unwrap();
@@ -593,4 +596,84 @@ fn undoing_a_creation_never_deletes_anything() {
     assert!(all
         .iter()
         .any(|t| t.title == "Temp" && t.archived_at.is_some()));
+}
+
+#[test]
+fn finishing_a_repeating_task_is_one_step_that_takes_the_next_one_back_too() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    let weekly: Recurrence = Cadence::Weekly {
+        every: 1,
+        weekday: 0,
+    }
+    .into();
+    tasks::update(
+        &mut conn,
+        t.id,
+        UpdateTask {
+            recurrence: Patch::Set(weekly.clone()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let open_before = tasks::list(&conn, false).unwrap().len();
+    round_trip(&mut conn, |c| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                status: Some(TaskStatus::Done),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    // Back to how it was: open, repeating again, and no extra task among the active ones.
+    let back = tasks::get(&conn, t.id).unwrap();
+    assert_eq!(
+        (back.status, back.recurrence),
+        (TaskStatus::Todo, Some(weekly))
+    );
+    assert_eq!(tasks::list(&conn, false).unwrap().len(), open_before);
+}
+
+#[test]
+fn making_a_task_repeat_and_stopping_it_are_undone() {
+    let mut conn = demo();
+    let t = task(&conn, "Savings review with finance");
+    let weekly: Recurrence = Cadence::Weekly {
+        every: 1,
+        weekday: 0,
+    }
+    .into();
+    round_trip(&mut conn, |c| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                recurrence: Patch::Set(weekly.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    assert_eq!(tasks::get(&conn, t.id).unwrap().recurrence, None);
+    // Stopping one that repeats.
+    let monthly = task(&conn, "Monthly access review");
+    assert!(monthly.recurrence.is_some());
+    round_trip(&mut conn, |c| {
+        tasks::update(
+            c,
+            monthly.id,
+            UpdateTask {
+                recurrence: Patch::Clear,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    assert_eq!(
+        tasks::get(&conn, monthly.id).unwrap().recurrence,
+        monthly.recurrence
+    );
 }

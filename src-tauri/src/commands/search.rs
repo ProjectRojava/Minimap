@@ -83,6 +83,7 @@ mod tests {
                 due_date: None,
                 priority: None,
                 assignee: minimap_types::AssigneeChoice::Nobody,
+                recurrence: None,
             },
         )
         .unwrap()
@@ -156,6 +157,7 @@ mod tests {
                 ),
                 note_date: None,
                 kind: None,
+                recurrence: None,
             },
         )
         .unwrap();
@@ -316,6 +318,7 @@ mod tests {
                     body: body.join(" "),
                     note_date: None,
                     kind: None,
+                    recurrence: None,
                 },
             )
             .unwrap();

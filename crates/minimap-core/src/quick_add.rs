@@ -9,6 +9,7 @@ use minimap_types::{
 use time::{Date, Duration, Weekday};
 
 use crate::{
+    recurrence::{first_on_or_after, parse_every},
     search::{distance, typo_budget},
     tasks::parse_estimate,
 };
@@ -159,9 +160,9 @@ fn lex(input: &str) -> (Vec<Token>, bool) {
     (tokens, quoted)
 }
 
-const KEYS: [&str; 12] = [
+const KEYS: [&str; 13] = [
     "due", "by", "target", "start", "est", "blocks", "for", "affects", "owner", "about", "status",
-    "date",
+    "date", "every",
 ];
 const KEYS_EXTRA: [&str; 1] = ["kind"];
 
@@ -610,10 +611,10 @@ fn parse_tokens(kind: QuickKind, tokens: &[Token]) -> Parsed {
                 continue;
             }
             let allowed = match kind {
-                QuickKind::Task => ["due", "by", "start", "est"].as_slice(),
+                QuickKind::Task => ["due", "by", "start", "est", "every"].as_slice(),
                 QuickKind::Project => ["target", "due", "by", "start"].as_slice(),
                 QuickKind::Wait => ["by", "due"].as_slice(),
-                QuickKind::Note => ["date", "kind"].as_slice(),
+                QuickKind::Note => ["date", "kind", "every"].as_slice(),
                 QuickKind::Decision => ["date", "status"].as_slice(),
             };
             if allowed.contains(&key.as_str()) {
@@ -731,6 +732,31 @@ fn date_value(
     found
 }
 
+/// The `every:` value: how often it repeats ("Repeats: every Monday"). `anchor` is the date the
+/// rule takes a weekday or day of the month from when the text doesn't give one.
+fn every_value(
+    p: &mut Parsed,
+    anchor: Date,
+    details: &mut Vec<QuickDetail>,
+) -> Option<minimap_types::Recurrence> {
+    let mut found = None;
+    for (k, v) in &p.values.clone() {
+        if k == "every" {
+            match parse_every(v, anchor) {
+                Ok(cadence) => {
+                    details.push(QuickDetail {
+                        label: "Repeats".into(),
+                        value: cadence.describe(),
+                    });
+                    found = Some(minimap_types::Recurrence::from(cadence));
+                }
+                Err(e) => p.problems.push(e),
+            }
+        }
+    }
+    found
+}
+
 /// Turns one line of quick-add into a preview and (when nothing is unclear) a plan.
 pub fn plan(text: &str, cx: &Context) -> Outcome {
     let (mut tokens, unclosed) = lex(text);
@@ -791,8 +817,15 @@ pub fn plan(text: &str, cx: &Context) -> Outcome {
             if title.is_empty() {
                 p.problems.push("A task needs a title".into());
             }
-            let due = date_value(&mut p, &["due", "by"], "Due", cx.today, &mut details);
+            let mut due = date_value(&mut p, &["due", "by"], "Due", cx.today, &mut details);
             let start = date_value(&mut p, &["start"], "Start", cx.today, &mut details);
+            // `every:` repeats it; without a due date the first one is on the rule's first date.
+            let recurrence = every_value(&mut p, due.unwrap_or(cx.today), &mut details);
+            if let (Some(rule), None) = (&recurrence, due) {
+                let first = first_on_or_after(rule.cadence, cx.today);
+                details.push(detail("Due", day_text(first)));
+                due = Some(first);
+            }
             let mut estimate = None;
             for (k, v) in &p.values.clone() {
                 if k == "est" {
@@ -822,6 +855,7 @@ pub fn plan(text: &str, cx: &Context) -> Outcome {
                     .map_or(QuickAssignee::Default, QuickAssignee::Person),
                 blocks: of(Slot::Blocks),
                 objectives: of(Slot::Objective),
+                recurrence,
             });
         }
         QuickKind::Project => {
@@ -887,7 +921,13 @@ pub fn plan(text: &str, cx: &Context) -> Outcome {
                     }
                 }
             }
-            let date = date_value(&mut p, &["date"], "Date", cx.today, &mut details);
+            let mut date = date_value(&mut p, &["date"], "Date", cx.today, &mut details);
+            let recurrence = every_value(&mut p, date.unwrap_or(cx.today), &mut details);
+            if let (Some(rule), None) = (&recurrence, date) {
+                let first = first_on_or_after(rule.cadence, cx.today);
+                details.push(detail("Date", day_text(first)));
+                date = Some(first);
+            }
             let mentions: Vec<minimap_types::NoteMention> = resolved
                 .iter()
                 .filter(|(s, r, _)| *s == Slot::Mention && r.is_some())
@@ -932,6 +972,7 @@ pub fn plan(text: &str, cx: &Context) -> Outcome {
                 kind: note_kind,
                 note_date: date,
                 mentions,
+                recurrence,
             });
         }
         QuickKind::Decision => {
@@ -1063,6 +1104,110 @@ mod tests {
 
     fn run(text: &str) -> Outcome {
         run_with(text, &[])
+    }
+
+    #[test]
+    fn every_makes_a_task_repeat_and_starts_it_on_the_rules_first_date() {
+        use minimap_types::Cadence;
+        // Today is a Wednesday: "every:mon" starts on the coming Monday.
+        let out = run("task Board update every:mon");
+        let QuickMain::Task {
+            due_date,
+            recurrence,
+            ..
+        } = out.plan.unwrap().main
+        else {
+            panic!("not a task")
+        };
+        assert_eq!(due_date, Some(date!(2027 - 03 - 08)));
+        assert_eq!(
+            recurrence.map(|r| r.cadence),
+            Some(Cadence::Weekly {
+                every: 1,
+                weekday: 0
+            })
+        );
+        let preview = run("task Board update every:mon").preview;
+        let shown = |label: &str| {
+            preview
+                .details
+                .iter()
+                .find(|d| d.label == label)
+                .map(|d| d.value.clone())
+        };
+        assert_eq!(shown("Repeats").as_deref(), Some("every Monday"));
+        assert!(shown("Due").unwrap().contains("2027-03-08"));
+
+        // A given due date is kept, and gives the weekday or day the rule needs.
+        let every = |text: &str| -> Option<Cadence> {
+            let QuickMain::Task { recurrence, .. } = run(text).plan.unwrap().main else {
+                panic!()
+            };
+            recurrence.map(|r| r.cadence)
+        };
+        assert_eq!(
+            every("task x due:2027-03-10 every:2w"),
+            Some(Cadence::Weekly {
+                every: 2,
+                weekday: 2
+            })
+        );
+        assert_eq!(
+            every("task x due:2027-03-10 every:week"),
+            Some(Cadence::Weekly {
+                every: 1,
+                weekday: 2
+            })
+        );
+        assert_eq!(
+            every("task x due:2027-03-15 every:month"),
+            Some(Cadence::Monthly { day: 15 })
+        );
+        assert_eq!(every("task x every:day"), Some(Cadence::Daily));
+        assert_eq!(
+            every("task x every:month:1"),
+            Some(Cadence::Monthly { day: 1 })
+        );
+        assert_eq!(every("task x"), None);
+        let QuickMain::Task { due_date, .. } = run("task x due:fri every:mon").plan.unwrap().main
+        else {
+            panic!()
+        };
+        assert_eq!(due_date, Some(date!(2027 - 03 - 05)));
+    }
+
+    #[test]
+    fn every_on_a_note_starts_it_on_the_rules_first_date() {
+        use minimap_types::Cadence;
+        let out = run("note 1:1 @priya every:wed");
+        let QuickMain::Note {
+            note_date,
+            recurrence,
+            ..
+        } = out.plan.unwrap().main
+        else {
+            panic!("not a note")
+        };
+        assert_eq!(note_date, Some(date!(2027 - 03 - 03)));
+        assert_eq!(
+            recurrence.map(|r| r.cadence),
+            Some(Cadence::Weekly {
+                every: 1,
+                weekday: 2
+            })
+        );
+    }
+
+    #[test]
+    fn a_bad_every_says_what_is_accepted_and_other_kinds_do_not_take_it() {
+        let problems = |t: &str| run(t).preview.problems;
+        let p = problems("task x every:soon");
+        assert!(p[0].contains("Repeats look like"), "{p:?}");
+        assert!(problems("task x every:0w")[0].contains("from 1 to 52"));
+        assert!(problems("project x every:mon")[0].contains("isn't used"));
+        assert!(problems("decision x every:mon")[0].contains("isn't used"));
+        assert!(problems("wait @raj on x every:mon")[0].contains("isn't used"));
+        assert!(problems("task x every:")[0].contains("needs a value"));
     }
 
     fn run_with(text: &str, choices: &[QuickChoice]) -> Outcome {
@@ -1226,6 +1371,7 @@ mod tests {
                     assignee: QuickAssignee::Person(existing(NodeType::Person, 2)),
                     blocks: vec![existing(NodeType::Task, 30)],
                     objectives: vec![],
+                    recurrence: None,
                 }
             }
         );
@@ -1284,6 +1430,7 @@ mod tests {
                     label: "Priya Shah".into(),
                     target: existing(NodeType::Person, 2),
                 }],
+                recurrence: None,
             }
         );
         // A 1:1 needs a person; a general note needs a title; a meeting defaults its title.
@@ -1297,6 +1444,7 @@ mod tests {
             kind,
             note_date,
             mentions,
+            ..
         } = titled.plan.unwrap().main
         else {
             panic!("not a note")

@@ -383,6 +383,7 @@ mod tests {
                 due_date: due,
                 completed_at: None,
                 priority: 3,
+                recurrence: None,
                 created_at: at(date!(2027 - 01 - 01), 9),
                 updated_at: at(date!(2027 - 01 - 01), 9),
                 archived_at: None,

@@ -10,13 +10,13 @@ use minimap_types::{
     NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping,
     Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse, PortfolioOverview,
     Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout,
-    QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint, RecoverResult, ReportKind,
-    ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope, ScheduledTask,
-    SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip, SyncStatus,
-    Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek,
-    UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject,
-    UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn,
-    WaitingOnFilter, WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
+    QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint, RecoverResult, Recurrence,
+    ReportKind, ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope,
+    ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip,
+    SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow,
+    ThisWeek, UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
+    UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn,
+    Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -406,6 +406,31 @@ struct ExportAllArgs {
 /// Writes everything (JSON, and optionally Markdown) into a new folder inside `path`.
 pub async fn export_all(path: String, format: ExportFormat) -> Result<ExportAllResult, AppError> {
     invoke("export_all", &ExportAllArgs { path, format }).await
+}
+
+#[derive(Serialize)]
+struct SetRecurrenceArgs {
+    node: NodeRef,
+    text: String,
+    template: Option<String>,
+}
+
+/// Makes a task or note repeat by `text` (`day`, `mon`, `2w`, `month`, ...) or, when empty,
+/// stop; `template` is what a repeating note's next ones start with. Answers the rule now set.
+pub async fn set_recurrence(
+    node: NodeRef,
+    text: String,
+    template: Option<String>,
+) -> Result<Option<Recurrence>, AppError> {
+    invoke(
+        "set_recurrence",
+        &SetRecurrenceArgs {
+            node,
+            text,
+            template,
+        },
+    )
+    .await
 }
 
 /// Takes back the last change this session (up to 20 steps).
