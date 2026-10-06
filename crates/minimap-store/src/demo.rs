@@ -670,6 +670,9 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
         waiting_ons: count("waiting_on")?,
         links: count("edges")?,
     };
+    // Everything in the database except "me" is demo data (the database was empty): write the
+    // ids down so the demo data can be removed later without touching anything else.
+    crate::demo_remove::record(&tx)?;
     tx.commit()?;
     Ok(summary)
 }

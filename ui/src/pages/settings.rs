@@ -12,6 +12,7 @@ use crate::{
     components::{
         backup_settings::BackupSettings,
         data_settings::DataLocation,
+        demo_data_settings::DemoDataSettings,
         developer_settings::DeveloperSettings,
         drive_settings::DriveSettings,
         export_settings::ExportSettings,
@@ -151,6 +152,7 @@ pub fn Settings() -> impl IntoView {
                 }.into_any())}
                 {panel(Tab::Reports, view! { <ReportSettings /> }.into_any())}
                 {panel(Tab::Data, view! {
+                    <DemoDataSettings />
                     <DataLocation />
                     <DriveSettings />
                     <BackupSettings />

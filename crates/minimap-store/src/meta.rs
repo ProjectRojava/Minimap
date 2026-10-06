@@ -26,6 +26,9 @@ pub const DRIVE_CLIENT: &str = "local.drive_client";
 pub const SYNC_STATE: &str = "local.sync_state";
 /// Until when the "local only" banner is hidden (`YYYY-MM-DD`).
 pub const BANNER_UNTIL: &str = "local.banner_until";
+/// JSON list of the items the demo data added on this computer, so "Remove demo data" removes
+/// exactly those (spec 24).
+pub const DEMO_ITEMS: &str = "local.demo_items";
 /// Present only while a merge is applying another device's rows; the triggers that stamp
 /// `updated_at` look for it and stand down.
 pub(crate) const MERGING: &str = "local.merging";

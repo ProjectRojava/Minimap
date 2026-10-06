@@ -140,6 +140,8 @@ fn main() {
             commands::settings::get_data_info,
             commands::settings::show_data_folder,
             commands::demo::seed_demo_data,
+            commands::demo::get_demo_status,
+            commands::demo::remove_demo_data,
             commands::export::export_all,
             commands::recurrence::set_recurrence,
             commands::undo::undo_last,

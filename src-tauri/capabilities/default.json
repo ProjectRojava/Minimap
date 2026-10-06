@@ -59,6 +59,8 @@
     "allow-get-data-info",
     "allow-show-data-folder",
     "allow-seed-demo-data",
+    "allow-get-demo-status",
+    "allow-remove-demo-data",
     "allow-export-all",
     "allow-set-recurrence",
     "allow-undo-last",
