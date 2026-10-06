@@ -36,7 +36,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 | | Inbox | Tasks that belong to no project (the Tasks screen, filtered) |
 | Plan | [Objectives](help:objectives) | The outcomes you are after, and what contributes to them |
 | Plan | [Projects](help:projects) | Work with an owner, a target date and tasks; list and board |
-| Plan | [Tasks](help:tasks) | Every task, with filters and inline editing |
+| Plan | [Tasks](help:tasks) | Every task, as a drag-and-drop board of status columns or a list, with filters |
 | Plan | [Dependencies](help:dependencies) | A picture of what blocks what, with the critical path |
 | Plan | [What if](help:what-if) | See what a slip of a few days would push back |
 | People | [People](help:people-teams) and Teams | Who is who, and the teams and reporting lines |

@@ -6,6 +6,10 @@ An **objective** is an outcome you want, such as *Launch in the EU* or *Cut plat
 
 Objectives are listed by priority (1 is highest), then target date, then title. A toggle groups them by **calendar quarter** of their target date, with a final *No date* group. Each row shows how many projects and tasks contribute.
 
+## Colours
+
+Every objective has its own **colour**, shown as a dot and a coloured edge on its row. Minimap picks it for you, in the order the objectives were created, and keeps the colours far apart so two objectives never look alike. The same colour appears on the projects and tasks that serve the objective (see [Projects](help:projects) and [Tasks and the inbox](help:tasks)), so you can see what belongs together at a glance. If you archive an objective, the ones created after it each move up one colour.
+
 ## The detail pane
 
 - **Your assessment**: status (*on track, at risk, off track, done*) and priority. This is your judgement. Minimap shows its own **computed health** next to it, so you can see when they disagree.

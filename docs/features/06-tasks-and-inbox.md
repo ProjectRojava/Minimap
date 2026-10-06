@@ -48,10 +48,14 @@ The atoms of work. Fast to create and edit; loose tasks land in an inbox for tri
 - The project panel's task list stays read-only; tasks are created on the Tasks screen (or filtered to a project, where new tasks join that project).
 - **Not done**: editing `blocks` (spec 07's link editor); a one-key archive in the list (archive is in the task panel, with a confirmation, until undo exists, spec 25); sorting by clicking column headers.
 
+## Board (added after the first version)
+The Tasks screen opens as a board: columns To do, In progress, Blocked, Done (+ Cancelled on request), cards dragged between columns change the status through `update_task` (optimistic, saved behind the drop). List remains one click away (List/Board toggle, shared filters) and is what the Inbox uses. Order in a column is the list order (no manual ranking: there is no position field); Done is newest first, 15 shown. Code: `ui/src/components/task_board.rs`. No backend change.
+
 ## Not yet verified by hand
 - `n`, type a title, Enter: the task appears; keep typing for more. Paste a 5-line list: preview, then 5 tasks
 - row controls (status, priority, project, assignee, due) save without opening the pane; clicking elsewhere on the row opens it
 - on a row: `x`, `s`, `1`–`5`, `d` (type a date, Enter), `a`; `j`/`k` keep the cursor after a change
+- Tasks board: drag a card to another column and it moves at once and stays after a refresh; `+` in a column adds a task there; drop on Done on a repeating task creates the next one; List/Board keeps the filters
 - filters combine; "Show done" reveals completed tasks; the inbox empties as tasks get a project
 - estimate `4h` becomes `0.5d` at 8 h/day; change the setting (Settings) and `4h` converts differently; invalid text shows a toast
 - Settings: hours per day saves on blur; bad input shows a toast

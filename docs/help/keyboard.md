@@ -47,17 +47,17 @@ Hover over a sidebar entry to see its keys.
 |---|---|
 | `j` / `k` | Move down / up the rows |
 | `Enter` | Open the highlighted row in the detail pane |
-| `n` | New item, on screens that have a "new" box or form (Tasks, Projects, Notes and so on) |
+| `n` | New item, on screens that have a "new" box or form (Tasks, Projects, Notes and so on). On the task board it opens the box in the To do column |
 
-### On the highlighted task row (Tasks and Inbox; `x` also on This week)
+### On the highlighted task row or card (Tasks, board and list, and Inbox; `x` also on This week)
 
 | Keys | Does |
 |---|---|
 | `x` | Mark done; again to reopen |
 | `s` | Move to the next status |
 | `1`–`5` | Set the priority |
-| `d` | Focus the due date |
-| `a` | Focus the assignee |
+| `d` | Focus the due date (list only) |
+| `a` | Focus the assignee (list only) |
 
 ## In other places
 
