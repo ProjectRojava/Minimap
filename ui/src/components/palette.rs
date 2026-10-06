@@ -13,7 +13,7 @@ use minimap_types::{
 use crate::{
     api,
     nav::{move_cursor, type_label, NAV},
-    state::{finish, DataVersion, PaletteOpen, Selection, Toasts},
+    state::{finish, undo_or_redo, DataVersion, PaletteOpen, Selection, Toasts},
 };
 
 /// Words that turn the line into quick-add (when followed by a space).
@@ -36,6 +36,9 @@ pub enum Action {
     /// Start a quick-add line with this keyword.
     Prefill(&'static str),
     ResolveWaiting,
+    /// Undo or redo the last change (spec 25).
+    Undo,
+    Redo,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -59,6 +62,8 @@ pub fn commands() -> Vec<Command> {
         action("New note", "note …", Action::Prefill("note ")),
         action("New decision", "decision …", Action::Prefill("decision ")),
         action("Resolve waiting-on…", "", Action::ResolveWaiting),
+        action("Undo last change", "Ctrl Z", Action::Undo),
+        action("Redo", "Ctrl Shift Z", Action::Redo),
         action("What if this slips?", "g f", Action::Go("/what-if")),
     ];
     all.extend(NAV.iter().filter(|n| n.enabled).map(|n| Command {
@@ -215,6 +220,10 @@ impl Pal {
                     self.resolving.set(true);
                     self.input.set(String::new());
                     self.cursor.set(0);
+                }
+                Action::Undo | Action::Redo => {
+                    self.close();
+                    undo_or_redo(c.action == Action::Redo, self.toasts, self.version);
                 }
             },
             Row::Node(hit) => {
@@ -706,6 +715,8 @@ mod tests {
         let all = commands();
         assert!(all.iter().any(|c| c.action == Action::Prefill("task ")));
         assert!(all.iter().any(|c| c.action == Action::ResolveWaiting));
+        assert!(all.iter().any(|c| c.action == Action::Undo));
+        assert!(all.iter().any(|c| c.action == Action::Redo));
         // Every visible screen can be reached.
         for n in NAV.iter().filter(|n| n.enabled) {
             assert!(

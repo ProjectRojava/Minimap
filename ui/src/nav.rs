@@ -230,6 +230,25 @@ pub fn is_row_key(key: &str) -> bool {
     matches!(key, "x" | "s" | "d" | "a" | "1" | "2" | "3" | "4" | "5")
 }
 
+/// What a Ctrl/Cmd key combination asks of undo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UndoKey {
+    Undo,
+    Redo,
+}
+
+/// Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes, and Ctrl+Y redoes too (the Windows and Linux
+/// habit). Anything with Alt, or without Ctrl/Cmd, is not for undo.
+pub fn undo_key(key: &str, ctrl: bool, meta: bool, shift: bool, alt: bool) -> Option<UndoKey> {
+    if alt || !(ctrl || meta) {
+        return None;
+    }
+    if key.eq_ignore_ascii_case("z") {
+        return Some(if shift { UndoKey::Redo } else { UndoKey::Undo });
+    }
+    (key.eq_ignore_ascii_case("y") && ctrl && !meta && !shift).then_some(UndoKey::Redo)
+}
+
 /// Keys must not trigger shortcuts while the user is typing.
 pub fn is_typing_target(tag: &str, editable: bool) -> bool {
     editable
@@ -242,6 +261,21 @@ pub fn is_typing_target(tag: &str, editable: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn undo_and_redo_keys() {
+        use UndoKey::{Redo, Undo};
+        assert_eq!(undo_key("z", true, false, false, false), Some(Undo));
+        assert_eq!(undo_key("z", false, true, false, false), Some(Undo));
+        assert_eq!(undo_key("Z", true, false, true, false), Some(Redo));
+        assert_eq!(undo_key("Z", false, true, true, false), Some(Redo));
+        assert_eq!(undo_key("y", true, false, false, false), Some(Redo));
+        // Cmd+Y is not redo on a Mac (it opens history in browsers); plain keys never are.
+        assert_eq!(undo_key("y", false, true, false, false), None);
+        assert_eq!(undo_key("z", false, false, false, false), None);
+        assert_eq!(undo_key("z", true, false, false, true), None);
+        assert_eq!(undo_key("x", true, false, false, false), None);
+    }
 
     #[test]
     fn every_entry_has_an_icon_and_the_groups_partition_the_visible_ones() {

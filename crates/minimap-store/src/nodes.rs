@@ -115,7 +115,14 @@ pub(crate) fn archive_in_tx(tx: &rusqlite::Transaction, node: NodeRef) -> Result
 /// (same timestamp), unless their other endpoint is still archived.
 pub fn unarchive(conn: &mut Connection, node: NodeRef) -> Result<()> {
     let tx = conn.transaction()?;
-    let Some(archived) = archived_at(&tx, node)? else {
+    unarchive_in_tx(&tx, node)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// [`unarchive`] inside a caller's transaction.
+pub(crate) fn unarchive_in_tx(tx: &rusqlite::Transaction, node: NodeRef) -> Result<()> {
+    let Some(archived) = archived_at(tx, node)? else {
         return Err(StoreError::NotArchivedYet {
             node_type: node.node_type,
             id: node.id,
@@ -130,19 +137,18 @@ pub fn unarchive(conn: &mut Connection, node: NodeRef) -> Result<()> {
         params![id_s(node.id), ts_s(at)],
     )?;
     activity::record(
-        &tx,
+        tx,
         at,
         node.node_type,
         node.id,
         ActivityAction::Unarchived,
         &json!({ "archived_at": [archived, null] }),
     )?;
-    for edge in touching_edges(&tx, node, Some(&archived))? {
-        if archived_at(&tx, edges::endpoint_ref(&edge, node))?.is_none() {
-            edges::restore_in_tx(&tx, &edge, at)?;
+    for edge in touching_edges(tx, node, Some(&archived))? {
+        if archived_at(tx, edges::endpoint_ref(&edge, node))?.is_none() {
+            edges::restore_in_tx(tx, &edge, at)?;
         }
     }
-    tx.commit()?;
     Ok(())
 }
 

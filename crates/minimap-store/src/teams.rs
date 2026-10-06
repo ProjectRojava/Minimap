@@ -71,7 +71,14 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTeam) -> Result<Team> 
 /// Note: cycle detection for team nesting lives in core (feature 07).
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTeam) -> Result<Team> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let new = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(new)
+}
+
+/// [`update`] inside a caller's transaction.
+pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTeam) -> Result<Team> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     ensure_not_blank("name", &new.name)?;
@@ -91,13 +98,12 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTeam) -> Result<Team
         ],
     )?;
     activity::record(
-        &tx,
+        tx,
         new.updated_at,
         NodeType::Team,
         id,
         ActivityAction::Updated,
         &diff.into(),
     )?;
-    tx.commit()?;
     Ok(new)
 }

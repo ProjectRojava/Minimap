@@ -128,7 +128,14 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreatePerson) -> Result<Pers
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdatePerson) -> Result<Person> {
     let tx = conn.transaction()?;
-    let old = get(&tx, id)?;
+    let new = update_in_tx(&tx, id, patch)?;
+    tx.commit()?;
+    Ok(new)
+}
+
+/// [`update`] inside a caller's transaction.
+pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdatePerson) -> Result<Person> {
+    let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     validate(&new)?;
@@ -152,13 +159,12 @@ pub fn update(conn: &mut Connection, id: Uuid, patch: UpdatePerson) -> Result<Pe
         ],
     )?;
     activity::record(
-        &tx,
+        tx,
         new.updated_at,
         NodeType::Person,
         id,
         ActivityAction::Updated,
         &diff.into(),
     )?;
-    tx.commit()?;
     Ok(new)
 }

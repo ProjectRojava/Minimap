@@ -6,6 +6,7 @@ mod error;
 mod keystore;
 mod state;
 mod sync;
+mod undo;
 
 use std::{
     fs,
@@ -125,6 +126,8 @@ fn main() {
             commands::settings::get_data_info,
             commands::settings::show_data_folder,
             commands::demo::seed_demo_data,
+            commands::undo::undo_last,
+            commands::undo::redo_last,
             commands::waiting_on::get_waiting_on,
             commands::waiting_on::get_waiting_on_detail,
             commands::waiting_on::create_waiting_on,

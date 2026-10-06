@@ -34,9 +34,13 @@ pub async fn seed_demo_data(state: State<'_, AppState>) -> Result<DemoSummary, A
     if let Some(e) = refusal(cfg!(debug_assertions), state.sync.engine.is_connected()) {
         return Err(e);
     }
-    state
-        .run(|conn| seed_impl(conn, minimap_store::today()))
-        .await
+    // Through `run_vault`: the whole seed is not a step to undo. Whatever came before it
+    // refers to an empty database, so that history goes.
+    let summary = state
+        .run_vault(|vault, _| seed_impl(vault.parts()?.0, minimap_store::today()))
+        .await?;
+    state.forget_undo();
+    Ok(summary)
 }
 
 pub(crate) fn seed_impl(

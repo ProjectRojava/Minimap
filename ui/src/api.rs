@@ -13,10 +13,10 @@ use minimap_types::{
     QuickResult, RecoverCheckpoint, RecoverResult, ReportKind, ReportParams, RestorePreview,
     RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret,
     SecurityStatus, SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition,
-    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UpdateDecision, UpdateNote,
-    UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask,
-    UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
-    ATTACHMENT_EXTENSIONS,
+    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UndoOutcome, UpdateDecision,
+    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings,
+    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    WeeklyReview, ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -395,6 +395,16 @@ pub async fn update_settings(patch: UpdateSettings) -> Result<Settings, AppError
 /// Where the data lives (database file, folder, size, schema, encryption, log).
 pub async fn get_data_info() -> Result<DataInfo, AppError> {
     invoke("get_data_info", &NoArgs {}).await
+}
+
+/// Takes back the last change this session (up to 20 steps).
+pub async fn undo_last() -> Result<UndoOutcome, AppError> {
+    invoke("undo_last", &NoArgs {}).await
+}
+
+/// Puts back what the last undo took back.
+pub async fn redo_last() -> Result<UndoOutcome, AppError> {
+    invoke("redo_last", &NoArgs {}).await
 }
 
 /// Adds the demo dataset to an empty database (debug builds only; the backend refuses in a
