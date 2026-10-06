@@ -55,6 +55,7 @@ const COMMANDS: &[&str] = &[
     "show_data_folder",
     "seed_demo_data",
     "export_all",
+    "set_recurrence",
     "undo_last",
     "redo_last",
     "get_waiting_on",

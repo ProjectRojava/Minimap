@@ -151,6 +151,7 @@ mod tests {
                 due_date: due,
                 completed_at: None,
                 priority,
+                recurrence: None,
                 created_at: OffsetDateTime::UNIX_EPOCH,
                 updated_at: OffsetDateTime::UNIX_EPOCH,
                 archived_at: None,

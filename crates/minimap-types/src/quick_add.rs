@@ -147,6 +147,8 @@ pub enum QuickMain {
         /// Tasks this one blocks.
         blocks: Vec<Ref>,
         objectives: Vec<Ref>,
+        /// `every:...`: finishing it makes the next one.
+        recurrence: Option<crate::Recurrence>,
     },
     Project {
         title: String,
@@ -167,6 +169,8 @@ pub enum QuickMain {
         kind: NoteKind,
         note_date: Option<Date>,
         mentions: Vec<NoteMention>,
+        /// `every:...`: a new note is made on each date.
+        recurrence: Option<crate::Recurrence>,
     },
     Decision {
         title: String,

@@ -197,6 +197,9 @@ fn task_line(t: &Task, l: &Lookup) -> String {
                 .join(", ")
         ));
     }
+    if let Some(rule) = &t.recurrence {
+        bits.push(format!("repeats {}", rule.describe()));
+    }
     if t.archived_at.is_some() {
         bits.push("archived".to_owned());
     }
@@ -390,6 +393,9 @@ fn kind_word(k: NoteKind) -> &'static str {
 
 fn note_file(n: &Note, paths: &HashMap<Uuid, String>) -> String {
     let mut meta = format!("{} · {}", kind_word(n.kind), n.note_date);
+    if let Some(rule) = &n.recurrence {
+        meta.push_str(&format!(" · repeats {}", rule.describe()));
+    }
     if n.archived_at.is_some() {
         meta.push_str(" · archived");
     }
@@ -501,6 +507,7 @@ mod tests {
             due_date: None,
             completed_at: None,
             priority: 3,
+            recurrence: None,
             created_at: T0,
             updated_at: T0,
             archived_at: None,
@@ -549,6 +556,7 @@ mod tests {
             body: body.into(),
             note_date: date!(2027 - 03 - 03),
             kind: NoteKind::OneOnOne,
+            recurrence: None,
             created_at: T0,
             updated_at: T0,
             archived_at: None,
@@ -720,6 +728,29 @@ mod tests {
             !sec.contains("## Tasks"),
             "a project without tasks has no tasks section"
         );
+    }
+
+    #[test]
+    fn repeating_tasks_and_notes_say_so() {
+        use minimap_types::Cadence;
+        let mut d = data();
+        d.tasks[1].recurrence = Some(
+            Cadence::Weekly {
+                every: 2,
+                weekday: 0,
+            }
+            .into(),
+        );
+        d.notes[0].recurrence = Some(Cadence::Monthly { day: 1 }.into());
+        let files = markdown(&d, &HashMap::new());
+        assert!(
+            file(&files, "projects/eu-region.md")
+                .contains("6.5d · P1 · repeats every 2 weeks on Monday"),
+            "{}",
+            file(&files, "projects/eu-region.md")
+        );
+        assert!(file(&files, "notes/2027-03-03-1-1-with-priya.md")
+            .contains("*1:1 · 2027-03-03 · repeats monthly on the 1st*"));
     }
 
     #[test]

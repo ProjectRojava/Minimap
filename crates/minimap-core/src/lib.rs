@@ -16,6 +16,7 @@ pub mod objectives;
 pub mod overview;
 pub mod projects;
 pub mod quick_add;
+pub mod recurrence;
 pub mod report;
 pub mod schedule;
 pub mod search;

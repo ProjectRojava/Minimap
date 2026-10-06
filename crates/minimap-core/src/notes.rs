@@ -519,6 +519,7 @@ mod tests {
                 body: body.into(),
                 note_date: d,
                 kind,
+                recurrence: None,
                 created_at: OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(created),
                 updated_at: OffsetDateTime::UNIX_EPOCH,
                 archived_at: None,

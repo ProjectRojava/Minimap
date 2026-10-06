@@ -17,6 +17,7 @@ use crate::{
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_ON, INPUT},
         people_panel::{error_line, NodeButtons},
+        repeat_field::RepeatField,
     },
     mentions::{byte_to_utf16, insert_mention, mention_query, utf16_to_byte, MentionQuery},
     nav::type_label,
@@ -55,6 +56,7 @@ fn NoteEditor(note: Note) -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
     let id = note.id;
+    let recurrence = note.recurrence.clone();
 
     let detail = LocalResource::new(move || {
         version.track();
@@ -395,6 +397,7 @@ fn NoteEditor(note: Note) -> impl IntoView {
                 <TextField label="Date" kind="date" value=note.note_date.to_string() on_commit=save_date />
                 <SelectField label="Kind" options=kind_options current=note.kind.as_str().to_owned() on_change=save_kind />
             </div>
+            <RepeatField node=NodeRef::new(NodeType::Note, id) current=recurrence />
             <div class="mt-3 mb-1 flex items-center gap-2">
                 <button class=move || format!("{BUTTON} {}", if preview.get() { "" } else { BUTTON_ON })
                         on:click=move |_| preview.set(false)>"Write"</button>

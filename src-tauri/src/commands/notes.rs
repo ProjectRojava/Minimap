@@ -142,6 +142,7 @@ mod tests {
                 body: body.into(),
                 note_date: None,
                 kind: None,
+                recurrence: None,
             },
         )
         .unwrap()

@@ -74,6 +74,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - export: export_markdown(report_kind, params, path)
 - settings: get_settings, update_settings, get_data_info, show_data_folder, set_db_passphrase, backup_now(path)
 - undo: undo_last, redo_last (spec 25: Ctrl/Cmd+Z; built from the activity log, session only)
+- recurring: set_recurrence(node, text, template?) (spec 27: tasks make the next one when finished; notes on their date; quick-add `every:`)
 - export: export_all(path, format) (spec 26: JSON files per node type + edges + activity + manifest into a new folder, optional Markdown)
 - drive (ADR-0011): get_sync_status, update_sync_settings, connect_drive, finish_drive_connect, cancel_drive_connect, disconnect_drive, sync_now, list_drive_checkpoints, recover_checkpoint; attachments: list_attachments, add_attachment, add_attachment_data, remove_attachment, open_attachment (+ the `minimap-media` protocol)
 Capabilities: frontend may call only these commands (app manifest) plus dialog/fs permissions export/backup need, plus the minimal window-control permissions the custom title bar needs (ADR-0004). Nothing broader.

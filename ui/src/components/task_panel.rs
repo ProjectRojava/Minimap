@@ -14,6 +14,7 @@ use crate::{
         detail_pane::Section,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         people_panel::error_line,
+        repeat_field::RepeatField,
         what_if_button::WhatIfButton,
     },
     labels::{estimate_text, priority_option, task_status_label, task_status_tone},
@@ -169,6 +170,7 @@ fn TaskFields(
                 value=task.due_date.map(|d| d.to_string()).unwrap_or_default()
                 on_commit=move |v: String| save_date(v, true) />
         </div>
+        <RepeatField node=NodeRef::new(NodeType::Task, id) current=task.recurrence.clone() />
         {completed.map(|c| view! { <p class="mt-1 text-[11px] text-muted">"Completed " {c}</p> })}
     }
 }

@@ -119,6 +119,7 @@ mod tests {
                 start_date: None,
                 due_date: due,
                 priority: None,
+                recurrence: None,
             },
         )
         .unwrap();
@@ -209,6 +210,7 @@ mod tests {
                     body: String::new(),
                     note_date: Some(on),
                     kind: Some(kind),
+                    recurrence: None,
                 },
             )
             .unwrap();
