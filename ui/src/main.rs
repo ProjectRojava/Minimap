@@ -2,6 +2,7 @@ mod api;
 mod app;
 mod calendar;
 mod components;
+mod help;
 mod icons;
 mod keyboard;
 mod labels;

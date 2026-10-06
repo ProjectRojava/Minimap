@@ -1106,6 +1106,47 @@ mod tests {
         run_with(text, &[])
     }
 
+    /// The examples in the help pages (`docs/help/`) are lines a user will copy: each one has to
+    /// be understood, whatever people and projects exist (names it can't find are asked about
+    /// in the preview, which is not a problem with the line).
+    #[test]
+    fn the_examples_in_the_help_pages_are_understood() {
+        let pages = [
+            include_str!("../../../docs/help/welcome.md"),
+            include_str!("../../../docs/help/quick-add.md"),
+            include_str!("../../../docs/help/recurring.md"),
+            include_str!("../../../docs/help/tasks.md"),
+            include_str!("../../../docs/help/notes.md"),
+            include_str!("../../../docs/help/waiting-on.md"),
+        ];
+        let mut checked = 0;
+        for page in pages {
+            let mut in_block = false;
+            for line in page.lines() {
+                if line.trim_start().starts_with("```") {
+                    in_block = !in_block;
+                    continue;
+                }
+                let first = line.split_whitespace().next().unwrap_or("");
+                let is_example = in_block
+                    && matches!(
+                        first,
+                        "task" | "project" | "wait" | "waiting" | "note" | "decision"
+                    );
+                if is_example {
+                    let out = run(line.trim());
+                    assert!(
+                        out.preview.problems.is_empty(),
+                        "help example {line:?}: {:?}",
+                        out.preview.problems
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked >= 10, "only {checked} examples were found");
+    }
+
     #[test]
     fn every_makes_a_task_repeat_and_starts_it_on_the_rules_first_date() {
         use minimap_types::Cadence;

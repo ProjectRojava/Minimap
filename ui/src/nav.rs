@@ -144,6 +144,14 @@ pub const NAV: &[NavItem] = &[
         chord: 's',
         enabled: true,
     },
+    NavItem {
+        label: "Help",
+        icon: "help",
+        group: "pinned",
+        path: "/help",
+        chord: 'h',
+        enabled: true,
+    },
 ];
 
 /// The group name of the footer entries (Settings).
@@ -230,6 +238,11 @@ pub fn is_row_key(key: &str) -> bool {
     matches!(key, "x" | "s" | "d" | "a" | "1" | "2" | "3" | "4" | "5")
 }
 
+/// `?` (outside a text box) and `F1` (anywhere) open the help.
+pub fn is_help_key(key: &str) -> bool {
+    matches!(key, "?" | "F1")
+}
+
 /// What a Ctrl/Cmd key combination asks of undo.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UndoKey {
@@ -261,6 +274,14 @@ pub fn is_typing_target(tag: &str, editable: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn help_keys() {
+        assert!(is_help_key("?") && is_help_key("F1"));
+        assert!(!is_help_key("h") && !is_help_key("/") && !is_help_key("F2"));
+        // The chord for Help is in the table like the others.
+        assert_eq!(chord_target("h"), Some("/help"));
+    }
 
     #[test]
     fn undo_and_redo_keys() {
