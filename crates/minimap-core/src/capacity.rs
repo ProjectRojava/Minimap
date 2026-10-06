@@ -2,7 +2,7 @@
 //! (weighted by `allocation_pct`) against their weekly capacity. Pure.
 //!
 //! The schedule (13) says which working days each task occupies; this module slices those
-//! windows into Monday-to-Friday weeks. A task of `d` days at allocation `a` contributes
+//! windows into weeks (Monday to Sunday, counting only the work week's days). A task of `d` days at allocation `a` contributes
 //! `overlap x a / 100` days to each week it touches, so the weekly figures add up to
 //! `d x a / 100` over the whole task. Capacity is `weekly_capacity_hours / hours_per_day` days.
 //! Above 100% is overloaded. Separately, a person with more open tasks than a configurable limit
@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use minimap_types::{
     Capacity, CapacityTask, Date, Edge, EdgeType, NodeRef, NodeSummary, NodeType, Person,
     PersonCapacity, Project, ScheduleScope, ScheduledTask, Task, TaskStatus, Uuid, WeekLoad,
+    WorkWeek,
 };
 use time::Duration;
 
@@ -23,9 +24,6 @@ const EPS: f64 = 1e-9;
 pub const DEFAULT_WEEKS: u32 = 8;
 /// Most weeks one reply covers.
 pub const MAX_WEEKS: u32 = 52;
-/// Working days in a week.
-const WEEK_DAYS: f64 = 5.0;
-
 pub struct CapacityInput<'a> {
     pub tasks: &'a [Task],
     pub edges: &'a [Edge],
@@ -33,6 +31,7 @@ pub struct CapacityInput<'a> {
     pub people: &'a [Person],
     pub today: Date,
     pub hours_per_day: f64,
+    pub work_week: WorkWeek,
     /// Any date in the first week (today's week when `None`).
     pub from: Option<Date>,
     /// Any date in the last week; otherwise `weeks` weeks from `from`.
@@ -82,6 +81,7 @@ pub fn compute(input: &CapacityInput) -> Capacity {
         input.edges,
         input.projects,
         today,
+        input.work_week,
         ScheduleScope::Portfolio,
     ) {
         Ok(s) => Some(s),
@@ -119,7 +119,9 @@ pub fn compute(input: &CapacityInput) -> Capacity {
         }
     }
 
-    let t0 = schedule::working_index(today);
+    let week = input.work_week;
+    let week_days = f64::from(week.days_per_week());
+    let t0 = schedule::working_index(week, today);
     let mut people: Vec<PersonCapacity> = Vec::new();
     for p in input.people.iter().filter(|p| p.archived_at.is_none()) {
         let mine = assigned.get(&p.id).map_or(&[][..], Vec::as_slice);
@@ -131,8 +133,8 @@ pub fn compute(input: &CapacityInput) -> Capacity {
         let weeks: Vec<WeekLoad> = week_starts
             .iter()
             .map(|ws| {
-                let lo = (schedule::working_index(*ws) - t0) as f64;
-                let hi = lo + WEEK_DAYS;
+                let lo = (schedule::working_index(week, *ws) - t0) as f64;
+                let hi = lo + week_days;
                 let mut tasks: Vec<CapacityTask> = Vec::new();
                 for (t, alloc) in mine {
                     let Some(s) = scheduled.get(&t.id).filter(|s| !s.done) else {
@@ -331,6 +333,7 @@ mod tests {
                 people: &self.people,
                 today,
                 hours_per_day: 8.0,
+                work_week: WorkWeek::MON_FRI,
                 from,
                 to,
                 weeks,
@@ -452,6 +455,7 @@ mod tests {
             people: &f.people,
             today: MON,
             hours_per_day: 4.0,
+            work_week: WorkWeek::MON_FRI,
             from: None,
             to: None,
             weeks: Some(1),
@@ -459,6 +463,37 @@ mod tests {
         });
         assert_eq!(of(&c, "P").weeks[0].capacity_days, 10.0);
         assert_eq!(of(&c, "P").weeks[0].load_pct, 50.0);
+    }
+
+    #[test]
+    fn a_four_day_week_fits_four_days_of_work_per_week() {
+        let f = Fixture {
+            tasks: vec![task(1, "A", Some(5.0))],
+            people: vec![person(30, "P", 32.0)],
+            edges: vec![assigned(1, 30, None)],
+            ..Default::default()
+        };
+        let c = compute(&CapacityInput {
+            tasks: &f.tasks,
+            edges: &f.edges,
+            projects: &f.projects,
+            people: &f.people,
+            today: MON,
+            hours_per_day: 8.0,
+            work_week: WorkWeek::from_days(&[0, 1, 2, 3]).unwrap(),
+            from: None,
+            to: None,
+            weeks: Some(2),
+            task_limit: 10,
+        });
+        let p = of(&c, "P");
+        // 32 hours at 8 a day = 4 days of capacity; the task fills Monday to Thursday, then
+        // spills one day into the next week.
+        assert_eq!(p.weeks[0].capacity_days, 4.0);
+        assert_eq!(p.weeks[0].load_days, 4.0);
+        assert!(!p.weeks[0].over);
+        assert_eq!(p.weeks[1].load_days, 1.0);
+        assert_eq!(p.weeks[1].load_pct, 25.0);
     }
 
     #[test]

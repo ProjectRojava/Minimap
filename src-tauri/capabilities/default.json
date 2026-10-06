@@ -56,6 +56,8 @@
     "allow-create-tasks-bulk",
     "allow-get-settings",
     "allow-update-settings",
+    "allow-get-data-info",
+    "allow-show-data-folder",
     "allow-get-waiting-on",
     "allow-get-waiting-on-detail",
     "allow-create-waiting-on",

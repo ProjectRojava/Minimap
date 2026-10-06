@@ -6,6 +6,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use crate::error::{Result, StoreError};
 
 const HOURS_PER_DAY: &str = "hours_per_day";
+const WORK_WEEK: &str = "work_week";
+const DEFAULT_WEEKLY_CAPACITY: &str = "default_weekly_capacity_hours";
 const THEME: &str = "theme";
 const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 const HEALTH: &str = "health";
@@ -41,6 +43,11 @@ fn valid_folder(path: &str) -> bool {
     !path.trim().is_empty() && path.len() <= 1000 && p.is_absolute()
 }
 
+/// A weekly capacity in hours: more than none, no more than the hours in a week.
+fn valid_weekly_hours(h: f64) -> bool {
+    h.is_finite() && h > 0.0 && h <= 168.0
+}
+
 fn read(conn: &Connection, key: &str) -> Result<Option<serde_json::Value>> {
     let raw: Option<String> = conn
         .query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| {
@@ -50,11 +57,26 @@ fn read(conn: &Connection, key: &str) -> Result<Option<serde_json::Value>> {
     Ok(raw.map(|r| serde_json::from_str(&r)).transpose()?)
 }
 
+/// The weekly capacity a new person gets (the stored setting, else 40 hours). Cheap enough for
+/// `people::create` to read inside its transaction.
+pub fn default_weekly_capacity_hours(conn: &Connection) -> Result<f64> {
+    Ok(read(conn, DEFAULT_WEEKLY_CAPACITY)?
+        .and_then(|v| v.as_f64())
+        .filter(|h| valid_weekly_hours(*h))
+        .unwrap_or(minimap_types::DEFAULT_WEEKLY_CAPACITY_HOURS))
+}
+
 pub fn get(conn: &Connection) -> Result<Settings> {
     let mut s = Settings::default();
     if let Some(h) = read(conn, HOURS_PER_DAY)?.and_then(|v| v.as_f64()) {
         s.hours_per_day = h;
     }
+    if let Some(w) = read(conn, WORK_WEEK)?
+        .and_then(|v| serde_json::from_value::<minimap_types::WorkWeek>(v).ok())
+    {
+        s.work_week = w;
+    }
+    s.default_weekly_capacity_hours = default_weekly_capacity_hours(conn)?;
     if let Some(d) = read(conn, STALE_WAITING_DAYS)?
         .and_then(|v| v.as_u64())
         .and_then(|d| u32::try_from(d).ok())
@@ -107,6 +129,13 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
         if !h.is_finite() || h <= 0.0 || h > 24.0 {
             return Err(StoreError::Invalid(
                 "hours per day must be between 0 and 24".into(),
+            ));
+        }
+    }
+    if let Some(h) = patch.default_weekly_capacity_hours {
+        if !valid_weekly_hours(h) {
+            return Err(StoreError::Invalid(
+                "weekly capacity must be more than 0 and at most 168 hours".into(),
             ));
         }
     }
@@ -175,6 +204,12 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(h) = patch.hours_per_day {
         write(&tx, HOURS_PER_DAY, &serde_json::json!(h))?;
+    }
+    if let Some(w) = patch.work_week {
+        write(&tx, WORK_WEEK, &serde_json::to_value(w)?)?;
+    }
+    if let Some(h) = patch.default_weekly_capacity_hours {
+        write(&tx, DEFAULT_WEEKLY_CAPACITY, &serde_json::json!(h))?;
     }
     if let Some(t) = patch.theme {
         write(&tx, THEME, &serde_json::json!(t))?;

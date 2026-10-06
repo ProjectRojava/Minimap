@@ -229,11 +229,16 @@ pub const DEFAULT_CAPACITY_TASK_LIMIT: u32 = 10;
 /// Dark is the default look. The UI owns the list of themes; the backend only stores the id.
 pub const DEFAULT_THEME: &str = "minimap-dark";
 
-/// App settings stored in the database. Spec 23 grows this; today it has one entry.
+/// App settings stored in the database (spec 23).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     /// Working hours in a day, used to turn `4h` estimates into days.
     pub hours_per_day: f64,
+    /// Which weekdays are working days (schedule, capacity, weekly review). Monday to Friday by
+    /// default.
+    pub work_week: crate::WorkWeek,
+    /// Weekly capacity given to a new person who is created without one.
+    pub default_weekly_capacity_hours: f64,
     /// Id of the colour theme (`minimap-dark`, `nord`, ...) or `system` to follow the OS.
     pub theme: String,
     /// Open waiting-ons older than this many days are stale.
@@ -256,6 +261,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             hours_per_day: DEFAULT_HOURS_PER_DAY,
+            work_week: crate::WorkWeek::default(),
+            default_weekly_capacity_hours: crate::DEFAULT_WEEKLY_CAPACITY_HOURS,
             theme: DEFAULT_THEME.to_owned(),
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
@@ -271,6 +278,8 @@ impl Default for Settings {
 #[serde(default)]
 pub struct UpdateSettings {
     pub hours_per_day: Option<f64>,
+    pub work_week: Option<crate::WorkWeek>,
+    pub default_weekly_capacity_hours: Option<f64>,
     pub theme: Option<String>,
     pub stale_waiting_days: Option<u32>,
     pub capacity_task_limit: Option<u32>,
@@ -432,4 +441,19 @@ pub struct SearchHit {
     pub archived: bool,
     /// A short piece of the node's text around the match (empty when there is none).
     pub snippet: String,
+}
+
+/// Where the data lives (Settings -> Data). Read-only: the folder is not movable (spec 23).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataInfo {
+    /// The database file.
+    pub database_path: String,
+    /// The folder that holds it (and the media cache, backups by default, and the log).
+    pub folder: String,
+    /// Size of the database file in bytes.
+    pub database_bytes: u64,
+    pub schema_version: u32,
+    pub encrypted: bool,
+    /// The log file (never contains note text or other content).
+    pub log_path: String,
 }

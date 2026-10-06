@@ -122,6 +122,8 @@ fn main() {
             commands::tasks::create_tasks_bulk,
             commands::settings::get_settings,
             commands::settings::update_settings,
+            commands::settings::get_data_info,
+            commands::settings::show_data_folder,
             commands::waiting_on::get_waiting_on,
             commands::waiting_on::get_waiting_on_detail,
             commands::waiting_on::create_waiting_on,

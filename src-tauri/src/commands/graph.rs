@@ -27,6 +27,9 @@ pub(crate) fn graph_impl(
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let teams = minimap_store::teams::list(conn, false).map_err(store_error)?;
+    let work_week = minimap_store::settings::get(conn)
+        .map_err(store_error)?
+        .work_week;
     build(
         &GraphInput {
             tasks: &tasks,
@@ -34,6 +37,7 @@ pub(crate) fn graph_impl(
             projects: &projects,
             teams: &teams,
             today: minimap_store::today(),
+            work_week,
         },
         filter,
     )

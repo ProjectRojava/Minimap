@@ -24,6 +24,7 @@ use crate::{
     labels::{decision_status_label, decision_status_tone},
     nav::is_typing_target,
     pages::this_week::{range_text, TaskActions},
+    settings_tab::Tab,
     state::{finish, DataVersion, ListNav, Toasts},
     timeline::day_text,
 };
@@ -720,7 +721,7 @@ fn ReportStep(week_start: Date) -> impl IntoView {
                 <span class="text-[11px] text-muted">
                     "The layout comes from the report template in Settings."
                 </span>
-                <button class=BUTTON on:click=move |_| navigate("/settings", Default::default())>
+                <button class=BUTTON on:click=move |_| navigate(&Tab::Reports.path(), Default::default())>
                     "Edit template"
                 </button>
             </div>

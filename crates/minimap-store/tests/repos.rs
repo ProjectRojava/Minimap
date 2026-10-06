@@ -1741,6 +1741,102 @@ fn settings_have_defaults_and_are_validated() {
 }
 
 #[test]
+fn the_work_week_and_default_capacity_persist_and_are_validated() {
+    let mut conn = db();
+    let s = settings::get(&conn).unwrap();
+    assert_eq!(s.work_week, WorkWeek::MON_FRI);
+    assert_eq!(s.default_weekly_capacity_hours, 40.0);
+
+    let sun_to_thu = WorkWeek::from_days(&[6, 0, 1, 2, 3]).unwrap();
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            work_week: Some(sun_to_thu),
+            default_weekly_capacity_hours: Some(32.5),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        (s.work_week, s.default_weekly_capacity_hours),
+        (sun_to_thu, 32.5)
+    );
+    let again = settings::get(&conn).unwrap();
+    assert_eq!(again.work_week, sun_to_thu);
+    assert_eq!(again.default_weekly_capacity_hours, 32.5);
+
+    for bad in [0.0, -8.0, 169.0, f64::NAN, f64::INFINITY] {
+        let r = settings::update(
+            &mut conn,
+            UpdateSettings {
+                work_week: Some(WorkWeek::MON_FRI),
+                default_weekly_capacity_hours: Some(bad),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(r, Err(StoreError::Invalid(_))), "{bad}");
+    }
+    // A refused update changes nothing, not even the valid half of it.
+    let kept = settings::get(&conn).unwrap();
+    assert_eq!(kept.work_week, sun_to_thu);
+    assert_eq!(kept.default_weekly_capacity_hours, 32.5);
+}
+
+#[test]
+fn a_stored_work_week_that_is_no_longer_valid_falls_back_to_monday_to_friday() {
+    let conn = db();
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('work_week', '[]')",
+        [],
+    )
+    .unwrap();
+    assert_eq!(settings::get(&conn).unwrap().work_week, WorkWeek::MON_FRI);
+}
+
+#[test]
+fn new_people_get_the_default_weekly_capacity_from_settings() {
+    let mut conn = db();
+    let person = |conn: &mut Connection, name: &str, hours: Option<f64>| {
+        people::create(
+            conn,
+            CreatePerson {
+                name: name.into(),
+                role_title: String::new(),
+                email: None,
+                weekly_capacity_hours: hours,
+                is_self: false,
+                notes: String::new(),
+            },
+        )
+        .unwrap()
+    };
+    assert_eq!(person(&mut conn, "A", None).weekly_capacity_hours, 40.0);
+    settings::update(
+        &mut conn,
+        UpdateSettings {
+            default_weekly_capacity_hours: Some(30.0),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(person(&mut conn, "B", None).weekly_capacity_hours, 30.0);
+    // An explicit value still wins, and people who already exist are left alone.
+    assert_eq!(
+        person(&mut conn, "C", Some(20.0)).weekly_capacity_hours,
+        20.0
+    );
+    assert_eq!(
+        people::list(&conn, false)
+            .unwrap()
+            .iter()
+            .find(|p| p.name == "A")
+            .unwrap()
+            .weekly_capacity_hours,
+        40.0
+    );
+}
+
+#[test]
 fn theme_setting_defaults_to_dark_and_is_validated() {
     let mut conn = db();
     assert_eq!(settings::get(&conn).unwrap().theme, "minimap-dark");

@@ -39,6 +39,7 @@ pub(crate) fn capacity_impl(
         people: &people,
         today: minimap_store::today(),
         hours_per_day: settings.hours_per_day,
+        work_week: settings.work_week,
         from,
         to,
         weeks,

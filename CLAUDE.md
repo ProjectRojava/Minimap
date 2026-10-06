@@ -72,7 +72,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - review: get_weekly_review(week_start), render_report(report_kind, params)
 - quick_add: parse_quick_add(text) → preview; commit_quick_add(text)
 - export: export_markdown(report_kind, params, path)
-- settings: get_settings, update_settings, set_db_passphrase, backup_now(path)
+- settings: get_settings, update_settings, get_data_info, show_data_folder, set_db_passphrase, backup_now(path)
 - drive (ADR-0011): get_sync_status, update_sync_settings, connect_drive, finish_drive_connect, cancel_drive_connect, disconnect_drive, sync_now, list_drive_checkpoints, recover_checkpoint; attachments: list_attachments, add_attachment, add_attachment_data, remove_attachment, open_attachment (+ the `minimap-media` protocol)
 Capabilities: frontend may call only these commands (app manifest) plus dialog/fs permissions export/backup need, plus the minimal window-control permissions the custom title bar needs (ADR-0004). Nothing broader.
 

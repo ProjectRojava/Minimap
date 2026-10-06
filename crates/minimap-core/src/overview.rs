@@ -8,7 +8,7 @@ use minimap_types::{
     Date, Edge, EdgeType, Health, HealthLevel, HealthThresholds, NodeRef, NodeSummary, NodeType,
     Objective, ObjectiveHealthRow, ObjectiveStatus, OverloadedPerson, OverviewCounts, Person,
     PortfolioOverview, Project, ProjectHealthRow, ProjectStatus, RiskItem, RiskKind, Schedule,
-    ScheduleScope, Task, TaskStatus, Uuid,
+    ScheduleScope, Task, TaskStatus, Uuid, WorkWeek,
 };
 
 use crate::{
@@ -35,6 +35,7 @@ pub struct OverviewWorld<'a> {
     pub people: &'a [Person],
     pub today: Date,
     pub hours_per_day: f64,
+    pub work_week: WorkWeek,
     pub thresholds: HealthThresholds,
     /// More open tasks than this flags a person as overloaded.
     pub task_limit: u32,
@@ -75,6 +76,7 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
         w.edges,
         w.projects,
         w.today,
+        w.work_week,
         ScheduleScope::Portfolio,
     ) {
         Ok(s) => Some(s),
@@ -265,7 +267,7 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
             (Some(target), Some((_, finish))) => Some(TargetFacts {
                 target,
                 finish,
-                late_days: late_working_days(finish, target),
+                late_days: late_working_days(w.work_week, finish, target),
             }),
             _ => None,
         };
@@ -380,6 +382,7 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
         people: w.people,
         today: w.today,
         hours_per_day: w.hours_per_day,
+        work_week: w.work_week,
         from: None,
         to: None,
         weeks: Some(2),
@@ -581,6 +584,7 @@ mod tests {
                 people: &self.people,
                 today: MON,
                 hours_per_day: 8.0,
+                work_week: WorkWeek::MON_FRI,
                 thresholds,
                 task_limit: 10,
             })

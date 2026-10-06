@@ -381,6 +381,12 @@
           "markdownDescription": "Enables the get_critical_path command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_data_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-data-info",
+          "markdownDescription": "Enables the get_data_info command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_decision command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-decision",
@@ -747,6 +753,12 @@
           "markdownDescription": "Enables the set_task_estimate command without any pre-configured scope."
         },
         {
+          "description": "Enables the show_data_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-show-data-folder",
+          "markdownDescription": "Enables the show_data_folder command without any pre-configured scope."
+        },
+        {
           "description": "Enables the snooze_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "allow-snooze-waiting-on",
@@ -1033,6 +1045,12 @@
           "type": "string",
           "const": "deny-get-critical-path",
           "markdownDescription": "Denies the get_critical_path command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_data_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-data-info",
+          "markdownDescription": "Denies the get_data_info command without any pre-configured scope."
         },
         {
           "description": "Denies the get_decision command without any pre-configured scope.",
@@ -1399,6 +1417,12 @@
           "type": "string",
           "const": "deny-set-task-estimate",
           "markdownDescription": "Denies the set_task_estimate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_data_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-show-data-folder",
+          "markdownDescription": "Denies the show_data_folder command without any pre-configured scope."
         },
         {
           "description": "Denies the snooze_waiting_on command without any pre-configured scope.",
