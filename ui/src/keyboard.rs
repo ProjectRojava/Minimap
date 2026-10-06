@@ -1,4 +1,4 @@
-//! Global keyboard shortcuts: `g` chords, `/` search, Ctrl/Cmd+K palette, Ctrl/Cmd+Z undo, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
+//! Global keyboard shortcuts: `g` chords, `/` search, `?`/F1 help, Ctrl/Cmd+K palette, Ctrl/Cmd+Z undo, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
 
 use leptos::{ev, prelude::*, web_sys};
 use leptos_router::hooks::use_navigate;
@@ -6,7 +6,9 @@ use wasm_bindgen::JsCast;
 
 use crate::{
     components::search_box::focus_search,
-    nav::{chord_target, is_row_key, is_typing_target, undo_key, UndoKey, CHORD_WINDOW_MS},
+    nav::{
+        chord_target, is_help_key, is_row_key, is_typing_target, undo_key, UndoKey, CHORD_WINDOW_MS,
+    },
     state::{undo_or_redo, DataVersion, ListNav, PaletteOpen, Selection, Toasts},
 };
 
@@ -34,6 +36,13 @@ pub fn use_global_shortcuts() {
             .map(|el| (el.tag_name(), el.is_content_editable()))
             .unwrap_or_default();
         let key = e.key();
+
+        // F1 opens the help from anywhere, even a text box.
+        if key == "F1" && is_help_key(&key) {
+            e.prevent_default();
+            navigate("/help", Default::default());
+            return;
+        }
 
         // Ctrl/Cmd+Z undoes the last change and Ctrl/Cmd+Shift+Z (or Ctrl+Y) redoes it, except
         // in a text field, where the field's own undo of what was typed stays.
@@ -78,6 +87,10 @@ pub fn use_global_shortcuts() {
             "/" => {
                 e.prevent_default();
                 focus_search();
+            }
+            "?" if is_help_key(&key) => {
+                e.prevent_default();
+                navigate("/help", Default::default());
             }
             "Escape" if selection.0.get_untracked().is_some() => selection.close(),
             "n" => list.request_new(),

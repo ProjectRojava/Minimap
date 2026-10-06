@@ -14,7 +14,7 @@ One place for app configuration.
 - **Tabs by kind of setting.** The screen is a tab strip (`ui/src/settings_tab.rs`, panels in `ui/src/pages/settings.rs`), and the selected tab lives in the address (`/settings?tab=data`), so other screens can link to one (the Drive status bar and banner open *Data & backup*, the review's "Edit template" opens *Reports*). All panels stay mounted (hidden when not shown), so a half-typed report template survives a visit to another tab. Arrow keys, Home and End move between tabs.
   | tab | holds |
   |---|---|
-  | **General** | Time (hours per working day, **working days**, **default weekly capacity**) and Appearance (theme: System, 8 dark, 8 light) |
+  | **General** | Time (hours per working day, **working days**, **default weekly capacity**) and Appearance (theme: System plus 17 themes, 11 dark and 6 light) |
   | **Thresholds** | Waiting on (stale after N days), Capacity (open-task limit), Project health (amber/red thresholds) |
   | **Reports** | The Markdown template of the weekly status report |
   | **Data & backup** | **Data location** (new), Google Drive (22), Backup and restore (20) |
