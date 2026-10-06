@@ -17,6 +17,51 @@ pub struct DemoSummary {
     pub links: u32,
 }
 
+/// How demo data was found in the database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DemoSource {
+    /// Demo data added by this version: the ids were written down when it was added.
+    Recorded,
+    /// Demo data added before ids were written down: recognised by its exact titles.
+    Titles,
+}
+
+/// What removing the demo data does to things that are *not* demo data. Your own items are
+/// never deleted: they are detached from the demo items they pointed at.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DemoImpact {
+    /// Links between a demo item and one of yours; they go with the demo item.
+    pub your_links: u32,
+    /// Your tasks in a demo project: they move to the inbox.
+    pub tasks_to_inbox: u32,
+    /// Your projects owned by a demo person: they lose the owner.
+    pub owners_cleared: u32,
+    /// Your teams inside a demo team: they become top-level teams.
+    pub teams_unparented: u32,
+    /// Demo people that stay, because a waiting-on of yours is about them.
+    pub people_kept: u32,
+}
+
+/// Is there demo data to remove, and what would removing it do.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DemoStatus {
+    pub found: bool,
+    pub source: Option<DemoSource>,
+    /// What would be removed.
+    pub items: DemoSummary,
+    pub impact: DemoImpact,
+}
+
+/// What removing the demo data did.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DemoRemoval {
+    pub removed: DemoSummary,
+    pub impact: DemoImpact,
+    /// The backup saved just before the removal (full path).
+    pub backup: Option<String>,
+}
+
 impl DemoSummary {
     /// "2 objectives, 3 projects, 40 tasks, ..." for a toast.
     pub fn describe(&self) -> String {

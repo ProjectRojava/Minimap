@@ -399,6 +399,12 @@
           "markdownDescription": "Enables the get_decision command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_demo_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-demo-status",
+          "markdownDescription": "Enables the get_demo_status command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_dependency_graph command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-dependency-graph",
@@ -685,6 +691,12 @@
           "type": "string",
           "const": "allow-remove-attachment",
           "markdownDescription": "Enables the remove_attachment command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_demo_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remove-demo-data",
+          "markdownDescription": "Enables the remove_demo_data command without any pre-configured scope."
         },
         {
           "description": "Enables the remove_edge command without any pre-configured scope.",
@@ -1095,6 +1107,12 @@
           "markdownDescription": "Denies the get_decision command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_demo_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-demo-status",
+          "markdownDescription": "Denies the get_demo_status command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_dependency_graph command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-dependency-graph",
@@ -1381,6 +1399,12 @@
           "type": "string",
           "const": "deny-remove-attachment",
           "markdownDescription": "Denies the remove_attachment command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_demo_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remove-demo-data",
+          "markdownDescription": "Denies the remove_demo_data command without any pre-configured scope."
         },
         {
           "description": "Denies the remove_edge command without any pre-configured scope.",

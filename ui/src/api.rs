@@ -4,19 +4,20 @@ use minimap_types::{
     Activity, AddAttachment, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Attachment,
     BackupEntry, BackupStatus, Capacity, CheckpointInfo, ConnectOutcome, CreateDecision,
     CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
-    CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DemoSummary, DependencyGraph,
-    Edge, EdgeLink, EncryptionResult, ExportAllResult, ExportFormat, ExportResult, FinishConnect,
-    GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef, NodeSummary, NodeType, Note,
-    NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping,
-    Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse, PortfolioOverview,
-    Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup, ProjectLayout,
-    QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint, RecoverResult, Recurrence,
-    ReportKind, ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope,
-    ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip,
-    SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow,
-    ThisWeek, UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
-    UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn,
-    Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
+    CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DemoRemoval, DemoStatus,
+    DemoSummary, DependencyGraph, Edge, EdgeLink, EncryptionResult, ExportAllResult, ExportFormat,
+    ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef,
+    NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail,
+    ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow,
+    PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter,
+    ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint,
+    RecoverResult, Recurrence, ReportKind, ReportParams, RestorePreview, RestoreResult, Schedule,
+    ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption,
+    Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team,
+    TeamDetail, TeamRow, ThisWeek, UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective,
+    UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam,
+    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
+    ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -447,6 +448,16 @@ pub async fn redo_last() -> Result<UndoOutcome, AppError> {
 /// release build).
 pub async fn seed_demo_data() -> Result<DemoSummary, AppError> {
     invoke("seed_demo_data", &NoArgs {}).await
+}
+
+/// Is there demo data, and what removing it would do (works in every build).
+pub async fn get_demo_status() -> Result<DemoStatus, AppError> {
+    invoke("get_demo_status", &NoArgs {}).await
+}
+
+/// Removes the demo data after saving a backup; the user's own items stay.
+pub async fn remove_demo_data() -> Result<DemoRemoval, AppError> {
+    invoke("remove_demo_data", &NoArgs {}).await
 }
 
 /// Opens the app's data folder in the file manager.

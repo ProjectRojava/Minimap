@@ -6,6 +6,7 @@ pub mod backup;
 mod convert;
 pub mod decisions;
 pub mod demo;
+pub mod demo_remove;
 pub mod edges;
 mod error;
 pub mod export;
