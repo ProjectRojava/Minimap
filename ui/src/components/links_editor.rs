@@ -23,14 +23,24 @@ use crate::{
 const MAX_RESULTS: usize = 30;
 
 #[component]
-pub fn LinksEditor(node: NodeRef, links: Vec<EdgeLink>) -> impl IntoView {
+pub fn LinksEditor(
+    node: NodeRef,
+    links: Vec<EdgeLink>,
+    /// Used inside a panel that already shows the node's main links (a task's): no "No links
+    /// yet" line, and the button reads "Link to something else…".
+    #[prop(optional)]
+    compact: bool,
+    /// Extra buttons shown before the "add a link" button.
+    #[prop(optional, into)]
+    actions: ViewFn,
+) -> impl IntoView {
     // The relations available from this node type don't change while the pane is open.
     let options = LocalResource::new(move || api::list_link_options(node.node_type));
     view! {
         {move || match options.get() {
             None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             Some(Err(e)) => error_line(e),
-            Some(Ok(opts)) => view! { <Editor node=node links=links.clone() options=opts /> }.into_any(),
+            Some(Ok(opts)) => view! { <Editor node=node links=links.clone() options=opts compact=compact actions=actions.clone() /> }.into_any(),
         }}
     }
 }
@@ -83,8 +93,30 @@ fn relation_label(option: &LinkOption) -> &'static str {
     link_heading(option.edge_type, option.outgoing)
 }
 
+/// The links this list shows for `node`: all but the ones its own panel edits (a task's assignee
+/// and blocks, a person's teams, ...) and a task's "related" links to other tasks, which sit in
+/// its panel's Links section.
+pub fn shown_links(node: NodeRef, links: &[EdgeLink]) -> Vec<EdgeLink> {
+    links
+        .iter()
+        .filter(|l| !kind_edited_elsewhere(node.node_type, l.edge.edge_type, l.outgoing))
+        .filter(|l| {
+            !(node.node_type == minimap_types::NodeType::Task
+                && l.edge.edge_type == EdgeType::RelatesTo
+                && l.other.node.node_type == minimap_types::NodeType::Task)
+        })
+        .cloned()
+        .collect()
+}
+
 #[component]
-fn Editor(node: NodeRef, links: Vec<EdgeLink>, options: Vec<LinkOption>) -> impl IntoView {
+fn Editor(
+    node: NodeRef,
+    links: Vec<EdgeLink>,
+    options: Vec<LinkOption>,
+    compact: bool,
+    actions: ViewFn,
+) -> impl IntoView {
     let selection = expect_context::<Selection>();
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
@@ -98,11 +130,7 @@ fn Editor(node: NodeRef, links: Vec<EdgeLink>, options: Vec<LinkOption>) -> impl
     };
 
     // Relations the node's own panel already handles are not shown or offered here.
-    let shown: Vec<EdgeLink> = links
-        .iter()
-        .filter(|l| !kind_edited_elsewhere(node.node_type, l.edge.edge_type, l.outgoing))
-        .cloned()
-        .collect();
+    let shown = shown_links(node, &links);
     let addable: Vec<LinkOption> = options
         .iter()
         .filter(|o| !kind_edited_elsewhere(node.node_type, o.edge_type, o.outgoing))
@@ -147,11 +175,11 @@ fn Editor(node: NodeRef, links: Vec<EdgeLink>, options: Vec<LinkOption>) -> impl
     view! {
         <div class="space-y-3">
             {if shown.is_empty() {
-                view! { <p class="text-muted">"No links yet."</p> }.into_any()
+                (!compact).then(|| view! { <p class="text-muted">"No links yet."</p> }).into_any()
             } else {
                 view! { <div class="space-y-3">{groups}</div> }.into_any()
             }}
-            <AddLink node=node options=addable links=shown />
+            <AddLink node=node options=addable links=shown compact=compact actions=actions />
         </div>
     }
 }
@@ -208,7 +236,13 @@ fn AttrFields(edge_id: Uuid, attrs: Value, specs: Vec<AttrSpec>) -> impl IntoVie
 
 /// "Add a link": pick the relation, then search for the node on the other end.
 #[component]
-fn AddLink(node: NodeRef, options: Vec<LinkOption>, links: Vec<EdgeLink>) -> impl IntoView {
+fn AddLink(
+    node: NodeRef,
+    options: Vec<LinkOption>,
+    links: Vec<EdgeLink>,
+    compact: bool,
+    actions: ViewFn,
+) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
 
@@ -301,7 +335,13 @@ fn AddLink(node: NodeRef, options: Vec<LinkOption>, links: Vec<EdgeLink>) -> imp
 
     view! {
         {move || if !open.get() {
-            view! { <button class=BUTTON on:click=move |_| open.set(true)>"Add a link…"</button> }.into_any()
+            let label = if compact { "Link to something else…" } else { "Add a link…" };
+            view! {
+                <div class="flex flex-wrap gap-2">
+                    {actions.run()}
+                    <button class=BUTTON on:click=move |_| open.set(true)>{label}</button>
+                </div>
+            }.into_any()
         } else {
             let relation_choices: Vec<(String, String)> = std::iter::once((String::new(), "Choose a relation…".to_owned()))
                 .chain(labels.iter().map(|(i, label)| (i.to_string(), (*label).to_owned())))

@@ -30,6 +30,18 @@ impl Edge {
     }
 }
 
+/// How a new task relates to the one it is made from (the "Link a new task" action).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkRelation {
+    /// The new task has to be done first: it blocks the one it was made from.
+    Blocks,
+    /// The new task comes after: the one it was made from blocks it.
+    BlockedBy,
+    /// Just related, with no order.
+    RelatesTo,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewEdge {
     pub edge_type: EdgeType,

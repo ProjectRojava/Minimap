@@ -2,9 +2,7 @@
 
 use std::str::FromStr;
 
-use minimap_types::{
-    Date, DecisionStatus, NoteKind, ObjectiveStatus, ProjectStatus, SubtaskProgress, TaskStatus,
-};
+use minimap_types::{Date, DecisionStatus, NoteKind, ObjectiveStatus, ProjectStatus, TaskStatus};
 
 use crate::components::page::Tone;
 
@@ -191,18 +189,6 @@ pub fn deadline_heat(due: Option<Date>, today: Option<Date>, open: bool) -> Opti
     u8::try_from(heat).ok().filter(|h| *h > 0)
 }
 
-/// The "2/5" shown on a task that has subtasks, and its tone: green once all are done.
-pub fn subtask_chip(p: SubtaskProgress) -> Option<(String, Tone)> {
-    (p.total > 0).then(|| {
-        let tone = if p.done == p.total {
-            Tone::Success
-        } else {
-            Tone::Neutral
-        };
-        (format!("{}/{}", p.done, p.total), tone)
-    })
-}
-
 /// The overlay strength (`--heat`, 0 to 1) for a heat in percent: `30` -> `0.30`.
 pub fn heat_strength(percent: u8) -> String {
     format!("{:.2}", f32::from(percent) / 100.0)
@@ -290,14 +276,6 @@ mod tests {
         assert_eq!(deadline_heat(due, Some(today), false), None);
         assert_eq!(deadline_heat(None, Some(today), true), None);
         assert_eq!(deadline_heat(due, None, true), None);
-    }
-
-    #[test]
-    fn the_subtask_chip_shows_progress_and_turns_green_when_all_are_done() {
-        let chip = |done, total| subtask_chip(SubtaskProgress { done, total });
-        assert_eq!(chip(0, 0), None);
-        assert_eq!(chip(2, 5), Some(("2/5".to_owned(), Tone::Neutral)));
-        assert_eq!(chip(3, 3), Some(("3/3".to_owned(), Tone::Success)));
     }
 
     #[test]

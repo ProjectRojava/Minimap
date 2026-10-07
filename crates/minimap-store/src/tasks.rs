@@ -1,6 +1,6 @@
 use minimap_types::{
-    ActivityAction, AssigneeChoice, CreateTask, EdgeType, NewEdge, NodeRef, NodeType, Recurrence,
-    Task, TaskStatus, UpdateTask, DEFAULT_PRIORITY,
+    ActivityAction, AssigneeChoice, CreateTask, EdgeType, LinkRelation, NewEdge, NodeRef, NodeType,
+    Recurrence, Task, TaskStatus, UpdateTask, DEFAULT_PRIORITY,
 };
 use rusqlite::{params, Connection, Row, Transaction};
 use uuid::Uuid;
@@ -168,72 +168,54 @@ pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> 
     Ok(())
 }
 
-fn subtask_of(child: Uuid, parent: Uuid) -> NewEdge {
-    NewEdge {
-        edge_type: EdgeType::SubtaskOf,
-        from: NodeRef::new(NodeType::Task, child),
-        to: NodeRef::new(NodeType::Task, parent),
-        attrs: serde_json::json!({}),
-    }
-}
-
-/// Makes `parent` the only parent of `task` (it becomes its subtask); `None` frees it. One
-/// transaction, so undo takes it back in one step. The caller has checked for loops.
-pub fn set_parent(conn: &mut Connection, task: Uuid, parent: Option<Uuid>) -> Result<()> {
+/// A new task linked to `source`, in one transaction (one undo step): it joins the source's
+/// project and takes its priority, is assigned to the user like any new task, and is joined to the
+/// source by `relation`. A new task can't close a loop, so no loop check is needed.
+pub fn create_linked(
+    conn: &mut Connection,
+    source: Uuid,
+    relation: LinkRelation,
+    title: String,
+) -> Result<Task> {
     let tx = conn.transaction()?;
-    get(&tx, task)?;
-    if let Some(p) = parent {
-        get(&tx, p)?;
-    }
-    let current: Vec<_> = edges::list_for_node(&tx, task, false)?
-        .into_iter()
-        .filter(|e| e.edge_type == EdgeType::SubtaskOf && e.from_id == task)
-        .collect();
-    if let Some(p) = parent {
-        if current.len() == 1 && current[0].to_id == p {
-            return Ok(());
-        }
-    }
-    let at = now();
-    for edge in &current {
-        edges::archive_in_tx(&tx, edge, at)?;
-    }
-    if let Some(p) = parent {
-        edges::add_in_tx(&tx, subtask_of(task, p))?;
-    }
-    tx.commit()?;
-    Ok(())
-}
-
-/// A new task that is a subtask of `parent`: in the parent's project, assigned to the user,
-/// like any new task. The task and its link are one transaction (and one undo step).
-pub fn create_subtask(conn: &mut Connection, parent: Uuid, title: String) -> Result<Task> {
-    let tx = conn.transaction()?;
-    let parent_task = get(&tx, parent)?;
-    if parent_task.archived_at.is_some() {
+    let from = get(&tx, source)?;
+    if from.archived_at.is_some() {
         return Err(StoreError::Invalid(
-            "an archived task can't get subtasks".into(),
+            "an archived task can't be linked to a new one".into(),
         ));
     }
-    let child = create_in_tx(
+    let created = create_in_tx(
         &tx,
         CreateTask {
             links: Vec::new(),
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
-            project_id: parent_task.project_id,
+            project_id: from.project_id,
             status: None,
             estimate_days: None,
             start_date: None,
             due_date: None,
-            priority: Some(parent_task.priority),
+            priority: Some(from.priority),
             recurrence: None,
         },
     )?;
-    edges::add_in_tx(&tx, subtask_of(child.id, parent))?;
+    let (edge_type, a, b) = match relation {
+        LinkRelation::Blocks => (EdgeType::Blocks, created.id, source),
+        LinkRelation::BlockedBy => (EdgeType::Blocks, source, created.id),
+        LinkRelation::RelatesTo => (EdgeType::RelatesTo, source, created.id),
+    };
+    edges::add_in_tx(
+        &tx,
+        NewEdge {
+            edge_type,
+            from: NodeRef::new(NodeType::Task, a),
+            to: NodeRef::new(NodeType::Task, b),
+            attrs: serde_json::json!({}),
+        },
+    )?;
     tx.commit()?;
-    Ok(child)
+    Ok(created)
 }
 
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTask) -> Result<Task> {

@@ -70,30 +70,11 @@ pub struct GraphEdge {
     pub points: Vec<(f64, f64)>,
 }
 
-/// A box around the subtasks of one group, in one column (spec 29). A group whose subtasks
-/// sit in several columns has one box per column; `first` marks the leftmost, which carries
-/// the title.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GraphGroup {
-    /// The task that groups them.
-    pub id: Uuid,
-    pub label: String,
-    pub x: f64,
-    pub y: f64,
-    pub w: f64,
-    pub h: f64,
-    pub layer: u32,
-    pub first: bool,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DependencyGraph {
     pub level: GraphLevel,
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
-    /// Boxes around groups of subtasks (task level only).
-    #[serde(default)]
-    pub groups: Vec<GraphGroup>,
     pub width: f64,
     pub height: f64,
     pub critical_nodes: u32,

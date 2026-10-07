@@ -21,7 +21,7 @@ use crate::{
         objective_colour::{use_objective_colours, ObjectiveDot},
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
     },
-    labels::{deadline_heat, priority_option, subtask_chip, task_status_label, task_status_tone},
+    labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
     state::{finish, DataVersion, ListNav, Toasts},
 };
 
@@ -457,8 +457,6 @@ fn TaskRowView(
         });
     };
 
-    let parent = row.parent.map(|p| p.label);
-    let subtasks = subtask_chip(row.subtasks);
     let t = row.task;
     // The row wears the colour of the objective its project serves (ADR-0012).
     let colours = use_objective_colours();
@@ -555,12 +553,6 @@ fn TaskRowView(
                         <ObjectiveDot objective=o />
                     })}
                     <span class=title_class>{t.title}</span>
-                    {subtasks.map(|(text, tone)| view! {
-                        <span class=tone.chip() title="Subtasks done">{text}</span>
-                    })}
-                    {parent.map(|p| view! {
-                        <span class="min-w-0 truncate text-[11px] text-muted" title="Subtask of">"↳ " {p}</span>
-                    })}
                     {repeats.map(|text| view! {
                         <span class=Tone::Neutral.chip() title=text>"↻"</span>
                     })}

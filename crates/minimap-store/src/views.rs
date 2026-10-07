@@ -1,19 +1,14 @@
 //! Read models for the people and teams screens. Read-only; writes go through the repos.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use minimap_core::subtasks::{
-    expand_blocks, next_step, sequence as subtask_sequence, status_hint as subtask_status_hint,
-    Hierarchy,
-};
 use minimap_types::{
-    Contribution, DecisionItem, Edge, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary,
-    NodeType, NoteItem, ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail,
-    PersonRow, ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, StatusHint, Subtask,
-    SubtaskProgress, TaskDetail, TaskRow, TaskStatus, TeamDetail, TeamRow, WaitingOnItem,
+    Contribution, DecisionItem, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
+    NoteItem, ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
+    ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TaskDetail, TaskRow, TeamDetail,
+    TeamRow, WaitingOnItem,
 };
 use rusqlite::Connection;
-use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
@@ -465,39 +460,9 @@ pub fn task_rows(conn: &Connection) -> Result<Vec<TaskRow>> {
     for e in edges::list_active_of_type(conn, EdgeType::AssignedTo)? {
         assignee.insert(e.from_id, e.to_id);
     }
-    // Parent of each task, and each parent's subtasks (status of every child by id).
-    let all = tasks::list(conn, false)?;
-    let by_id: HashMap<Uuid, (&str, TaskStatus)> = all
-        .iter()
-        .map(|t| (t.id, (t.title.as_str(), t.status)))
-        .collect();
-    let mut parent: HashMap<Uuid, Uuid> = HashMap::new();
-    let mut progress: HashMap<Uuid, SubtaskProgress> = HashMap::new();
-    for e in edges::list_active_of_type(conn, EdgeType::SubtaskOf)? {
-        let (Some(_), Some((_, child_status))) = (by_id.get(&e.to_id), by_id.get(&e.from_id))
-        else {
-            continue;
-        };
-        parent.insert(e.from_id, e.to_id);
-        if *child_status != TaskStatus::Cancelled {
-            let p = progress.entry(e.to_id).or_default();
-            p.total += 1;
-            p.done += u32::from(*child_status == TaskStatus::Done);
-        }
-    }
-    let parents: HashMap<Uuid, NodeSummary> = parent
-        .iter()
-        .filter_map(|(child, p)| {
-            by_id
-                .get(p)
-                .map(|(title, _)| (*child, summary_of(NodeType::Task, *p, (*title).to_owned())))
-        })
-        .collect();
-    Ok(all
+    Ok(tasks::list(conn, false)?
         .into_iter()
         .map(|task| TaskRow {
-            parent: parents.get(&task.id).cloned(),
-            subtasks: progress.get(&task.id).copied().unwrap_or_default(),
             project: task.project_id.and_then(|p| {
                 projects
                     .get(&p)
@@ -524,89 +489,10 @@ pub fn task_detail(conn: &Connection, id: Uuid) -> Result<TaskDetail> {
         .find(|e| e.edge_type == EdgeType::AssignedTo && e.from_id == id)
         .map(|e| nodes::summary(conn, e.to()))
         .transpose()?;
-    let mut parent = None;
-    let mut children: Vec<(OffsetDateTime, Uuid)> = Vec::new();
-    for e in edges::list_for_node(conn, id, false)? {
-        if e.edge_type != EdgeType::SubtaskOf {
-            continue;
-        }
-        if e.from_id == id {
-            parent = Some(nodes::summary(conn, e.to())?);
-        } else {
-            children.push((tasks::get(conn, e.from_id)?.created_at, e.from_id));
-        }
-    }
-    children.sort();
-    let child_ids: Vec<Uuid> = children.iter().map(|c| c.1).collect();
-
-    // The order the work goes in, and what each step waits for (spec 29).
-    let all_tasks = tasks::list(conn, false)?;
-    let all_edges = edges::list_active(conn)?;
-    let hierarchy = Hierarchy::new(&all_tasks, &all_edges);
-    let blocks: Vec<&Edge> = all_edges
-        .iter()
-        .filter(|e| e.edge_type == EdgeType::Blocks)
-        .collect();
-    let pairs: Vec<(Uuid, Uuid)> = blocks.iter().map(|e| (e.from_id, e.to_id)).collect();
-    let order = subtask_sequence(&child_ids, &pairs);
-    let open: HashSet<Uuid> = all_tasks
-        .iter()
-        .filter(|t| !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled))
-        .map(|t| t.id)
-        .collect();
-    let leaf_blocks = expand_blocks(
-        &hierarchy,
-        &pairs.iter().map(|&(a, b)| (a, b, 0.0)).collect::<Vec<_>>(),
-    );
-    let waiting = |child: Uuid| {
-        let leaves = hierarchy.leaves_under(child);
-        leaf_blocks
-            .iter()
-            .any(|(from, to, _)| leaves.contains(to) && open.contains(from))
-    };
-    let next = next_step(&order, |c| open.contains(&c), waiting);
-
-    let mut subtasks = Vec::new();
-    let mut statuses = Vec::new();
-    for child_id in order {
-        let child = tasks::get(conn, child_id)?;
-        statuses.push(child.status);
-        let assignee = edges::list_for_node(conn, child.id, false)?
-            .into_iter()
-            .find(|a| a.edge_type == EdgeType::AssignedTo && a.from_id == child.id)
-            .map(|a| nodes::summary(conn, a.to()))
-            .transpose()?;
-        let mut after = Vec::new();
-        for e in blocks
-            .iter()
-            .filter(|e| e.to_id == child.id && child_ids.contains(&e.from_id))
-        {
-            after.push(LinkedNode {
-                edge_id: e.id,
-                node: nodes::summary(conn, e.from())?,
-            });
-        }
-        subtasks.push(Subtask {
-            node: nodes::summary(conn, NodeRef::new(NodeType::Task, child.id))?,
-            status: child.status,
-            due_date: child.due_date,
-            assignee,
-            after,
-            waiting: open.contains(&child.id) && waiting(child.id),
-            next: next == Some(child.id),
-        });
-    }
-    let status_hint = subtask_status_hint(task.status, &statuses).map(|h| StatusHint {
-        status: h.status,
-        text: h.text.to_owned(),
-    });
     Ok(TaskDetail {
         task,
         project,
         assignee,
-        parent,
-        subtasks,
-        status_hint,
     })
 }
 

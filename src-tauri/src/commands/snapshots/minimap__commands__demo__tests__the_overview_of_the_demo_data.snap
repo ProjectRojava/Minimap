@@ -9,7 +9,7 @@ OBJECTIVE Launch in the EU (P1, AtRisk, target 2027-05-17): Green 68 [EU Region 
   Security and Compliance (weight 0.5): Green 100 [on track: projected 2027-03-30, target 2027-04-19 (14 working days to spare)] | finish 2027-03-30 target 2027-04-19 | 9 open, 0 overdue, 0 blocked, 0 unestimated
 
 OBJECTIVE Cut platform costs by 20% (P2, OnTrack, target 2027-07-01): Green 100 [on track: finishes 2027-03-25, target 2027-07-01; all 1 contributor on track]
-  Platform Cost Reduction (weight 1): Green 100 [on track: projected 2027-03-25, target 2027-05-03 (27 working days to spare)] | finish 2027-03-25 target 2027-05-03 | 10 open, 0 overdue, 0 blocked, 0 unestimated
+  Platform Cost Reduction (weight 1): Green 100 [on track: projected 2027-03-25, target 2027-05-03 (27 working days to spare)] | finish 2027-03-25 target 2027-05-03 | 11 open, 0 overdue, 0 blocked, 0 unestimated
 
 OBJECTIVE Keep internal systems healthy (P3, OnTrack, target -): Amber 60 [review overdue by 5 days (due 2027-02-26, every 30 days); all 2 contributors on track]
 
@@ -18,7 +18,7 @@ RISKS (0 more)
   Task Customer communications plan | Red 25 [overdue (due 2027-02-26)] | score 56 priority 2
 
 OVERLOADED
-  Tomás Alvarez | 160% in week of 2027-03-01 | 6 open tasks
+  Tomás Alvarez | 220% in week of 2027-03-01 | 7 open tasks
 
 STALE WAITING-ONS
   Security review sign-off | Raj Patel | 12 days overdue

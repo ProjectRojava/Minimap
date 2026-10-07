@@ -209,8 +209,7 @@ fn main() {
             commands::attachments::remove_attachment,
             commands::attachments::open_attachment,
             commands::links::open_link,
-            commands::tasks::set_parent,
-            commands::tasks::create_subtask,
+            commands::tasks::create_linked_task,
         ])
         .build(tauri::generate_context!());
     let app = match result {

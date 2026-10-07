@@ -116,8 +116,16 @@ pub fn use_global_shortcuts() {
                 navigate("/help", Default::default());
             }
             "Escape" if selection.0.get_untracked().is_some() => selection.close(),
-            "n" => list.request_new(),
-            k if is_row_key(k) && list.current().is_some() => list.send_row_key(k),
+            // These shortcuts focus a box (the new-item box, a row's due date or assignee), and
+            // the key would then be typed into it: swallow it.
+            "n" => {
+                e.prevent_default();
+                list.request_new();
+            }
+            k if is_row_key(k) && list.current().is_some() => {
+                e.prevent_default();
+                list.send_row_key(k);
+            }
             "j" => list.step(1),
             "k" => list.step(-1),
             // Let Enter activate a focused link or button instead.

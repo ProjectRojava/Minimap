@@ -106,13 +106,16 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
 
         <Attachments node=node />
 
-        <Section title="Links" tone=Tone::Neutral>
-            {move || match links.get() {
-                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
-                Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
-                Some(Ok(l)) => view! { <LinksEditor node=node links=l /> }.into_any(),
-            }}
-        </Section>
+        // A task's links are in its own panel, together with the buttons to link tasks.
+        {(node.node_type != NodeType::Task).then(|| view! {
+            <Section title="Links" tone=Tone::Neutral>
+                {move || match links.get() {
+                    None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+                    Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
+                    Some(Ok(l)) => view! { <LinksEditor node=node links=l /> }.into_any(),
+                }}
+            </Section>
+        })}
 
         <Section title="Activity" tone=Tone::Neutral>
             {move || match history.get() {
@@ -164,9 +167,9 @@ pub fn kind_edited_elsewhere(node_type: NodeType, edge_type: EdgeType, outgoing:
         }
         NodeType::Team => !outgoing && edge_type == EdgeType::MemberOf,
         NodeType::Objective => !outgoing && edge_type == EdgeType::ContributesTo,
-        // The assignee and the parent task and subtasks are edited in the task's own panel.
+        // The assignee and the blocks links are edited in the task's own panel.
         NodeType::Task => {
-            (outgoing && edge_type == EdgeType::AssignedTo) || edge_type == EdgeType::SubtaskOf
+            (outgoing && edge_type == EdgeType::AssignedTo) || edge_type == EdgeType::Blocks
         }
         // A note's mentions come from its text.
         NodeType::Note => outgoing && edge_type == EdgeType::Mentions,
@@ -202,8 +205,8 @@ pub fn link_heading(edge_type: EdgeType, outgoing: bool) -> &'static str {
         (About, false) => "Waiting-ons",
         (Supersedes, true) => "Supersedes",
         (Supersedes, false) => "Superseded by",
-        (SubtaskOf, true) => "Subtask of",
-        (SubtaskOf, false) => "Subtasks",
+        // Removed (ADR-0015); archived on upgrade, so it is not normally seen.
+        (SubtaskOf, _) => "Legacy link",
     }
 }
 
@@ -319,8 +322,6 @@ mod tests {
         assert_eq!(link_heading(EdgeType::Affects, false), "Decisions");
         assert_eq!(link_heading(EdgeType::Supersedes, true), "Supersedes");
         assert_eq!(link_heading(EdgeType::Supersedes, false), "Superseded by");
-        assert_eq!(link_heading(EdgeType::SubtaskOf, true), "Subtask of");
-        assert_eq!(link_heading(EdgeType::SubtaskOf, false), "Subtasks");
         for &t in EdgeType::ALL {
             assert_ne!(link_heading(t, true), "");
             assert_ne!(link_heading(t, false), "");
@@ -412,9 +413,8 @@ mod tests {
         assert!(!hidden(NodeType::Task, EdgeType::DependsOn, true));
         // A task's assignee is edited in its panel; blocks stay in the list.
         assert!(hidden(NodeType::Task, EdgeType::AssignedTo, true));
-        assert!(hidden(NodeType::Task, EdgeType::SubtaskOf, true));
-        assert!(hidden(NodeType::Task, EdgeType::SubtaskOf, false));
-        assert!(!hidden(NodeType::Task, EdgeType::Blocks, true));
+        assert!(hidden(NodeType::Task, EdgeType::Blocks, true));
+        assert!(hidden(NodeType::Task, EdgeType::Blocks, false));
     }
 
     #[test]

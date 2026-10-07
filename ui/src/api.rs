@@ -6,18 +6,18 @@ use minimap_types::{
     CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
     CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DemoRemoval, DemoStatus,
     DemoSummary, DependencyGraph, Edge, EdgeLink, EncryptionResult, ExportAllResult, ExportFormat,
-    ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption, NewEdge, NodeRef,
-    NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail,
-    ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow,
-    PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter,
-    ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint,
-    RecoverResult, Recurrence, ReportKind, ReportParams, RestorePreview, RestoreResult, Schedule,
-    ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption,
-    Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team,
-    TeamDetail, TeamRow, ThisWeek, UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective,
-    UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam,
-    UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview,
-    ATTACHMENT_EXTENSIONS,
+    ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption, LinkRelation, NewEdge,
+    NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
+    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
+    PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
+    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult,
+    RecoverCheckpoint, RecoverResult, Recurrence, ReportKind, ReportParams, RestorePreview,
+    RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret,
+    SecurityStatus, SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition,
+    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UndoOutcome, UpdateDecision,
+    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings,
+    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
+    WeeklyReview, ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -368,26 +368,27 @@ pub async fn set_assignee(task_id: Uuid, person_id: Option<Uuid>) -> Result<(), 
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ParentArg {
+struct LinkedTaskArg {
     task_id: Uuid,
-    parent_id: Option<Uuid>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SubtaskArg {
-    parent_id: Uuid,
+    relation: LinkRelation,
     title: String,
 }
 
-/// Makes `parent_id` the parent of the task (it becomes a subtask), or frees it with `None`.
-pub async fn set_parent(task_id: Uuid, parent_id: Option<Uuid>) -> Result<(), AppError> {
-    invoke("set_parent", &ParentArg { task_id, parent_id }).await
-}
-
-/// Creates a task that is a subtask of `parent_id`.
-pub async fn create_subtask(parent_id: Uuid, title: String) -> Result<Task, AppError> {
-    invoke("create_subtask", &SubtaskArg { parent_id, title }).await
+/// Creates a task joined to `task_id` (it blocks it, follows it, or is related), in one step.
+pub async fn create_linked_task(
+    task_id: Uuid,
+    relation: LinkRelation,
+    title: String,
+) -> Result<Task, AppError> {
+    invoke(
+        "create_linked_task",
+        &LinkedTaskArg {
+            task_id,
+            relation,
+            title,
+        },
+    )
+    .await
 }
 
 pub async fn archive_task(id: Uuid) -> Result<(), AppError> {
