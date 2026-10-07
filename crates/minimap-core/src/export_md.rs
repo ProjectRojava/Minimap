@@ -139,6 +139,14 @@ impl<'a> Lookup<'a> {
             .and_then(|(_, to, _)| self.people.get(to).copied())
     }
 
+    /// The task this one is a subtask of.
+    fn parent(&self, task: Uuid) -> Option<&'a Task> {
+        self.edges(EdgeType::SubtaskOf)
+            .iter()
+            .find(|(from, ..)| *from == task)
+            .and_then(|(_, to, _)| self.tasks.get(to).copied())
+    }
+
     fn blockers(&self, task: Uuid) -> Vec<&'a Task> {
         let mut list: Vec<&Task> = self
             .edges(EdgeType::Blocks)
@@ -199,6 +207,9 @@ fn task_line(t: &Task, l: &Lookup) -> String {
     }
     if let Some(rule) = &t.recurrence {
         bits.push(format!("repeats {}", rule.describe()));
+    }
+    if let Some(parent) = l.parent(t.id) {
+        bits.push(format!("subtask of {}", escape(&parent.title)));
     }
     for link in &t.links {
         bits.push(format!(
@@ -759,6 +770,30 @@ mod tests {
         );
         assert!(file(&files, "notes/2027-03-03-1-1-with-priya.md")
             .contains("*1:1 · 2027-03-03 · repeats monthly on the 1st*"));
+    }
+
+    #[test]
+    fn a_subtask_says_what_it_belongs_to() {
+        use minimap_types::{Edge, NodeType};
+        let mut d = data();
+        let (child, parent) = (d.tasks[0].clone(), d.tasks[1].clone());
+        d.edges.push(Edge {
+            id: Uuid::from_u128(900),
+            edge_type: EdgeType::SubtaskOf,
+            from_type: NodeType::Task,
+            from_id: child.id,
+            to_type: NodeType::Task,
+            to_id: parent.id,
+            attrs: serde_json::json!({}),
+            created_at: child.created_at,
+            archived_at: None,
+        });
+        let files = markdown(&d, &HashMap::new());
+        let all: String = files.iter().map(|f| f.text.as_str()).collect();
+        assert!(
+            all.contains(&format!("subtask of {}", escape(&parent.title))),
+            "{all}"
+        );
     }
 
     #[test]

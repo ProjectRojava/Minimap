@@ -168,6 +168,74 @@ pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> 
     Ok(())
 }
 
+fn subtask_of(child: Uuid, parent: Uuid) -> NewEdge {
+    NewEdge {
+        edge_type: EdgeType::SubtaskOf,
+        from: NodeRef::new(NodeType::Task, child),
+        to: NodeRef::new(NodeType::Task, parent),
+        attrs: serde_json::json!({}),
+    }
+}
+
+/// Makes `parent` the only parent of `task` (it becomes its subtask); `None` frees it. One
+/// transaction, so undo takes it back in one step. The caller has checked for loops.
+pub fn set_parent(conn: &mut Connection, task: Uuid, parent: Option<Uuid>) -> Result<()> {
+    let tx = conn.transaction()?;
+    get(&tx, task)?;
+    if let Some(p) = parent {
+        get(&tx, p)?;
+    }
+    let current: Vec<_> = edges::list_for_node(&tx, task, false)?
+        .into_iter()
+        .filter(|e| e.edge_type == EdgeType::SubtaskOf && e.from_id == task)
+        .collect();
+    if let Some(p) = parent {
+        if current.len() == 1 && current[0].to_id == p {
+            return Ok(());
+        }
+    }
+    let at = now();
+    for edge in &current {
+        edges::archive_in_tx(&tx, edge, at)?;
+    }
+    if let Some(p) = parent {
+        edges::add_in_tx(&tx, subtask_of(task, p))?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// A new task that is a subtask of `parent`: in the parent's project, assigned to the user,
+/// like any new task. The task and its link are one transaction (and one undo step).
+pub fn create_subtask(conn: &mut Connection, parent: Uuid, title: String) -> Result<Task> {
+    let tx = conn.transaction()?;
+    let parent_task = get(&tx, parent)?;
+    if parent_task.archived_at.is_some() {
+        return Err(StoreError::Invalid(
+            "an archived task can't get subtasks".into(),
+        ));
+    }
+    let child = create_in_tx(
+        &tx,
+        CreateTask {
+            links: Vec::new(),
+            title,
+            assignee: AssigneeChoice::Me,
+            description: String::new(),
+            project_id: parent_task.project_id,
+            status: None,
+            estimate_days: None,
+            start_date: None,
+            due_date: None,
+            priority: Some(parent_task.priority),
+            recurrence: None,
+        },
+    )?;
+    edges::add_in_tx(&tx, subtask_of(child.id, parent))?;
+    tx.commit()?;
+    Ok(child)
+}
+
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTask) -> Result<Task> {
     let tx = conn.transaction()?;
     let task = update_in_tx(&tx, id, patch)?;

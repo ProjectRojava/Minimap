@@ -35,6 +35,9 @@ pub fn SelectField(
     /// reads at a glance and follows the choice as it changes. Takes the stored value.
     #[prop(optional)]
     tint: Option<fn(&str) -> Tone>,
+    /// An "add something…" picker: drawn as a soft accent button, not a plain input.
+    #[prop(optional)]
+    action: bool,
 ) -> impl IntoView {
     let options = StoredValue::new(options);
     let selected = RwSignal::new(current);
@@ -169,11 +172,12 @@ pub fn SelectField(
     let button_class = move || -> String {
         // Colours: the value's tone when there is one, else the plain look of a text input.
         let colours = match tint {
+            _ if action => "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20",
             Some(of) => of(&selected.get()).field(),
             None => "border-line bg-canvas",
         };
         if compact {
-            let text = if tint.is_some() { "" } else { text };
+            let text = if tint.is_some() || action { "" } else { text };
             format!(
                 "flex max-w-full items-center justify-between gap-1 rounded-sm border px-1.5 py-0.5 \
                  text-left text-[12px] {colours} {text} hover:border-line-strong focus:outline-none focus:border-accent"

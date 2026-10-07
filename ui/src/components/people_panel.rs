@@ -214,7 +214,7 @@ fn Organization(
             <SelectField label="Manager" options=manager_options current=manager_now on_change=set_manager />
             <p class="mt-3 mb-1 text-[11px] text-muted">"Teams"</p>
             <ul class="mb-2 space-y-1">{rows}</ul>
-            <SelectField compact=true options=add_options current=String::new() on_change=add_team />
+            <SelectField compact=true action=true options=add_options current=String::new() on_change=add_team />
             {(!detail.reports.is_empty()).then(|| {
                 let reports = detail.reports.clone();
                 view! {
@@ -368,13 +368,13 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
 
     if detail.person.is_self {
         return view! {
-            <Section title="Archive"><p class="text-muted">"This is you, so it can't be archived."</p></Section>
+            <Section title="Archive" tone=crate::components::page::Tone::Danger><p class="text-muted">"This is you, so it can't be archived."</p></Section>
         }
         .into_any();
     }
 
     view! {
-        <Section title="Archive">
+        <Section title="Archive" tone=crate::components::page::Tone::Danger>
             {move || match confirming.get() {
                 None => view! { <button class=BUTTON on:click=start>"Archive person…"</button> }.into_any(),
                 Some(tasks) => view! {

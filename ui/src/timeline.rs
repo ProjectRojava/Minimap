@@ -54,6 +54,8 @@ pub struct Bar {
     /// Past its latest finish (negative slack).
     pub late: bool,
     pub unestimated: bool,
+    /// A group of subtasks: drawn as a thin bracket over the work in it.
+    pub summary: bool,
     /// Where the slack ("float") line ends, for tasks that can slip without moving the finish.
     pub slack_end: Option<f64>,
 }
@@ -126,6 +128,7 @@ pub fn layout(
                 kind,
                 late: t.late_by_days.is_some(),
                 unestimated: t.unestimated,
+                summary: t.summary,
                 slack_end: (!t.done && !t.critical && t.slack_days > EPS)
                     .then(|| x_of(t.ef + t.slack_days)),
             }
@@ -166,7 +169,8 @@ pub fn layout(
 
     Layout {
         width: schedule.days.len() as f64 * ppd,
-        height: HEADER_H + rows.len() as f64 * ROW_H,
+        // At least one row tall, so a schedule with nothing visible is still a drawable strip.
+        height: HEADER_H + rows.len().max(1) as f64 * ROW_H,
         bars,
         ticks,
         today_x: x_of(0.0),
@@ -216,6 +220,9 @@ pub fn describe(t: &ScheduledTask) -> String {
     }
     if t.unestimated {
         s.push_str("\nNo estimate: counted as 1 day");
+    }
+    if t.summary {
+        s.push_str("\nGroup of subtasks: spans the work in it");
     }
     s
 }
@@ -302,6 +309,7 @@ mod tests {
             slack_days: slack,
             critical,
             late_by_days: (slack < 0.0).then_some((-slack).ceil() as u32),
+            summary: false,
         }
     }
 

@@ -270,7 +270,7 @@ fn Contributions(detail: ObjectiveDetail, candidates: Vec<NodeSummary>) -> impl 
             } else {
                 view! { <ul class="mb-2 space-y-1">{rows}</ul> }.into_any()
             }}
-            <SelectField compact=true options=add_options current=String::new() on_change=add />
+            <SelectField compact=true action=true options=add_options current=String::new() on_change=add />
             {nothing_to_link.then(|| view! {
                 <p class="mt-2 text-[11px] text-muted">"Projects and tasks will be listed here once you create them."</p>
             })}
@@ -298,7 +298,7 @@ fn ArchiveObjective(detail: ObjectiveDetail) -> impl IntoView {
     };
 
     view! {
-        <Section title="Archive">
+        <Section title="Archive" tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

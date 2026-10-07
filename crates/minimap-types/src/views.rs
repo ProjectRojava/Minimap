@@ -207,11 +207,50 @@ pub struct TaskFilter {
     pub include_closed: bool,
 }
 
+/// How many of a task's subtasks are finished (cancelled ones don't count).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct SubtaskProgress {
+    pub done: u32,
+    pub total: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TaskRow {
     pub task: Task,
     pub project: Option<NodeSummary>,
     pub assignee: Option<NodeSummary>,
+    /// The task this one is a subtask of (spec 29).
+    #[serde(default)]
+    pub parent: Option<NodeSummary>,
+    #[serde(default)]
+    pub subtasks: SubtaskProgress,
+}
+
+/// One subtask in its parent's panel.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Subtask {
+    pub node: NodeSummary,
+    pub status: crate::TaskStatus,
+    pub due_date: Option<time::Date>,
+    pub assignee: Option<NodeSummary>,
+    /// The subtasks of the same parent this one comes after (the `blocks` links between them),
+    /// each with the link, so it can be removed.
+    #[serde(default)]
+    pub after: Vec<LinkedNode>,
+    /// Held up by something unfinished: a subtask before it, or anything that blocks this one
+    /// or the whole group.
+    #[serde(default)]
+    pub waiting: bool,
+    /// The next step: the first open subtask in order that is not waiting.
+    #[serde(default)]
+    pub next: bool,
+}
+
+/// A suggested status for a group, from its subtasks (never applied by itself).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatusHint {
+    pub status: crate::TaskStatus,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -219,6 +258,15 @@ pub struct TaskDetail {
     pub task: Task,
     pub project: Option<NodeSummary>,
     pub assignee: Option<NodeSummary>,
+    /// The task this one is a subtask of (spec 29).
+    #[serde(default)]
+    pub parent: Option<NodeSummary>,
+    /// Its subtasks, in the order the work goes (oldest first where there is no order).
+    #[serde(default)]
+    pub subtasks: Vec<Subtask>,
+    /// What the group's status could be, from its subtasks.
+    #[serde(default)]
+    pub status_hint: Option<StatusHint>,
 }
 
 pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;

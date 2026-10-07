@@ -14,7 +14,7 @@
 //! Boxes never overlap: boxes in a column keep at least `node_gap` between them and columns
 //! occupy disjoint horizontal ranges.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 /// Height of the lane reserved for an edge passing through a column, and the gap kept around it.
 const LANE_H: f64 = 2.0;
@@ -69,10 +69,26 @@ pub enum LayoutError {
     Cycle,
 }
 
+/// Extra space (above and below) around boxes that sit inside a cluster, so a frame can be drawn
+/// around them without touching the next box.
+pub const CLUSTER_GAP: f64 = 30.0;
+
 /// Lays out `sizes.len()` boxes (width, height) joined by directed `edges` (indices).
 pub fn layout(
     sizes: &[(f64, f64)],
     edges: &[(usize, usize)],
+    params: &Params,
+) -> Result<Layout, LayoutError> {
+    layout_clustered(sizes, edges, &[], params)
+}
+
+/// [`layout`] with clusters: `clusters[i]` is the cluster box `i` belongs to (or `None`; a slice
+/// shorter than `sizes` means none). Boxes of one cluster are kept together in each column and
+/// given room around them for a frame.
+pub fn layout_clustered(
+    sizes: &[(f64, f64)],
+    edges: &[(usize, usize)],
+    clusters: &[Option<usize>],
     params: &Params,
 ) -> Result<Layout, LayoutError> {
     let n = sizes.len();
@@ -224,12 +240,41 @@ pub fn layout(
         sweep += 1;
     }
     columns = best;
+    // Keep each cluster's boxes together (at the place of its first box in the column).
+    let cluster_of = |v: usize| -> Option<usize> { clusters.get(v).copied().flatten() };
+    for col in &mut columns {
+        let mut out = Vec::with_capacity(col.len());
+        let mut placed: HashSet<usize> = HashSet::new();
+        for &v in col.iter() {
+            match cluster_of(v) {
+                Some(c) => {
+                    if placed.insert(c) {
+                        out.extend(col.iter().copied().filter(|&u| cluster_of(u) == Some(c)));
+                    }
+                }
+                None => out.push(v),
+            }
+        }
+        *col = out;
+    }
     set_pos(&columns, &mut pos);
 
     // ---- 4. coordinates
     let gap_between = |a: usize, b: usize| -> f64 {
+        let framed = |v: usize| !is_lane[v] && cluster_of(v).is_some();
         if is_lane[a] || is_lane[b] {
+            // A lane passing a framed box keeps clear of the frame.
+            let other = if is_lane[a] { b } else { a };
             LANE_GAP
+                + if framed(other) {
+                    CLUSTER_GAP / 3.0
+                } else {
+                    0.0
+                }
+        } else if cluster_of(a) == cluster_of(b) {
+            params.node_gap
+        } else if framed(a) || framed(b) {
+            params.node_gap + CLUSTER_GAP
         } else {
             params.node_gap
         }
@@ -423,6 +468,40 @@ mod tests {
     }
 
     // ------------------------------------------------------------- layers
+
+    #[test]
+    fn boxes_of_one_cluster_stay_together_with_room_for_a_frame() {
+        // 0 and 2 are one cluster, 1 is not; all independent, so one column.
+        let sizes = vec![(100.0, 20.0); 3];
+        let l =
+            layout_clustered(&sizes, &[], &[Some(0), None, Some(0)], &Params::default()).unwrap();
+        let mut ys: Vec<(f64, usize)> = l.nodes.iter().enumerate().map(|(i, p)| (p.y, i)).collect();
+        ys.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let order: Vec<usize> = ys.iter().map(|y| y.1).collect();
+        // The cluster's two boxes are next to each other, whichever side the other box is on.
+        let at = |i: usize| order.iter().position(|&x| x == i).unwrap();
+        assert_eq!(at(0).abs_diff(at(2)), 1, "{order:?}");
+        // Room around the frame: more than the plain gap to the box that is not in the cluster.
+        let gap = |a: usize, b: usize| (l.nodes[b].y - (l.nodes[a].y + l.nodes[a].h)).abs();
+        let plain = Params::default().node_gap;
+        assert!(gap(0, 2).min(gap(2, 0)) <= plain + 1e-9 || order[0] != 0);
+        let outside = if at(1) == 0 {
+            gap(1, order[1])
+        } else {
+            gap(order[at(1) - 1], 1)
+        };
+        assert!(outside >= plain + CLUSTER_GAP - 1e-9, "{outside}");
+    }
+
+    #[test]
+    fn no_clusters_is_the_plain_layout() {
+        let sizes = vec![(100.0, 20.0); 4];
+        let edges = [(0, 1), (1, 2), (0, 3)];
+        assert_eq!(
+            layout(&sizes, &edges, &Params::default()).unwrap(),
+            layout_clustered(&sizes, &edges, &[None; 4], &Params::default()).unwrap()
+        );
+    }
 
     #[test]
     fn a_chain_runs_left_to_right() {

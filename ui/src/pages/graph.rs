@@ -5,7 +5,7 @@
 
 use leptos::{ev, prelude::*};
 use minimap_types::{
-    DependencyGraph, GraphEdge, GraphFilter, GraphLevel, GraphNode, NodeType, Uuid,
+    DependencyGraph, GraphEdge, GraphFilter, GraphLevel, GraphNode, NodeRef, NodeType, Uuid,
 };
 
 use crate::{
@@ -328,6 +328,7 @@ pub fn Graph() -> impl IntoView {
                     <span class=Tone::Danger.chip()>"late"</span>
                     <span class=Tone::Warning.chip()>"blocked"</span>
                     <span class=Tone::Neutral.chip()>"dim = context"</span>
+                    <span class=Tone::Neutral.chip()>"dashed frame = subtasks of a group"</span>
                     <span>"drag to pan · scroll to zoom · click to open"</span>
                 </div>
             </div>
@@ -367,6 +368,29 @@ fn Drawing(
             }
         })
         .collect_view();
+    // A frame around the subtasks of a group; click it to open the group task.
+    let groups = graph
+        .groups
+        .iter()
+        .map(|g| {
+            let target = NodeRef::new(NodeType::Task, g.id);
+            let label = g.first.then(|| {
+                view! {
+                    <text class="group-label" x=g.x + 8.0 y=g.y + 13.0>
+                        {fit_text(&g.label, g.w - 16.0, 6.0)}
+                    </text>
+                }
+            });
+            view! {
+                <g class="group" on:mousedown=|ev| ev.stop_propagation()
+                   on:click=move |_| selection.open(target)>
+                    <title>{format!("Group: {} (its subtasks are inside)", g.label)}</title>
+                    <rect class="frame" x=g.x y=g.y width=g.w height=g.h rx="6" />
+                    {label}
+                </g>
+            }
+        })
+        .collect_view();
     let nodes = graph
         .nodes
         .iter()
@@ -394,7 +418,7 @@ fn Drawing(
                     <path class="arrow critical" d="M0 0L10 5L0 10z" />
                 </marker>
             </defs>
-            <g transform=transform>{edges}{nodes}</g>
+            <g transform=transform>{groups}{edges}{nodes}</g>
         </svg>
     }
 }
@@ -431,6 +455,7 @@ mod tests {
         level: GraphLevel,
     ) -> DependencyGraph {
         DependencyGraph {
+            groups: Vec::new(),
             level,
             nodes,
             edges: vec![],

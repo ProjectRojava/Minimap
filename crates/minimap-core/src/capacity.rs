@@ -17,7 +17,7 @@ use minimap_types::{
 };
 use time::Duration;
 
-use crate::{schedule, this_week::monday_of};
+use crate::{schedule, subtasks::Hierarchy, this_week::monday_of};
 
 const EPS: f64 = 1e-9;
 /// Weeks shown when the caller doesn't say.
@@ -104,14 +104,19 @@ pub fn compute(input: &CapacityInput) -> Capacity {
         .map(|p| (p.id, p.title.as_str()))
         .collect();
 
-    // Each person's open assigned tasks with their allocation.
+    // Each person's open assigned tasks with their allocation. A task with subtasks only groups
+    // work (spec 29): its subtasks carry the load, so it is not counted a second time.
+    let hierarchy = Hierarchy::new(input.tasks, input.edges);
     let mut assigned: HashMap<Uuid, Vec<(&Task, f64)>> = HashMap::new();
     for e in input.edges.iter().filter(|e| {
         e.edge_type == EdgeType::AssignedTo
             && e.archived_at.is_none()
             && e.from_type == NodeType::Task
     }) {
-        if let Some(t) = task_by_id.get(&e.from_id).filter(|t| is_open(t)) {
+        if let Some(t) = task_by_id
+            .get(&e.from_id)
+            .filter(|t| is_open(t) && !hierarchy.is_summary(t.id))
+        {
             assigned
                 .entry(e.to_id)
                 .or_default()
@@ -353,6 +358,36 @@ mod tests {
 
     fn pcts(p: &PersonCapacity) -> Vec<f64> {
         p.weeks.iter().map(|w| w.load_pct).collect()
+    }
+
+    #[test]
+    fn a_group_of_subtasks_is_not_counted_on_top_of_its_parts() {
+        // Priya owns the group (10 days) and one part (2 days); Raj owns the other part (3 days).
+        let sub = |child: u128, parent: u128| Edge {
+            edge_type: EdgeType::SubtaskOf,
+            ..blocks(child, parent)
+        };
+        let f = Fixture {
+            tasks: vec![
+                task(1, "Group", Some(10.0)),
+                task(2, "Mine", Some(2.0)),
+                task(3, "His", Some(3.0)),
+            ],
+            people: vec![person(30, "Priya", 40.0), person(31, "Raj", 40.0)],
+            edges: vec![
+                sub(2, 1),
+                sub(3, 1),
+                assigned(1, 30, None),
+                assigned(2, 30, None),
+                assigned(3, 31, None),
+            ],
+            ..Default::default()
+        };
+        let c = f.capacity(MON, Some(2));
+        let p = of(&c, "Priya");
+        assert_eq!(p.weeks[0].load_days, 2.0);
+        assert_eq!(p.active_tasks, 1);
+        assert_eq!(of(&c, "Raj").weeks[0].load_days, 3.0);
     }
 
     #[test]

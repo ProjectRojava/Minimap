@@ -48,6 +48,9 @@ pub struct ScheduledTask {
     pub critical: bool,
     /// Working days late, when slack is negative.
     pub late_by_days: Option<u32>,
+    /// A task with subtasks (spec 29): not scheduled itself, its dates span its leaf tasks.
+    #[serde(default)]
+    pub summary: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

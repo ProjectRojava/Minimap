@@ -172,14 +172,17 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .gantt .bar.critical { fill: var(--accent); }
 .gantt .bar.done { fill: var(--faint); }
 .gantt .bar.late { fill: var(--danger); }
+.gantt .bar.summary { fill: var(--fg); opacity: 0.7; }
+.gantt .bar.summary.critical { fill: var(--accent); opacity: 1; }
+.gantt .bar.summary.late { fill: var(--danger); opacity: 1; }
 .gantt .bar.unestimated { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 2; }
 .gantt .bar.critical.unestimated { stroke: var(--accent); }
 .gantt .bar:hover { opacity: 0.8; }
 .gantt .slack { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 2; }
 .gantt .today { stroke: var(--accent); stroke-width: 1; }
 .gantt .target { stroke: var(--danger); stroke-width: 1; stroke-dasharray: 4 3; }
-.gantt .today-label { fill: var(--accent); }
-.gantt .target-label { fill: var(--danger); }
+.gantt .today-marker { fill: var(--accent); }
+.gantt .target-marker { fill: var(--danger); }
 
 /* Dependency graph (pages/graph.rs). Theme tokens only. */
 .dep { display: block; cursor: grab; user-select: none; }
@@ -188,6 +191,10 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .dep .box { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
 .dep .label { fill: var(--fg); font-size: 12px; font-weight: 500; }
 .dep .sub { fill: var(--muted); font-size: 10px; }
+.dep .group { cursor: pointer; }
+.dep .frame { fill: var(--accent); fill-opacity: 0.05; stroke: var(--accent); stroke-opacity: 0.45; stroke-width: 1; stroke-dasharray: 5 3; }
+.dep .group:hover .frame { fill-opacity: 0.1; }
+.dep .group-label { fill: var(--accent); font-size: 10px; font-weight: 600; }
 .dep .node { cursor: pointer; }
 .dep .node:hover .box { fill: var(--hover); }
 .dep .node.critical .box { stroke: var(--accent); stroke-width: 1.6; }
