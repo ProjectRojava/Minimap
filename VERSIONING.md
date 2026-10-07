@@ -57,26 +57,25 @@ Show tagged commits:
 git log --oneline --decorate | head -20
 ```
 
-### 4. Optional: Update CHANGELOG.md
+### 4. Update CHANGELOG.md
 
-Create one if you want a user-facing release summary (include link in README.md).
+Before tagging, move the `[Unreleased]` section to a new version header with today's date:
 
-```markdown
-# Changelog
+```bash
+# CHANGELOG.md: move entries and create new [Unreleased]
+# ## [0.2.0] - 2026-10-07
+# ### Added
+# - Spec 24: Remove demo data (Settings → Data & backup)
+# - Objective colours: each objective gets a colour (ADR-0012)
+# - Tasks board: drag-and-drop Kanban
+# ### Fixed
+# - Contrast of objective colours on all themes
 
-## [0.2.0] - 2026-10-07
-### Added
-- Spec 24: Remove demo data (Settings → Data & backup)
-- Objective colours: each objective gets a colour for visual grouping (ADR-0012)
-- Tasks board: drag-and-drop Kanban board with list fallback
-
-### Fixed
-- Contrast of objective colours on all 17 themes (raised DARK_SL, LIGHT_SL)
-
-## [0.1.0] - 2026-09-15
-### Added
-- Initial release (M0–M4: scaffolding, core data, graph engine, people & exec layer, review & security)
+git add CHANGELOG.md
+git commit -m "Changelog for 0.2.0"
 ```
+
+See [CHANGELOG.md](CHANGELOG.md) for the full guide on what goes in each section, style, and how to maintain it during development.
 
 ## Implementation notes
 
