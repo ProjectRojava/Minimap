@@ -23,7 +23,7 @@ fn count(conn: &Connection, table: &str) -> u32 {
 fn seeding_an_empty_database_produces_the_documented_counts() {
     let mut conn = open_in_memory().unwrap();
     let summary = demo::seed(&mut conn, TODAY).unwrap();
-    assert_eq!(summary.objectives, 2);
+    assert_eq!(summary.objectives, 3);
     assert_eq!(summary.projects, 3);
     assert_eq!(summary.tasks, 40);
     assert_eq!(summary.people, 8, "me and seven others");
@@ -31,7 +31,7 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
     assert_eq!(summary.notes, 3);
     assert_eq!(summary.decisions, 5);
     assert_eq!(summary.waiting_ons, 3);
-    assert_eq!(summary.links, 101);
+    assert_eq!(summary.links, 103);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 40);
     assert_eq!(count(&conn, "people"), 8);
@@ -303,6 +303,26 @@ fn the_demo_data_is_searchable() {
     let conn = seeded(TODAY);
     let hits = search::run(&conn, "\"gateway\"*", &[], false, 20).unwrap();
     assert!(hits.len() >= 4, "{}", hits.len());
+}
+
+#[test]
+fn one_objective_is_ongoing_with_an_overdue_review_and_served_by_repeating_tasks() {
+    let conn = seeded(TODAY);
+    let ongoing: Vec<Objective> = objectives::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .filter(|o| o.ongoing)
+        .collect();
+    assert_eq!(ongoing.len(), 1);
+    let o = &ongoing[0];
+    assert!(o.target_date.is_none() && o.review_every_days == Some(30));
+    assert_eq!(o.review_overdue_days(TODAY), Some(5));
+    let served = edges::list_active_of_type(&conn, EdgeType::ContributesTo)
+        .unwrap()
+        .into_iter()
+        .filter(|e| e.to_id == o.id)
+        .count();
+    assert_eq!(served, 2);
 }
 
 #[test]

@@ -8,7 +8,7 @@ Everything you record is an **item**. There are eight kinds:
 
 | Item | What it is |
 |---|---|
-| **Objective** | An outcome you want, with a target date and a priority |
+| **Objective** | An outcome you want, with a priority and either a target date or, for an *ongoing* one that never ends, a review rhythm |
 | **Project** | Work with an owner, a start and target date, a status and tasks |
 | **Task** | One piece of work: status, estimate, dates, assignee, priority |
 | **Person** | Someone you work with, with a weekly capacity in hours (one person is *you*) |

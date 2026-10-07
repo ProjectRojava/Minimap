@@ -125,6 +125,8 @@ mod tests {
         let o = minimap_store::objectives::create(
             &mut conn,
             CreateObjective {
+                ongoing: false,
+                review_every_days: None,
                 title: "Go EU".into(),
                 description: String::new(),
                 target_date: None,
@@ -244,6 +246,8 @@ mod tests {
                 minimap_store::objectives::create(
                     &mut conn,
                     CreateObjective {
+                        ongoing: false,
+                        review_every_days: None,
                         title: format!("Objective {i}"),
                         description: String::new(),
                         target_date: Some(today + Duration::days(60 + i * 10)),

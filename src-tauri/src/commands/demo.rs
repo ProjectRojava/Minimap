@@ -31,7 +31,7 @@ fn refusal(debug_build: bool, drive_connected: bool) -> Option<AppError> {
     None
 }
 
-/// Adds the demo dataset (2 objectives, 3 projects, 40 tasks, 8 people, ...) to an empty
+/// Adds the demo dataset (3 objectives, 3 projects, 40 tasks, 8 people, ...) to an empty
 /// database, dated around today. Debug builds only.
 #[tauri::command]
 pub async fn seed_demo_data(state: State<'_, AppState>) -> Result<DemoSummary, AppError> {

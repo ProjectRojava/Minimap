@@ -284,6 +284,8 @@ fn create_new(tx: &Transaction, node_type: NodeType, name: String) -> Result<Nod
             objectives::create_in_tx(
                 tx,
                 CreateObjective {
+                    ongoing: false,
+                    review_every_days: None,
                     title: name,
                     description: String::new(),
                     target_date: None,

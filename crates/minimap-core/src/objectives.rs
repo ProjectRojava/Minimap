@@ -2,7 +2,10 @@
 
 use std::cmp::Ordering;
 
-use minimap_types::{ObjectiveGroup, ObjectiveGrouping, ObjectiveRow};
+use minimap_types::{
+    NodeRef, NodeSummary, NodeType, Objective, ObjectiveGroup, ObjectiveGrouping, ObjectiveRow,
+    ReviewDue,
+};
 use time::Date;
 
 /// Calendar quarter (1-4) of a date.
@@ -30,10 +33,52 @@ fn compare(a: &ObjectiveRow, b: &ObjectiveRow) -> Ordering {
         .then_with(|| a.id.cmp(&b.id))
 }
 
+/// The ongoing objectives (spec 30) whose review is overdue, or falls on or before `until`,
+/// most overdue first. Goals and ongoing objectives with no review rhythm are never listed.
+pub fn reviews_due(objectives: &[Objective], today: Date, until: Date) -> Vec<ReviewDue> {
+    let mut out: Vec<ReviewDue> = objectives
+        .iter()
+        .filter(|o| o.archived_at.is_none())
+        .filter_map(|o| {
+            let due = o.review_due()?;
+            (due <= until).then(|| ReviewDue {
+                objective: NodeSummary {
+                    node: NodeRef::new(NodeType::Objective, o.id),
+                    label: o.title.clone(),
+                    archived: false,
+                },
+                due,
+                overdue_days: o.review_overdue_days(today),
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        a.due
+            .cmp(&b.due)
+            .then_with(|| a.objective.label.cmp(&b.objective.label))
+    });
+    out
+}
+
 /// Sorts the rows and arranges them into groups: one unlabelled group for a flat list, or
-/// one group per quarter in date order with a final "No date" group.
-pub fn arrange(mut rows: Vec<ObjectiveRow>, grouping: ObjectiveGrouping) -> Vec<ObjectiveGroup> {
+/// one group per quarter in date order with a "No date" group. Ongoing objectives (spec 30)
+/// come last, in a group of their own, in either layout.
+pub fn arrange(rows: Vec<ObjectiveRow>, grouping: ObjectiveGrouping) -> Vec<ObjectiveGroup> {
+    let (mut ongoing, mut rows): (Vec<_>, Vec<_>) =
+        rows.into_iter().partition(|r| r.objective.ongoing);
     rows.sort_by(compare);
+    ongoing.sort_by(compare);
+    let mut groups = arrange_goals(rows, grouping);
+    if !ongoing.is_empty() {
+        groups.push(ObjectiveGroup {
+            label: Some("Ongoing".to_owned()),
+            rows: ongoing,
+        });
+    }
+    groups
+}
+
+fn arrange_goals(rows: Vec<ObjectiveRow>, grouping: ObjectiveGrouping) -> Vec<ObjectiveGroup> {
     if rows.is_empty() {
         return Vec::new();
     }
@@ -76,6 +121,9 @@ mod tests {
     fn row(n: u128, title: &str, priority: u8, target: Option<Date>) -> ObjectiveRow {
         ObjectiveRow {
             objective: Objective {
+                ongoing: false,
+                review_every_days: None,
+                last_reviewed_on: None,
                 id: Uuid::from_u128(n),
                 title: title.into(),
                 description: String::new(),
@@ -168,5 +216,82 @@ mod tests {
             .map(|r| r.objective.id.as_u128())
             .collect();
         assert_eq!(ids, vec![3, 1, 2]);
+    }
+
+    fn ongoing(mut r: ObjectiveRow, every: Option<u32>, last: Option<Date>) -> ObjectiveRow {
+        r.objective.ongoing = true;
+        r.objective.review_every_days = every;
+        r.objective.last_reviewed_on = last;
+        r
+    }
+
+    #[test]
+    fn ongoing_objectives_are_their_own_group_last_in_either_layout() {
+        let rows = vec![
+            ongoing(row(1, "Maintenance", 1, None), None, None),
+            row(2, "Launch", 2, Some(date!(2027 - 03 - 31))),
+            row(3, "Someday", 3, None),
+        ];
+        let flat = arrange(rows.clone(), ObjectiveGrouping::None);
+        assert_eq!(
+            flat.iter().map(|g| g.label.as_deref()).collect::<Vec<_>>(),
+            [None, Some("Ongoing")]
+        );
+        assert_eq!(
+            titles(&flat),
+            [vec!["Launch", "Someday"], vec!["Maintenance"]]
+        );
+        let by_quarter = arrange(rows, ObjectiveGrouping::Quarter);
+        assert_eq!(
+            by_quarter
+                .iter()
+                .map(|g| g.label.as_deref().unwrap())
+                .collect::<Vec<_>>(),
+            ["Q1 2027", "No date", "Ongoing"]
+        );
+    }
+
+    #[test]
+    fn a_review_is_due_a_rhythm_after_the_last_one_or_after_creation() {
+        let reviewed =
+            ongoing(row(1, "A", 3, None), Some(30), Some(date!(2027 - 01 - 01))).objective;
+        assert_eq!(reviewed.review_due(), Some(date!(2027 - 01 - 31)));
+        // Never reviewed: counted from the day it was made (1970-01-01 in these tests).
+        let fresh = ongoing(row(2, "B", 3, None), Some(7), None).objective;
+        assert_eq!(fresh.review_due(), Some(date!(1970 - 01 - 08)));
+        // No rhythm, or not ongoing: nothing is ever due.
+        assert_eq!(
+            ongoing(row(3, "C", 3, None), None, None)
+                .objective
+                .review_due(),
+            None
+        );
+        let mut goal = row(4, "D", 3, None).objective;
+        goal.review_every_days = Some(30);
+        assert_eq!(goal.review_due(), None);
+        // Overdue counts days past, and is `None` on the day and before.
+        let today = date!(2027 - 02 - 04);
+        assert_eq!(reviewed.review_overdue_days(today), Some(4));
+        assert_eq!(reviewed.review_overdue_days(date!(2027 - 01 - 31)), None);
+    }
+
+    #[test]
+    fn the_reviews_listed_are_overdue_or_due_by_the_end_of_the_week() {
+        let today = date!(2027 - 03 - 03);
+        let sunday = date!(2027 - 03 - 07);
+        let mk = |n: u128, name: &str, last: Date| {
+            ongoing(row(n, name, 3, None), Some(30), Some(last)).objective
+        };
+        let list = vec![
+            mk(1, "Overdue", date!(2027 - 01 - 20)),   // due 02-19
+            mk(2, "This week", date!(2027 - 02 - 05)), // due 03-07
+            mk(3, "Later", date!(2027 - 02 - 20)),     // due 03-22
+            row(4, "Goal", 3, None).objective,
+        ];
+        let due = reviews_due(&list, today, sunday);
+        let names: Vec<&str> = due.iter().map(|r| r.objective.label.as_str()).collect();
+        assert_eq!(names, ["Overdue", "This week"]);
+        assert_eq!(due[0].overdue_days, Some(12));
+        assert_eq!(due[1].overdue_days, None);
     }
 }

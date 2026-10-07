@@ -5,14 +5,16 @@ use std::str::FromStr;
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
     timefmt::parse_date, AppError, Contribution, EdgeType, NewEdge, NodeRef, NodeSummary, NodeType,
-    Objective, ObjectiveDetail, ObjectiveStatus, Patch, UpdateObjective, Uuid,
+    Objective, ObjectiveDetail, ObjectiveStatus, Patch, UpdateObjective, Uuid, DEFAULT_REVIEW_DAYS,
 };
 
 use crate::{
     api,
+    calendar::format_ymd,
     components::{
+        date_field::today_ymd,
         detail_pane::Section,
-        form::{SelectField, TextField, BUTTON, BUTTON_DANGER, INPUT},
+        form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_SOFT, INPUT},
         health_panel::ObjectiveHealthSection,
         item_notes::ItemNotes,
         people_panel::error_line,
@@ -74,9 +76,13 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let id = objective.id;
+    // What the server last answered with, so the ongoing/review parts follow what was saved.
+    let obj = RwSignal::new(objective.clone());
     let save = move |patch: UpdateObjective| {
         spawn_local(async move {
-            finish(api::update_objective(id, patch).await, toasts, version);
+            if let Some(o) = finish(api::update_objective(id, patch).await, toasts, version) {
+                obj.set(o);
+            }
         });
     };
 
@@ -118,32 +124,127 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
             });
         }
     };
+    // Goal or ongoing. Becoming ongoing starts a monthly review unless one is already set.
+    let save_kind = move |v: String| {
+        let ongoing = v == KIND_ONGOING;
+        let rhythm = if ongoing && obj.get_untracked().review_every_days.is_none() {
+            Patch::Set(DEFAULT_REVIEW_DAYS)
+        } else {
+            Patch::Keep
+        };
+        save(UpdateObjective {
+            ongoing: Some(ongoing),
+            review_every_days: rhythm,
+            ..Default::default()
+        });
+    };
+    let save_rhythm = move |v: String| {
+        save(UpdateObjective {
+            review_every_days: v.parse::<u32>().map_or(Patch::Clear, Patch::Set),
+            ..Default::default()
+        });
+    };
+    let mark_reviewed = move |_| {
+        let (y, m, d) = today_ymd();
+        if let Ok(today) = parse_date(&format_ymd(y, m, d)) {
+            save(UpdateObjective {
+                last_reviewed_on: Patch::Set(today),
+                ..Default::default()
+            });
+        }
+    };
 
-    let status_options: Vec<(String, String)> = ObjectiveStatus::ALL
-        .iter()
-        .map(|s| (s.as_str().to_owned(), objective_status_label(*s).to_owned()))
-        .collect();
     let priority_options: Vec<(String, String)> = (1..=5u8)
         .map(|p| (p.to_string(), priority_option(p)))
         .collect();
+    let kind_options = vec![
+        (KIND_GOAL.to_owned(), "Goal: has an end".to_owned()),
+        (KIND_ONGOING.to_owned(), "Ongoing: no end".to_owned()),
+    ];
+    let kind_now = if objective.ongoing {
+        KIND_ONGOING
+    } else {
+        KIND_GOAL
+    };
 
     view! {
         <TextField label="Title" value=objective.title.clone()
             on_commit=move |v: String| save(UpdateObjective { title: Some(v), ..Default::default() }) />
         <TextField label="Description" multiline=true value=objective.description.clone()
             on_commit=move |v: String| save(UpdateObjective { description: Some(v), ..Default::default() }) />
-        <TextField label="Target date" kind="date"
-            value=objective.target_date.map(|d| d.to_string()).unwrap_or_default()
-            on_commit=save_date />
+        <div class="mb-2">
+            <SelectField label="Kind" options=kind_options current=kind_now.to_owned() on_change=save_kind />
+        </div>
+        {move || if obj.with(|o| o.ongoing) {
+            let o = obj.get();
+            let rhythm_options = rhythm_options(o.review_every_days);
+            let current = o.review_every_days.map(|n| n.to_string()).unwrap_or_default();
+            let reviewed = o
+                .last_reviewed_on
+                .map_or_else(|| "never".to_owned(), |d| d.to_string());
+            let next = o
+                .review_due()
+                .map_or_else(String::new, |d| format!(" · next {d}"));
+            view! {
+                <div class="mb-2">
+                    <SelectField label="Review" options=rhythm_options current=current on_change=save_rhythm />
+                </div>
+                <p class="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-muted">
+                    <span>"Last reviewed " {reviewed} {next}</span>
+                    <button class=BUTTON_SOFT on:click=mark_reviewed>"Mark reviewed"</button>
+                </p>
+            }.into_any()
+        } else {
+            view! {
+                <TextField label="Target date" kind="date"
+                    value=objective.target_date.map(|d| d.to_string()).unwrap_or_default()
+                    on_commit=save_date />
+            }.into_any()
+        }}
         <div class="grid grid-cols-2 gap-3">
-            <SelectField label="Your assessment" options=status_options
-                current=objective.status.as_str().to_owned() on_change=save_status
-                tint=OBJECTIVE_STATUS_TINT />
+            {move || {
+                // An ongoing objective is never "done": archive it when it ends.
+                let ongoing = obj.with(|o| o.ongoing);
+                let options: Vec<(String, String)> = ObjectiveStatus::ALL
+                    .iter()
+                    .filter(|s| !(ongoing && **s == ObjectiveStatus::Done))
+                    .map(|s| (s.as_str().to_owned(), objective_status_label(*s).to_owned()))
+                    .collect();
+                let current = obj.with(|o| o.status.as_str().to_owned());
+                view! {
+                    <SelectField label="Your assessment" options=options current=current
+                        on_change=save_status tint=OBJECTIVE_STATUS_TINT />
+                }
+            }}
             <SelectField label="Priority" options=priority_options
                 current=objective.priority.to_string() on_change=save_priority
                 tint=PRIORITY_TINT />
         </div>
     }
+}
+
+const KIND_GOAL: &str = "goal";
+const KIND_ONGOING: &str = "ongoing";
+
+/// The review rhythms offered, plus the current one when it isn't among them (set by hand or by
+/// an import).
+fn rhythm_options(current: Option<u32>) -> Vec<(String, String)> {
+    let mut options = vec![(String::new(), "Never".to_owned())];
+    let presets: [(u32, &str); 6] = [
+        (7, "Every week"),
+        (14, "Every 2 weeks"),
+        (30, "Every month"),
+        (90, "Every quarter"),
+        (180, "Every 6 months"),
+        (365, "Every year"),
+    ];
+    for (days, label) in presets {
+        options.push((days.to_string(), label.to_owned()));
+    }
+    if let Some(n) = current.filter(|n| !presets.iter().any(|(d, _)| d == n)) {
+        options.push((n.to_string(), format!("Every {n} days")));
+    }
+    options
 }
 
 pub(crate) fn candidate_value(n: &NodeSummary) -> String {

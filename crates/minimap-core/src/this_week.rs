@@ -20,6 +20,8 @@ pub struct WeekInput {
     pub blockers: HashMap<Uuid, Vec<NodeSummary>>,
     pub waiting: Vec<WaitingOnItem>,
     pub notes: Vec<NoteItem>,
+    /// Active objectives (the ongoing ones with a review rhythm can be due for review).
+    pub objectives: Vec<minimap_types::Objective>,
     /// The "me" person, if there is one.
     pub self_id: Option<Uuid>,
     pub today: Date,
@@ -177,6 +179,7 @@ pub fn build(input: WeekInput) -> ThisWeek {
         in_progress,
         waiting,
         one_on_ones,
+        reviews: crate::objectives::reviews_due(&input.objectives, today, week_end),
     }
 }
 
@@ -231,6 +234,7 @@ mod tests {
 
     fn week(tasks: Vec<TaskRow>) -> ThisWeek {
         build(WeekInput {
+            objectives: Vec::new(),
             tasks,
             blockers: HashMap::new(),
             waiting: vec![],
@@ -240,6 +244,61 @@ mod tests {
             week_of: None,
             stale_days: 7,
         })
+    }
+
+    fn ongoing_objective(
+        n: u128,
+        title: &str,
+        every: Option<u32>,
+        last: Option<Date>,
+    ) -> minimap_types::Objective {
+        minimap_types::Objective {
+            id: id(n),
+            title: title.into(),
+            description: String::new(),
+            target_date: None,
+            status: minimap_types::ObjectiveStatus::OnTrack,
+            priority: 3,
+            ongoing: true,
+            review_every_days: every,
+            last_reviewed_on: last,
+            created_at: OffsetDateTime::UNIX_EPOCH,
+            updated_at: OffsetDateTime::UNIX_EPOCH,
+            archived_at: None,
+        }
+    }
+
+    #[test]
+    fn the_week_lists_ongoing_objectives_whose_review_is_overdue_or_due_by_sunday() {
+        let weeks = |week_of: Option<Date>| {
+            build(WeekInput {
+                objectives: vec![
+                    ongoing_objective(1, "Overdue", Some(30), Some(date!(2027 - 01 - 20))),
+                    ongoing_objective(2, "Friday", Some(30), Some(date!(2027 - 02 - 05))),
+                    ongoing_objective(3, "Next month", Some(30), Some(date!(2027 - 02 - 20))),
+                    ongoing_objective(4, "No rhythm", None, None),
+                ],
+                tasks: vec![],
+                blockers: HashMap::new(),
+                waiting: vec![],
+                notes: vec![],
+                self_id: None,
+                today: TODAY,
+                week_of,
+                stale_days: 7,
+            })
+        };
+        let w = weeks(None);
+        let names: Vec<&str> = w
+            .reviews
+            .iter()
+            .map(|r| r.objective.label.as_str())
+            .collect();
+        assert_eq!(names, ["Overdue", "Friday"]);
+        assert_eq!(w.reviews[0].overdue_days, Some(12));
+        assert_eq!(w.reviews[1].overdue_days, None);
+        // A later week reaches further: by then "Next month" is due too.
+        assert_eq!(weeks(Some(date!(2027 - 03 - 22))).reviews.len(), 3);
     }
 
     fn titles(v: &[WeekTask]) -> Vec<&str> {
@@ -314,6 +373,7 @@ mod tests {
         assert_eq!(monday_of(date!(2027 - 03 - 08)), date!(2027 - 03 - 08));
         // Another week.
         let next = build(WeekInput {
+            objectives: Vec::new(),
             tasks: vec![],
             blockers: HashMap::new(),
             waiting: vec![],
@@ -465,6 +525,7 @@ mod tests {
         ];
         let of = |d| {
             build(WeekInput {
+                objectives: Vec::new(),
                 tasks: tasks.clone(),
                 blockers: HashMap::new(),
                 waiting: vec![],
@@ -497,6 +558,7 @@ mod tests {
         let mut blockers = HashMap::new();
         blockers.insert(id(1), vec![blocker.clone()]);
         let w = build(WeekInput {
+            objectives: Vec::new(),
             tasks: vec![
                 row(1, "Stuck", TaskStatus::Blocked, None, 2),
                 row(
@@ -534,6 +596,7 @@ mod tests {
         assert!(mine.has_self);
         // Without a "me" person there is no "mine": show everything in progress.
         let anyone = build(WeekInput {
+            objectives: Vec::new(),
             tasks,
             blockers: HashMap::new(),
             waiting: vec![],
@@ -572,6 +635,7 @@ mod tests {
         let mut resolved = waiting_item(6, date!(2027 - 02 - 01), None);
         resolved.waiting.resolved_on = Some(date!(2027 - 02 - 10));
         let w = build(WeekInput {
+            objectives: Vec::new(),
             tasks: vec![],
             blockers: HashMap::new(),
             waiting: vec![
@@ -604,6 +668,7 @@ mod tests {
     #[test]
     fn one_on_ones_are_this_weeks_notes_of_that_kind_earliest_first() {
         let w = build(WeekInput {
+            objectives: Vec::new(),
             tasks: vec![],
             blockers: HashMap::new(),
             waiting: vec![],
@@ -646,44 +711,45 @@ mod tests {
     }
 
     proptest! {
-        /// Sections are exactly filters of the data: nothing closed, every date inside its
-        /// bounds, and the strip adds up to the tasks due inside the week.
-        #[test]
-        fn sections_match_the_underlying_data(
-            specs in proptest::collection::vec((0u8..5, proptest::option::of(-20i64..20), 1u8..6), 0..25),
-            offset in -10i64..10,
-        ) {
-            let tasks: Vec<TaskRow> = specs.iter().enumerate().map(|(i, (s, due, p))| {
-                let status = [TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Blocked, TaskStatus::Done, TaskStatus::Cancelled][*s as usize];
-                row(i as u128 + 100, &format!("T{i}"), status, due.map(|d| TODAY + Duration::days(d)), *p)
-            }).collect();
-            let w = build(WeekInput {
-                tasks: tasks.clone(), blockers: HashMap::new(), waiting: vec![], notes: vec![],
-                self_id: None, today: TODAY, week_of: Some(TODAY + Duration::days(offset)), stale_days: 7,
-            });
-            let open = |t: &WeekTask| !matches!(t.row.task.status, TaskStatus::Done | TaskStatus::Cancelled);
-            for t in w.overdue.iter().chain(&w.due_this_week).chain(&w.blocked).chain(&w.in_progress) {
-                prop_assert!(open(t));
-            }
-            let overdue_ok = w.overdue.iter().all(|t| t.row.task.due_date.unwrap() < TODAY && t.overdue_days.unwrap() >= 1);
-            prop_assert!(overdue_ok);
-            let due_ok = w.due_this_week.iter().all(|t| {
-                let d = t.row.task.due_date.unwrap();
-                d >= TODAY && d >= w.week_start && d <= w.week_end && t.overdue_days.is_none()
-            });
-            prop_assert!(due_ok);
-            // Completeness: every open task with a due date in [today, Sunday] ∩ week is listed.
-            let expect = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
-                .filter(|r| r.task.due_date.is_some_and(|d| d >= TODAY.max(w.week_start) && d <= w.week_end)).count();
-            prop_assert_eq!(w.due_this_week.len(), expect);
-            prop_assert_eq!(w.blocked.len(), tasks.iter().filter(|r| r.task.status == TaskStatus::Blocked).count());
-            prop_assert!(w.overdue.windows(2).all(|p| p[0].row.task.due_date <= p[1].row.task.due_date));
-            prop_assert_eq!(w.week_start.weekday(), time::Weekday::Monday);
-            prop_assert_eq!((w.week_end - w.week_start).whole_days(), 6);
-            let strip: u32 = w.days.iter().map(|d| d.tasks_due).sum();
-            let in_week = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
-                .filter(|r| r.task.due_date.is_some_and(|d| d >= w.week_start && d <= w.week_end)).count() as u32;
-            prop_assert_eq!(strip, in_week);
-        }
-    }
+           /// Sections are exactly filters of the data: nothing closed, every date inside its
+           /// bounds, and the strip adds up to the tasks due inside the week.
+           #[test]
+           fn sections_match_the_underlying_data(
+               specs in proptest::collection::vec((0u8..5, proptest::option::of(-20i64..20), 1u8..6), 0..25),
+               offset in -10i64..10,
+           ) {
+               let tasks: Vec<TaskRow> = specs.iter().enumerate().map(|(i, (s, due, p))| {
+                   let status = [TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Blocked, TaskStatus::Done, TaskStatus::Cancelled][*s as usize];
+                   row(i as u128 + 100, &format!("T{i}"), status, due.map(|d| TODAY + Duration::days(d)), *p)
+               }).collect();
+               let w = build(WeekInput {
+    objectives: Vec::new(),
+                   tasks: tasks.clone(), blockers: HashMap::new(), waiting: vec![], notes: vec![],
+                   self_id: None, today: TODAY, week_of: Some(TODAY + Duration::days(offset)), stale_days: 7,
+               });
+               let open = |t: &WeekTask| !matches!(t.row.task.status, TaskStatus::Done | TaskStatus::Cancelled);
+               for t in w.overdue.iter().chain(&w.due_this_week).chain(&w.blocked).chain(&w.in_progress) {
+                   prop_assert!(open(t));
+               }
+               let overdue_ok = w.overdue.iter().all(|t| t.row.task.due_date.unwrap() < TODAY && t.overdue_days.unwrap() >= 1);
+               prop_assert!(overdue_ok);
+               let due_ok = w.due_this_week.iter().all(|t| {
+                   let d = t.row.task.due_date.unwrap();
+                   d >= TODAY && d >= w.week_start && d <= w.week_end && t.overdue_days.is_none()
+               });
+               prop_assert!(due_ok);
+               // Completeness: every open task with a due date in [today, Sunday] ∩ week is listed.
+               let expect = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
+                   .filter(|r| r.task.due_date.is_some_and(|d| d >= TODAY.max(w.week_start) && d <= w.week_end)).count();
+               prop_assert_eq!(w.due_this_week.len(), expect);
+               prop_assert_eq!(w.blocked.len(), tasks.iter().filter(|r| r.task.status == TaskStatus::Blocked).count());
+               prop_assert!(w.overdue.windows(2).all(|p| p[0].row.task.due_date <= p[1].row.task.due_date));
+               prop_assert_eq!(w.week_start.weekday(), time::Weekday::Monday);
+               prop_assert_eq!((w.week_end - w.week_start).whole_days(), 6);
+               let strip: u32 = w.days.iter().map(|d| d.tasks_due).sum();
+               let in_week = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
+                   .filter(|r| r.task.due_date.is_some_and(|d| d >= w.week_start && d <= w.week_end)).count() as u32;
+               prop_assert_eq!(strip, in_week);
+           }
+       }
 }

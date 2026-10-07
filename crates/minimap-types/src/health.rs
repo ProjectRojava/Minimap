@@ -138,6 +138,14 @@ pub struct ObjectiveHealthRow {
     pub status: ObjectiveStatus,
     pub priority: u8,
     pub target_date: Option<Date>,
+    /// Ongoing (spec 30): no target date; judged by its work and its review rhythm.
+    #[serde(default)]
+    pub ongoing: bool,
+    #[serde(default)]
+    pub review_due: Option<Date>,
+    /// Days its review is overdue by.
+    #[serde(default)]
+    pub review_overdue_days: Option<u32>,
     pub health: Health,
     pub projects: Vec<ProjectHealthRow>,
 }

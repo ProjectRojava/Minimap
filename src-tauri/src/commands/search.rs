@@ -225,6 +225,8 @@ mod tests {
         minimap_store::objectives::create(
             &mut conn,
             CreateObjective {
+                ongoing: false,
+                review_every_days: None,
                 title: "Launch EU".into(),
                 description: String::new(),
                 target_date: None,
