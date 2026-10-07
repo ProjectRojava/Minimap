@@ -164,6 +164,7 @@ fn it_only_fills_an_empty_database_and_a_refusal_changes_nothing() {
     tasks::create(
         &mut other,
         CreateTask {
+            links: Vec::new(),
             title: "Mine".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -302,6 +303,29 @@ fn the_demo_data_is_searchable() {
     let conn = seeded(TODAY);
     let hits = search::run(&conn, "\"gateway\"*", &[], false, 20).unwrap();
     assert!(hits.len() >= 4, "{}", hits.len());
+}
+
+#[test]
+fn a_few_tasks_carry_reference_links() {
+    let conn = seeded(TODAY);
+    let with: Vec<(String, usize)> = tasks::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .filter(|t| !t.links.is_empty())
+        .map(|t| (t.title, t.links.len()))
+        .collect();
+    assert_eq!(with.len(), 3, "{with:?}");
+    let all: Vec<RefLink> = tasks::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .flat_map(|t| t.links)
+        .collect();
+    assert!(all.iter().any(|l| l.kind() == LinkKind::Drive));
+    assert!(all.iter().any(|l| l.kind() == LinkKind::Web));
+    assert!(
+        all.iter().any(|l| l.title.is_empty()),
+        "one link has no name"
+    );
 }
 
 #[test]

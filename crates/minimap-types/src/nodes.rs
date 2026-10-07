@@ -6,7 +6,7 @@ use time::{Date, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-    DecisionStatus, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence,
+    DecisionStatus, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence, RefLink,
     TaskStatus,
 };
 
@@ -172,6 +172,9 @@ pub struct Task {
     /// Repeats by this rule: finishing it makes the next one (spec 27).
     #[serde(default)]
     pub recurrence: Option<Recurrence>,
+    /// Reference links (spec 28), in the order they were added.
+    #[serde(default)]
+    pub links: Vec<RefLink>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -212,6 +215,8 @@ pub struct CreateTask {
     pub priority: Option<u8>,
     #[serde(default)]
     pub recurrence: Option<Recurrence>,
+    #[serde(default)]
+    pub links: Vec<RefLink>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -226,6 +231,8 @@ pub struct UpdateTask {
     pub due_date: Patch<Date>,
     pub priority: Option<u8>,
     pub recurrence: Patch<Recurrence>,
+    /// The whole list of reference links, replacing the old one.
+    pub links: Option<Vec<RefLink>>,
 }
 
 impl UpdateTask {
@@ -239,6 +246,7 @@ impl UpdateTask {
         self.due_date.apply(&mut t.due_date);
         set(&mut t.priority, self.priority);
         self.recurrence.apply(&mut t.recurrence);
+        set(&mut t.links, self.links);
     }
 }
 

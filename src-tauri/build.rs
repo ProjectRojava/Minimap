@@ -119,6 +119,7 @@ const COMMANDS: &[&str] = &[
     "add_attachment_data",
     "remove_attachment",
     "open_attachment",
+    "open_link",
 ];
 
 /// Bakes the Google OAuth client into the app so users just click "Sign in with Google": the

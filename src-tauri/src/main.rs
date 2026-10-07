@@ -205,6 +205,7 @@ fn main() {
             commands::attachments::add_attachment_data,
             commands::attachments::remove_attachment,
             commands::attachments::open_attachment,
+            commands::links::open_link,
         ])
         .build(tauri::generate_context!());
     let app = match result {

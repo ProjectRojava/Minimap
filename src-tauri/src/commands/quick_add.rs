@@ -115,6 +115,7 @@ mod tests {
         minimap_store::tasks::create(
             conn,
             CreateTask {
+                links: Vec::new(),
                 title: title.into(),
                 assignee: minimap_types::AssigneeChoice::Nobody,
                 description: String::new(),

@@ -21,7 +21,7 @@ use crate::{
         objective_colour::{use_objective_colours, ObjectiveDot},
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
     },
-    labels::{priority_option, task_status_label, task_status_tone},
+    labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
     state::{finish, DataVersion, ListNav, Toasts},
 };
 
@@ -308,6 +308,7 @@ pub fn TaskList(
 
     let create_one = move |title: String| {
         let input = CreateTask {
+            links: Vec::new(),
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -461,6 +462,8 @@ fn TaskRowView(
     let colours = use_objective_colours();
     let project_id = t.project_id;
     let edge = Signal::derive(move || colours.first_hue(&colours.of_project(project_id)));
+    let open = !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled);
+    let heat = deadline_heat(t.due_date, crate::components::task_board::today(), open);
     // "↻" after the title of a task that repeats; hover says how.
     let repeats = t
         .recurrence
@@ -535,7 +538,7 @@ fn TaskRowView(
     let due_id = format!("task-due-{id}");
 
     view! {
-        <NodeRow node=node index=index hue=edge>
+        <NodeRow node=node index=index hue=edge heat=heat>
             <div class=COLS>
                 // Controls must not open the pane when clicked.
                 <span on:click=|ev| ev.stop_propagation()>

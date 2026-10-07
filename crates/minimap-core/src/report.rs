@@ -623,6 +623,7 @@ mod tests {
         WeekTask {
             row: TaskRow {
                 task: Task {
+                    links: Vec::new(),
                     id: id(500),
                     title: title.into(),
                     description: String::new(),

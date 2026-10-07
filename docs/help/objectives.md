@@ -12,10 +12,13 @@ Every objective has its own **colour**, shown as a dot and a coloured edge on it
 
 ## The detail pane
 
+The pane opens with a row of coloured pills: your assessment (green on track, amber at risk, red off track), the priority (P1 and P2 in amber) and the target date (red "overdue" once it has passed while the objective is not done). The dropdowns for assessment and priority are coloured the same way, and the status of each contributing project or task is a coloured pill.
+
 - **Your assessment**: status (*on track, at risk, off track, done*) and priority. This is your judgement. Minimap shows its own **computed health** next to it, so you can see when they disagree.
 - **Target date** and a description.
 - **Contributions**: the projects and tasks that contribute, each with a **weight** from 0 to 1. Add or remove them here. (You can also set it from the project's own pane.)
 - **Health**: the computed health and why.
+- **Notes and findings**: write a note about the objective (progress, reviews, decisions) and open the ones that mention it. They are ordinary [notes](help:notes).
 
 ## How computed health works
 

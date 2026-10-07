@@ -19,6 +19,7 @@ fn count(conn: &Connection, table: &str) -> u32 {
 
 fn new_task(title: &str, project: Option<uuid::Uuid>) -> CreateTask {
     CreateTask {
+        links: Vec::new(),
         title: title.into(),
         assignee: AssigneeChoice::Nobody,
         description: String::new(),
