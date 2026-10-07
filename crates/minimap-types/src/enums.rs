@@ -63,6 +63,9 @@ str_enum!(NodeType {
     WaitingOn => "waiting_on",
 });
 
+// `SubtaskOf` is legacy: subtasks were removed (ADR-0015). It stays so databases and sync
+// snapshots that still hold such links keep loading; it is allowed between no node types and
+// ignored everywhere.
 str_enum!(EdgeType {
     Blocks => "blocks",
     DependsOn => "depends_on",

@@ -18,8 +18,6 @@ use minimap_types::{
 use petgraph::{algo::toposort, graph::DiGraph, visit::EdgeRef, Direction};
 use time::Date;
 
-use crate::subtasks::{expand_blocks, Hierarchy};
-
 const EPS: f64 = 1e-9;
 /// Most working days an axis can span, so one far-future start date can't produce a huge reply.
 const MAX_DAYS: i64 = 1500;
@@ -76,8 +74,6 @@ struct Node<'a> {
     ls: f64,
     lf: f64,
     in_scope: bool,
-    /// Has subtasks: its numbers come from the leaves under it.
-    summary: bool,
 }
 
 fn lag_of(e: &Edge) -> f64 {
@@ -123,26 +119,12 @@ pub fn compute_with(
     let index: HashMap<Uuid, usize> = live.iter().enumerate().map(|(i, t)| (t.id, i)).collect();
     let mut graph = DiGraph::<usize, f64>::new();
     let ids: Vec<_> = (0..live.len()).map(|i| graph.add_node(i)).collect();
-    // Subtasks (spec 29): a task with subtasks is a summary and is not scheduled; a `blocks`
-    // link on it applies to every leaf under it.
-    let hierarchy = Hierarchy::new(tasks, edges);
-    let blocks: Vec<(Uuid, Uuid, f64)> = edges
-        .iter()
-        .filter(|e| e.edge_type == EdgeType::Blocks && e.archived_at.is_none())
-        .filter(|e| index.contains_key(&e.from_id) && index.contains_key(&e.to_id))
-        .map(|e| (e.from_id, e.to_id, lag_of(e)))
-        .collect();
-    for (from, to, lag) in expand_blocks(&hierarchy, &blocks) {
-        if let (Some(&from), Some(&to)) = (index.get(&from), index.get(&to)) {
-            graph.add_edge(ids[from], ids[to], lag);
+    for e in edges {
+        if e.edge_type != EdgeType::Blocks || e.archived_at.is_some() {
+            continue;
         }
-    }
-    // A hold on a summary is a hold on each leaf under it.
-    let mut held: HashMap<Uuid, f64> = HashMap::new();
-    for (task, nb) in not_before {
-        for leaf in hierarchy.leaves_under(*task) {
-            let h = held.entry(leaf).or_insert(*nb);
-            *h = h.max(*nb);
+        if let (Some(&from), Some(&to)) = (index.get(&e.from_id), index.get(&e.to_id)) {
+            graph.add_edge(ids[from], ids[to], lag_of(e));
         }
     }
     let order = toposort(&graph, None).map_err(|_| ScheduleError::Cycle)?;
@@ -162,16 +144,12 @@ pub fn compute_with(
                 ScheduleScope::Portfolio => true,
                 ScheduleScope::Project(p) => t.project_id == Some(p),
             },
-            summary: hierarchy.is_summary(t.id),
         })
         .collect();
 
     // Forward pass: as early as predecessors, the start date and today allow.
     for &n in &order {
         let i = n.index();
-        if nodes[i].summary {
-            continue;
-        }
         if nodes[i].done {
             let task = nodes[i].task;
             let ef = task.completed_at.map_or(1.0, |c| end_offset(c.date()));
@@ -188,16 +166,8 @@ pub fn compute_with(
         if let Some(s) = nodes[i].task.start_date {
             es = es.max(offset(s));
         }
-        if let Some(nb) = held.get(&nodes[i].task.id) {
+        if let Some(nb) = not_before.get(&nodes[i].task.id) {
             es = es.max(*nb);
-        }
-        // A start date on a group means nothing in it starts earlier.
-        let mut up = nodes[i].task.id;
-        while let Some(p) = hierarchy.parent(up) {
-            if let Some(s) = index.get(&p).and_then(|&k| live[k].start_date) {
-                es = es.max(offset(s));
-            }
-            up = p;
         }
         for e in graph.edges_directed(n, Direction::Incoming) {
             es = es.max(nodes[e.source().index()].ef + *e.weight());
@@ -209,7 +179,7 @@ pub fn compute_with(
     // Each project (and the inbox) is judged against its own deadline.
     let project_by_id: HashMap<Uuid, &Project> = projects.iter().map(|p| (p.id, p)).collect();
     let mut finish: BTreeMap<Option<Uuid>, f64> = BTreeMap::new();
-    for n in nodes.iter().filter(|n| n.in_scope && !n.done && !n.summary) {
+    for n in nodes.iter().filter(|n| n.in_scope && !n.done) {
         let f = finish.entry(n.task.project_id).or_insert(f64::NEG_INFINITY);
         *f = f.max(n.ef);
     }
@@ -224,7 +194,7 @@ pub fn compute_with(
     // Backward pass: as late as successors and the deadline allow.
     for &n in order.iter().rev() {
         let i = n.index();
-        if nodes[i].summary || nodes[i].done || !nodes[i].in_scope {
+        if nodes[i].done || !nodes[i].in_scope {
             nodes[i].ls = nodes[i].es;
             nodes[i].lf = nodes[i].ef;
             continue;
@@ -242,67 +212,22 @@ pub fn compute_with(
 
     // Critical: the least slack in the project.
     let mut least: BTreeMap<Option<Uuid>, f64> = BTreeMap::new();
-    for n in nodes.iter().filter(|n| n.in_scope && !n.done && !n.summary) {
+    for n in nodes.iter().filter(|n| n.in_scope && !n.done) {
         let m = least.entry(n.task.project_id).or_insert(f64::INFINITY);
         *m = m.min(n.ls - n.es);
     }
     let is_critical = |n: &Node| -> bool {
         n.in_scope
             && !n.done
-            && !n.summary
             && least
                 .get(&n.task.project_id)
                 .is_some_and(|m| n.ls - n.es <= m + EPS)
     };
-    let mut critical: Vec<bool> = nodes.iter().map(is_critical).collect();
-
-    // A summary spans the leaves under it: it starts with the first, ends with the last, has the
-    // least slack among its open leaves and is critical when any of them is.
-    let summaries: Vec<usize> = (0..nodes.len()).filter(|&i| nodes[i].summary).collect();
-    for s in summaries {
-        let leaves: Vec<usize> = hierarchy
-            .leaves_under(nodes[s].task.id)
-            .iter()
-            .filter_map(|l| index.get(l).copied())
-            .collect();
-        if leaves.is_empty() {
-            continue;
-        }
-        let es = leaves
-            .iter()
-            .map(|&l| nodes[l].es)
-            .fold(f64::INFINITY, f64::min);
-        let ef = leaves
-            .iter()
-            .map(|&l| nodes[l].ef)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let open: Vec<usize> = leaves
-            .iter()
-            .copied()
-            .filter(|&l| nodes[l].in_scope && !nodes[l].done)
-            .collect();
-        let slack = open
-            .iter()
-            .map(|&l| nodes[l].ls - nodes[l].es)
-            .fold(f64::INFINITY, f64::min);
-        let slack = if open.is_empty() { 0.0 } else { slack };
-        let all_done = leaves.iter().all(|&l| nodes[l].done);
-        let node = &mut nodes[s];
-        node.es = es;
-        node.ef = ef;
-        node.duration = ef - es;
-        node.done = all_done;
-        node.unestimated = false;
-        node.ls = es + slack;
-        node.lf = node.ls + node.duration;
-        critical[s] = open.iter().any(|&l| critical[l]);
-    }
 
     let mut out: Vec<ScheduledTask> = nodes
         .iter()
-        .enumerate()
-        .filter(|(_, n)| n.in_scope)
-        .map(|(i, n)| {
+        .filter(|n| n.in_scope)
+        .map(|n| {
             let t = n.task;
             let slack = n.ls - n.es;
             let start_idx = (n.es + EPS).floor() as i64;
@@ -328,9 +253,8 @@ pub fn compute_with(
                 latest_start: day_at(latest_start_idx),
                 latest_finish: day_at(finish_index(n.ls, n.lf).max(latest_start_idx)),
                 slack_days: slack,
-                critical: critical[i],
+                critical: is_critical(n),
                 late_by_days: (slack < -EPS).then(|| (-slack - EPS).ceil().max(1.0) as u32),
-                summary: n.summary,
             }
         })
         .collect();
@@ -350,10 +274,7 @@ pub fn compute_with(
     let forecasts: Vec<ProjectForecast> = project_ids
         .into_iter()
         .map(|pid| {
-            let mine = || {
-                out.iter()
-                    .filter(move |t| t.project_id == Some(pid) && !t.summary)
-            };
+            let mine = || out.iter().filter(move |t| t.project_id == Some(pid));
             let open: Vec<&ScheduledTask> = mine().filter(|t| !t.done).collect();
             let last_task = if open.is_empty() {
                 latest_finish(mine())
@@ -1014,146 +935,6 @@ mod tests {
         let s = compute(&tasks, &[], &[], MON, ScheduleScope::Portfolio).unwrap();
         // Monday + 7 working days ends on the Tuesday of the following week.
         assert_eq!(get(&s, "A").finish, date!(2027 - 03 - 09));
-    }
-
-    // ------------------------------------------------------------ subtasks (spec 29)
-
-    fn subtask_of(child: u128, parent: u128) -> Edge {
-        Edge {
-            id: Uuid::from_u128(9_000 + child * 100 + parent),
-            edge_type: EdgeType::SubtaskOf,
-            ..blocks(child, parent, None)
-        }
-    }
-
-    fn row(s: &Schedule, n: u128) -> &ScheduledTask {
-        s.tasks.iter().find(|t| t.id == id(n)).unwrap()
-    }
-
-    /// 1 is a group of 2 (1 day) then 3 (2 days); the group's own estimate is 10 days.
-    fn group() -> (Vec<Task>, Vec<Edge>) {
-        (
-            vec![
-                task(1, "Group", Some(10.0)),
-                task(2, "First", Some(1.0)),
-                task(3, "Second", Some(2.0)),
-            ],
-            vec![subtask_of(2, 1), subtask_of(3, 1), blocks(2, 3, None)],
-        )
-    }
-
-    #[test]
-    fn a_group_spans_its_leaves_and_its_own_estimate_is_ignored() {
-        let (tasks, edges) = group();
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        let g = row(&s, 1);
-        assert!(g.summary && !row(&s, 2).summary);
-        assert_eq!((g.es, g.ef, g.duration_days), (0.0, 3.0, 3.0));
-        assert!(!g.unestimated);
-        assert_eq!((row(&s, 2).es, row(&s, 3).es), (0.0, 1.0));
-    }
-
-    #[test]
-    fn a_block_on_a_group_holds_up_every_leaf_in_it() {
-        let (mut tasks, mut edges) = group();
-        tasks.push(task(9, "Approval", Some(2.0)));
-        edges.push(blocks(9, 1, None));
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        assert_eq!((row(&s, 2).es, row(&s, 3).es), (2.0, 3.0));
-        assert_eq!((row(&s, 1).es, row(&s, 1).ef), (2.0, 5.0));
-    }
-
-    #[test]
-    fn a_group_blocks_what_waits_for_it_until_its_last_leaf_is_done() {
-        let (mut tasks, mut edges) = group();
-        tasks.push(task(9, "Launch", Some(1.0)));
-        edges.push(blocks(1, 9, Some(1)));
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        // Both leaves end by 3; the lag adds a day.
-        assert_eq!(row(&s, 9).es, 4.0);
-    }
-
-    #[test]
-    fn a_link_between_a_group_and_its_own_part_is_ignored_not_a_loop() {
-        let (tasks, mut edges) = group();
-        edges.push(blocks(1, 2, None));
-        edges.push(blocks(3, 1, None));
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        assert_eq!((row(&s, 2).es, row(&s, 3).es), (0.0, 1.0));
-    }
-
-    #[test]
-    fn a_loop_through_a_group_is_still_a_loop() {
-        // 9 blocks the group, and a part of the group blocks 9.
-        let (mut tasks, mut edges) = group();
-        tasks.push(task(9, "Approval", Some(1.0)));
-        edges.push(blocks(9, 1, None));
-        edges.push(blocks(2, 9, None));
-        assert_eq!(
-            compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio),
-            Err(ScheduleError::Cycle)
-        );
-    }
-
-    #[test]
-    fn groups_are_not_counted_as_work_in_the_forecast() {
-        let (mut tasks, edges) = group();
-        for t in &mut tasks {
-            t.project_id = Some(id(10));
-        }
-        let s = compute(
-            &tasks,
-            &edges,
-            &[project(10, "P", None)],
-            MON,
-            ScheduleScope::Portfolio,
-        )
-        .unwrap();
-        let f = &s.projects[0];
-        assert_eq!(f.open_tasks, 2);
-        assert_eq!(f.unestimated_tasks, 0);
-        assert_eq!(f.finish_offset, Some(3.0));
-    }
-
-    #[test]
-    fn a_group_is_done_when_every_leaf_is_and_critical_when_one_is() {
-        let (mut tasks, edges) = group();
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        assert!(!row(&s, 1).done && row(&s, 1).critical);
-        tasks[1] = done_on(tasks[1].clone(), MON);
-        tasks[2] = done_on(tasks[2].clone(), MON);
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        assert!(row(&s, 1).done && !row(&s, 1).critical);
-    }
-
-    #[test]
-    fn a_hold_or_a_start_date_on_a_group_reaches_its_leaves() {
-        let (mut tasks, edges) = group();
-        let held = HashMap::from([(id(1), 4.0)]);
-        let s = compute_with(
-            &tasks,
-            &edges,
-            &[],
-            MON,
-            WorkWeek::MON_FRI,
-            ScheduleScope::Portfolio,
-            &held,
-        )
-        .unwrap();
-        assert_eq!((row(&s, 2).es, row(&s, 3).es), (4.0, 5.0));
-        tasks[0].start_date = Some(MON + time::Duration::days(7));
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        assert_eq!(row(&s, 2).es, 5.0);
-    }
-
-    #[test]
-    fn a_group_with_only_cancelled_parts_is_scheduled_as_a_task_again() {
-        let (mut tasks, edges) = group();
-        tasks[1].status = TaskStatus::Cancelled;
-        tasks[2].status = TaskStatus::Cancelled;
-        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
-        assert!(!row(&s, 1).summary);
-        assert_eq!(row(&s, 1).duration_days, 10.0);
     }
 
     proptest! {

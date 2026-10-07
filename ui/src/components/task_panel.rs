@@ -17,8 +17,8 @@ use crate::{
         people_panel::error_line,
         reference_links::ReferenceLinks,
         repeat_field::RepeatField,
-        subtasks::Subtasks,
         summary_chips::TaskSummary,
+        task_links::TaskLinks,
         what_if_button::WhatIfButton,
     },
     labels::{estimate_text, priority_option, task_status_label, PRIORITY_TINT, TASK_STATUS_TINT},
@@ -41,7 +41,7 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
                 _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Section>
-        <Subtasks task=id />
+        <TaskLinks task=id />
         <ReferenceLinks task=id />
         <ItemNotes node=NodeRef::new(NodeType::Task, id) />
         <WhatIfButton node=NodeRef::new(NodeType::Task, id) />

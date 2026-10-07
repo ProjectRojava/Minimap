@@ -628,8 +628,6 @@ mod tests {
     fn blocked_task(title: &str, by: &[&str]) -> WeekTask {
         WeekTask {
             row: TaskRow {
-                parent: None,
-                subtasks: Default::default(),
                 task: Task {
                     links: Vec::new(),
                     id: id(500),

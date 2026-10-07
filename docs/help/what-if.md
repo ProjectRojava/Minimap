@@ -24,7 +24,7 @@ A task that absorbs the slip entirely (it had slack) still appears, with delay 0
 
 ## How it is worked out
 
-Minimap re-runs the [schedule](help:schedule) with the slipped task held back until *its planned start + N working days*, and compares with the plan as it stands. So slack, lags, start dates, targets and cross-project links all behave exactly as they do on the Schedule. Slipping a task that has subtasks slips the work in it, and a link on a group counts for each subtask. A slip never moves anything earlier, and a project that depends on another also waits for it.
+Minimap re-runs the [schedule](help:schedule) with the slipped task held back until *its planned start + N working days*, and compares with the plan as it stands. So slack, lags, start dates, targets and cross-project links all behave exactly as they do on the Schedule. A slip never moves anything earlier, and a project that depends on another also waits for it.
 
 ## Apply to plan
 

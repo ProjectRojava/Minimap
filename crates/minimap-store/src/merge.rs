@@ -783,9 +783,8 @@ fn drop_dangling_edges(cx: &mut Cx) -> Result<()> {
 }
 
 /// Relations that must stay acyclic, with the node type at both ends.
-const ACYCLIC: [(&str, NodeType); 5] = [
+const ACYCLIC: [(&str, NodeType); 4] = [
     ("blocks", NodeType::Task),
-    ("subtask_of", NodeType::Task),
     ("depends_on", NodeType::Project),
     ("supersedes", NodeType::Decision),
     ("reports_to", NodeType::Person),

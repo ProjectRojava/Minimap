@@ -50,9 +50,8 @@ Matrix (enforce in core, reject anything else):
 | affects | Decision → Project/Task/Objective | — |
 | about | WaitingOn → Task/Project | — |
 | supersedes | Decision → Decision (newer → older) | — |
-| subtask_of | Task → Task (child → parent; one parent each, ADR-0013) | — |
 
-Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `supersedes`, `subtask_of`, `reports_to`, or team nesting; no self-edges; archiving a node archives its edges; hard delete only after archive, with UI confirmation.
+Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `supersedes`, `reports_to`, or team nesting; no self-edges; archiving a node archives its edges; hard delete only after archive, with UI confirmation.
 
 ### Activity log
 `activity(id, at, node_type, node_id, action [created/updated/archived/edge_added/edge_removed], diff JSON {field:[old,new]})`. Every write goes through a repository method that appends to `activity` in the same transaction.
@@ -60,7 +59,7 @@ Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (repo
 ## 5. Core algorithms (pure, in `minimap-core`)
 1. Graph build into `petgraph::StableGraph` (id→index map).
 2. Cycle check before inserting blocks/depends_on/reports_to; return the cycle path.
-3. CPM schedule + critical path: working days Mon–Fri; duration = estimate_days or 1 (flag "unestimated"); forward/backward pass (backward from project target date or latest finish); slack = LS − ES; critical = zero slack; done tasks fixed at actual dates; per project and portfolio-wide. A task with subtasks is a group (ADR-0013): not scheduled itself, spanning the leaf tasks under it, and a `blocks` link on it applies to every leaf.
+3. CPM schedule + critical path: working days Mon–Fri; duration = estimate_days or 1 (flag "unestimated"); forward/backward pass (backward from project target date or latest finish); slack = LS − ES; critical = zero slack; done tasks fixed at actual dates; per project and portfolio-wide.
 4. Impact analysis: task/project + slip of N working days propagated along blocks/depends_on consuming slack; output affected tasks (new projected finish, slip absorbed), projects, objectives (contributes_to), people (assigned_to).
 5. Health scoring (computed): project from projected finish vs target, blocked/overdue share, unestimated work; objective rolls up weighted; expose reasons ("3 tasks overdue; projected 6 days late").
 6. Capacity per person/week: sum(allocation_pct × hours) of active assigned tasks scheduled that week ÷ weekly_capacity_hours; flag >100%.

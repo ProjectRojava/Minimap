@@ -199,8 +199,6 @@ mod tests {
 
     fn row(n: u128, title: &str, status: TaskStatus, due: Option<Date>, priority: u8) -> TaskRow {
         TaskRow {
-            parent: None,
-            subtasks: Default::default(),
             task: Task {
                 links: Vec::new(),
                 id: id(n),

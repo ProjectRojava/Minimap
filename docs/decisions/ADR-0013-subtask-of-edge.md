@@ -1,5 +1,7 @@
 # ADR-0013: A `subtask_of` edge between tasks
 
+> **Superseded by [ADR-0015](ADR-0015-remove-subtasks.md): subtasks were removed.** Kept as history.
+
 - **Context**: spec 06 chose "no subtasks": break work into tasks and order them with `blocks`. In use, people want to group a few tasks under a bigger one, see how far it is, and add a step to a task without going to the Tasks screen.
 - **Decision**: add an edge type `subtask_of`, Task -> Task, pointing from the child to the parent. No attributes; it must stay acyclic (checked like `blocks`, with the task titles in the error). A task has at most one parent: `set_parent` (and the panel) replaces it, so there is no multiple inheritance, but the matrix itself does not forbid a second parent (two devices can set different ones; both then show).
 - **Why an edge, not a `parent_task_id` column**: it follows the rest of the model (edges carry the structure; archiving a node archives its edges; merge, export, undo and the activity log already handle edges), and a column would need its own merge and undo rules. It costs one matrix row and no migration (`edges.edge_type` has no CHECK constraint).
