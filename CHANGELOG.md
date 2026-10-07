@@ -7,6 +7,21 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- (nothing yet)
+
+### Changed
+- (nothing yet)
+
+### Fixed
+- (nothing yet)
+
+---
+
+## [0.2.0] - 2026-10-07
+
+**Subtasks, reference links and notes on items, and a more readable detail panel.**
+
+### Added
 - Subtasks can be put in order (*Do after…*), show a **next** step and *waiting* marks, and suggest a status for the group (all done, all blocked, started); the Dependencies graph draws a group as a dashed frame around its subtasks.
 - Subtasks: add a step to a task, or link an existing task as its subtask, with progress ("2 of 5 done") on the parent and on the board (Spec 29, ADR-0013).
 - Open tasks with a due date take on a red tint as the deadline nears, from 14 days out, on the Tasks board and in the list.

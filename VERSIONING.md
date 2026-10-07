@@ -4,7 +4,7 @@ Minimap uses [semantic versioning](https://semver.org/) for releases and git tag
 
 ## Quick reference
 
-- **Current version:** `0.1.0` (in `Cargo.toml`)
+- **Current version:** `0.2.0` (in `Cargo.toml`)
 - **Bump version:** Edit `Cargo.toml` at the root (all crates inherit via `version.workspace = true`)
 - **Tag a release:** `git tag -a v0.2.0 -m "Release 0.2.0: <description>"` after merging to `master`
 - **See releases:** `git tag --list` or `git log --oneline --decorate | grep tag`
