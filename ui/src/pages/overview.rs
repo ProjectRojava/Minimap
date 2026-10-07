@@ -188,12 +188,25 @@ fn risk_row(r: &RiskItem, on_click: impl Fn(leptos::ev::MouseEvent) + 'static) -
     }
 }
 
+/// What stands where an objective's date would: "target 2027-03-31", or for an ongoing one
+/// "ongoing" with its review ("review due 2027-03-31", "review overdue 12d").
+pub fn objective_when_text(o: &ObjectiveHealthRow) -> String {
+    if !o.ongoing {
+        return o
+            .target_date
+            .map(|d| format!("target {d}"))
+            .unwrap_or_default();
+    }
+    match (o.review_overdue_days, o.review_due) {
+        (Some(n), _) => format!("ongoing · review overdue {n}d"),
+        (None, Some(d)) => format!("ongoing · review {d}"),
+        (None, None) => "ongoing".to_owned(),
+    }
+}
+
 fn objective_block(o: &ObjectiveHealthRow, selection: Selection) -> impl IntoView {
     let node = o.objective.node;
-    let target = o
-        .target_date
-        .map(|d| format!("target {d}"))
-        .unwrap_or_default();
+    let target = objective_when_text(o);
     let projects = o
         .projects
         .iter()
@@ -272,5 +285,49 @@ fn waiting_row(
                 {if overdue.is_empty() { String::new() } else { format!(" · {overdue}") }}
             </span>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use minimap_types::{Health, NodeSummary, ObjectiveStatus, Uuid};
+    use time::macros::date;
+
+    fn row(ongoing: bool, target: Option<time::Date>) -> ObjectiveHealthRow {
+        ObjectiveHealthRow {
+            objective: NodeSummary {
+                node: NodeRef::new(NodeType::Objective, Uuid::nil()),
+                label: "Maintenance".into(),
+                archived: false,
+            },
+            status: ObjectiveStatus::OnTrack,
+            priority: 3,
+            target_date: target,
+            ongoing,
+            review_due: None,
+            review_overdue_days: None,
+            health: Health {
+                level: HealthLevel::Green,
+                score: 100,
+                reasons: vec![],
+            },
+            projects: vec![],
+        }
+    }
+
+    #[test]
+    fn a_goal_shows_its_target_and_an_ongoing_objective_shows_its_review() {
+        assert_eq!(
+            objective_when_text(&row(false, Some(date!(2027 - 03 - 31)))),
+            "target 2027-03-31"
+        );
+        assert_eq!(objective_when_text(&row(false, None)), "");
+        assert_eq!(objective_when_text(&row(true, None)), "ongoing");
+        let mut r = row(true, None);
+        r.review_due = Some(date!(2027 - 04 - 01));
+        assert_eq!(objective_when_text(&r), "ongoing · review 2027-04-01");
+        r.review_overdue_days = Some(12);
+        assert_eq!(objective_when_text(&r), "ongoing · review overdue 12d");
     }
 }

@@ -678,6 +678,9 @@ mod tests {
 
     fn objective(n: u128, title: &str, target: Option<Date>) -> Objective {
         Objective {
+            ongoing: false,
+            review_every_days: None,
+            last_reviewed_on: None,
             id: id(n),
             title: title.into(),
             description: String::new(),

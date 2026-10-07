@@ -105,6 +105,15 @@ pub struct Contribution {
     pub weight: Option<f64>,
 }
 
+/// An ongoing objective that is due (or overdue) for its review.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReviewDue {
+    pub objective: NodeSummary,
+    pub due: time::Date,
+    /// Days past `due`; `None` when it is due today or later (this week).
+    pub overdue_days: Option<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ObjectiveDetail {
     pub objective: Objective,

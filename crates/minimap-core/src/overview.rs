@@ -15,7 +15,7 @@ use crate::{
     capacity,
     health::{
         objective_health, project_health, risk_score, task_health, Contribution, ProjectFacts,
-        TargetFacts,
+        ReviewFacts, TargetFacts,
     },
     impact::late_working_days,
     schedule::compute,
@@ -278,15 +278,29 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
             }),
             _ => None,
         };
+        let review_overdue_days = o.review_overdue_days(w.today);
+        let review = o
+            .review_due()
+            .zip(review_overdue_days)
+            .zip(o.review_every_days)
+            .map(|((due, overdue_days), every_days)| ReviewFacts {
+                due,
+                overdue_days,
+                every_days,
+            });
         objectives.push(ObjectiveHealthRow {
             objective: summary(NodeType::Objective, o.id, &o.title),
             status: o.status,
             priority: o.priority,
             target_date: o.target_date,
+            ongoing: o.ongoing,
+            review_due: o.review_due(),
+            review_overdue_days,
             health: objective_health(
                 o.status == ObjectiveStatus::Done,
                 &contributions,
                 target.as_ref(),
+                review.as_ref(),
                 &w.thresholds,
             ),
             projects: nested,
@@ -483,6 +497,9 @@ mod tests {
 
     fn objective(n: u128, title: &str, target: Option<Date>, priority: u8) -> Objective {
         Objective {
+            ongoing: false,
+            review_every_days: None,
+            last_reviewed_on: None,
             id: id(n),
             title: title.into(),
             description: String::new(),

@@ -71,11 +71,11 @@ fn seeded_data_is_found_by_its_recorded_ids_and_counted_without_me() {
     let status = demo_remove::status(&conn).unwrap();
     assert!(status.found);
     assert_eq!(status.source, Some(DemoSource::Recorded));
-    assert_eq!(status.items.objectives, 2);
+    assert_eq!(status.items.objectives, 3);
     assert_eq!(status.items.projects, 3);
     assert_eq!(status.items.tasks, 40);
     assert_eq!(status.items.people, 7, "seven others; me is not demo data");
-    assert_eq!(status.items.links, 101);
+    assert_eq!(status.items.links, 103);
     assert_eq!(status.impact, DemoImpact::default());
     // Looking changes nothing.
     assert_eq!(count(&conn, "tasks"), 40);

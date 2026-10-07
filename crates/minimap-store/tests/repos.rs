@@ -67,6 +67,8 @@ fn one_of_each(conn: &mut Connection) -> Vec<NodeRef> {
     let o = objectives::create(
         conn,
         CreateObjective {
+            ongoing: false,
+            review_every_days: None,
             title: "Launch EU".into(),
             description: String::new(),
             target_date: None,
@@ -1078,6 +1080,8 @@ fn objective(conn: &mut Connection, title: &str, target: Option<&str>) -> Object
     objectives::create(
         conn,
         CreateObjective {
+            ongoing: false,
+            review_every_days: None,
             title: title.into(),
             description: String::new(),
             target_date: target.map(|d| timefmt::parse_date(d).unwrap()),

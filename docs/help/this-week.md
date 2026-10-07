@@ -4,7 +4,7 @@
 
 ## What it shows
 
-A strip of the seven days (with the day's due tasks, expected waiting-ons and 1:1s counted) and six sections:
+A strip of the seven days (with the day's due tasks, expected waiting-ons and 1:1s counted) and seven sections:
 
 | Section | Contents |
 |---|---|
@@ -13,6 +13,7 @@ A strip of the seven days (with the day's due tasks, expected waiting-ons and 1:
 | **Blocked** | Tasks marked *blocked*, with what blocks them |
 | **My tasks in progress** | Tasks assigned to you with status *in progress* |
 | **Waiting on** | Open waiting-ons that are stale, overdue, or expected this week (snoozed ones stay hidden) |
+| **Ongoing objectives to review** | [Ongoing objectives](help:objectives) whose review is overdue or falls by Sunday, with *Mark reviewed* on each |
 | **1:1s** | 1:1 notes dated this week |
 
 "Mine" means assigned to the person marked *you*.

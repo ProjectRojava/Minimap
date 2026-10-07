@@ -11,6 +11,8 @@ use crate::{
 };
 
 pub const DEFAULT_PRIORITY: u8 = 3;
+/// How often a new ongoing objective is to be reviewed, until changed.
+pub const DEFAULT_REVIEW_DAYS: u32 = 30;
 pub const DEFAULT_WEEKLY_CAPACITY_HOURS: f64 = 40.0;
 
 /// Points at any node.
@@ -44,12 +46,44 @@ pub struct Objective {
     pub target_date: Option<Date>,
     pub status: ObjectiveStatus,
     pub priority: u8,
+    /// No end (spec 30): there is no target date, it is never "done" (it can be archived), and
+    /// it is judged by its work and its review rhythm.
+    #[serde(default)]
+    pub ongoing: bool,
+    /// How often it should be looked at again, in days.
+    #[serde(default)]
+    pub review_every_days: Option<u32>,
+    #[serde(default)]
+    pub last_reviewed_on: Option<Date>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339::option")]
     pub archived_at: Option<OffsetDateTime>,
+}
+
+impl Objective {
+    /// When an ongoing objective is next due for review: its rhythm after the last review (or
+    /// after it was created, if it never was). `None` for a goal, or an ongoing one with no
+    /// rhythm.
+    pub fn review_due(&self) -> Option<Date> {
+        if !self.ongoing {
+            return None;
+        }
+        let every = self.review_every_days?;
+        let from = self
+            .last_reviewed_on
+            .unwrap_or_else(|| self.created_at.date());
+        Some(from + time::Duration::days(i64::from(every)))
+    }
+
+    /// Calendar days past its review date, when it is past (`None` when not due yet).
+    pub fn review_overdue_days(&self, today: Date) -> Option<u32> {
+        let due = self.review_due()?;
+        let late = (today - due).whole_days();
+        (late > 0).then(|| u32::try_from(late).unwrap_or(u32::MAX))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +97,10 @@ pub struct CreateObjective {
     pub status: Option<ObjectiveStatus>,
     #[serde(default)]
     pub priority: Option<u8>,
+    #[serde(default)]
+    pub ongoing: bool,
+    #[serde(default)]
+    pub review_every_days: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -73,6 +111,9 @@ pub struct UpdateObjective {
     pub target_date: Patch<Date>,
     pub status: Option<ObjectiveStatus>,
     pub priority: Option<u8>,
+    pub ongoing: Option<bool>,
+    pub review_every_days: Patch<u32>,
+    pub last_reviewed_on: Patch<Date>,
 }
 
 impl UpdateObjective {
@@ -82,6 +123,9 @@ impl UpdateObjective {
         self.target_date.apply(&mut o.target_date);
         set(&mut o.status, self.status);
         set(&mut o.priority, self.priority);
+        set(&mut o.ongoing, self.ongoing);
+        self.review_every_days.apply(&mut o.review_every_days);
+        self.last_reviewed_on.apply(&mut o.last_reviewed_on);
     }
 }
 

@@ -610,6 +610,9 @@ mod tests {
         due.priority = 1;
         let blocked = task(13, "Go live", Some(1), TaskStatus::Todo);
         let objective = Objective {
+            ongoing: false,
+            review_every_days: None,
+            last_reviewed_on: None,
             id: id(30),
             title: "Launch in the EU".into(),
             description: String::new(),

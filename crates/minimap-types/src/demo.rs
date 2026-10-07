@@ -63,7 +63,7 @@ pub struct DemoRemoval {
 }
 
 impl DemoSummary {
-    /// "2 objectives, 3 projects, 40 tasks, ..." for a toast.
+    /// "3 objectives, 3 projects, 40 tasks, ..." for a toast.
     pub fn describe(&self) -> String {
         let part =
             |n: u32, one: &str, many: &str| format!("{n} {}", if n == 1 { one } else { many });

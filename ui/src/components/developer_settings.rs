@@ -10,7 +10,7 @@ use crate::{
 
 /// What the demo data holds, for the card.
 pub const CONTENTS: [&str; 9] = [
-    "2 objectives and 3 projects; \"EU Region\" is at risk (projected two working days late, one task overdue, one blocked)",
+    "3 objectives (one ongoing, with a review overdue) and 3 projects; \"EU Region\" is at risk (projected two working days late, one task overdue, one blocked)",
     "40 tasks across the projects and the inbox, with blocks links between projects",
     "8 people (you and 7 others) in 2 nested teams, with reporting lines; one person is overloaded",
     "3 notes (a 1:1 with mentions and a checklist), 5 decisions (one replaced by another)",
@@ -69,7 +69,7 @@ mod tests {
     fn the_card_describes_the_documented_dataset() {
         let all = CONTENTS.join(" ");
         for needle in [
-            "2 objectives",
+            "3 objectives",
             "3 projects",
             "40 tasks",
             "8 people",

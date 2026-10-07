@@ -1,8 +1,8 @@
 # Weekly review
 
-The **Weekly review** (`g r`) is a guided look back at the week, in seven short steps, with the fixes at hand, ending in a **status report** you can send. Weeks run Monday to Sunday; the arrows next to the dates move to another week.
+The **Weekly review** (`g r`) is a guided look back at the week, in eight short steps, with the fixes at hand, ending in a **status report** you can send. Weeks run Monday to Sunday; the arrows next to the dates move to another week.
 
-## The seven steps
+## The eight steps
 
 Move with the step buttons (each shows how many items it has), the **Back/Next** buttons, or the `n` and `p` keys. `j`, `k` and `Enter` walk the rows of a step.
 
@@ -14,15 +14,16 @@ Move with the step buttons (each shows how many items it has), the **Back/Next**
 | **4. Waiting on** | What is stale? | Stale waiting-ons, plus what was resolved this week |
 | **5. Decisions** | What was decided? | Decisions made this week (proposals are left out) |
 | **6. Done** | What got done? | Tasks finished this week, and projects and objectives marked done |
-| **7. Report** | What do I tell people? | The status report |
+| **7. Ongoing** | Which ongoing objectives are due for a look? | [Ongoing objectives](help:objectives) whose review is overdue or falls this week, with *Mark reviewed* |
+| **8. Report** | What do I tell people? | The status report |
 
 ## Fixing things as you go
 
-Rows have quick fixes so you don't have to leave the review: **Tomorrow**, **Next week** or a typed date on slipped and blocked tasks; an **assignee** picker; **Unblock** on blocked tasks; **Resolve** or **Snooze** on stale waiting-ons; **Open Capacity** on overloaded people.
+Rows have quick fixes so you don't have to leave the review: **Tomorrow**, **Next week** or a typed date on slipped and blocked tasks; an **assignee** picker; **Unblock** on blocked tasks; **Resolve** or **Snooze** on stale waiting-ons; **Open Capacity** on overloaded people, and **Mark reviewed** on ongoing objectives.
 
 ## The status report
 
-Step 7 shows the exact Markdown report, written for a board or executive audience: a summary (projects at risk, completed, slipped, blocked, decisions, people over capacity, stale waiting-ons), objectives with health, top risks and the sections for the week. Two buttons:
+Step 8 shows the exact Markdown report, written for a board or executive audience: a summary (projects at risk, completed, slipped, blocked, decisions, people over capacity, stale waiting-ons), objectives with health, top risks and the sections for the week. Two buttons:
 
 - **Save as Markdown…** writes it to a `.md` file you choose;
 - **Copy to clipboard**.

@@ -213,7 +213,12 @@ fn objectives(r: &WeeklyReview) -> String {
         "|---|---|---|---|".to_owned(),
     ];
     for o in &r.objectives {
-        let target = o.target_date.map(full).unwrap_or_else(|| "—".to_owned());
+        // An ongoing objective has no date: say so, and when its review is overdue.
+        let target = match (o.ongoing, o.review_overdue_days) {
+            (true, Some(n)) => format!("Ongoing, review overdue {n}d"),
+            (true, None) => "Ongoing".to_owned(),
+            (false, _) => o.target_date.map(full).unwrap_or_else(|| "—".to_owned()),
+        };
         let reason = why(&o.health);
         lines.push(format!(
             "| {} | {} | {} | {} |",
@@ -588,6 +593,7 @@ mod tests {
 
     fn empty() -> WeeklyReview {
         WeeklyReview {
+            reviews: Vec::new(),
             week_start: date!(2027 - 03 - 01),
             week_end: date!(2027 - 03 - 07),
             prev_week_start: date!(2027 - 02 - 22),
@@ -693,6 +699,9 @@ mod tests {
         };
         r.objectives = vec![
             ObjectiveHealthRow {
+                ongoing: false,
+                review_due: None,
+                review_overdue_days: None,
                 objective: summary_of(NodeType::Objective, 1, "Launch the EU region"),
                 status: ObjectiveStatus::AtRisk,
                 priority: 1,
@@ -709,6 +718,9 @@ mod tests {
                 projects: vec![],
             },
             ObjectiveHealthRow {
+                ongoing: false,
+                review_due: None,
+                review_overdue_days: None,
                 objective: summary_of(NodeType::Objective, 2, "Cut cloud cost | 20%"),
                 status: ObjectiveStatus::OnTrack,
                 priority: 3,
@@ -965,5 +977,25 @@ mod tests {
                 prop_assert!(!out.contains("{{") || template.contains("{{{"), "{out:?}");
             }
         }
+    }
+
+    #[test]
+    fn an_ongoing_objective_says_so_instead_of_a_date_and_flags_a_late_review() {
+        let mut r = empty();
+        r.objectives = vec![ObjectiveHealthRow {
+            objective: summary_of(NodeType::Objective, 3, "Internal system maintenance"),
+            status: ObjectiveStatus::OnTrack,
+            priority: 3,
+            target_date: None,
+            ongoing: true,
+            review_due: Some(date!(2027 - 02 - 19)),
+            review_overdue_days: Some(12),
+            health: health(HealthLevel::Amber, 60, &[]),
+            projects: vec![],
+        }];
+        let text = objectives(&r);
+        assert!(text.contains("Ongoing, review overdue 12d"), "{text}");
+        r.objectives[0].review_overdue_days = None;
+        assert!(objectives(&r).contains("| Ongoing |"));
     }
 }

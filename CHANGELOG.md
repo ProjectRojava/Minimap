@@ -7,13 +7,13 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
-- (nothing yet)
+- **Ongoing objectives** for outcomes that never end ("keep internal systems healthy"): no target date, never "done", a review rhythm instead. An overdue review turns the objective amber and is listed on This week and in a new Weekly review step; ongoing objectives have their own group in the Objectives list (Spec 30, ADR-0014).
 
 ### Changed
 - (nothing yet)
 
 ### Fixed
-- (nothing yet)
+- Installed builds (AppImage, .deb, .rpm) opened to an empty window: the content security policy blocked the app from loading its own WebAssembly file. `cargo tauri dev` didn't show it because the dev server isn't subject to the policy.
 
 ---
 

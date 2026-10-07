@@ -346,6 +346,7 @@ pub fn build(input: ReviewInput) -> WeeklyReview {
         finished,
         counts: overview.counts,
         objectives: overview.objectives,
+        reviews: crate::objectives::reviews_due(&input.objectives, today, week_end),
         risks: overview.risks,
         more_risks: overview.more_risks,
         warnings: overview.warnings,
@@ -674,6 +675,9 @@ mod tests {
             archived_at: None,
         };
         let objective = Objective {
+            ongoing: false,
+            review_every_days: None,
+            last_reviewed_on: None,
             id: id(60),
             title: "Launch".into(),
             description: String::new(),
@@ -759,6 +763,38 @@ mod tests {
         let r = build(i);
         let names: Vec<&str> = r.done.iter().map(|d| d.node.label.as_str()).collect();
         assert_eq!(names, vec!["This week", "Sunday night"]);
+    }
+
+    #[test]
+    fn the_review_lists_ongoing_objectives_that_are_overdue_or_due_this_week() {
+        let obj = |n: u128, title: &str, last: Date| Objective {
+            id: id(n),
+            title: title.into(),
+            description: String::new(),
+            target_date: None,
+            status: ObjectiveStatus::OnTrack,
+            priority: 3,
+            ongoing: true,
+            review_every_days: Some(30),
+            last_reviewed_on: Some(last),
+            created_at: at(date!(2026 - 01 - 01), 9),
+            updated_at: at(date!(2026 - 01 - 01), 9),
+            archived_at: None,
+        };
+        let mut i = input();
+        i.objectives = vec![
+            obj(1, "Maintenance", date!(2027 - 01 - 15)), // due 02-14: overdue
+            obj(2, "Security hygiene", date!(2027 - 02 - 05)), // due 03-07: Sunday
+            obj(3, "Later", date!(2027 - 03 - 01)),
+        ];
+        let r = build(i);
+        let names: Vec<&str> = r
+            .reviews
+            .iter()
+            .map(|x| x.objective.label.as_str())
+            .collect();
+        assert_eq!(names, ["Maintenance", "Security hygiene"]);
+        assert!(r.reviews[0].overdue_days.is_some() && r.reviews[1].overdue_days.is_none());
     }
 
     #[test]
