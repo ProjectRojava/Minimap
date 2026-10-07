@@ -35,6 +35,7 @@ fn person(conn: &mut Connection, name: &str) -> Person {
 
 fn task_with(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
     let mut input = CreateTask {
+        links: Vec::new(),
         title: "Board update".into(),
         assignee: AssigneeChoice::Nobody,
         description: "Numbers and risks".into(),

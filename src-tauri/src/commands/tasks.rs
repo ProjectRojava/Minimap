@@ -173,6 +173,7 @@ pub(crate) fn create_tasks_bulk_impl(
         .into_iter()
         .filter(|t| !t.trim().is_empty())
         .map(|title| CreateTask {
+            links: Vec::new(),
             title,
             assignee,
             description: String::new(),

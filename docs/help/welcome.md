@@ -25,7 +25,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 6. **Look around.** [This week](help:this-week) shows what needs you now. [Overview](help:overview) shows health across everything. [Schedule](help:schedule) shows when things will really finish.
 7. **Protect your data.** Turn on [automatic backups](help:backup-restore), consider [encryption](help:encryption), and optionally connect [Google Drive](help:google-drive).
 
-> **Tip:** the quickest way to see everything working is the demo data. In a development build, *Settings → Developer → Add demo data* fills an empty database with a realistic company. It is not offered in the released app.
+> **Tip:** the quickest way to see everything working is the demo data. In a development build, *Settings → Developer → Add demo data* fills an empty database with a realistic company. It is not offered in the released app. To get rid of it again, see [the FAQ](help:faq).
 
 ## The screens at a glance
 

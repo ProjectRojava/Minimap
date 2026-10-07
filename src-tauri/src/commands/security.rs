@@ -395,6 +395,7 @@ mod tests {
         minimap_store::tasks::create(
             vault.conn.as_mut().unwrap(),
             CreateTask {
+                links: Vec::new(),
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

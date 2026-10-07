@@ -110,6 +110,7 @@ mod tests {
         let t = minimap_store::tasks::create(
             conn,
             CreateTask {
+                links: Vec::new(),
                 title: title.into(),
                 assignee: who,
                 description: String::new(),

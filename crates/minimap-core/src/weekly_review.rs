@@ -373,6 +373,7 @@ mod tests {
     fn task(n: u128, title: &str, status: TaskStatus, due: Option<Date>) -> TaskRow {
         TaskRow {
             task: Task {
+                links: Vec::new(),
                 id: id(n),
                 title: title.into(),
                 description: String::new(),

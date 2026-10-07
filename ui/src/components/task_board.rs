@@ -20,7 +20,10 @@ use crate::{
         page::{Hints, Icon, PageHeader, Tone, CHIP},
         task_list::{next_status, FilterControls, LayoutToggle, TaskFilters},
     },
-    labels::{estimate_text, priority_short, task_status_label, task_status_tone},
+    labels::{
+        deadline_heat, estimate_text, heat_strength, priority_short, task_status_label,
+        task_status_tone,
+    },
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
 
@@ -90,21 +93,65 @@ fn columns(
         .collect()
 }
 
-/// How a due date stands against today.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Due {
-    /// Past, and the task is still open.
-    Overdue,
-    Today,
-    Later,
+/// The due date as shown on a card: its words, classes and tooltip. An open task due within a
+/// week is a pill that gets louder as the day nears (amber tint, solid amber for today and
+/// tomorrow, solid red once overdue); anything further out, or closed, is the plain date.
+#[derive(Debug, PartialEq, Eq)]
+struct DuePill {
+    text: String,
+    class: &'static str,
+    hint: String,
 }
 
-fn due_state(due: Date, today: Option<Date>, status: TaskStatus) -> Due {
+fn due_pill(due: Date, today: Option<Date>, status: TaskStatus) -> DuePill {
     let open = !matches!(status, TaskStatus::Done | TaskStatus::Cancelled);
-    match today {
-        Some(t) if open && due < t => Due::Overdue,
-        Some(t) if open && due == t => Due::Today,
-        _ => Due::Later,
+    let plain = || DuePill {
+        text: due.to_string(),
+        class: "tabular-nums text-muted",
+        hint: format!("Due date: {due}"),
+    };
+    let Some(today) = today.filter(|_| open) else {
+        return plain();
+    };
+    let days = (due - today).whole_days();
+    let (text, class, hint) = match days {
+        d if d < 0 => (
+            format!("{}d overdue", -d),
+            "rounded-sm border border-danger bg-danger px-1.5 py-0.5 text-[11px] font-semibold leading-4 tabular-nums text-canvas",
+            "Overdue",
+        ),
+        0 => (
+            "Today".to_owned(),
+            "rounded-sm border border-warning bg-warning px-1.5 py-0.5 text-[11px] font-semibold leading-4 tabular-nums text-canvas",
+            "Due today",
+        ),
+        1 => (
+            "Tomorrow".to_owned(),
+            "rounded-sm border border-warning bg-warning px-1.5 py-0.5 text-[11px] font-semibold leading-4 tabular-nums text-canvas",
+            "Due tomorrow",
+        ),
+        2..=7 => (
+            format!("In {days}d"),
+            "rounded-sm border border-warning/50 bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-warning",
+            "Due this week",
+        ),
+        _ => return plain(),
+    };
+    DuePill {
+        text,
+        class,
+        hint: format!("{hint}: {due}"),
+    }
+}
+
+/// The priority pill of a card: P1 solid amber, P2 tinted amber, the rest quiet. Closed tasks
+/// are always quiet.
+fn priority_pill(priority: u8, closed: bool) -> &'static str {
+    match priority {
+        _ if closed => CHIP,
+        1 => "inline-block rounded-sm border border-warning bg-warning px-1.5 text-[11px] font-bold leading-4 text-canvas",
+        2 => "inline-block rounded-sm border border-warning/50 bg-warning/10 px-1.5 text-[11px] font-semibold leading-4 text-warning",
+        _ => CHIP,
     }
 }
 
@@ -117,7 +164,7 @@ fn initials(name: &str) -> String {
         .collect()
 }
 
-fn today() -> Option<Date> {
+pub(crate) fn today() -> Option<Date> {
     let (y, m, d) = today_ymd();
     minimap_types::timefmt::parse_date(&format_ymd(y, m, d)).ok()
 }
@@ -482,6 +529,7 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             return;
         }
         let new = CreateTask {
+            links: Vec::new(),
             title: t.to_owned(),
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -544,7 +592,8 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         .recurrence
         .as_ref()
         .map(|r| format!("Repeats {}", r.describe()));
-    let due = t.due_date.map(|d| (d, due_state(d, today, status)));
+    let due = t.due_date.map(|d| due_pill(d, today, status));
+    let heat = deadline_heat(t.due_date, today, !closed);
     let estimate = estimate_text(t.estimate_days);
     let assignee = row.assignee.map(|a| a.label);
     let project = row.project.map(|p| p.label);
@@ -555,22 +604,25 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     };
     // Urgent work (P1, P2) is the warning tone, like everywhere else.
     let priority = t.priority;
-    let priority_class = if priority <= 2 && !closed {
-        Tone::Warning.chip()
-    } else {
-        CHIP
-    };
+    let priority_class = priority_pill(priority, closed);
 
     view! {
         <article
             draggable="true"
-            style=move || hue().map(|h| format!("--obj-h: {h}")).unwrap_or_default()
+            style=move || {
+                let mut style = hue().map(|h| format!("--obj-h: {h};")).unwrap_or_default();
+                if let Some(h) = heat {
+                    style.push_str(&format!("--heat: {};", heat_strength(h)));
+                }
+                style
+            }
             class=move || format!(
-                "group cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {}",
+                "group cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {} {}",
                 if hue().is_some() { "obj-bar" } else { "" },
                 if is_open() { "border-accent/50 bg-active" }
                 else if on_cursor() { "border-line-strong bg-hover" }
                 else { "border-line bg-canvas hover:border-line-strong hover:bg-hover" },
+                if heat.is_some() && !is_open() && !on_cursor() { "heat" } else { "" },
                 if in_the_air() { "opacity-40" } else { "" })
             on:click=move |_| {
                 if let Some(i) = index() {
@@ -611,14 +663,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             })}
             <div class="mt-2 flex items-center gap-1.5 text-[11px]">
                 <span class=priority_class title="Priority (1 is highest)">{priority_short(priority)}</span>
-                {due.map(|(d, state)| {
-                    let (class, hint) = match state {
-                        Due::Overdue => ("text-danger", "Overdue"),
-                        Due::Today => ("text-warning", "Due today"),
-                        Due::Later => ("text-muted", "Due date"),
-                    };
-                    view! { <span class=format!("tabular-nums {class}") title=hint>{d.to_string()}</span> }
-                })}
+                {due.map(|pill| view! { <span class=pill.class title=pill.hint>{pill.text}</span> })}
                 {(!estimate.is_empty()).then(|| view! {
                     <span class="tabular-nums text-muted" title="Estimate">{estimate}</span>
                 })}
@@ -648,6 +693,7 @@ mod tests {
         let at = OffsetDateTime::UNIX_EPOCH;
         TaskRow {
             task: minimap_types::Task {
+                links: Vec::new(),
                 id: {
                     static NEXT: AtomicU64 = AtomicU64::new(1);
                     Uuid::from_u128(NEXT.fetch_add(1, Ordering::Relaxed).into())
@@ -749,18 +795,42 @@ mod tests {
     }
 
     #[test]
-    fn only_open_tasks_can_be_overdue() {
+    fn the_due_pill_gets_louder_as_the_day_nears_and_only_for_open_tasks() {
         let today = Some(date("2027-03-10"));
-        let due = |d, s| due_state(d, today, s);
-        assert_eq!(due(date("2027-03-09"), TaskStatus::Todo), Due::Overdue);
-        assert_eq!(due(date("2027-03-10"), TaskStatus::Blocked), Due::Today);
-        assert_eq!(due(date("2027-03-11"), TaskStatus::Todo), Due::Later);
-        assert_eq!(due(date("2027-03-09"), TaskStatus::Done), Due::Later);
-        assert_eq!(due(date("2027-03-09"), TaskStatus::Cancelled), Due::Later);
-        assert_eq!(
-            due_state(date("2027-03-09"), None, TaskStatus::Todo),
-            Due::Later
-        );
+        let pill = |d: &str, s| due_pill(date(d), today, s);
+        let overdue = pill("2027-03-08", TaskStatus::Todo);
+        assert_eq!(overdue.text, "2d overdue");
+        assert!(overdue.class.contains("bg-danger"));
+        assert!(overdue.hint.starts_with("Overdue"));
+        let now = pill("2027-03-10", TaskStatus::Blocked);
+        assert_eq!(now.text, "Today");
+        assert!(now.class.contains("bg-warning ") && now.class.contains("text-canvas"));
+        assert_eq!(pill("2027-03-11", TaskStatus::Todo).text, "Tomorrow");
+        let soon = pill("2027-03-17", TaskStatus::Todo);
+        assert_eq!(soon.text, "In 7d");
+        assert!(soon.class.contains("bg-warning/10"));
+        // Further out, or closed, is just the date.
+        for (d, s) in [
+            ("2027-03-18", TaskStatus::Todo),
+            ("2027-03-08", TaskStatus::Done),
+            ("2027-03-08", TaskStatus::Cancelled),
+        ] {
+            let plain = pill(d, s);
+            assert_eq!(
+                (plain.text.as_str(), plain.class),
+                (d, "tabular-nums text-muted")
+            );
+        }
+        let unknown = due_pill(date("2027-03-09"), None, TaskStatus::Todo);
+        assert_eq!(unknown.text, "2027-03-09");
+    }
+
+    #[test]
+    fn priority_one_is_solid_two_is_tinted_and_closed_tasks_are_quiet() {
+        assert!(priority_pill(1, false).contains("bg-warning "));
+        assert!(priority_pill(2, false).contains("bg-warning/10"));
+        assert_eq!(priority_pill(3, false), CHIP);
+        assert_eq!(priority_pill(1, true), CHIP);
     }
 
     #[test]

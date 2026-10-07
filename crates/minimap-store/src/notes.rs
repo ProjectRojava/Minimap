@@ -297,6 +297,7 @@ pub fn convert_checklist_item(
     let task = tasks::create_in_tx(
         &tx,
         CreateTask {
+            links: Vec::new(),
             title: item.text,
             assignee,
             description: String::new(),

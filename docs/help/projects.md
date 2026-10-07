@@ -13,11 +13,15 @@ Each project shows the **objectives** it contributes to as coloured chips (the l
 
 Filters narrow by status, owner or objective. *New project* opens a short form.
 
+When the list is narrow (for example with the detail pane open) the *Owner* and *Target* columns are hidden so the project title stays readable; widen the window or close the pane to see them. The owner and target date are always in the detail pane.
+
 ## The handle
 
 Every project has a **handle**, a short unique name such as `api-launch`, made from its title when you create it. You use it in quick-add (`#api-launch`) to put a task in the project. Handles must be unique among active projects; archiving a project frees its handle. You can change the handle in the detail pane.
 
 ## The detail pane
+
+The pane opens with a row of coloured pills: the status, the priority (P1 and P2 in amber), the target date (red "overdue" once it has passed while the project is still open) and the objectives the project serves. The Status and Priority dropdowns are coloured the same way, as are the status words of the project's tasks and objectives further down.
 
 | Section | What you do |
 |---|---|
@@ -27,6 +31,7 @@ Every project has a **handle**, a short unique name such as `api-launch`, made f
 | Health | The computed health with reasons: see [Overview](help:overview) |
 | Schedule | Forecast finish, the critical path and a timeline: see [Schedule and critical path](help:schedule) |
 | Tasks | The project's tasks (edit them on the Tasks screen) |
+| Notes and findings | Write a note about the project, and open the ones that mention it: see [Notes](help:notes) |
 | What if | Start a "what if this slips?" scenario: see [What if](help:what-if) |
 
 ## Archiving a project

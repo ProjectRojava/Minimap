@@ -51,6 +51,18 @@ impl Tone {
         }
     }
 
+    /// A dropdown button or box that wears the tone: tinted background, border and text. The
+    /// neutral tone is the plain look of a text input.
+    pub fn field(self) -> &'static str {
+        match self {
+            Tone::Neutral => "border-line bg-canvas text-fg",
+            Tone::Accent => "border-accent/40 bg-accent/10 text-accent",
+            Tone::Success => "border-success/40 bg-success/10 text-success",
+            Tone::Warning => "border-warning/40 bg-warning/10 text-warning",
+            Tone::Danger => "border-danger/40 bg-danger/10 text-danger",
+        }
+    }
+
     /// Just the text colour (for dropdown buttons and inline words).
     pub fn text(self) -> &'static str {
         match self {

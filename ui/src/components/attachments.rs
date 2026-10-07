@@ -10,7 +10,7 @@ use crate::{
     components::{
         backup_settings::size_text,
         detail_pane::Section,
-        form::BUTTON,
+        form::{BUTTON, BUTTON_SOFT},
         page::{Icon, Tone},
     },
     state::{DataVersion, Toasts},
@@ -117,7 +117,7 @@ pub fn Attachments(node: NodeRef) -> impl IntoView {
                     }.into_any(),
                 }}
                 <div class="flex flex-wrap items-center gap-2">
-                    <button class=BUTTON on:click=pick>"Attach file…"</button>
+                    <button class=BUTTON_SOFT on:click=pick>"Attach file…"</button>
                     <span class="text-[11px] text-muted">
                         "Images, SVG, Markdown, PDF, Word, Excel, PowerPoint"
                     </span>

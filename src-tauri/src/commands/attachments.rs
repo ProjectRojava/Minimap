@@ -307,6 +307,7 @@ mod tests {
         let task = tasks::create(
             conn,
             CreateTask {
+                links: Vec::new(),
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

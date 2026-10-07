@@ -15,10 +15,11 @@ use crate::{
 };
 
 const TABLE: &str = "tasks";
-const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence";
+const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links";
 
 fn from_row(r: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
+        links: col_links(r, 14)?,
         id: col_uuid(r, 0)?,
         title: r.get(1)?,
         description: r.get(2)?,
@@ -87,6 +88,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
     let at = now();
     let status = input.status.unwrap_or(TaskStatus::Todo);
     let t = Task {
+        links: minimap_core::links::clean(input.links).map_err(StoreError::Invalid)?,
         id: Uuid::now_v7(),
         title: input.title,
         description: input.description,
@@ -105,7 +107,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
     validate(&t)?;
     tx.execute(
         &format!(
-            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)"
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)"
         ),
         params![
             id_s(t.id),
@@ -122,6 +124,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
             ts_s(t.updated_at),
             ts_opt_s(t.archived_at),
             recurrence_s(t.recurrence.as_ref()),
+            links_s(&t.links),
         ],
     )?;
     activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
@@ -188,6 +191,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
     let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
+    new.links = minimap_core::links::clean(new.links).map_err(StoreError::Invalid)?;
     // completed_at follows status: set on entering `done`, cleared on leaving it.
     let at = now();
     let finishing = old.status != TaskStatus::Done && new.status == TaskStatus::Done;
@@ -211,7 +215,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
     new.updated_at = at;
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, updated_at=?12 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, updated_at=?13 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -225,6 +229,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
             ts_opt_s(new.completed_at),
             new.priority,
             recurrence_s(new.recurrence.as_ref()),
+            links_s(&new.links),
             ts_s(new.updated_at),
         ],
     )?;
@@ -243,7 +248,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
 }
 
 /// The task that follows a finished repeating one: the same title, description, project,
-/// estimate, priority, assignee and objectives, due on the rule's next date (with the same gap
+/// estimate, priority, links, assignee and objectives, due on the rule's next date (with the same gap
 /// between start and due), and carrying the rule on. Blockers are not copied: they belong to the
 /// instance they blocked.
 fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
@@ -260,6 +265,7 @@ fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
     let next = create_in_tx(
         tx,
         CreateTask {
+            links: done.links.clone(),
             title: done.title.clone(),
             assignee: AssigneeChoice::Nobody,
             description: done.description.clone(),

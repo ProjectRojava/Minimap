@@ -88,6 +88,11 @@ struct IdArg {
 }
 
 #[derive(Serialize)]
+struct UrlArg {
+    url: String,
+}
+
+#[derive(Serialize)]
 struct InputArg<T> {
     input: T,
 }
@@ -1051,6 +1056,11 @@ pub async fn remove_attachment(id: Uuid) -> Result<(), AppError> {
 /// Opens an attachment with the program the system uses for that kind of file.
 pub async fn open_attachment(id: Uuid) -> Result<(), AppError> {
     invoke("open_attachment", &IdArg { id }).await
+}
+
+/// Opens a reference link in the system's browser (or mail program).
+pub async fn open_link(url: String) -> Result<(), AppError> {
+    invoke("open_link", &UrlArg { url }).await
 }
 
 #[wasm_bindgen]

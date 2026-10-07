@@ -144,6 +144,24 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .obj-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--obj); }
 .obj-bar { border-left: 3px solid var(--obj); }
 
+/* A task's fill warms towards the danger colour as its deadline nears: a tint laid over the
+   item's own background, behind its content. `--heat` is its strength (0 to 1). An overlay
+   rather than `color-mix`, which the CSS build would give a solid red fallback. Components
+   layer, so hover and selected backgrounds still work. */
+@layer components {
+  .heat { position: relative; isolation: isolate; }
+  .heat::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--danger);
+    opacity: var(--heat, 0);
+    pointer-events: none;
+  }
+}
+
 /* Schedule timeline (components/schedule_panel.rs). Theme tokens only. */
 .gantt { display: block; }
 .gantt text { fill: var(--muted); font-size: 10px; font-family: inherit; }
