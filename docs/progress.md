@@ -1,5 +1,7 @@
 # Progress
 
+> **Version:** 0.1.0 · **Versioning:** See [VERSIONING.md](../VERSIONING.md) for how releases are tagged and versions bumped.
+
 ## Current milestone: M0 (Scaffold) — in progress
 
 - [x] Workspace, crates, toolchain file
