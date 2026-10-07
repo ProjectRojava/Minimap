@@ -7,13 +7,16 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
-- (nothing yet)
+- Open tasks with a due date take on a red tint as the deadline nears, from 14 days out, on the Tasks board and in the list.
+- Tasks, projects and objectives have a **Notes and findings** section in their panel: write a note about the item and see every note that mentions it.
+- Tasks have a **Reference links** section: add web pages, Google Drive files or email addresses to a task and open them in your browser with a click (Spec 28).
 
 ### Changed
-- (nothing yet)
+- Task board cards show the due date as a pill that gets louder as the day nears ("In 5d", "Tomorrow", "Today", "3d overdue"), and priority as a solid P1 / tinted P2 pill.
+- Task, project and objective panels are easier to read: a row of coloured status, priority and date pills at the top (overdue dates in red), colour-coded status and priority dropdowns, coloured status words in their lists, and colour-coded buttons (Archive in red, What if and Attach in blue, Add link solid).
 
 ### Fixed
-- (nothing yet)
+- Projects list no longer lets the project title and objective chip overlap when the detail pane is open; Owner and Target hide while the list is narrow.
 
 ---
 

@@ -200,6 +200,13 @@ fn task_line(t: &Task, l: &Lookup) -> String {
     if let Some(rule) = &t.recurrence {
         bits.push(format!("repeats {}", rule.describe()));
     }
+    for link in &t.links {
+        bits.push(format!(
+            "[{}]({})",
+            escape(&link.label()),
+            link.url.replace('(', "%28").replace(')', "%29")
+        ));
+    }
     if t.archived_at.is_some() {
         bits.push("archived".to_owned());
     }
@@ -497,6 +504,7 @@ mod tests {
 
     fn task(n: u128, title: &str, project: Option<u128>, status: TaskStatus) -> Task {
         Task {
+            links: Vec::new(),
             id: id(n),
             title: title.into(),
             description: String::new(),
@@ -751,6 +759,30 @@ mod tests {
         );
         assert!(file(&files, "notes/2027-03-03-1-1-with-priya.md")
             .contains("*1:1 · 2027-03-03 · repeats monthly on the 1st*"));
+    }
+
+    #[test]
+    fn a_tasks_reference_links_are_markdown_links() {
+        use minimap_types::RefLink;
+        let mut d = data();
+        d.tasks[1].links = vec![
+            RefLink {
+                title: "Design [v2]".into(),
+                url: "https://docs.google.com/document/d/1".into(),
+            },
+            RefLink {
+                title: String::new(),
+                url: "https://example.com/a_(b)".into(),
+            },
+        ];
+        let files = markdown(&d, &HashMap::new());
+        let eu = file(&files, "projects/eu-region.md");
+        assert!(
+            eu.contains(
+                "P1 · [Design \\[v2\\]](https://docs.google.com/document/d/1) · [example.com/a\\_(b)](https://example.com/a_%28b%29)"
+            ),
+            "{eu}"
+        );
     }
 
     #[test]

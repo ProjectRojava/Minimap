@@ -6,6 +6,8 @@ Links are what make Minimap more than a list. They are how it knows what blocks 
 
 Open any item and find the **Links** section of its detail pane. Choose **Add a link…**, pick the **relation** (only the ones that make sense for this kind of item are offered, in both directions), then search for the other item and pick it. Some links have details you can edit in place. Remove a link with its ✕.
 
+(Addresses of web pages and Drive files are a different thing: a task's **Reference links**, see [Tasks and the inbox](help:tasks).)
+
 Some relations are edited where they live instead: a task's assignee on the task, a project's objectives and dependencies on the project, a person's manager and teams on the person.
 
 ## The relations

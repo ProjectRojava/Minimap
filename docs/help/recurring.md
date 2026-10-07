@@ -30,7 +30,7 @@ Without a due date (for a note: a date) the first one starts on the rule's first
 
 When you mark a repeating task **done**, from anywhere, Minimap creates the next one straight away:
 
-- same title, description, project, estimate, priority, assignee and objectives;
+- same title, description, project, estimate, priority, reference links, assignee and objectives;
 - status *to do*, due on the rule's **next date after the one it was due**, and never in the past (finish a weekly Monday task on Wednesday and the next is due next Monday; finish it weeks late and it is due the first Monday that is not past);
 - the same gap between start and due dates, if it had a start date;
 - **not** the links that block it: those belong to the one that was blocked.

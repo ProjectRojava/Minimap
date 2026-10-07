@@ -36,6 +36,7 @@ fn task(conn: &mut Connection, title: &str) -> Task {
     tasks::create(
         conn,
         CreateTask {
+            links: Vec::new(),
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -453,6 +454,7 @@ fn list_hides_archived_unless_asked() {
 fn invalid_input_is_rejected_and_writes_nothing() {
     let mut conn = db();
     let bad = |title: &str, priority| CreateTask {
+        links: Vec::new(),
         title: title.into(),
         assignee: AssigneeChoice::Nobody,
         description: String::new(),
@@ -1374,6 +1376,7 @@ fn task_in(conn: &mut Connection, title: &str, project: Uuid) -> Task {
     tasks::create(
         conn,
         CreateTask {
+            links: Vec::new(),
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -1549,6 +1552,7 @@ fn project_rows_and_detail() {
 
 fn new_task(title: &str, assignee: AssigneeChoice) -> CreateTask {
     CreateTask {
+        links: Vec::new(),
         title: title.into(),
         assignee,
         description: String::new(),

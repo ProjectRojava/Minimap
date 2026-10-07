@@ -11,7 +11,7 @@ use crate::{
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         people_panel::error_line,
     },
-    labels::{decision_status_label, decision_status_tone},
+    labels::{decision_status_label, DECISION_STATUS_TINT},
     state::{finish, DataVersion, Selection, Toasts},
 };
 
@@ -84,7 +84,7 @@ fn StatusFields(decision: Decision) -> impl IntoView {
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Status" options=status_options()
                 current=decision.status.as_str().to_owned() on_change=save_status
-                tone=decision_status_tone(decision.status).text() />
+                tint=DECISION_STATUS_TINT />
             <TextField label="Decided on" kind="date"
                 value=decision.decided_on.map(|d| d.to_string()).unwrap_or_default() on_commit=save_date />
         </div>

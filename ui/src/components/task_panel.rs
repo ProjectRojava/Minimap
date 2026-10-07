@@ -13,11 +13,14 @@ use crate::{
     components::{
         detail_pane::Section,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
+        item_notes::ItemNotes,
         people_panel::error_line,
+        reference_links::ReferenceLinks,
         repeat_field::RepeatField,
+        summary_chips::TaskSummary,
         what_if_button::WhatIfButton,
     },
-    labels::{estimate_text, priority_option, task_status_label, task_status_tone},
+    labels::{estimate_text, priority_option, task_status_label, PRIORITY_TINT, TASK_STATUS_TINT},
     state::{finish, DataVersion, Selection, Toasts},
 };
 
@@ -30,12 +33,15 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
 
     view! {
         <Section title="Fields">
+            <TaskSummary id=id />
             {move || match (detail.get(), people.get(), projects.get()) {
                 (Some(Ok(d)), Some(Ok(ps)), Some(Ok(pr))) => view! { <TaskFields detail=d people=ps projects=pr /> }.into_any(),
                 (Some(Err(e)), _, _) | (_, Some(Err(e)), _) | (_, _, Some(Err(e))) => error_line(e),
                 _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Section>
+        <ReferenceLinks task=id />
+        <ItemNotes node=NodeRef::new(NodeType::Task, id) />
         <WhatIfButton node=NodeRef::new(NodeType::Task, id) />
         <ArchiveTask id=id />
     }
@@ -149,9 +155,10 @@ fn TaskFields(
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Status" options=status_options
                 current=task.status.as_str().to_owned() on_change=save_status
-                tone=task_status_tone(task.status).text() />
+                tint=TASK_STATUS_TINT />
             <SelectField label="Priority" options=priority_options
-                current=task.priority.to_string() on_change=save_priority />
+                current=task.priority.to_string() on_change=save_priority
+                tint=PRIORITY_TINT />
         </div>
         <div class="mt-2 grid grid-cols-2 gap-3">
             <SelectField label="Project" options=project_options
@@ -204,7 +211,7 @@ fn ArchiveTask(id: Uuid) -> impl IntoView {
                     </div>
                 }.into_any()
             } else {
-                view! { <button class=BUTTON on:click=move |_| confirming.set(true)>"Archive task…"</button> }.into_any()
+                view! { <button class=BUTTON_DANGER on:click=move |_| confirming.set(true)>"Archive task…"</button> }.into_any()
             }}
         </Section>
     }

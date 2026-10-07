@@ -148,6 +148,7 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
         tasks::create(
             c,
             CreateTask {
+                links: Vec::new(),
                 title: "Write the runbook".into(),
                 assignee: AssigneeChoice::Person(priya),
                 description: String::new(),
@@ -174,6 +175,7 @@ fn creating_many_tasks_is_one_step() {
             ["One", "Two", "Three"]
                 .iter()
                 .map(|t| CreateTask {
+                    links: Vec::new(),
                     title: (*t).into(),
                     assignee: AssigneeChoice::Me,
                     description: String::new(),
@@ -576,6 +578,7 @@ fn undoing_a_creation_never_deletes_anything() {
         tasks::create(
             c,
             CreateTask {
+                links: Vec::new(),
                 title: "Temp".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
@@ -676,4 +679,26 @@ fn making_a_task_repeat_and_stopping_it_are_undone() {
         tasks::get(&conn, monthly.id).unwrap().recurrence,
         monthly.recurrence
     );
+}
+
+#[test]
+fn adding_and_removing_reference_links_can_be_undone_and_redone() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    let link = RefLink {
+        title: "Runbook".into(),
+        url: "https://docs.google.com/document/d/1".into(),
+    };
+    round_trip(&mut conn, |c| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                links: Some(vec![link.clone()]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    assert!(tasks::get(&conn, t.id).unwrap().links.is_empty());
 }

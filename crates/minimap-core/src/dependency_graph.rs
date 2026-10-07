@@ -477,6 +477,7 @@ mod tests {
 
     fn task(n: u128, title: &str, days: f64, project: Option<u128>) -> Task {
         Task {
+            links: Vec::new(),
             id: id(n),
             title: title.into(),
             description: String::new(),

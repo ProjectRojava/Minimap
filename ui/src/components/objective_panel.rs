@@ -14,9 +14,14 @@ use crate::{
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER, INPUT},
         health_panel::ObjectiveHealthSection,
+        item_notes::ItemNotes,
         people_panel::error_line,
+        summary_chips::ObjectiveSummary,
     },
-    labels::{humanize, objective_status_label, objective_status_tone, priority_option},
+    labels::{
+        humanize, objective_status_label, priority_option, status_word_tone, OBJECTIVE_STATUS_TINT,
+        PRIORITY_TINT,
+    },
     nav::type_label,
     state::{finish, DataVersion, Selection, Toasts},
 };
@@ -42,6 +47,7 @@ pub fn ObjectivePanel(id: Uuid) -> impl IntoView {
 
     view! {
         <Section title="Fields">
+            <ObjectiveSummary id=id />
             {move || match objective.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
@@ -52,6 +58,7 @@ pub fn ObjectivePanel(id: Uuid) -> impl IntoView {
         {move || match (detail.get(), candidates.get()) {
             (Some(Ok(d)), Some(Ok(c))) => view! {
                 <Contributions detail=d.clone() candidates=c />
+                <ItemNotes node=NodeRef::new(NodeType::Objective, id) />
                 <ArchiveObjective detail=d />
             }.into_any(),
             (Some(Err(e)), _) | (_, Some(Err(e))) => view! {
@@ -131,9 +138,10 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Your assessment" options=status_options
                 current=objective.status.as_str().to_owned() on_change=save_status
-                tone=objective_status_tone(objective.status).text() />
+                tint=OBJECTIVE_STATUS_TINT />
             <SelectField label="Priority" options=priority_options
-                current=objective.priority.to_string() on_change=save_priority />
+                current=objective.priority.to_string() on_change=save_priority
+                tint=PRIORITY_TINT />
         </div>
     }
 }
@@ -246,7 +254,7 @@ fn Contributions(detail: ObjectiveDetail, candidates: Vec<NodeSummary>) -> impl 
                     <button class="flex-1 truncate text-left hover:underline" on:click=move |_| selection.open(node)>
                         {c.node.label}
                     </button>
-                    <span class="text-[11px] text-muted">{humanize(&c.status)}</span>
+                    <span class=status_word_tone(&c.status).chip()>{humanize(&c.status)}</span>
                     <WeightInput edge_id=edge_id weight=c.weight />
                     <button class="px-1 text-faint hover:text-danger" aria-label="Remove contribution"
                             on:click=remove>"✕"</button>
@@ -307,7 +315,7 @@ fn ArchiveObjective(detail: ObjectiveDetail) -> impl IntoView {
                     </div>
                 }.into_any()
             } else {
-                view! { <button class=BUTTON on:click=move |_| confirming.set(true)>"Archive objective…"</button> }.into_any()
+                view! { <button class=BUTTON_DANGER on:click=move |_| confirming.set(true)>"Archive objective…"</button> }.into_any()
             }}
         </Section>
     }

@@ -39,5 +39,6 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 25 | [Undo](25-undo.md) | M4 | Should | 01 |
 | 26 | [Full data export](26-data-export.md) | M4 | Should | 01 |
 | 27 | [Recurring items](27-recurring-items.md) | — | Later | 06, 08 |
+| 28 | [Reference links on tasks](28-reference-links.md) | — | Should | 06 |
 
 `Must`/`Should`/`Later` follow the MVP brainstorm and are suggestions; change them freely. Where a spec disagrees with `CLAUDE.md`, the spec wins once you mark it Ready, and Claude records the deviation as an ADR.

@@ -63,7 +63,18 @@ Deleting for good (only possible after archiving, with a confirmation) can't be 
 
 ## I can't find the demo data
 
-It exists only in development builds (*Settings → Developer*), on an empty database.
+It can be added only in development builds (*Settings → Developer*), on an empty database.
+
+## Remove the demo data
+
+If your database holds the sample company from the demo data (even if a development build added it and you are now running the released app), *Settings → Data & backup* starts with a **Demo data** card. It lists what it found and what removing it does to your own items, then *Remove demo data…* asks you to confirm.
+
+- A **backup** of everything is saved first (it is listed under Backups), so you can get it all back with *Restore*. Removing can't be undone with `Ctrl/Cmd+Z`.
+- **Your own items are never deleted.** A task of yours in a demo project moves to the Inbox, a project of yours owned by a demo person loses its owner, a team of yours inside a demo team becomes top-level, and a demo person that one of your waiting-ons is about stays. Links between your items and the demo items go with the demo items.
+- Demo data added by an older version is recognised by the exact titles of the sample items; anything you renamed counts as yours and stays.
+- If Google Drive is connected, the removal reaches your other computers as well.
+
+Afterwards the database is empty again, apart from you.
 
 ## Glossary
 

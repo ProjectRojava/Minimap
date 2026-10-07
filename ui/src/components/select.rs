@@ -7,8 +7,8 @@
 use leptos::{ev, html, prelude::*};
 
 use super::{
-    form::INPUT,
     overlay::{anchor_of, place, viewport},
+    page::Tone,
 };
 
 /// Height of one option row in pixels (`h-6`), used to keep the highlight scrolled into view.
@@ -31,6 +31,10 @@ pub fn SelectField(
     /// Text colour class for the button, e.g. from a status tone (default: normal text).
     #[prop(optional)]
     tone: &'static str,
+    /// Colours the button (tinted box) and each option by the tone of its value, so a status
+    /// reads at a glance and follows the choice as it changes. Takes the stored value.
+    #[prop(optional)]
+    tint: Option<fn(&str) -> Tone>,
 ) -> impl IntoView {
     let options = StoredValue::new(options);
     let selected = RwSignal::new(current);
@@ -100,6 +104,16 @@ pub fn SelectField(
         }
     };
 
+    // The text colour of option `i` in the list (only for tinted dropdowns).
+    let option_tone = move |i: usize| -> &'static str {
+        match tint {
+            Some(of) => options
+                .with_value(|o| o.get(i).map(|(v, _)| of(v).text()))
+                .unwrap_or(""),
+            None => "",
+        }
+    };
+
     let on_keydown = move |ev: ev::KeyboardEvent| {
         let n = count();
         if n == 0 {
@@ -152,14 +166,25 @@ pub fn SelectField(
     };
 
     let text = if tone.is_empty() { "text-fg" } else { tone };
-    let button_class: String = if compact {
-        format!(
-            "flex max-w-full items-center justify-between gap-1 rounded-sm border border-line bg-canvas px-1.5 py-0.5 \
-             text-left text-[12px] {text} hover:border-line-strong focus:outline-none focus:border-accent"
-        )
-    } else {
-        // The same look as a text input.
-        format!("{INPUT} flex items-center justify-between gap-2 text-left")
+    let button_class = move || -> String {
+        // Colours: the value's tone when there is one, else the plain look of a text input.
+        let colours = match tint {
+            Some(of) => of(&selected.get()).field(),
+            None => "border-line bg-canvas",
+        };
+        if compact {
+            let text = if tint.is_some() { "" } else { text };
+            format!(
+                "flex max-w-full items-center justify-between gap-1 rounded-sm border px-1.5 py-0.5 \
+                 text-left text-[12px] {colours} {text} hover:border-line-strong focus:outline-none focus:border-accent"
+            )
+        } else {
+            let text = if tint.is_some() { "" } else { "text-fg" };
+            format!(
+                "w-full rounded-sm border px-2 py-1 text-[13px] {colours} {text} \
+                 focus:outline-none focus:border-accent flex items-center justify-between gap-2 text-left"
+            )
+        }
     };
     let wrapper = if compact {
         "inline-block max-w-full"
@@ -213,7 +238,7 @@ pub fn SelectField(
                                 <span class="w-3 shrink-0 text-[10px]">
                                     {move || if selected.get() == options.with_value(|o| o.get(i).map(|(v, _)| v.clone()).unwrap_or_default()) { "✓" } else { "" }}
                                 </span>
-                                <span class="truncate">{text}</span>
+                                <span class=move || format!("truncate {}", option_tone(i))>{text}</span>
                             </li>
                         })
                         .collect_view()}

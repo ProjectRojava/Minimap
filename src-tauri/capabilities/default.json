@@ -124,6 +124,7 @@
     "allow-add-attachment-data",
     "allow-remove-attachment",
     "allow-open-attachment",
+    "allow-open-link",
     "dialog:allow-save",
     "dialog:allow-open",
     "core:window:allow-minimize",

@@ -5,7 +5,7 @@ use leptos_router::hooks::use_navigate;
 use minimap_types::NodeRef;
 
 use crate::{
-    components::{detail_pane::Section, form::BUTTON},
+    components::{detail_pane::Section, form::BUTTON_SOFT},
     state::Scenario,
 };
 
@@ -22,7 +22,7 @@ pub fn WhatIfButton(node: NodeRef) -> impl IntoView {
     };
     view! {
         <Section title="What if">
-            <button class=BUTTON on:click=go>"What if this slips?"</button>
+            <button class=BUTTON_SOFT on:click=go>"What if this slips?"</button>
             <p class="mt-1 text-[11px] text-muted">
                 "See which tasks, projects, objectives and people it would push, before it happens."
             </p>

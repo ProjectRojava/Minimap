@@ -382,6 +382,7 @@ mod tests {
 
     fn task(n: u128, title: &str, estimate: Option<f64>) -> Task {
         Task {
+            links: Vec::new(),
             id: id(n),
             title: title.into(),
             description: String::new(),

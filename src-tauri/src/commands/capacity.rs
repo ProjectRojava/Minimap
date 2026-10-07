@@ -72,6 +72,7 @@ mod tests {
         minimap_store::tasks::create(
             conn,
             CreateTask {
+                links: Vec::new(),
                 title: title.into(),
                 assignee: AssigneeChoice::Person(who),
                 description: String::new(),

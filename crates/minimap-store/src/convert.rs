@@ -80,6 +80,17 @@ pub fn col_recurrence(r: &Row, i: usize) -> rusqlite::Result<Option<minimap_type
     Ok(s.and_then(|s| serde_json::from_str(&s).ok()))
 }
 
+/// Reference links as stored: a JSON list.
+pub fn links_s(links: &[minimap_types::RefLink]) -> String {
+    serde_json::to_string(links).unwrap_or_else(|_| "[]".to_owned())
+}
+
+/// Stored reference links. A list that no longer reads is no links: the item still loads.
+pub fn col_links(r: &Row, i: usize) -> rusqlite::Result<Vec<minimap_types::RefLink>> {
+    let s: String = r.get(i)?;
+    Ok(serde_json::from_str(&s).unwrap_or_default())
+}
+
 pub fn id_opt_s(id: Option<Uuid>) -> Option<String> {
     id.map(id_s)
 }

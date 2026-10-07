@@ -14,6 +14,8 @@ Every note has a **title**, a **date**, and a **kind**:
 | **Meeting** | A meeting |
 | **General** | Anything else |
 
+Tasks, projects and objectives have a **Notes and findings** box in their detail pane: what you type there becomes a note that mentions the item.
+
 From the keyboard: `Ctrl/Cmd+K` then `note 1:1 @priya` creates a 1:1 (its title becomes "1:1 with Priya").
 
 ## Writing

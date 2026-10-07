@@ -26,6 +26,7 @@ The Markdown template behind the [weekly status report](help:weekly-review). *Sa
 
 ## Data & backup
 
+- **Demo data**: shown only while the database holds the sample company from the demo data (a card at the top). *Remove demo data…* removes it after saving a backup; see [Remove the demo data](help:faq).
 - **Data location**: where the database file is, its size, its folder, the log file, and whether it is encrypted, with **Show in folder** to open it. The location is fixed, so backups, the attachment cache and encryption keep working. To use your data on another computer, use a backup or Google Drive.
 - **Google Drive**: see [Google Drive](help:google-drive).
 - **Backup**: see [Backup and restore](help:backup-restore).
@@ -37,7 +38,7 @@ The Markdown template behind the [weekly status report](help:weekly-review). *Sa
 
 ## Developer
 
-Only in development builds: *Add demo data* fills an empty database with a sample company. Not shown in the released app.
+Only in development builds: *Add demo data* fills an empty database with a sample company. Not shown in the released app. Removing it again is under *Data & backup*, in every build.
 
 ## What is shared between computers
 

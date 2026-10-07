@@ -14,12 +14,17 @@ use crate::{
         detail_pane::Section,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         health_panel::ProjectHealthSection,
+        item_notes::ItemNotes,
         objective_panel::WeightInput,
         people_panel::{error_line, NodeButtons},
         schedule_panel::SchedulePanel,
+        summary_chips::ProjectSummary,
         what_if_button::WhatIfButton,
     },
-    labels::{humanize, priority_option, project_status_label, project_status_tone},
+    labels::{
+        humanize, priority_option, project_status_label, status_word_tone, task_status_tone,
+        PRIORITY_TINT, PROJECT_STATUS_TINT,
+    },
     state::{finish, DataVersion, Selection, Toasts},
 };
 
@@ -44,6 +49,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
 
     view! {
         <Section title="Fields">
+            <ProjectSummary id=id />
             {move || match (project.get(), people.get()) {
                 (Some(Ok(p)), Some(Ok(ps))) => view! { <ProjectFields project=p people=ps /> }.into_any(),
                 (Some(Err(e)), _) | (_, Some(Err(e))) => error_line(e),
@@ -58,6 +64,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
                 <SchedulePanel project=id />
                 <WhatIfButton node=NodeRef::new(NodeType::Project, id) />
                 <Tasks detail=d.clone() />
+                <ItemNotes node=NodeRef::new(NodeType::Project, id) />
                 <ArchiveProject detail=d />
             }.into_any(),
             (Some(Err(e)), _, _) | (_, Some(Err(e)), _) | (_, _, Some(Err(e))) => view! {
@@ -157,9 +164,10 @@ fn ProjectFields(project: Project, people: Vec<PersonRow>) -> impl IntoView {
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Status" options=status_options
                 current=project.status.as_str().to_owned() on_change=save_status
-                tone=project_status_tone(project.status).text() />
+                tint=PROJECT_STATUS_TINT />
             <SelectField label="Priority" options=priority_options
-                current=project.priority.to_string() on_change=save_priority />
+                current=project.priority.to_string() on_change=save_priority
+                tint=PRIORITY_TINT />
         </div>
         <div class="mt-2">
             <SelectField label="Owner" options=owner_options
@@ -233,7 +241,7 @@ fn Objectives(detail: ProjectDetail, candidates: Vec<NodeSummary>) -> impl IntoV
                 <button class="flex-1 truncate text-left hover:underline" on:click=move |_| selection.open(node)>
                     {c.node.label}
                 </button>
-                <span class="text-[11px] text-muted">{humanize(&c.status)}</span>
+                <span class=status_word_tone(&c.status).chip()>{humanize(&c.status)}</span>
                 <WeightInput edge_id=edge_id weight=c.weight />
                 <button class="px-1 text-faint hover:text-danger" aria-label="Remove from objective"
                         on:click=remove>"✕"</button>
@@ -326,7 +334,7 @@ fn Tasks(detail: ProjectDetail) -> impl IntoView {
                                 <li class="flex items-center gap-2">
                                     <button class="flex-1 truncate rounded px-1.5 py-0.5 text-left hover:bg-hover"
                                             on:click=move |_| selection.open(node)>{t.node.label}</button>
-                                    <span class="text-[11px] text-muted">{humanize(t.status.as_str())}</span>
+                                    <span class=task_status_tone(t.status).chip()>{humanize(t.status.as_str())}</span>
                                     <span class="w-20 text-right text-[11px] tabular-nums text-muted">
                                         {t.due_date.map(|d| d.to_string()).unwrap_or_default()}
                                     </span>
@@ -370,7 +378,7 @@ fn ArchiveProject(detail: ProjectDetail) -> impl IntoView {
     view! {
         <Section title="Archive">
             {move || match confirming.get() {
-                None => view! { <button class=BUTTON on:click=start>"Archive project…"</button> }.into_any(),
+                None => view! { <button class=BUTTON_DANGER on:click=start>"Archive project…"</button> }.into_any(),
                 Some(tasks) if tasks.is_empty() => view! {
                     <div class="space-y-2">
                         <p>"Archive " <strong>{title.clone()}</strong> "? It has no tasks."</p>

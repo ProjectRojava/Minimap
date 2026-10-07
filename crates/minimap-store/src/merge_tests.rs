@@ -17,6 +17,7 @@ fn task(conn: &mut Connection, title: &str) -> Uuid {
     tasks::create(
         conn,
         CreateTask {
+            links: Vec::new(),
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
