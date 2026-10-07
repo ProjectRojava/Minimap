@@ -17,6 +17,7 @@ use crate::{
         people_panel::error_line,
         reference_links::ReferenceLinks,
         repeat_field::RepeatField,
+        subtasks::Subtasks,
         summary_chips::TaskSummary,
         what_if_button::WhatIfButton,
     },
@@ -40,6 +41,7 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
                 _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Section>
+        <Subtasks task=id />
         <ReferenceLinks task=id />
         <ItemNotes node=NodeRef::new(NodeType::Task, id) />
         <WhatIfButton node=NodeRef::new(NodeType::Task, id) />
@@ -199,7 +201,7 @@ fn ArchiveTask(id: Uuid) -> impl IntoView {
     };
 
     view! {
-        <Section title="Archive">
+        <Section title="Archive" tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

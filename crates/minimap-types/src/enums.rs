@@ -75,6 +75,7 @@ str_enum!(EdgeType {
     Affects => "affects",
     About => "about",
     Supersedes => "supersedes",
+    SubtaskOf => "subtask_of",
 });
 
 str_enum!(ObjectiveStatus {

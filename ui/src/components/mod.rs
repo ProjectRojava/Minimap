@@ -30,6 +30,7 @@ pub mod search_box;
 pub mod security_settings;
 pub mod select;
 pub mod sidebar;
+pub mod subtasks;
 pub mod summary_chips;
 pub mod sync_status;
 pub mod task_board;

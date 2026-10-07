@@ -25,12 +25,13 @@ Some relations are edited where they live instead: a task's assignee on the task
 | **affects** | decision → project, task or objective | none | [Decisions](help:decisions) |
 | **about** | waiting-on → task or project | none | [Waiting on](help:waiting-on) |
 | **supersedes** | decision → decision (newer → older) | none | Marks the older decision superseded |
+| **subtask of** | task → task (child → parent) | none | Made from the task's Subtasks section: see [Tasks and the inbox](help:tasks) |
 
 Direction matters: *Design blocks Build* means Build waits for Design. The pane shows the same link from both ends, worded to suit each (for example *Blocked by* on Build).
 
 ## Loops are refused
 
-A link that would make a loop in **blocks**, **depends on**, **reports to** or **supersedes**, or put a team inside itself, is refused with the path that would loop:
+A link that would make a loop in **blocks**, **depends on**, **reports to**, **supersedes** or **subtask of**, or put a team inside itself, is refused with the path that would loop:
 
 > Can't add this link: this would create a loop — Design → Build → Test → Design
 

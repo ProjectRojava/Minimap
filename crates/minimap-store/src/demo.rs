@@ -136,6 +136,9 @@ fn demo_links(key: &str) -> Vec<RefLink> {
     }
 }
 
+/// The tasks that are subtasks of "Right-size the compute fleet" (`p2`).
+const SUBTASKS_OF_RIGHT_SIZING: [&str; 2] = ["p10", "p11"];
+
 fn task_table() -> Vec<Task> {
     vec![
         // ---- EU Region (at risk: late by a couple of working days, one overdue, one blocked)
@@ -903,6 +906,16 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             serde_json::json!({})
         };
         s.link(EdgeType::Blocks, s.task_ref(from), s.task_ref(to), attrs)?;
+    }
+    // Spec 29: two clean-up tasks are steps of right-sizing the compute fleet. They have no
+    // `blocks` links with it (a task can't block its own group).
+    for child in SUBTASKS_OF_RIGHT_SIZING {
+        s.link(
+            EdgeType::SubtaskOf,
+            s.task_ref(child),
+            s.task_ref("p2"),
+            serde_json::json!({}),
+        )?;
     }
 
     // ------------------------------------------------------------------- notes

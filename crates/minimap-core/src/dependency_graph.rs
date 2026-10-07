@@ -9,14 +9,15 @@
 use std::collections::{HashMap, HashSet};
 
 use minimap_types::{
-    Date, DependencyGraph, Edge, EdgeType, GraphEdge, GraphFilter, GraphLevel, GraphNode, NodeRef,
-    NodeType, Project, ProjectStatus, ScheduleScope, ScheduledTask, Task, TaskStatus, Team, Uuid,
-    WorkWeek,
+    Date, DependencyGraph, Edge, EdgeType, GraphEdge, GraphFilter, GraphGroup, GraphLevel,
+    GraphNode, NodeRef, NodeType, Project, ProjectStatus, ScheduleScope, ScheduledTask, Task,
+    TaskStatus, Team, Uuid, WorkWeek,
 };
 
 use crate::{
-    layout::{layout, LayoutError, Params},
+    layout::{layout_clustered, LayoutError, Params},
     schedule,
+    subtasks::{expand_blocks, Hierarchy},
 };
 
 /// Most nodes one graph shows; beyond this the filters should narrow it.
@@ -122,18 +123,52 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
         .map(|p| (p.id, p.title.as_str()))
         .collect();
 
+    // A task with subtasks is a group (spec 29): it is drawn as a frame around its subtasks, not
+    // as a box, and a link on it is drawn on the subtasks it applies to.
+    let hierarchy = Hierarchy::new(input.tasks, input.edges);
     let candidates: HashMap<Uuid, &Task> = input
         .tasks
         .iter()
         .filter(|t| t.archived_at.is_none() && t.status != TaskStatus::Cancelled)
+        .filter(|t| !hierarchy.is_summary(t.id))
         .filter(|t| filter.include_done || t.status != TaskStatus::Done)
         .map(|t| (t.id, t))
         .collect();
-    let links: Vec<&Edge> = input
+    let live: HashSet<Uuid> = input
+        .tasks
+        .iter()
+        .filter(|t| t.archived_at.is_none() && t.status != TaskStatus::Cancelled)
+        .map(|t| t.id)
+        .collect();
+    let authored: Vec<(Uuid, Uuid, f64)> = input
         .edges
         .iter()
         .filter(|e| active(e, EdgeType::Blocks))
-        .filter(|e| candidates.contains_key(&e.from_id) && candidates.contains_key(&e.to_id))
+        .filter(|e| live.contains(&e.from_id) && live.contains(&e.to_id))
+        .map(|e| (e.from_id, e.to_id, f64::from(lag_of(e).unwrap_or(0))))
+        .collect();
+    let authored_ids: HashMap<(Uuid, Uuid), (Uuid, Option<u32>)> = input
+        .edges
+        .iter()
+        .filter(|e| active(e, EdgeType::Blocks))
+        .map(|e| ((e.from_id, e.to_id), (e.id, lag_of(e))))
+        .collect();
+    let links: Vec<Link> = expand_blocks(&hierarchy, &authored)
+        .into_iter()
+        .filter(|(from, to, _)| candidates.contains_key(from) && candidates.contains_key(to))
+        .map(|(from, to, lag)| {
+            // A link you made keeps its own id; one inherited from a group gets a steady one.
+            let (id, lag_days) = authored_ids.get(&(from, to)).copied().unwrap_or((
+                Uuid::from_u128(from.as_u128().rotate_left(17) ^ to.as_u128()),
+                (lag > 0.0).then_some(lag as u32),
+            ));
+            Link {
+                id,
+                from_id: from,
+                to_id: to,
+                lag_days,
+            }
+        })
         .collect();
 
     // Which tasks the filters select.
@@ -186,14 +221,40 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
             }
         }
     }
-    let edges: Vec<&Edge> = links
+    // A group is shown whole: when one of its subtasks is in view, so are the others (as context
+    // when they are not what the filter selected).
+    let in_view: Vec<Uuid> = visible.iter().copied().collect();
+    for id in in_view {
+        let mut top = id;
+        while let Some(p) = hierarchy.parent(top) {
+            top = p;
+        }
+        if top != id {
+            visible.extend(
+                hierarchy
+                    .leaves_under(top)
+                    .into_iter()
+                    .filter(|l| candidates.contains_key(l)),
+            );
+        }
+    }
+    let edges: Vec<&Link> = links
         .iter()
-        .copied()
         .filter(|e| visible.contains(&e.from_id) && visible.contains(&e.to_id))
         // Two pieces of context aren't worth drawing a link between.
         .filter(|e| seeds.contains(&e.from_id) || seeds.contains(&e.to_id))
         .collect();
-    let linked: HashSet<Uuid> = edges.iter().flat_map(|e| [e.from_id, e.to_id]).collect();
+    // Being a subtask is a link too: a group's subtasks are shown even with no `blocks` links.
+    let linked: HashSet<Uuid> = edges
+        .iter()
+        .flat_map(|e| [e.from_id, e.to_id])
+        .chain(
+            visible
+                .iter()
+                .copied()
+                .filter(|id| hierarchy.parent(*id).is_some()),
+        )
+        .collect();
     let mut hidden_unlinked = 0;
     if !filter.include_isolated {
         visible.retain(|id| {
@@ -244,7 +305,7 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
     let draft_edges: Vec<DraftEdge> = edges
         .iter()
         .map(|e| {
-            let lag = lag_of(e).unwrap_or(0);
+            let lag = e.lag_days.unwrap_or(0);
             let critical = match (scheduled.get(&e.from_id), scheduled.get(&e.to_id)) {
                 (Some(a), Some(b)) => {
                     a.critical && b.critical && b.es - (a.ef + f64::from(lag)) <= EPS
@@ -255,9 +316,41 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
                 id: e.id,
                 from: e.from_id,
                 to: e.to_id,
-                lag_days: lag_of(e),
+                lag_days: e.lag_days,
                 critical,
             }
+        })
+        .collect();
+
+    // The outermost group of each task drawn, as the frame around it.
+    let mut group_ids: Vec<Uuid> = Vec::new();
+    let clusters: Vec<Option<usize>> = ids
+        .iter()
+        .map(|id| {
+            let mut top = None;
+            let mut at = *id;
+            while let Some(p) = hierarchy.parent(at) {
+                top = Some(p);
+                at = p;
+            }
+            top.map(|g| match group_ids.iter().position(|x| *x == g) {
+                Some(i) => i,
+                None => {
+                    group_ids.push(g);
+                    group_ids.len() - 1
+                }
+            })
+        })
+        .collect();
+    let group_labels: Vec<(Uuid, String)> = group_ids
+        .iter()
+        .map(|g| {
+            let title = input
+                .tasks
+                .iter()
+                .find(|t| t.id == *g)
+                .map_or_else(|| "Group".to_owned(), |t| t.title.clone());
+            (*g, title)
         })
         .collect();
     finish(
@@ -266,7 +359,17 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
         draft_edges,
         hidden_unlinked,
         Vec::new(),
+        &clusters,
+        &group_labels,
     )
+}
+
+/// A link as drawn: yours, or one a group passes down to its subtasks.
+struct Link {
+    id: Uuid,
+    from_id: Uuid,
+    to_id: Uuid,
+    lag_days: Option<u32>,
 }
 
 fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGraph, GraphError> {
@@ -395,6 +498,8 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
         draft_edges,
         hidden_unlinked,
         warnings,
+        &[],
+        &[],
     )
 }
 
@@ -404,6 +509,8 @@ fn finish(
     edges: Vec<DraftEdge>,
     hidden_unlinked: u32,
     warnings: Vec<String>,
+    clusters: &[Option<usize>],
+    group_labels: &[(Uuid, String)],
 ) -> Result<DependencyGraph, GraphError> {
     let index: HashMap<Uuid, usize> = drafts
         .iter()
@@ -414,11 +521,13 @@ fn finish(
         .iter()
         .map(|e| (index[&e.from], index[&e.to]))
         .collect();
-    let placed = layout(
+    let placed = layout_clustered(
         &vec![(NODE_W, NODE_H); drafts.len()],
         &pairs,
+        clusters,
         &Params::default(),
     )?;
+    let groups = group_frames(&placed.nodes, clusters, group_labels);
     let nodes: Vec<GraphNode> = drafts
         .into_iter()
         .zip(&placed.nodes)
@@ -455,12 +564,62 @@ fn finish(
         level,
         nodes,
         edges,
+        groups,
         width: placed.width,
         height: placed.height,
         critical_nodes,
         hidden_unlinked,
         warnings,
     })
+}
+
+/// Room a frame takes around its boxes: sides and bottom, and above (for the title).
+const FRAME_PAD: f64 = 8.0;
+const FRAME_TOP: f64 = 20.0;
+
+/// One frame per group per column, around that column's boxes of the group; the leftmost frame
+/// of a group is the one that carries its title.
+fn group_frames(
+    placed: &[crate::layout::Placed],
+    clusters: &[Option<usize>],
+    labels: &[(Uuid, String)],
+) -> Vec<GraphGroup> {
+    let mut out: Vec<GraphGroup> = Vec::new();
+    for (c, (id, label)) in labels.iter().enumerate() {
+        let mut layers: Vec<usize> = placed
+            .iter()
+            .zip(clusters)
+            .filter(|(_, k)| **k == Some(c))
+            .map(|(p, _)| p.layer)
+            .collect();
+        layers.sort_unstable();
+        layers.dedup();
+        for (i, layer) in layers.iter().enumerate() {
+            let members = placed
+                .iter()
+                .zip(clusters)
+                .filter(|(p, k)| **k == Some(c) && p.layer == *layer)
+                .map(|(p, _)| p);
+            let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+            for p in members {
+                x0 = x0.min(p.x);
+                y0 = y0.min(p.y);
+                x1 = x1.max(p.x + p.w);
+                y1 = y1.max(p.y + p.h);
+            }
+            out.push(GraphGroup {
+                id: *id,
+                label: label.clone(),
+                x: x0 - FRAME_PAD,
+                y: y0 - FRAME_TOP,
+                w: x1 - x0 + 2.0 * FRAME_PAD,
+                h: y1 - y0 + FRAME_TOP + FRAME_PAD,
+                layer: *layer as u32,
+                first: i == 0,
+            });
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -580,6 +739,143 @@ mod tests {
     }
 
     // ------------------------------------------------------------- tasks
+
+    fn subtask_of(child: u128, parent: u128) -> Edge {
+        edge(
+            EdgeType::SubtaskOf,
+            NodeType::Task,
+            child,
+            NodeType::Task,
+            parent,
+        )
+    }
+
+    /// Approval blocks the group "Launch", which has two subtasks in order (Build, then Ship).
+    fn launch() -> World {
+        World {
+            tasks: vec![
+                task(1, "Approval", 1.0, None),
+                task(2, "Launch", 9.0, None),
+                task(3, "Build", 2.0, None),
+                task(4, "Ship", 1.0, None),
+            ],
+            edges: vec![
+                blocks(1, 2),
+                subtask_of(3, 2),
+                subtask_of(4, 2),
+                blocks(3, 4),
+            ],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_group_is_a_frame_around_its_subtasks_and_its_links_go_to_them() {
+        let g = launch().graph(GraphFilter::default()).unwrap();
+        // The group is not a box; its subtasks are.
+        assert_eq!(labels(&g), ["Approval", "Build", "Ship"]);
+        // Approval blocks the group, so it blocks each subtask: Approval -> Build, and Build -> Ship
+        // is the order inside; Ship waits on Approval too, drawn straight to it.
+        let pair = |a: &str, b: &str| {
+            g.edges
+                .iter()
+                .any(|e| e.from == by(&g, a).node.id && e.to == by(&g, b).node.id)
+        };
+        assert!(pair("Approval", "Build") && pair("Approval", "Ship") && pair("Build", "Ship"));
+        // One frame per column the group's subtasks sit in, the leftmost with the title.
+        assert!(g
+            .groups
+            .iter()
+            .all(|f| f.label == "Launch" && f.id == id(2)));
+        assert_eq!(g.groups.iter().filter(|f| f.first).count(), 1);
+        let first = g.groups.iter().find(|f| f.first).unwrap();
+        assert_eq!(first.layer, by(&g, "Build").layer);
+        // The frame holds its box.
+        let build = by(&g, "Build");
+        assert!(first.x < build.x && first.x + first.w > build.x + build.w);
+        assert!(first.y < build.y && first.y + first.h > build.y + build.h);
+        assert!(by(&g, "Approval").layer < by(&g, "Build").layer);
+    }
+
+    #[test]
+    fn subtasks_are_shown_even_when_nothing_blocks_them() {
+        // A group of three with no blocks links at all, and a loose task that stays hidden.
+        let w = World {
+            tasks: vec![
+                task(1, "Plan", 5.0, Some(10)),
+                task(2, "Draft", 1.0, Some(10)),
+                task(3, "Review", 1.0, Some(10)),
+                task(4, "Publish", 1.0, Some(10)),
+                task(5, "Loose", 1.0, Some(10)),
+            ],
+            edges: vec![subtask_of(2, 1), subtask_of(3, 1), subtask_of(4, 1)],
+            projects: vec![project(10, "P", None)],
+            ..Default::default()
+        };
+        let g = w.graph(GraphFilter::default()).unwrap();
+        assert_eq!(labels(&g), ["Draft", "Publish", "Review"]);
+        assert_eq!(g.hidden_unlinked, 1);
+        assert!(g.groups.iter().all(|f| f.label == "Plan"));
+        assert_eq!(g.groups.iter().filter(|f| f.first).count(), 1);
+        // All three sit in one column, inside one frame.
+        let frame = &g.groups[0];
+        assert!(g
+            .nodes
+            .iter()
+            .all(|n| n.x > frame.x && n.x + n.w < frame.x + frame.w));
+    }
+
+    #[test]
+    fn the_rest_of_a_group_comes_along_as_context_under_a_filter() {
+        // Only "Draft" is in the filtered project; its group's other subtasks are shown dimmed.
+        let w = World {
+            tasks: vec![
+                task(1, "Plan", 5.0, None),
+                task(2, "Draft", 1.0, Some(10)),
+                task(3, "Review", 1.0, Some(11)),
+            ],
+            edges: vec![subtask_of(2, 1), subtask_of(3, 1)],
+            projects: vec![project(10, "P", None), project(11, "Q", None)],
+            ..Default::default()
+        };
+        let g = w
+            .graph(GraphFilter {
+                project_id: Some(id(10)),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(labels(&g), ["Draft", "Review"]);
+        assert!(!by(&g, "Draft").context && by(&g, "Review").context);
+    }
+
+    #[test]
+    fn a_frame_never_covers_a_box_that_is_not_in_the_group() {
+        let mut w = launch();
+        // Others side by side in the same columns as the subtasks.
+        w.tasks.push(task(5, "Other", 1.0, None));
+        w.tasks.push(task(6, "Other two", 1.0, None));
+        w.edges.push(blocks(5, 6));
+        w.edges.push(blocks(1, 5));
+        let g = w.graph(GraphFilter::default()).unwrap();
+        for f in &g.groups {
+            for n in g.nodes.iter().filter(|n| n.layer == f.layer) {
+                let inside_group = ["Build", "Ship"].contains(&n.label.as_str());
+                let overlaps =
+                    n.x < f.x + f.w && n.x + n.w > f.x && n.y < f.y + f.h && n.y + n.h > f.y;
+                assert!(!overlaps || inside_group, "{} is under the frame", n.label);
+            }
+        }
+    }
+
+    #[test]
+    fn a_graph_without_groups_has_no_frames() {
+        let w = World {
+            tasks: vec![task(1, "A", 1.0, None), task(2, "B", 1.0, None)],
+            edges: vec![blocks(1, 2)],
+            ..Default::default()
+        };
+        assert!(w.graph(GraphFilter::default()).unwrap().groups.is_empty());
+    }
 
     #[test]
     fn a_chain_is_laid_out_left_to_right_with_the_critical_path_marked() {

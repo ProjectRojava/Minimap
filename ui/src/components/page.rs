@@ -63,6 +63,17 @@ impl Tone {
         }
     }
 
+    /// A small filled dot in the tone (a heading's marker).
+    pub fn dot(self) -> &'static str {
+        match self {
+            Tone::Neutral => "bg-faint",
+            Tone::Accent => "bg-accent",
+            Tone::Success => "bg-success",
+            Tone::Warning => "bg-warning",
+            Tone::Danger => "bg-danger",
+        }
+    }
+
     /// Just the text colour (for dropdown buttons and inline words).
     pub fn text(self) -> &'static str {
         match self {

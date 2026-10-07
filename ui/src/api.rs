@@ -366,6 +366,30 @@ pub async fn set_assignee(task_id: Uuid, person_id: Option<Uuid>) -> Result<(), 
     invoke("set_assignee", &AssigneeArg { task_id, person_id }).await
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParentArg {
+    task_id: Uuid,
+    parent_id: Option<Uuid>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SubtaskArg {
+    parent_id: Uuid,
+    title: String,
+}
+
+/// Makes `parent_id` the parent of the task (it becomes a subtask), or frees it with `None`.
+pub async fn set_parent(task_id: Uuid, parent_id: Option<Uuid>) -> Result<(), AppError> {
+    invoke("set_parent", &ParentArg { task_id, parent_id }).await
+}
+
+/// Creates a task that is a subtask of `parent_id`.
+pub async fn create_subtask(parent_id: Uuid, title: String) -> Result<Task, AppError> {
+    invoke("create_subtask", &SubtaskArg { parent_id, title }).await
+}
+
 pub async fn archive_task(id: Uuid) -> Result<(), AppError> {
     invoke("archive_task", &IdArg { id }).await
 }

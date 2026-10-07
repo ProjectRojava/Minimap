@@ -7,15 +7,21 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- Subtasks can be put in order (*Do after…*), show a **next** step and *waiting* marks, and suggest a status for the group (all done, all blocked, started); the Dependencies graph draws a group as a dashed frame around its subtasks.
+- Subtasks: add a step to a task, or link an existing task as its subtask, with progress ("2 of 5 done") on the parent and on the board (Spec 29, ADR-0013).
 - Open tasks with a due date take on a red tint as the deadline nears, from 14 days out, on the Tasks board and in the list.
 - Tasks, projects and objectives have a **Notes and findings** section in their panel: write a note about the item and see every note that mentions it.
 - Tasks have a **Reference links** section: add web pages, Google Drive files or email addresses to a task and open them in your browser with a click (Spec 28).
 
 ### Changed
+- The detail panel is wider (480px, 560px on big windows). Section headings have a coloured dot (red for Archive, grey for Links and Activity), "add something…" pickers are soft-blue buttons, and activity entries are coloured by what happened.
+- Right-clicking no longer shows the browser's own menu (Back, Reload, Inspect); text boxes keep theirs for cut, copy and paste.
+- A task with subtasks is now a group: it is scheduled from its subtasks (its own estimate is ignored), a blocks link on it applies to every subtask, and capacity and project health count the subtasks instead of counting the group again. A group can't block its own subtask (Spec 29).
 - Task board cards show the due date as a pill that gets louder as the day nears ("In 5d", "Tomorrow", "Today", "3d overdue"), and priority as a solid P1 / tinted P2 pill.
 - Task, project and objective panels are easier to read: a row of coloured status, priority and date pills at the top (overdue dates in red), colour-coded status and priority dropdowns, coloured status words in their lists, and colour-coded buttons (Archive in red, What if and Attach in blue, Add link solid).
 
 ### Fixed
+- The project Schedule section no longer draws a cramped, overlapping timeline when there are no tasks; "today" and "target" are small markers on the axis instead of words that landed on the dates.
 - Projects list no longer lets the project title and objective chip overlap when the detail pane is open; Owner and Target hide while the list is narrow.
 
 ---

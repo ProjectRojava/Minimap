@@ -702,3 +702,22 @@ fn adding_and_removing_reference_links_can_be_undone_and_redone() {
     });
     assert!(tasks::get(&conn, t.id).unwrap().links.is_empty());
 }
+
+#[test]
+fn creating_and_linking_subtasks_is_undone_and_redone() {
+    let mut conn = demo();
+    let parent = task(&conn, "Rotate service credentials");
+    let other = task(&conn, "Monthly access review");
+    round_trip(&mut conn, |c| {
+        tasks::create_subtask(c, parent.id, "Audit old keys".into()).unwrap();
+    });
+    round_trip(&mut conn, |c| {
+        tasks::set_parent(c, other.id, Some(parent.id)).unwrap();
+    });
+    // Moving it to another parent removes one link and adds one: still one step.
+    tasks::set_parent(&mut conn, other.id, Some(parent.id)).unwrap();
+    let third = task(&conn, "Go-live checklist");
+    round_trip(&mut conn, |c| {
+        tasks::set_parent(c, other.id, Some(third.id)).unwrap();
+    });
+}

@@ -24,6 +24,8 @@ Health is a shape first and a colour second, so it reads without colour:
 | Empty dot (green) | **Green**: on track |
 | A dash | **Not scored**: nothing to judge |
 
+A task with subtasks is a group of work, not a task to finish, so it is not counted in a project's open, overdue, blocked or unestimated tasks: its subtasks are.
+
 Each mark comes with **reasons** in words, for example *projected 6 working days late (target 2027-03-31); 3 tasks overdue, 2 blocked (5 of 12 open); 4 of 12 open tasks have no estimate.*
 
 ## How a project's health is decided

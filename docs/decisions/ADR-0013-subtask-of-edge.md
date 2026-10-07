@@ -1,0 +1,17 @@
+# ADR-0013: A `subtask_of` edge between tasks
+
+- **Context**: spec 06 chose "no subtasks": break work into tasks and order them with `blocks`. In use, people want to group a few tasks under a bigger one, see how far it is, and add a step to a task without going to the Tasks screen.
+- **Decision**: add an edge type `subtask_of`, Task -> Task, pointing from the child to the parent. No attributes; it must stay acyclic (checked like `blocks`, with the task titles in the error). A task has at most one parent: `set_parent` (and the panel) replaces it, so there is no multiple inheritance, but the matrix itself does not forbid a second parent (two devices can set different ones; both then show).
+- **Why an edge, not a `parent_task_id` column**: it follows the rest of the model (edges carry the structure; archiving a node archives its edges; merge, export, undo and the activity log already handle edges), and a column would need its own merge and undo rules. It costs one matrix row and no migration (`edges.edge_type` has no CHECK constraint).
+- **A subtask is a full task**: own status, assignee, dates, estimate, notes and links. A parent shows progress ("2 of 5 done", cancelled ones left out) and finishing every subtask does not finish the parent; the user decides.
+- **Behaviour**: `create_subtask` makes the task and the link in one transaction (project and priority come from the parent); `set_parent` replaces or clears the link in one transaction (one undo step). Archiving the parent frees its subtasks (their links are archived with it). A repeating parent's next copy does not take its subtasks.
+- **Deviation**: `CLAUDE.md` §4's matrix gains `subtask_of | Task -> Task | -` and the acyclic list gains it; spec 06's "No subtasks" decision is superseded (its text is left as the history).
+
+## Addendum: how subtasks and `blocks` work together (spec 29)
+Subtasks say *what a task is made of*, `blocks` says *what must finish first*; to keep them from being two ways of saying the same thing, a task with live subtasks is a **summary (group)**:
+- It is **not scheduled**: its own estimate is ignored and its dates, slack and criticality come from the **leaf** tasks under it (`core::subtasks`, `schedule::compute_with`). Capacity, project health and impact analysis count leaves only, so nothing is counted twice.
+- A `blocks` link on a group **applies to every leaf under it** (`expand_blocks`), at any depth; lags are kept.
+- A `blocks` link between a task and its own ancestor or descendant is **refused** when made, and when a parent change would leave one behind (`Refusal::Relatives`); loops that only exist once groups are read as their leaves are refused with the path (`Refusal::Loop`). If sync still brings such a link in, the schedule ignores the relative pair instead of failing; a real loop through a group shows the usual "blocks links form a loop" message.
+- A group whose subtasks are all cancelled or archived is a leaf again. A parent's start date holds back its leaves, and a "not before" on a group (impact analysis) holds each leaf.
+- This supersedes the earlier sentence that a parent does not affect the schedule.
+- **Order and hints**: the subtasks of a group are shown in `blocks` order (`subtasks::sequence`), the first open one that is not waiting is the *next step*, and a group's status is only ever *suggested* from its subtasks (`status_hint`); nothing sets it automatically. The dependency graph draws a group as a frame around its subtasks (`layout_clustered` keeps them together in each column) instead of a box.

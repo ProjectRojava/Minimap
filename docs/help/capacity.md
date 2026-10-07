@@ -8,7 +8,7 @@
 2. A task of *d* days assigned at *a*% to someone counts *d × a%* days in each week it touches, so the weekly numbers add up to the task's size.
 3. That is divided by the person's capacity: their **weekly hours** divided by your **hours per working day** (a 40-hour week at 8 hours a day is 5 days).
 
-So the percentage is *scheduled work ÷ capacity*. Above 100% is overloaded. Unestimated tasks count as one day each (so the picture is only as good as your estimates), and finished tasks don't count.
+A task that has subtasks is only a group: its subtasks carry the load, so the group is not counted again (even if it is assigned to someone and has an estimate). So the percentage is *scheduled work ÷ capacity*. Above 100% is overloaded. Unestimated tasks count as one day each (so the picture is only as good as your estimates), and finished tasks don't count.
 
 ## Reading the heatmap
 

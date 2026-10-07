@@ -16,18 +16,22 @@ The [Dependencies](help:dependencies) screen draws the same thing as a graph, an
 
 1. **Working days only.** Monday to Friday by default (change it in [Settings](help:settings)). A weekend start moves to the next working day. Time is counted from today.
 2. **Forward pass.** Each open task starts as soon as everything that **blocks** it has finished (plus any *lag*), but not before its **start date**, and runs for its **estimate**. Links across projects count: a task in another project can hold this one up whichever project you are looking at.
-3. **Finished work is fixed** at the date it was actually completed; **cancelled** and archived tasks are ignored.
-4. **Backward pass.** Working back from the project's **target date** (or, if it has none, from its own projected finish) gives each task the *latest* it could start without making the project late.
-5. **Slack** = latest start minus earliest start: how many working days a task can slip without moving the finish. **Critical** tasks are the ones with the least slack in their project.
+3. **Tasks with subtasks are groups.** A task that has [subtasks](help:tasks) is not scheduled itself and its own estimate is not used: its dates run from the start of its first subtask to the end of its last, it is critical when any of them is, and its slack is the smallest among them. The subtasks (and tasks with none) are the work. A *blocks* link on a group applies to everything under it: if *Approval blocks Launch*, every subtask of Launch waits for Approval; if *Launch blocks Release*, Release waits for the last subtask of Launch. Subtasks of subtasks work the same way.
+4. **Finished work is fixed** at the date it was actually completed; **cancelled** and archived tasks are ignored.
+5. **Backward pass.** Working back from the project's **target date** (or, if it has none, from its own projected finish) gives each task the *latest* it could start without making the project late.
+6. **Slack** = latest start minus earliest start: how many working days a task can slip without moving the finish. **Critical** tasks are the ones with the least slack in their project.
 
 ## Reading the results
 
 - **Zero slack and critical**: any slip here slips the project. With no target date, slack is never negative.
 - **Negative slack** means the target can't be met: the late tasks show *late by N working days* and the project shows how far past its target it will finish.
 - **Unestimated** tasks (no estimate) are scheduled as one day and flagged. The more of a plan is unestimated, the less you can trust the forecast. The project's health says so.
+- Groups show as a thin bar over the work in them, and are not counted in a project's open tasks or its "unestimated" count.
 - A task with a **start date in the future** won't be scheduled before it, even if nothing blocks it.
 
 ## A loop in the blocks links
+
+Groups count here too: if *Approval blocks Launch* and one of Launch's subtasks blocks Approval, the work waits for itself, and Minimap refuses the second link with the path. A group can't block or wait for one of its own subtasks (and the other way round), since that says nothing useful; that link is refused.
 
 If *blocks* links form a loop the work can't be ordered; Minimap says so and the forecasts are unavailable until you remove one link. (Normally it refuses to create a loop in the first place: see [Links between items](help:links).)
 
