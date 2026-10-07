@@ -29,7 +29,7 @@ The atoms of work. Fast to create and edit; loose tasks land in an inbox for tri
 - [x] Inbox shows only unprojected tasks; triaging removes them from it. *(core filter test; the inbox is the tasks list with `no_project`)*
 
 ## Decisions
-- **No subtasks.** Break work into ordinary tasks and sequence them with `blocks`: every piece keeps its own owner, estimate and status, so the schedule, critical path and impact analysis (13, 14) stay correct. A Markdown checklist in descriptions may come later (with "convert to task", like notes in 09); if grouping becomes a real need, a lightweight "section" inside a project is the way, not parent/child arithmetic.
+- **No subtasks** (superseded by spec 29 / ADR-0013, which added a `subtask_of` link). Break work into ordinary tasks and sequence them with `blocks`: every piece keeps its own owner, estimate and status, so the schedule, critical path and impact analysis (13, 14) stay correct. A Markdown checklist in descriptions may come later (with "convert to task", like notes in 09); if grouping becomes a real need, a lightweight "section" inside a project is the way, not parent/child arithmetic.
 - **Hours per day is a setting** (default 8; 0 < h <= 24). It only affects estimates entered afterwards; existing estimates are never rewritten. A new key/value `settings` table, `get_settings` / `update_settings`, and a minimal Settings screen (just this field) landed with this spec; spec 23 builds the rest.
 - Estimates are always stored and shown in days. `3d`, `1.5d`, `4h` and a bare number (= days) are accepted; empty clears.
 - **Default assignee = me** (the self person; nobody if first-run setup hasn't happened). The assignee is the `assigned_to` edge; one assignee per task.

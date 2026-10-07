@@ -131,7 +131,7 @@ fn ArchiveDecision(id: Uuid) -> impl IntoView {
         });
     };
     view! {
-        <Section title="Archive">
+        <Section title="Archive" tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

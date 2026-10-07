@@ -5,9 +5,9 @@ use crate::{
     api,
     components::{
         attachments::Attachments, decision_panel::DecisionPanel, links_editor::LinksEditor,
-        note_panel::NotePanel, objective_panel::ObjectivePanel, people_panel::PersonPanel,
-        project_panel::ProjectPanel, task_panel::TaskPanel, team_panel::TeamPanel,
-        waiting_panel::WaitingPanel,
+        note_panel::NotePanel, objective_panel::ObjectivePanel, page::Tone,
+        people_panel::PersonPanel, project_panel::ProjectPanel, task_panel::TaskPanel,
+        team_panel::TeamPanel, waiting_panel::WaitingPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -24,7 +24,7 @@ pub fn DetailPane() -> impl IntoView {
                 <div class="fixed inset-x-0 top-8 bottom-0 z-20 bg-scrim min-[1100px]:hidden"
                      on:click=move |_| selection.close()></div>
                 <aside
-                    class="fixed top-8 bottom-0 right-0 z-30 w-[420px] max-w-full \
+                    class="fixed top-8 bottom-0 right-0 z-30 w-[480px] max-w-full min-[1500px]:w-[560px] \
                            min-[1100px]:static min-[1100px]:max-w-none \
                            flex flex-col shrink-0 overflow-y-auto border-l border-line \
                            bg-panel"
@@ -106,7 +106,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
 
         <Attachments node=node />
 
-        <Section title="Links">
+        <Section title="Links" tone=Tone::Neutral>
             {move || match links.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
@@ -114,7 +114,7 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             }}
         </Section>
 
-        <Section title="Activity">
+        <Section title="Activity" tone=Tone::Neutral>
             {move || match history.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
@@ -130,10 +130,20 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
 }
 
 #[component]
-pub(crate) fn Section(title: &'static str, children: Children) -> impl IntoView {
+pub(crate) fn Section(
+    title: &'static str,
+    /// The colour of the dot before the title: what kind of section it is (accent for the
+    /// item's own content, red for Archive, grey for history).
+    #[prop(default = Tone::Accent)]
+    tone: Tone,
+    children: Children,
+) -> impl IntoView {
     view! {
         <section class="px-4 py-3 border-b border-line text-[13px]">
-            <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h3>
+            <h3 class="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <span class=format!("h-1.5 w-1.5 shrink-0 rounded-full {}", tone.dot()) aria-hidden="true"></span>
+                {title}
+            </h3>
             {children()}
         </section>
     }
@@ -154,7 +164,10 @@ pub fn kind_edited_elsewhere(node_type: NodeType, edge_type: EdgeType, outgoing:
         }
         NodeType::Team => !outgoing && edge_type == EdgeType::MemberOf,
         NodeType::Objective => !outgoing && edge_type == EdgeType::ContributesTo,
-        NodeType::Task => outgoing && edge_type == EdgeType::AssignedTo,
+        // The assignee and the parent task and subtasks are edited in the task's own panel.
+        NodeType::Task => {
+            (outgoing && edge_type == EdgeType::AssignedTo) || edge_type == EdgeType::SubtaskOf
+        }
         // A note's mentions come from its text.
         NodeType::Note => outgoing && edge_type == EdgeType::Mentions,
         NodeType::Project => {
@@ -189,6 +202,8 @@ pub fn link_heading(edge_type: EdgeType, outgoing: bool) -> &'static str {
         (About, false) => "Waiting-ons",
         (Supersedes, true) => "Supersedes",
         (Supersedes, false) => "Superseded by",
+        (SubtaskOf, true) => "Subtask of",
+        (SubtaskOf, false) => "Subtasks",
     }
 }
 
@@ -249,6 +264,17 @@ fn action_label(a: ActivityAction) -> &'static str {
     }
 }
 
+/// Created and restored are good news, a change is the accent, links coming and going are
+/// quiet, and archiving or deleting is the danger tone.
+fn action_tone(a: ActivityAction) -> Tone {
+    match a {
+        ActivityAction::Created | ActivityAction::Unarchived => Tone::Success,
+        ActivityAction::Updated => Tone::Accent,
+        ActivityAction::EdgeAdded | ActivityAction::EdgeRemoved => Tone::Neutral,
+        ActivityAction::Archived | ActivityAction::Deleted => Tone::Danger,
+    }
+}
+
 #[component]
 fn ActivityRow(activity: Activity) -> impl IntoView {
     let when = minimap_types::timefmt::fmt_ts(activity.at)
@@ -260,7 +286,7 @@ fn ActivityRow(activity: Activity) -> impl IntoView {
     view! {
         <li>
             <p>
-                <span class="font-medium">{action_label(activity.action)}</span>
+                <span class=action_tone(activity.action).chip()>{action_label(activity.action)}</span>
                 <span class="ml-2 text-[11px] text-muted">{when} " UTC"</span>
             </p>
             {lines.into_iter().map(|l| view! { <p class="text-muted break-words">{l}</p> }).collect_view()}
@@ -293,6 +319,8 @@ mod tests {
         assert_eq!(link_heading(EdgeType::Affects, false), "Decisions");
         assert_eq!(link_heading(EdgeType::Supersedes, true), "Supersedes");
         assert_eq!(link_heading(EdgeType::Supersedes, false), "Superseded by");
+        assert_eq!(link_heading(EdgeType::SubtaskOf, true), "Subtask of");
+        assert_eq!(link_heading(EdgeType::SubtaskOf, false), "Subtasks");
         for &t in EdgeType::ALL {
             assert_ne!(link_heading(t, true), "");
             assert_ne!(link_heading(t, false), "");
@@ -384,6 +412,8 @@ mod tests {
         assert!(!hidden(NodeType::Task, EdgeType::DependsOn, true));
         // A task's assignee is edited in its panel; blocks stay in the list.
         assert!(hidden(NodeType::Task, EdgeType::AssignedTo, true));
+        assert!(hidden(NodeType::Task, EdgeType::SubtaskOf, true));
+        assert!(hidden(NodeType::Task, EdgeType::SubtaskOf, false));
         assert!(!hidden(NodeType::Task, EdgeType::Blocks, true));
     }
 

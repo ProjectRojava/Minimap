@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-subtask"
+description = "Enables the create_subtask command without any pre-configured scope."
+commands.allow = ["create_subtask"]
+
+[[permission]]
+identifier = "deny-create-subtask"
+description = "Denies the create_subtask command without any pre-configured scope."
+commands.deny = ["create_subtask"]

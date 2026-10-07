@@ -120,6 +120,8 @@ const COMMANDS: &[&str] = &[
     "remove_attachment",
     "open_attachment",
     "open_link",
+    "set_parent",
+    "create_subtask",
 ];
 
 /// Bakes the Google OAuth client into the app so users just click "Sign in with Google": the

@@ -200,7 +200,7 @@ fn NodePicker(
             on_pick.run(*node);
         }
     };
-    view! { <SelectField compact=true options=choices current=String::new() on_change=pick /> }
+    view! { <SelectField compact=true action=true options=choices current=String::new() on_change=pick /> }
 }
 
 #[component]
@@ -376,7 +376,7 @@ fn ArchiveProject(detail: ProjectDetail) -> impl IntoView {
     };
 
     view! {
-        <Section title="Archive">
+        <Section title="Archive" tone=crate::components::page::Tone::Danger>
             {move || match confirming.get() {
                 None => view! { <button class=BUTTON_DANGER on:click=start>"Archive project…"</button> }.into_any(),
                 Some(tasks) if tasks.is_empty() => view! {

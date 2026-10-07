@@ -1,10 +1,14 @@
-use minimap_core::{cycles::find_cycle, edge_rules};
+use minimap_core::{
+    cycles::find_cycle,
+    edge_rules,
+    subtasks::{self, Refusal},
+};
 use minimap_store::Connection;
 use minimap_types::{AppError, Edge, EdgeType, LinkOption, NewEdge, NodeRef, NodeType, Uuid};
 use tauri::State;
 
 use crate::{
-    error::{cycle_error, rule_error, store_error},
+    error::{app_error, cycle_error, rule_error, store_error},
     state::AppState,
 };
 
@@ -43,7 +47,69 @@ pub(crate) fn check_new_edge(conn: &Connection, new: &NewEdge) -> Result<(), App
             .collect();
         return Err(cycle_error("add this link", &labels));
     }
-    Ok(())
+    check_subtasks_and_blocks(conn, new)
+}
+
+/// Subtasks and `blocks` links have to agree (spec 29): no link between a task and its own
+/// group or part, and no loop once a group is read as the tasks under it.
+fn check_subtasks_and_blocks(conn: &Connection, new: &NewEdge) -> Result<(), AppError> {
+    if !matches!(new.edge_type, EdgeType::Blocks | EdgeType::SubtaskOf) {
+        return Ok(());
+    }
+    let tasks = minimap_store::tasks::list(conn, false).map_err(store_error)?;
+    let active =
+        |edge_type| minimap_store::edges::list_active_of_type(conn, edge_type).map_err(store_error);
+    let blocks: Vec<(Uuid, Uuid)> = active(EdgeType::Blocks)?
+        .into_iter()
+        .map(|e| (e.from_id, e.to_id))
+        .collect();
+    let title = |id: Uuid| label(conn, NodeType::Task, id);
+    let refused = match new.edge_type {
+        EdgeType::Blocks => {
+            let h = subtasks::Hierarchy::new(&tasks, &active(EdgeType::SubtaskOf)?);
+            subtasks::check_new_block(&h, &blocks, (new.from.id, new.to.id))
+        }
+        _ => {
+            // The subtasks as they would be: the task's old parent link is replaced.
+            let mut pairs: Vec<(Uuid, Uuid)> = vec![(new.from.id, new.to.id)];
+            pairs.extend(
+                active(EdgeType::SubtaskOf)?
+                    .into_iter()
+                    .filter(|e| e.from_id != new.from.id)
+                    .map(|e| (e.from_id, e.to_id)),
+            );
+            let live: std::collections::HashSet<Uuid> = tasks.iter().map(|t| t.id).collect();
+            pairs.retain(|(c, p)| live.contains(c) && live.contains(p));
+            subtasks::check_new_parent(&subtasks::Hierarchy::from_pairs(pairs), &blocks)
+        }
+    };
+    match refused {
+        Ok(()) => Ok(()),
+        Err(Refusal::Relatives(a, b)) if new.edge_type == EdgeType::Blocks => Err(app_error(
+            "invalid",
+            format!(
+                "Can't link \"{}\" and \"{}\": one is a subtask of the other, and a group can't wait for its own part. Order the subtasks among themselves instead.",
+                title(a),
+                title(b)
+            ),
+        )),
+        Err(Refusal::Relatives(a, b)) => Err(app_error(
+            "invalid",
+            format!(
+                "Can't make this a subtask: \"{}\" blocks \"{}\", and a group can't wait for its own part. Remove that link first.",
+                title(a),
+                title(b)
+            ),
+        )),
+        Err(Refusal::Loop(path)) if !path.is_empty() => {
+            let labels: Vec<String> = path.iter().map(|id| title(*id)).collect();
+            Err(cycle_error("add this link", &labels))
+        }
+        Err(Refusal::Loop(_)) => Err(app_error(
+            "cycle",
+            "Can't make this a subtask: with the existing blocks links the work would end up waiting for itself.",
+        )),
+    }
 }
 
 /// The relations (and their attributes) that can be added from a node of this type.

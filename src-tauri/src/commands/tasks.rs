@@ -1,8 +1,8 @@
 use minimap_core::tasks::{filter, parse_estimate, parse_lines, sort};
 use minimap_store::Connection;
 use minimap_types::{
-    AppError, AssigneeChoice, CreateTask, NodeRef, NodeType, Patch, Task, TaskDetail, TaskFilter,
-    TaskRow, UpdateTask, Uuid,
+    AppError, AssigneeChoice, CreateTask, EdgeType, NewEdge, NodeRef, NodeType, Patch, Task,
+    TaskDetail, TaskFilter, TaskRow, UpdateTask, Uuid,
 };
 use tauri::State;
 
@@ -127,6 +127,60 @@ pub async fn set_assignee(
         .await
 }
 
+/// Makes `parent_id` the parent of `task_id` (the task becomes its subtask), replacing any
+/// parent it had; `None` takes it out. A loop is refused with the path.
+#[tauri::command]
+pub async fn set_parent(
+    state: State<'_, AppState>,
+    task_id: Uuid,
+    parent_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    state
+        .run(move |conn| set_parent_impl(conn, task_id, parent_id))
+        .await
+}
+
+pub(crate) fn set_parent_impl(
+    conn: &mut Connection,
+    task_id: Uuid,
+    parent_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    if let Some(p) = parent_id {
+        let new = NewEdge {
+            edge_type: EdgeType::SubtaskOf,
+            from: NodeRef::new(NodeType::Task, task_id),
+            to: NodeRef::new(NodeType::Task, p),
+            attrs: serde_json::json!({}),
+        };
+        super::edges::check_new_edge(conn, &new)?;
+    }
+    minimap_store::tasks::set_parent(conn, task_id, parent_id).map_err(store_error)
+}
+
+/// Creates a task that is a subtask of `parent_id`, in the same project.
+#[tauri::command]
+pub async fn create_subtask(
+    state: State<'_, AppState>,
+    parent_id: Uuid,
+    title: String,
+) -> Result<Task, AppError> {
+    state
+        .run(move |conn| create_subtask_impl(conn, parent_id, title))
+        .await
+}
+
+pub(crate) fn create_subtask_impl(
+    conn: &mut Connection,
+    parent_id: Uuid,
+    title: String,
+) -> Result<Task, AppError> {
+    let title = title.trim().to_owned();
+    if title.is_empty() {
+        return Err(app_error("invalid", "A subtask needs a title"));
+    }
+    minimap_store::tasks::create_subtask(conn, parent_id, title).map_err(store_error)
+}
+
 /// Archives the task and its links.
 #[tauri::command]
 pub async fn archive_task(state: State<'_, AppState>, id: Uuid) -> Result<(), AppError> {
@@ -202,6 +256,128 @@ mod tests {
         create_tasks_bulk_impl(conn, vec![title.into()], None, AssigneeChoice::Nobody)
             .unwrap()
             .remove(0)
+    }
+
+    #[test]
+    fn a_subtask_loop_is_refused_with_the_path_and_changes_nothing() {
+        let mut conn = conn();
+        let (a, b, c) = (
+            task(&mut conn, "Ship"),
+            task(&mut conn, "Build"),
+            task(&mut conn, "Test"),
+        );
+        set_parent_impl(&mut conn, b.id, Some(a.id)).unwrap(); // Build is a subtask of Ship
+        set_parent_impl(&mut conn, c.id, Some(b.id)).unwrap(); // Test of Build
+        let err = set_parent_impl(&mut conn, a.id, Some(c.id)).unwrap_err();
+        assert_eq!(err.code, "cycle");
+        assert!(
+            err.message.contains("Ship → Test → Build → Ship"),
+            "{}",
+            err.message
+        );
+        assert!(minimap_store::views::task_detail(&conn, a.id)
+            .unwrap()
+            .parent
+            .is_none());
+        // A task cannot be its own parent, and a parent of the wrong kind is refused.
+        assert!(set_parent_impl(&mut conn, a.id, Some(a.id)).is_err());
+    }
+
+    fn block(conn: &mut Connection, from: Uuid, to: Uuid) -> Result<(), AppError> {
+        super::super::edges::add_edge_impl(
+            conn,
+            NewEdge {
+                edge_type: EdgeType::Blocks,
+                from: NodeRef::new(NodeType::Task, from),
+                to: NodeRef::new(NodeType::Task, to),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .map(|_| ())
+    }
+
+    #[test]
+    fn a_group_cannot_block_or_wait_for_its_own_part_either_way_round() {
+        let mut conn = conn();
+        let (group, part, other) = (
+            task(&mut conn, "Group"),
+            task(&mut conn, "Part"),
+            task(&mut conn, "Other"),
+        );
+        set_parent_impl(&mut conn, part.id, Some(group.id)).unwrap();
+        for (a, b) in [(group.id, part.id), (part.id, group.id)] {
+            let err = block(&mut conn, a, b).unwrap_err();
+            assert_eq!(err.code, "invalid");
+            assert!(
+                err.message.contains("subtask of the other"),
+                "{}",
+                err.message
+            );
+        }
+        // Between the group and something else is fine, and so is ordering the parts.
+        block(&mut conn, other.id, group.id).unwrap();
+        let second = create_subtask_impl(&mut conn, group.id, "Second".into()).unwrap();
+        block(&mut conn, part.id, second.id).unwrap();
+    }
+
+    #[test]
+    fn a_loop_that_only_exists_once_a_group_is_read_as_its_parts_is_refused() {
+        let mut conn = conn();
+        let (group, part, approval) = (
+            task(&mut conn, "Group"),
+            task(&mut conn, "Part"),
+            task(&mut conn, "Approval"),
+        );
+        set_parent_impl(&mut conn, part.id, Some(group.id)).unwrap();
+        block(&mut conn, approval.id, group.id).unwrap(); // the group waits for Approval
+        let err = block(&mut conn, part.id, approval.id).unwrap_err(); // ...so a part may not block it
+        assert_eq!(err.code, "cycle");
+        assert!(
+            err.message.contains("Approval") && err.message.contains("Part"),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn a_task_cannot_become_a_subtask_of_something_it_is_linked_to_by_blocks_or_loops_with() {
+        let mut conn = conn();
+        let (a, b, c) = (
+            task(&mut conn, "A"),
+            task(&mut conn, "B"),
+            task(&mut conn, "C"),
+        );
+        block(&mut conn, a.id, b.id).unwrap();
+        let err = set_parent_impl(&mut conn, b.id, Some(a.id)).unwrap_err();
+        assert_eq!(err.code, "invalid");
+        assert!(err.message.contains("blocks"), "{}", err.message);
+        assert!(minimap_store::views::task_detail(&conn, b.id)
+            .unwrap()
+            .parent
+            .is_none());
+        // C waits for the group A would hold B in; B (to be a part of A's group via C) loops.
+        block(&mut conn, b.id, c.id).unwrap();
+        let loop_err = set_parent_impl(&mut conn, a.id, Some(c.id)).unwrap_err();
+        assert!(
+            matches!(loop_err.code.as_str(), "cycle" | "invalid"),
+            "{}",
+            loop_err.message
+        );
+    }
+
+    #[test]
+    fn a_subtask_needs_a_title_and_a_live_parent() {
+        let mut conn = conn();
+        let parent = task(&mut conn, "Parent");
+        assert_eq!(
+            create_subtask_impl(&mut conn, parent.id, "  ".into())
+                .unwrap_err()
+                .code,
+            "invalid"
+        );
+        let made = create_subtask_impl(&mut conn, parent.id, " Draft the plan ".into()).unwrap();
+        assert_eq!(made.title, "Draft the plan");
+        assert!(create_subtask_impl(&mut conn, Uuid::now_v7(), "x".into()).is_err());
     }
 
     #[test]

@@ -125,6 +125,8 @@
     "allow-remove-attachment",
     "allow-open-attachment",
     "allow-open-link",
+    "allow-set-parent",
+    "allow-create-subtask",
     "dialog:allow-save",
     "dialog:allow-open",
     "core:window:allow-minimize",

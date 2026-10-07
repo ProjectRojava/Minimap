@@ -31,7 +31,7 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
     assert_eq!(summary.notes, 3);
     assert_eq!(summary.decisions, 5);
     assert_eq!(summary.waiting_ons, 3);
-    assert_eq!(summary.links, 99);
+    assert_eq!(summary.links, 101);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 40);
     assert_eq!(count(&conn, "people"), 8);
@@ -303,6 +303,22 @@ fn the_demo_data_is_searchable() {
     let conn = seeded(TODAY);
     let hits = search::run(&conn, "\"gateway\"*", &[], false, 20).unwrap();
     assert!(hits.len() >= 4, "{}", hits.len());
+}
+
+#[test]
+fn right_sizing_the_fleet_has_two_subtasks() {
+    let conn = seeded(TODAY);
+    let rows = views::task_rows(&conn).unwrap();
+    let checklist = rows
+        .iter()
+        .find(|r| r.task.title == "Right-size the compute fleet")
+        .unwrap();
+    assert_eq!(checklist.subtasks.total, 2);
+    let kids: Vec<_> = rows.iter().filter(|r| r.parent.is_some()).collect();
+    assert_eq!(kids.len(), 2);
+    assert!(kids
+        .iter()
+        .all(|r| r.parent.as_ref().unwrap().label == "Right-size the compute fleet"));
 }
 
 #[test]

@@ -12,8 +12,31 @@ use crate::{
     state::{undo_or_redo, DataVersion, ListNav, PaletteOpen, Selection, Toasts},
 };
 
+/// Whether a right-click on this element may show the webview's own menu. Only text boxes keep
+/// it (cut, copy, paste and spelling); everywhere else the app is not a web page.
+fn keeps_native_menu(tag: &str, editable: bool) -> bool {
+    is_typing_target(tag, editable)
+}
+
+/// Turns off the webview's default right-click menu (Back, Reload, Inspect...), except in text
+/// boxes. Must be called inside a reactive owner.
+fn use_no_native_context_menu() {
+    let handle = window_event_listener(ev::contextmenu, move |e: web_sys::MouseEvent| {
+        let (tag, editable) = e
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
+            .map(|el| (el.tag_name(), el.is_content_editable()))
+            .unwrap_or_default();
+        if !keeps_native_menu(&tag, editable) {
+            e.prevent_default();
+        }
+    });
+    on_cleanup(move || handle.remove());
+}
+
 /// Installs the window keydown handler. Must be called inside the `<Router>`.
 pub fn use_global_shortcuts() {
+    use_no_native_context_menu();
     let navigate = use_navigate();
     let selection = expect_context::<Selection>();
     let list = expect_context::<ListNav>();
@@ -107,4 +130,19 @@ pub fn use_global_shortcuts() {
         }
     });
     on_cleanup(move || handle.remove());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_text_boxes_keep_the_native_right_click_menu() {
+        assert!(keeps_native_menu("INPUT", false));
+        assert!(keeps_native_menu("textarea", false));
+        assert!(keeps_native_menu("DIV", true));
+        assert!(!keeps_native_menu("DIV", false));
+        assert!(!keeps_native_menu("BUTTON", false));
+        assert!(!keeps_native_menu("A", false));
+    }
 }
