@@ -19,6 +19,7 @@ use crate::{
         health::load_text,
         node_row::NodeRow,
         page::{EmptyState, GroupLabel, Hints, PageHeader, Tone},
+        review_row::ReviewRow,
         waiting_panel::age_text,
     },
     labels::{decision_status_label, decision_status_tone},
@@ -31,13 +32,14 @@ use crate::{
 
 // ------------------------------------------------------------------ pure text
 
-pub const STEPS: [&str; 7] = [
+pub const STEPS: [&str; 8] = [
     "Slipped",
     "Blocked",
     "Overloaded",
     "Waiting on",
     "Decisions",
     "Done",
+    "Ongoing",
     "Report",
 ];
 const LAST_STEP: usize = STEPS.len() - 1;
@@ -56,12 +58,13 @@ pub fn step_question(step: usize) -> &'static str {
         3 => "Which waiting-ons are stale? Resolve what arrived, snooze what can wait.",
         4 => "Which decisions were made this week?",
         5 => "What got done this week?",
+        6 => "Which ongoing objectives are due for a look? Check how they are doing, then mark them reviewed.",
         _ => "The status report for a board or executive audience. Save it or copy it.",
     }
 }
 
 /// How many rows each step has (the Report step has none).
-pub fn step_counts(r: &WeeklyReview) -> [usize; 7] {
+pub fn step_counts(r: &WeeklyReview) -> [usize; 8] {
     [
         r.slipped.len(),
         r.blocked.len(),
@@ -69,6 +72,7 @@ pub fn step_counts(r: &WeeklyReview) -> [usize; 7] {
         r.waiting.len() + r.waiting_resolved.len(),
         r.decisions.len(),
         r.done.len() + r.finished.len(),
+        r.reviews.len(),
         0,
     ]
 }
@@ -100,6 +104,7 @@ pub fn step_nodes(r: &WeeklyReview, step: usize) -> Vec<NodeRef> {
             .map(|f| f.node.node)
             .chain(r.done.iter().map(|d| d.node.node))
             .collect(),
+        6 => r.reviews.iter().map(|x| x.objective.node).collect(),
         _ => Vec::new(),
     }
 }
@@ -285,6 +290,7 @@ fn Body(
             3 => waiting_step(r).into_any(),
             4 => decisions_step(r).into_any(),
             5 => done_step(r).into_any(),
+            6 => ongoing_step(r).into_any(),
             _ => view! { <ReportStep week_start=r.week_start /> }.into_any(),
         })
     };
@@ -439,6 +445,23 @@ fn done_step(r: &WeeklyReview) -> impl IntoView {
         view! { <GroupLabel label="Tasks completed" count=r.done.len() /> {rows} }
     });
     view! { {finished}{tasks} }.into_any()
+}
+
+/// Ongoing objectives whose review is overdue or falls this week.
+fn ongoing_step(r: &WeeklyReview) -> impl IntoView {
+    if r.reviews.is_empty() {
+        return view! {
+            <EmptyState icon="objectives" title="No reviews due"
+                hint="Ongoing objectives with a review rhythm show here when their review is overdue or due this week." />
+        }
+        .into_any();
+    }
+    let rows = r
+        .reviews
+        .iter()
+        .map(|x| view! { <ReviewRow item=x.clone() /> })
+        .collect_view();
+    view! { <GroupLabel label="Due for review" count=r.reviews.len() /> {rows} }.into_any()
 }
 
 // ------------------------------------------------------------------ rows
@@ -751,6 +774,7 @@ mod tests {
 
     fn review() -> WeeklyReview {
         WeeklyReview {
+            reviews: Vec::new(),
             week_start: date!(2027 - 03 - 01),
             week_end: date!(2027 - 03 - 07),
             prev_week_start: date!(2027 - 02 - 22),
@@ -792,13 +816,13 @@ mod tests {
 
     #[test]
     fn steps_stay_inside_the_list() {
-        assert_eq!(STEPS.len(), 7);
+        assert_eq!(STEPS.len(), 8);
         assert_eq!(STEPS[LAST_STEP], "Report");
         assert_eq!(move_step(0, -1), 0);
         assert_eq!(move_step(0, 1), 1);
-        assert_eq!(move_step(6, 1), 6);
-        assert_eq!(move_step(6, -1), 5);
-        assert_eq!(move_step(3, 100), 6);
+        assert_eq!(move_step(7, 1), 7);
+        assert_eq!(move_step(7, -1), 6);
+        assert_eq!(move_step(3, 100), 7);
         for i in 0..STEPS.len() {
             assert!(!step_question(i).is_empty());
         }
@@ -870,7 +894,7 @@ mod tests {
         assert_eq!(step_nodes(&r, 4)[0].node_type, NodeType::Decision);
         assert!(step_nodes(&r, LAST_STEP).is_empty());
         let counts = step_counts(&r);
-        assert_eq!(counts, [1, 0, 0, 2, 1, 0, 0]);
+        assert_eq!(counts, [1, 0, 0, 2, 1, 0, 0, 0]);
         for (step, count) in counts.iter().enumerate() {
             assert_eq!(step_nodes(&r, step).len(), *count, "step {step}");
         }

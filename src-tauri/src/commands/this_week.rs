@@ -37,6 +37,7 @@ pub(crate) fn this_week_impl(
         blockers: minimap_store::views::open_blockers(conn).map_err(store_error)?,
         waiting: minimap_store::views::waiting_on_items(conn).map_err(store_error)?,
         notes: minimap_store::views::note_items(conn).map_err(store_error)?,
+        objectives: minimap_store::objectives::list(conn, false).map_err(store_error)?,
         self_id,
         today: minimap_store::today(),
         week_of,

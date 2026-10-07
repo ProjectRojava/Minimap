@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use time::Date;
 use uuid::Uuid;
 
-use crate::{NodeSummary, NoteRow, TaskRow, WaitingOnRow};
+use crate::{NodeSummary, NoteRow, ReviewDue, TaskRow, WaitingOnRow};
 
 /// A task in one of the week's sections.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -55,6 +55,9 @@ pub struct ThisWeek {
     pub waiting: Vec<WaitingOnRow>,
     /// 1:1 notes dated this week, earliest first.
     pub one_on_ones: Vec<NoteRow>,
+    /// Ongoing objectives whose review is overdue or falls by Sunday, most overdue first.
+    #[serde(default)]
+    pub reviews: Vec<ReviewDue>,
 }
 
 /// Where a task id was last seen is irrelevant; kept so the UI can key rows.

@@ -6,7 +6,7 @@ The **Overview** (`g o`) is the state of everything on one screen. It is compute
 
 - **Counts**: how many projects are red, amber, green and *not scored*.
 - **Top risks**: the five worst things right now, most urgent first (and how many more there are).
-- **Objectives**, each with its computed health and the projects under it (with their weights), and **projects with no objective** listed separately.
+- **Objectives**, each with its computed health and the projects under it (with their weights), and **projects with no objective** listed separately. A goal shows its target date; an *ongoing* objective shows *ongoing* and when its review is due (or how overdue).
 - **Overloaded people**: over 100% of capacity in the next five working days, or with too many open tasks. See [Capacity](help:capacity).
 - **Stale waiting-ons**: things you are waiting on for too long. See [Waiting on](help:waiting-on).
 - A line recalling the **thresholds** in force.

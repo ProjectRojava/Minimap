@@ -15,6 +15,7 @@ use crate::{
         form::{BUTTON, BUTTON_SUCCESS, COMPACT_INPUT},
         node_row::NodeRow,
         page::{EmptyState, GroupLabel, Hints, PageHeader, Tone, CHIP_STRONG},
+        review_row::ReviewRow,
         sync_status::SyncBanner,
         waiting_panel::age_text,
     },
@@ -77,6 +78,7 @@ pub fn total_items(w: &Week) -> usize {
         + w.in_progress.len()
         + w.waiting.len()
         + w.one_on_ones.len()
+        + w.reviews.len()
 }
 
 // ------------------------------------------------------------------ the screen
@@ -191,6 +193,14 @@ fn Body(week: Week, week_start: RwSignal<Option<Date>>) -> impl IntoView {
             .collect_view();
         view! { <GroupLabel label="Waiting on: stale or due" count=week.waiting.len() /> {items} }
     });
+    let reviews = (!week.reviews.is_empty()).then(|| {
+        let items = week
+            .reviews
+            .iter()
+            .map(|r| view! { <ReviewRow item=r.clone() /> })
+            .collect_view();
+        view! { <GroupLabel label="Ongoing objectives to review" count=week.reviews.len() /> {items} }
+    });
     let ones = (!week.one_on_ones.is_empty()).then(|| {
         let first = index;
         let items = week
@@ -220,7 +230,7 @@ fn Body(week: Week, week_start: RwSignal<Option<Date>>) -> impl IntoView {
         <div class="min-h-0 flex-1 overflow-y-auto">
             <SyncBanner />
             <div class="grid grid-cols-7 gap-1.5 border-b border-line px-4 py-3">{strip}</div>
-            {overdue}{due}{blocked}{progress}{waiting}{ones}
+            {overdue}{due}{blocked}{progress}{waiting}{reviews}{ones}
             {empty.then(|| view! {
                 <EmptyState icon="week" title="Nothing needs attention"
                     hint="No overdue work, nothing due, nothing blocked or stale. A clear week." />

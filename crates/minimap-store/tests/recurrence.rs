@@ -88,6 +88,8 @@ fn finishing_a_weekly_task_makes_next_weeks_with_the_same_fields() {
     let objective = objectives::create(
         &mut conn,
         CreateObjective {
+            ongoing: false,
+            review_every_days: None,
             title: "Be transparent".into(),
             description: String::new(),
             target_date: None,

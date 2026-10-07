@@ -721,3 +721,46 @@ fn creating_and_linking_subtasks_is_undone_and_redone() {
         tasks::set_parent(c, other.id, Some(third.id)).unwrap();
     });
 }
+
+#[test]
+fn making_an_objective_ongoing_and_reviewing_it_are_undone_and_redone() {
+    let mut conn = demo();
+    let o = objectives::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    round_trip(&mut conn, |c| {
+        objectives::update(
+            c,
+            o.id,
+            UpdateObjective {
+                ongoing: Some(true),
+                review_every_days: Patch::Set(30),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    objectives::update(
+        &mut conn,
+        o.id,
+        UpdateObjective {
+            ongoing: Some(true),
+            review_every_days: Patch::Set(30),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    round_trip(&mut conn, |c| {
+        objectives::update(
+            c,
+            o.id,
+            UpdateObjective {
+                last_reviewed_on: Patch::Set(TODAY),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+}

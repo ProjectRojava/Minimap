@@ -7,13 +7,15 @@ use uuid::Uuid;
 use crate::{
     activity,
     convert::*,
-    error::Result,
+    error::{Result, StoreError},
     repo::{fetch, fetch_all},
 };
 
 const TABLE: &str = "objectives";
-const COLS: &str =
-    "id, title, description, target_date, status, priority, created_at, updated_at, archived_at";
+const COLS: &str = "id, title, description, target_date, status, priority, created_at, updated_at, archived_at, ongoing, review_every_days, last_reviewed_on";
+
+/// Longest review rhythm, in days (a year).
+const MAX_REVIEW_DAYS: u32 = 365;
 
 fn from_row(r: &Row) -> rusqlite::Result<Objective> {
     Ok(Objective {
@@ -26,12 +28,33 @@ fn from_row(r: &Row) -> rusqlite::Result<Objective> {
         created_at: col_ts(r, 6)?,
         updated_at: col_ts(r, 7)?,
         archived_at: col_ts_opt(r, 8)?,
+        ongoing: r.get::<_, i64>(9)? != 0,
+        review_every_days: r.get::<_, Option<u32>>(10)?,
+        last_reviewed_on: col_date_opt(r, 11)?,
     })
 }
 
 fn validate(o: &Objective) -> Result<()> {
     ensure_not_blank("title", &o.title)?;
-    ensure_priority(o.priority)
+    ensure_priority(o.priority)?;
+    if let Some(n) = o.review_every_days {
+        if n == 0 || n > MAX_REVIEW_DAYS {
+            return Err(StoreError::Invalid(format!(
+                "review every must be between 1 and {MAX_REVIEW_DAYS} days"
+            )));
+        }
+    }
+    if o.ongoing && o.target_date.is_some() {
+        return Err(StoreError::Invalid(
+            "an ongoing objective has no target date".into(),
+        ));
+    }
+    if o.ongoing && o.status == ObjectiveStatus::Done {
+        return Err(StoreError::Invalid(
+            "an ongoing objective is never done; archive it when it ends".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub fn get(conn: &Connection, id: Uuid) -> Result<Objective> {
@@ -59,13 +82,16 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateObjective) -> Result<O
         target_date: input.target_date,
         status: input.status.unwrap_or(ObjectiveStatus::OnTrack),
         priority: input.priority.unwrap_or(DEFAULT_PRIORITY),
+        ongoing: input.ongoing,
+        review_every_days: input.review_every_days,
+        last_reviewed_on: None,
         created_at: at,
         updated_at: at,
         archived_at: None,
     };
     validate(&o)?;
     tx.execute(
-        &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)"),
+        &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)"),
         params![
             id_s(o.id),
             o.title,
@@ -76,6 +102,9 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateObjective) -> Result<O
             ts_s(o.created_at),
             ts_s(o.updated_at),
             ts_opt_s(o.archived_at),
+            i64::from(o.ongoing),
+            o.review_every_days,
+            date_s(o.last_reviewed_on),
         ],
     )?;
     activity::record_created(tx, at, NodeType::Objective, o.id, &o)?;
@@ -97,7 +126,16 @@ pub(crate) fn update_in_tx(
 ) -> Result<Objective> {
     let old = get(tx, id)?;
     let mut new = old.clone();
+    // Making an objective ongoing takes its end away (its date, and "done"); asking for a date
+    // or "done" on one that stays ongoing is refused by `validate`.
+    let becoming_ongoing = patch.ongoing == Some(true) && !old.ongoing;
     patch.apply(&mut new);
+    if becoming_ongoing {
+        new.target_date = None;
+        if new.status == ObjectiveStatus::Done {
+            new.status = ObjectiveStatus::OnTrack;
+        }
+    }
     validate(&new)?;
     let diff = activity::diff(&old, &new)?;
     if diff.is_empty() {
@@ -106,7 +144,7 @@ pub(crate) fn update_in_tx(
     new.updated_at = now();
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, target_date=?4, status=?5, priority=?6, updated_at=?7 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, target_date=?4, status=?5, priority=?6, ongoing=?7, review_every_days=?8, last_reviewed_on=?9, updated_at=?10 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -115,6 +153,9 @@ pub(crate) fn update_in_tx(
             date_s(new.target_date),
             new.status.as_str(),
             new.priority,
+            i64::from(new.ongoing),
+            new.review_every_days,
+            date_s(new.last_reviewed_on),
             ts_s(new.updated_at),
         ],
     )?;

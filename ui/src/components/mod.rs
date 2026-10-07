@@ -25,6 +25,7 @@ pub mod people_panel;
 pub mod project_panel;
 pub mod reference_links;
 pub mod repeat_field;
+pub mod review_row;
 pub mod schedule_panel;
 pub mod search_box;
 pub mod security_settings;

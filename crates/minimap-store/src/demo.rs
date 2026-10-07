@@ -6,7 +6,7 @@
 //! `today`'s week), so a fixed `today` gives the same dataset every time. Titles, dates,
 //! statuses, estimates and links are fixed; only the generated ids differ between runs.
 //!
-//! Contents: 2 objectives, 3 projects (EU Region is at risk), 40 tasks (cross-project `blocks`),
+//! Contents: 3 objectives (one ongoing), 3 projects (EU Region is at risk), 40 tasks (cross-project `blocks`),
 //! 8 people (me and 7 others, one overloaded) in 2 nested teams with reporting lines, 3 notes
 //! (one 1:1 with mentions and a checklist), 5 decisions (one replaced by another) and 3
 //! waiting-ons (one stale, one resolved this week).
@@ -22,7 +22,7 @@ use minimap_types::{
     mention_token, AssigneeChoice, CreateDecision, CreateNote, CreateObjective, CreatePerson,
     CreateProject, CreateTask, CreateTeam, CreateWaitingOn, DecisionStatus, DemoSummary, EdgeType,
     NewEdge, NodeRef, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence,
-    RefLink, TaskStatus, UpdateTask, UpdateWaitingOn,
+    RefLink, TaskStatus, UpdateObjective, UpdateTask, UpdateWaitingOn,
 };
 use rusqlite::{params, Connection, Transaction};
 use time::{Date, Duration, OffsetDateTime, Time};
@@ -774,7 +774,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     // -------------------------------------------------------------- objectives
     let launch = objectives::create_in_tx(
         &tx,
-        CreateObjective {
+        CreateObjective { ongoing: false, review_every_days: None,
             title: "Launch in the EU".into(),
             description: "Serve European customers from a European region by the end of the quarter, with the security and data-residency sign-offs they ask for.".into(),
             target_date: Some(d(75)),
@@ -785,12 +785,39 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     let costs = objectives::create_in_tx(
         &tx,
         CreateObjective {
+            ongoing: false,
+            review_every_days: None,
             title: "Cut platform costs by 20%".into(),
             description: "Bring the monthly cloud bill down a fifth without hurting reliability."
                 .into(),
             target_date: Some(d(120)),
             status: Some(ObjectiveStatus::OnTrack),
             priority: Some(2),
+        },
+    )?;
+    // Spec 30: an objective with no end. It is served by the two repeating security tasks and
+    // is reviewed monthly; the last review was 35 days ago, so it is five days overdue (amber,
+    // and listed on This week).
+    let maintenance = objectives::create_in_tx(
+        &tx,
+        CreateObjective {
+            ongoing: true,
+            review_every_days: Some(30),
+            title: "Keep internal systems healthy".into(),
+            description:
+                "Routine upkeep that never ends: access reviews, credential rotation, patching."
+                    .into(),
+            target_date: None,
+            status: Some(ObjectiveStatus::OnTrack),
+            priority: Some(3),
+        },
+    )?;
+    objectives::update_in_tx(
+        &tx,
+        maintenance.id,
+        UpdateObjective {
+            last_reviewed_on: Patch::Set(d(-35)),
+            ..Default::default()
         },
     )?;
     let objective = |id: Uuid| NodeRef::new(NodeType::Objective, id);
@@ -906,6 +933,14 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             serde_json::json!({})
         };
         s.link(EdgeType::Blocks, s.task_ref(from), s.task_ref(to), attrs)?;
+    }
+    for key in ["s7", "s8"] {
+        s.link(
+            EdgeType::ContributesTo,
+            s.task_ref(key),
+            objective(maintenance.id),
+            serde_json::json!({ "weight": 1.0 }),
+        )?;
     }
     // Spec 29: two clean-up tasks are steps of right-sizing the compute fleet. They have no
     // `blocks` links with it (a task can't block its own group).

@@ -1,7 +1,7 @@
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
     timefmt::parse_date, CreateObjective, NodeRef, NodeSummary, NodeType, ObjectiveGrouping,
-    ObjectiveRow,
+    ObjectiveRow, DEFAULT_REVIEW_DAYS,
 };
 
 use crate::{
@@ -10,7 +10,8 @@ use crate::{
         form::{DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveDot},
-        page::{column_head, EmptyState, GroupLabel, PageHeader, FORM_BAR},
+        page::{column_head, EmptyState, GroupLabel, PageHeader, Tone, FORM_BAR},
+        task_board::today,
     },
     labels::{objective_status_label, objective_status_tone, priority_option, priority_short},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
@@ -53,13 +54,17 @@ pub fn Objectives() -> impl IntoView {
     let title = RwSignal::new(String::new());
     let target = RwSignal::new(String::new());
     let priority = RwSignal::new("3".to_owned());
+    // No end date (spec 30): reviewed every 30 days until you say otherwise.
+    let ongoing = RwSignal::new(false);
     let submit = move || {
         let t = title.get_untracked();
         if t.trim().is_empty() {
             return;
         }
+        let is_ongoing = ongoing.get_untracked();
         let date = target.get_untracked();
         let target_date = match date.trim() {
+            _ if is_ongoing => None,
             "" => None,
             d => match parse_date(d) {
                 Ok(d) => Some(d),
@@ -80,10 +85,13 @@ pub fn Objectives() -> impl IntoView {
                 target_date,
                 status: None,
                 priority: p,
+                ongoing: is_ongoing,
+                review_every_days: is_ongoing.then_some(DEFAULT_REVIEW_DAYS),
             };
             if let Some(o) = finish(api::create_objective(input).await, toasts, version) {
                 title.set(String::new());
                 target.set(String::new());
+                ongoing.set(false);
                 selection.open(NodeRef::new(NodeType::Objective, o.id));
             }
         });
@@ -107,7 +115,15 @@ pub fn Objectives() -> impl IntoView {
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
                     <input class=INPUT placeholder="Objective" autofocus prop:value=move || title.get()
                            on:input=move |ev| title.set(event_target_value(&ev)) />
-                    <DateField compact=true placeholder="Target date" current=target.get_untracked() on_commit=move |v: String| target.set(v) />
+                    <label class="flex items-center gap-1 text-[12px] text-muted"
+                           title="No end date: judged by its work and a regular review (for example keeping systems healthy)">
+                        <input type="checkbox" prop:checked=move || ongoing.get()
+                               on:change=move |ev| ongoing.set(event_target_checked(&ev)) />
+                        "Ongoing"
+                    </label>
+                    <Show when=move || !ongoing.get()>
+                        <DateField compact=true placeholder="Target date" current=target.get_untracked() on_commit=move |v: String| target.set(v) />
+                    </Show>
                     <SelectField compact=true options=priority_options() current="3".to_owned()
                                  on_change=move |v: String| priority.set(v) />
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
@@ -161,6 +177,8 @@ fn objective_row(row: ObjectiveRow, index: usize) -> impl IntoView {
         label: o.title.clone(),
         archived: false,
     };
+    let ongoing = o.ongoing;
+    let overdue = today().and_then(|t| o.review_overdue_days(t));
     view! {
         <NodeRow node=node index=index hue=edge>
             <div class=COLS>
@@ -170,7 +188,15 @@ fn objective_row(row: ObjectiveRow, index: usize) -> impl IntoView {
                     <span class="truncate font-medium">{o.title}</span>
                 </span>
                 <span><span class=status_class>{objective_status_label(o.status)}</span></span>
-                <span class="text-muted tabular-nums">{o.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
+                {if ongoing {
+                    let (tone, word, hint) = match overdue {
+                        Some(n) => (Tone::Warning, "review due", format!("Review overdue by {n} days")),
+                        None => (Tone::Accent, "ongoing", "No end date".to_owned()),
+                    };
+                    view! { <span><span class=tone.chip() title=hint>{word}</span></span> }.into_any()
+                } else {
+                    view! { <span class="text-muted tabular-nums">{o.target_date.map(|d| d.to_string()).unwrap_or_default()}</span> }.into_any()
+                }}
                 <span class="text-right tabular-nums text-muted">{row.contribution_count}</span>
             </div>
         </NodeRow>

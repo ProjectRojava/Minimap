@@ -29,6 +29,19 @@ fn date_text(what: &str, date: Date, tone: Tone, today: Option<Date>) -> String 
     }
 }
 
+/// The review pill of an ongoing objective: red-ish once overdue, amber in its last week, grey
+/// before that.
+fn review_pill(due: Date, overdue_days: Option<u32>, today: Option<Date>) -> (Tone, String) {
+    match overdue_days {
+        Some(n) => (Tone::Danger, format!("review overdue {n}d")),
+        None => {
+            let soon = today.is_some_and(|t| (due - t).whole_days() <= 7);
+            let tone = if soon { Tone::Warning } else { Tone::Neutral };
+            (tone, format!("review {due}"))
+        }
+    }
+}
+
 #[component]
 fn Pill(tone: Tone, children: Children) -> impl IntoView {
     view! { <span class=tone.chip()>{children()}</span> }
@@ -116,16 +129,24 @@ pub fn ObjectiveSummary(id: Uuid) -> impl IntoView {
     move || {
         objective.get().and_then(|r| r.ok()).map(|o| {
             let open = o.status != minimap_types::ObjectiveStatus::Done;
+            let today = today();
             let target = o.target_date.map(|d| {
-                let today = today();
                 let tone = date_tone(d, today, open);
                 (tone, date_text("target", d, tone, today))
             });
+            // An ongoing objective has no date: it is "ongoing", and its review is the date.
+            let review = o.review_due().map(|d| {
+                let late = today.and_then(|t| o.review_overdue_days(t));
+                review_pill(d, late, today)
+            });
+            let ongoing = o.ongoing;
             view! {
                 <div class="mb-3 flex flex-wrap items-center gap-1.5">
                     <Pill tone=objective_status_tone(o.status)>{objective_status_label(o.status)}</Pill>
                     <Pill tone=priority_tone(o.priority)>{priority_short(o.priority)}</Pill>
+                    {ongoing.then(|| view! { <Pill tone=Tone::Accent>"ongoing"</Pill> })}
                     {target.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    {review.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
                 </div>
             }
         })
@@ -138,6 +159,20 @@ mod tests {
 
     fn d(day: u8) -> Date {
         Date::from_calendar_date(2027, time::Month::March, day).unwrap()
+    }
+
+    #[test]
+    fn the_review_pill_warms_up_as_the_review_nears_and_is_red_when_overdue() {
+        let today = Some(d(3));
+        assert_eq!(
+            review_pill(d(1), Some(2), today),
+            (Tone::Danger, "review overdue 2d".to_owned())
+        );
+        assert_eq!(review_pill(d(9), None, today).0, Tone::Warning);
+        assert_eq!(
+            review_pill(d(20), None, today),
+            (Tone::Neutral, "review 2027-03-20".to_owned())
+        );
     }
 
     #[test]

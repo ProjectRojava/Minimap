@@ -248,6 +248,13 @@ pub struct TargetFacts {
     pub late_days: Option<u32>,
 }
 
+/// An ongoing objective's review that is overdue.
+pub struct ReviewFacts {
+    pub due: Date,
+    pub overdue_days: u32,
+    pub every_days: u32,
+}
+
 /// Weighted roll-up of the contributors' scores (so a heavier project counts for more), held
 /// to the same lateness thresholds if the objective has a target. **One red contributor caps
 /// the objective at amber**, so an average can't hide a project that is in trouble.
@@ -255,6 +262,7 @@ pub fn objective_health(
     marked_done: bool,
     contributions: &[Contribution],
     target: Option<&TargetFacts>,
+    review: Option<&ReviewFacts>,
     t: &HealthThresholds,
 ) -> Health {
     if marked_done {
@@ -277,6 +285,21 @@ pub fn objective_health(
         score = score.min(AMBER_MAX);
     }
     let mut reasons = Vec::new();
+
+    // An ongoing objective has no deadline; a review that has not happened in time is the
+    // overdue of perpetual work, and holds it at amber.
+    if let Some(rf) = review {
+        score = score.min(AMBER_MAX);
+        reasons.push(reason(
+            score,
+            format!(
+                "review overdue by {} (due {}, every {})",
+                plural(rf.overdue_days, "day", "days"),
+                rf.due,
+                plural(rf.every_days, "day", "days")
+            ),
+        ));
+    }
 
     if let Some(tf) = target {
         match tf.late_days {
@@ -630,15 +653,56 @@ mod tests {
     #[test]
     fn objectives_roll_up_by_weight() {
         // Heavy healthy project and light amber one: the average stays green.
-        let h = objective_health(false, &[c("A", 0.9, 100), c("B", 0.1, 50)], None, &t());
+        let h = objective_health(
+            false,
+            &[c("A", 0.9, 100), c("B", 0.1, 50)],
+            None,
+            None,
+            &t(),
+        );
         assert_eq!(h.level, HealthLevel::Green);
         assert_eq!(h.score, 95);
         // Same two with the weights swapped: amber.
-        let h = objective_health(false, &[c("A", 0.1, 100), c("B", 0.9, 50)], None, &t());
+        let h = objective_health(
+            false,
+            &[c("A", 0.1, 100), c("B", 0.9, 50)],
+            None,
+            None,
+            &t(),
+        );
         assert_eq!((h.level, h.score), (HealthLevel::Amber, 55));
         // Equal weights by default.
-        let h = objective_health(false, &[c("A", 1.0, 100), c("B", 1.0, 80)], None, &t());
+        let h = objective_health(
+            false,
+            &[c("A", 1.0, 100), c("B", 1.0, 80)],
+            None,
+            None,
+            &t(),
+        );
         assert_eq!(h.score, 90);
+    }
+
+    #[test]
+    fn an_overdue_review_holds_an_ongoing_objective_at_amber_and_says_why() {
+        let healthy = [c("Maintenance", 1.0, 100)];
+        let on_time = objective_health(false, &healthy, None, None, &t());
+        assert_eq!(on_time.level, HealthLevel::Green);
+        let review = ReviewFacts {
+            due: date!(2027 - 02 - 19),
+            overdue_days: 12,
+            every_days: 30,
+        };
+        let h = objective_health(false, &healthy, None, Some(&review), &t());
+        assert_eq!(h.level, HealthLevel::Amber);
+        assert_eq!(
+            h.reasons[0].text,
+            "review overdue by 12 days (due 2027-02-19, every 30 days)"
+        );
+        // Nothing active contributes: it is idle either way (the row still shows the review).
+        assert_eq!(
+            objective_health(false, &[], None, Some(&review), &t()).level,
+            HealthLevel::Idle
+        );
     }
 
     #[test]
@@ -646,6 +710,7 @@ mod tests {
         let h = objective_health(
             false,
             &[c("Good", 1.0, 100), c("Bad", 1.0, 20), c("Fine", 1.0, 100)],
+            None,
             None,
             &t(),
         );
@@ -657,7 +722,13 @@ mod tests {
             "Bad is red: projected 6 working days late"
         );
         // An amber contributor alone doesn't cap it.
-        let h = objective_health(false, &[c("Good", 1.0, 100), c("Meh", 1.0, 55)], None, &t());
+        let h = objective_health(
+            false,
+            &[c("Good", 1.0, 100), c("Meh", 1.0, 55)],
+            None,
+            None,
+            &t(),
+        );
         assert_eq!(h.level, HealthLevel::Green);
         assert_eq!(h.reasons[0].level, HealthLevel::Amber);
     }
@@ -669,10 +740,10 @@ mod tests {
             finish: date!(2027 - 04 - 08),
             late_days: late,
         };
-        let ok = objective_health(false, &[c("A", 1.0, 100)], Some(&tf(None)), &t());
+        let ok = objective_health(false, &[c("A", 1.0, 100)], Some(&tf(None)), None, &t());
         assert_eq!(ok.level, HealthLevel::Green);
         assert!(ok.reasons.iter().any(|r| r.text.starts_with("on track")));
-        let late = objective_health(false, &[c("A", 1.0, 100)], Some(&tf(Some(6))), &t());
+        let late = objective_health(false, &[c("A", 1.0, 100)], Some(&tf(Some(6))), None, &t());
         assert_eq!(late.level, HealthLevel::Red);
         assert!(late.reasons[0]
             .text
@@ -681,20 +752,26 @@ mod tests {
 
     #[test]
     fn objectives_without_active_work_or_marked_done_are_not_scored() {
-        let h = objective_health(true, &[c("A", 1.0, 10)], None, &t());
+        let h = objective_health(true, &[c("A", 1.0, 10)], None, None, &t());
         assert_eq!(
             (h.level, h.reasons[0].text.as_str()),
             (HealthLevel::Idle, "Marked done")
         );
         assert_eq!(
-            objective_health(false, &[], None, &t()).level,
+            objective_health(false, &[], None, None, &t()).level,
             HealthLevel::Idle
         );
         assert_eq!(
-            objective_health(false, &[c("A", 0.0, 10)], None, &t()).level,
+            objective_health(false, &[c("A", 0.0, 10)], None, None, &t()).level,
             HealthLevel::Idle
         );
-        let all_good = objective_health(false, &[c("A", 1.0, 100), c("B", 1.0, 90)], None, &t());
+        let all_good = objective_health(
+            false,
+            &[c("A", 1.0, 100), c("B", 1.0, 90)],
+            None,
+            None,
+            &t(),
+        );
         assert_eq!(all_good.reasons[0].text, "all 2 contributors on track");
     }
 

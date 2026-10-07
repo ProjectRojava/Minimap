@@ -8,6 +8,9 @@ mod state;
 mod sync;
 mod undo;
 
+#[cfg(test)]
+mod csp_tests;
+
 use std::{
     fs,
     sync::{Arc, Mutex},

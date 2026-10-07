@@ -171,7 +171,7 @@ fn patch_from<T: DeserializeOwned>(old: &Map<String, Value>, nullable: &[&str]) 
 /// The nullable (`Patch`) fields of each node type's update.
 pub(crate) fn nullable_fields(node_type: NodeType) -> &'static [&'static str] {
     match node_type {
-        NodeType::Objective => &["target_date"],
+        NodeType::Objective => &["target_date", "review_every_days", "last_reviewed_on"],
         NodeType::Project => &["owner_person_id", "start_date", "target_date"],
         NodeType::Task => &[
             "project_id",

@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use time::Date;
 
 use crate::{
-    DecisionRow, NodeSummary, ObjectiveHealthRow, OverloadedPerson, OverviewCounts, RiskItem,
-    WaitingOnRow, WeekTask,
+    DecisionRow, NodeSummary, ObjectiveHealthRow, OverloadedPerson, OverviewCounts, ReviewDue,
+    RiskItem, WaitingOnRow, WeekTask,
 };
 
 /// Something that slipped during the review week.
@@ -87,6 +87,9 @@ pub struct WeeklyReview {
     /// How many projects are red, amber, green.
     pub counts: OverviewCounts,
     pub objectives: Vec<ObjectiveHealthRow>,
+    /// Ongoing objectives whose review is overdue or falls by the end of the week.
+    #[serde(default)]
+    pub reviews: Vec<ReviewDue>,
     pub risks: Vec<RiskItem>,
     pub more_risks: u32,
     pub warnings: Vec<String>,
