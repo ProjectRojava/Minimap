@@ -2,7 +2,7 @@
 
 A local-first, private desktop command center for CTOs, CXOs and project managers: objectives, projects, tasks, people and teams as a typed graph. Rust everywhere (Tauri 2 + Leptos/WASM + SQLite). No Node/npm.
 
-See [CLAUDE.md](CLAUDE.md) for the full spec and [docs/progress.md](docs/progress.md) for status. For versioning and releases, see [VERSIONING.md](VERSIONING.md).
+See [CLAUDE.md](CLAUDE.md) for the full spec, [docs/progress.md](docs/progress.md) for status, and [CHANGELOG.md](CHANGELOG.md) for release notes. For versioning and releases, see [VERSIONING.md](VERSIONING.md).
 
 ## Prerequisites
 
