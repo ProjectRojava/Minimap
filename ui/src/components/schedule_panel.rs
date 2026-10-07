@@ -153,7 +153,7 @@ fn ScheduleBody(schedule: Schedule) -> impl IntoView {
                 .map(|b| {
                     let id = b.id;
                     let class = format!(
-                        "bar {}{}{}{}",
+                        "bar {}{}{}",
                         match b.kind {
                             BarKind::Critical => "critical",
                             BarKind::Normal => "normal",
@@ -161,20 +161,13 @@ fn ScheduleBody(schedule: Schedule) -> impl IntoView {
                         },
                         if b.late { " late" } else { "" },
                         if b.unestimated { " unestimated" } else { "" },
-                        if b.summary { " summary" } else { "" },
                     );
                     let slack = b.slack_end.map(|end| {
                         let y = b.y + crate::timeline::BAR_H / 2.0;
                         view! { <line class="slack" x1=b.x + b.w x2=end y1=y y2=y /> }
                     });
-                    // A group is a thin bracket along the top of its row, over the work in it.
-                    let (y, height) = if b.summary {
-                        (b.y + crate::timeline::BAR_H / 2.0 - 2.0, 4.0)
-                    } else {
-                        (b.y, crate::timeline::BAR_H)
-                    };
                     view! {
-                        <rect class=class x=b.x y=y width=b.w height=height rx="1"
+                        <rect class=class x=b.x y=b.y width=b.w height=crate::timeline::BAR_H rx="1"
                               on:click=move |_| selection.open(NodeRef::new(NodeType::Task, id)) />
                         {slack}
                     }

@@ -4,7 +4,7 @@ Links are what make Minimap more than a list. They are how it knows what blocks 
 
 ## Adding a link
 
-Open any item and find the **Links** section of its detail pane. Choose **Add a link…**, pick the **relation** (only the ones that make sense for this kind of item are offered, in both directions), then search for the other item and pick it. Some links have details you can edit in place. Remove a link with its ✕.
+Open any item and find the **Links** section of its detail pane (a task's **Links** section sits right under its fields and also has buttons to link a new or an existing task: see [Tasks and the inbox](help:tasks)). Choose **Add a link…**, pick the **relation** (only the ones that make sense for this kind of item are offered, in both directions), then search for the other item and pick it. Some links have details you can edit in place. Remove a link with its ✕.
 
 (Addresses of web pages and Drive files are a different thing: a task's **Reference links**, see [Tasks and the inbox](help:tasks).)
 
@@ -25,13 +25,12 @@ Some relations are edited where they live instead: a task's assignee on the task
 | **affects** | decision → project, task or objective | none | [Decisions](help:decisions) |
 | **about** | waiting-on → task or project | none | [Waiting on](help:waiting-on) |
 | **supersedes** | decision → decision (newer → older) | none | Marks the older decision superseded |
-| **subtask of** | task → task (child → parent) | none | Made from the task's Subtasks section: see [Tasks and the inbox](help:tasks) |
 
 Direction matters: *Design blocks Build* means Build waits for Design. The pane shows the same link from both ends, worded to suit each (for example *Blocked by* on Build).
 
 ## Loops are refused
 
-A link that would make a loop in **blocks**, **depends on**, **reports to**, **supersedes** or **subtask of**, or put a team inside itself, is refused with the path that would loop:
+A link that would make a loop in **blocks**, **depends on**, **reports to** or **supersedes**, or put a team inside itself, is refused with the path that would loop:
 
 > Can't add this link: this would create a loop — Design → Build → Test → Design
 

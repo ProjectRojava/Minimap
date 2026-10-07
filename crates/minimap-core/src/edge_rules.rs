@@ -22,11 +22,7 @@ pub enum EdgeRuleError {
 pub fn must_be_acyclic(edge_type: EdgeType) -> bool {
     matches!(
         edge_type,
-        EdgeType::Blocks
-            | EdgeType::DependsOn
-            | EdgeType::ReportsTo
-            | EdgeType::Supersedes
-            | EdgeType::SubtaskOf
+        EdgeType::Blocks | EdgeType::DependsOn | EdgeType::ReportsTo | EdgeType::Supersedes
     )
 }
 
@@ -46,7 +42,8 @@ pub fn is_allowed(edge_type: EdgeType, from: NodeType, to: NodeType) -> bool {
         E::Affects => from == N::Decision && matches!(to, N::Project | N::Task | N::Objective),
         E::About => from == N::WaitingOn && matches!(to, N::Task | N::Project),
         E::Supersedes => (from, to) == (N::Decision, N::Decision),
-        E::SubtaskOf => (from, to) == (N::Task, N::Task),
+        // Removed (ADR-0015): no new links of this kind.
+        E::SubtaskOf => false,
     }
 }
 
@@ -227,7 +224,6 @@ mod tests {
             (E::About, N::WaitingOn, N::Task),
             (E::About, N::WaitingOn, N::Project),
             (E::Supersedes, N::Decision, N::Decision),
-            (E::SubtaskOf, N::Task, N::Task),
         ];
         for &(e, f, t) in &allowed {
             assert!(is_allowed(e, f, t), "{e} {f}->{t}");
@@ -290,7 +286,6 @@ mod tests {
         assert!(must_be_acyclic(E::DependsOn));
         assert!(must_be_acyclic(E::ReportsTo));
         assert!(must_be_acyclic(E::Supersedes));
-        assert!(must_be_acyclic(E::SubtaskOf));
         assert!(!must_be_acyclic(E::RelatesTo));
     }
 
@@ -314,7 +309,6 @@ mod tests {
             E::Affects,
             E::About,
             E::Supersedes,
-            E::SubtaskOf,
         ] {
             assert!(keys(e).is_empty(), "{e}");
         }

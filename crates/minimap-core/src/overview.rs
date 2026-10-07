@@ -19,7 +19,6 @@ use crate::{
     },
     impact::late_working_days,
     schedule::compute,
-    subtasks::Hierarchy,
 };
 
 const EPS: f64 = 1e-9;
@@ -100,14 +99,8 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
         .collect();
 
     // ------------------------------------------------------------- projects
-    // A task with subtasks only groups work (spec 29): its subtasks are the open work.
-    let hierarchy = Hierarchy::new(w.tasks, w.edges);
     let mut tasks_of: HashMap<Uuid, Vec<&Task>> = HashMap::new();
-    for t in w
-        .tasks
-        .iter()
-        .filter(|t| is_open(t) && !hierarchy.is_summary(t.id))
-    {
+    for t in w.tasks.iter().filter(|t| is_open(t)) {
         if let Some(p) = t.project_id {
             tasks_of.entry(p).or_default().push(t);
         }
@@ -680,39 +673,6 @@ mod tests {
         assert_eq!(project_row(&o, "Launch").health.level, HealthLevel::Red);
         assert_eq!(o.thresholds, strict);
         assert_eq!((o.counts.red, o.counts.amber), (1, 0));
-    }
-
-    #[test]
-    fn a_group_of_subtasks_is_not_counted_as_work_in_its_projects_health() {
-        // "Phase" groups two parts; it has no estimate of its own and is not a task to finish.
-        let mut w = World_ {
-            tasks: vec![
-                task(1, "Phase", None, Some(10)),
-                task(2, "Part one", Some(2.0), Some(10)),
-                task(3, "Part two", Some(1.0), Some(10)),
-            ],
-            projects: vec![project(10, "Launch", Some(date!(2027 - 03 - 12)), 3)],
-            ..Default::default()
-        };
-        w.edges.push(edge(
-            EdgeType::SubtaskOf,
-            NodeType::Task,
-            2,
-            NodeType::Task,
-            1,
-            serde_json::json!({}),
-        ));
-        w.edges.push(edge(
-            EdgeType::SubtaskOf,
-            NodeType::Task,
-            3,
-            NodeType::Task,
-            1,
-            serde_json::json!({}),
-        ));
-        let o = w.overview();
-        let p = project_row(&o, "Launch");
-        assert_eq!((p.open_tasks, p.unestimated_tasks), (2, 0));
     }
 
     #[test]

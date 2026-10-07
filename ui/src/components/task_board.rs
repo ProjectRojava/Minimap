@@ -14,6 +14,7 @@ use crate::{
     api,
     calendar::format_ymd,
     components::{
+        card_menu::CardMenu,
         date_field::today_ymd,
         form::BUTTON_SOFT,
         objective_colour::{use_objective_colours, ObjectiveChips},
@@ -21,8 +22,8 @@ use crate::{
         task_list::{next_status, FilterControls, LayoutToggle, TaskFilters},
     },
     labels::{
-        deadline_heat, estimate_text, heat_strength, priority_short, subtask_chip,
-        task_status_label, task_status_tone,
+        deadline_heat, estimate_text, heat_strength, priority_short, task_status_label,
+        task_status_tone,
     },
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
@@ -575,10 +576,9 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         today,
         ..
     } = ctx;
-    let parent = row.parent.map(|p| p.label);
-    let subtasks = subtask_chip(row.subtasks);
     let t = row.task;
     let (id, status) = (t.id, t.status);
+    let title_label = t.title.clone();
     let node = NodeRef::new(NodeType::Task, id);
     // The card wears the colour of the objective its project serves (ADR-0012).
     let colours = use_objective_colours();
@@ -619,7 +619,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 style
             }
             class=move || format!(
-                "group cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {} {}",
+                "group relative cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {} {}",
                 if hue().is_some() { "obj-bar" } else { "" },
                 if is_open() { "border-accent/50 bg-active" }
                 else if on_cursor() { "border-line-strong bg-hover" }
@@ -645,23 +645,19 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 over.set(None);
             }
         >
+            <CardMenu task=id label=title_label />
             {move || {
                 let objectives = colours.of_project(project_id);
                 (!objectives.is_empty()).then(|| view! {
-                    <div class="mb-1.5"><ObjectiveChips objectives=objectives /></div>
+                    <div class="mb-1.5 pr-4"><ObjectiveChips objectives=objectives /></div>
                 })
             }}
-            <div class="flex items-start gap-1.5">
+            <div class="flex items-start gap-1.5 pr-4">
                 <span class=title_class>{t.title}</span>
                 {repeats.map(|text| view! {
                     <span class="shrink-0 text-muted" title=text>"↻"</span>
                 })}
             </div>
-            {parent.map(|p| view! {
-                <div class="mt-0.5 truncate text-[11px] text-muted" title="Subtask of">
-                    "↳ " {p}
-                </div>
-            })}
             {project.map(|p| view! {
                 <div class="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted">
                     <Icon name="projects" size="h-3 w-3" />
@@ -671,9 +667,6 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             <div class="mt-2 flex items-center gap-1.5 text-[11px]">
                 <span class=priority_class title="Priority (1 is highest)">{priority_short(priority)}</span>
                 {due.map(|pill| view! { <span class=pill.class title=pill.hint>{pill.text}</span> })}
-                {subtasks.map(|(text, tone)| view! {
-                    <span class=tone.chip() title="Subtasks done">{text}</span>
-                })}
                 {(!estimate.is_empty()).then(|| view! {
                     <span class="tabular-nums text-muted" title="Estimate">{estimate}</span>
                 })}
@@ -702,8 +695,6 @@ mod tests {
     fn row(title: &str, status: TaskStatus) -> TaskRow {
         let at = OffsetDateTime::UNIX_EPOCH;
         TaskRow {
-            parent: None,
-            subtasks: Default::default(),
             task: minimap_types::Task {
                 links: Vec::new(),
                 id: {

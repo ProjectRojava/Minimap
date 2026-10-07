@@ -1,6 +1,8 @@
 # 29 — Subtasks
 
-Status: Implemented — awaiting manual check · Milestone: — · Priority: Should
+> **Withdrawn (ADR-0015):** subtasks were removed after use. Kept as history; nothing below is in the app any more.
+
+Status: Withdrawn · Milestone: — · Priority: Should
 Depends on: 06, 07
 
 ## Goal

@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use leptos::prelude::*;
-use minimap_types::{AppError, NodeRef};
+use minimap_types::{AppError, NodeRef, Uuid};
 
 use crate::nav::move_cursor;
 
@@ -29,6 +29,47 @@ impl PaletteOpen {
     pub fn toggle(&self) {
         self.0.update(|o| *o = !*o);
     }
+}
+
+/// The "link a task" dialog (from a card's menu or a task's panel): which task it starts from
+/// and whether it opens on *New task* or *Existing task*.
+#[derive(Clone, Copy)]
+pub struct LinkDialog(pub RwSignal<Option<LinkRequest>>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinkRequest {
+    pub task: Uuid,
+    pub label: String,
+    /// Open on the *Existing task* tab (otherwise *New task*).
+    pub existing: bool,
+}
+
+impl LinkDialog {
+    pub fn open(&self, task: Uuid, label: impl Into<String>, existing: bool) {
+        self.0.set(Some(LinkRequest {
+            task,
+            label: label.into(),
+            existing,
+        }));
+    }
+
+    pub fn close(&self) {
+        self.0.set(None);
+    }
+}
+
+/// The ⋯ menu of a Kanban card that is open, if any: one at a time, drawn once at the top of the
+/// app so no card can paint over it.
+#[derive(Clone, Copy)]
+pub struct CardMenuState(pub RwSignal<Option<MenuRequest>>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MenuRequest {
+    pub task: Uuid,
+    pub label: String,
+    /// Top-left corner of the menu, in viewport pixels.
+    pub left: f64,
+    pub top: f64,
 }
 
 /// The "what if" scenario being explored: slips on tasks or projects. "What if this slips?"

@@ -44,8 +44,8 @@ pub(crate) fn schedule_at(
         minimap_store::projects::get(conn, id).map_err(store_error)?;
     }
     let tasks = minimap_store::tasks::list(conn, false).map_err(store_error)?;
-    // Blocks and subtask links (a group is scheduled through the tasks in it).
-    let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
+    let edges = minimap_store::edges::list_active_of_type(conn, minimap_types::EdgeType::Blocks)
+        .map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let work_week = minimap_store::settings::get(conn)
         .map_err(store_error)?

@@ -6,8 +6,10 @@ use leptos_router::{
 
 use crate::{
     components::{
+        card_menu::CardMenuHost,
         detail_pane::DetailPane,
         first_run::FirstRun,
+        link_dialog::LinkDialogHost,
         palette::PaletteHost,
         sidebar::Sidebar,
         sync_status::{use_sync_status, StatusBar},
@@ -35,7 +37,9 @@ use crate::{
         weekly_review::WeeklyReview,
         what_if::WhatIf,
     },
-    state::{DataVersion, ListNav, PaletteOpen, Scenario, Selection, Toasts},
+    state::{
+        CardMenuState, DataVersion, LinkDialog, ListNav, PaletteOpen, Scenario, Selection, Toasts,
+    },
     theme::ThemeCtx,
 };
 
@@ -43,6 +47,8 @@ use crate::{
 pub fn App() -> impl IntoView {
     provide_context(Selection(RwSignal::new(None)));
     provide_context(PaletteOpen(RwSignal::new(false)));
+    provide_context(LinkDialog(RwSignal::new(None)));
+    provide_context(CardMenuState(RwSignal::new(None)));
     provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
@@ -126,6 +132,8 @@ fn Shell() -> impl IntoView {
             </div>
             <StatusBar />
             <PaletteHost />
+            <LinkDialogHost />
+            <CardMenuHost />
             <ToastHost />
             <FirstRun />
         </div>

@@ -25,10 +25,7 @@ use minimap_types::{
 };
 use time::Date;
 
-use crate::{
-    schedule::{compute, compute_with, date_of, end_index, working_index, ScheduleError},
-    subtasks::{expand_blocks, Hierarchy},
-};
+use crate::schedule::{compute, compute_with, date_of, end_index, working_index, ScheduleError};
 
 const EPS: f64 = 1e-9;
 /// More rounds than any plan needs (project dependencies are acyclic); a safety stop.
@@ -118,7 +115,6 @@ fn scenario(world: &World, slips: &[Slip]) -> Result<Scenario, ImpactError> {
         ScheduleScope::Portfolio,
     )?;
     let base_tasks = by_id(&base);
-    let hierarchy = Hierarchy::new(world.tasks, world.edges);
 
     let mut direct: HashMap<Uuid, f64> = HashMap::new();
     for slip in slips {
@@ -136,12 +132,7 @@ fn scenario(world: &World, slips: &[Slip]) -> Result<Scenario, ImpactError> {
                 if !is_open(task) {
                     return Err(ImpactError::Closed(task.title.clone()));
                 }
-                // A slip on a group of subtasks is a slip on the work in it.
-                for leaf in hierarchy.leaves_under(task.id) {
-                    if base_tasks.get(&leaf).is_some_and(|t| !t.done) {
-                        *direct.entry(leaf).or_insert(0.0) += days;
-                    }
-                }
+                *direct.entry(task.id).or_insert(0.0) += days;
             }
             NodeType::Project => {
                 if !world.projects.iter().any(|p| p.id == slip.node.id) {
@@ -149,7 +140,7 @@ fn scenario(world: &World, slips: &[Slip]) -> Result<Scenario, ImpactError> {
                 }
                 for t in base_tasks
                     .values()
-                    .filter(|t| !t.done && !t.summary && t.project_id == Some(slip.node.id))
+                    .filter(|t| !t.done && t.project_id == Some(slip.node.id))
                 {
                     *direct.entry(t.id).or_insert(0.0) += days;
                 }
@@ -174,7 +165,7 @@ fn scenario(world: &World, slips: &[Slip]) -> Result<Scenario, ImpactError> {
     let mut scen = base.clone();
     for _ in 0..MAX_ROUNDS {
         let mut not_before: HashMap<Uuid, f64> = HashMap::new();
-        for t in base_tasks.values().filter(|t| !t.done && !t.summary) {
+        for t in base_tasks.values().filter(|t| !t.done) {
             let held = direct.get(&t.id).copied().unwrap_or(0.0).max(
                 t.project_id
                     .and_then(|p| shift.get(&p))
@@ -244,18 +235,16 @@ pub fn analyze(world: &World, slips: &[Slip]) -> Result<ImpactReport, ImpactErro
         .collect();
 
     // Open tasks' blocking predecessors.
-    // (read on the leaf tasks: a link on a group of subtasks holds up each task in it).
     let mut preds: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-    let hierarchy = Hierarchy::new(world.tasks, world.edges);
-    let blocks: Vec<(Uuid, Uuid, f64)> = world
+    for e in world
         .edges
         .iter()
         .filter(|e| e.edge_type == EdgeType::Blocks && e.archived_at.is_none())
-        .map(|e| (e.from_id, e.to_id, 0.0))
-        .collect();
-    for (from, to, _) in expand_blocks(&hierarchy, &blocks) {
-        if base.get(&from).is_some_and(|t| !t.done) && base.get(&to).is_some_and(|t| !t.done) {
-            preds.entry(to).or_default().push(from);
+    {
+        if base.get(&e.from_id).is_some_and(|t| !t.done)
+            && base.get(&e.to_id).is_some_and(|t| !t.done)
+        {
+            preds.entry(e.to_id).or_default().push(e.from_id);
         }
     }
 
@@ -267,7 +256,7 @@ pub fn analyze(world: &World, slips: &[Slip]) -> Result<ImpactReport, ImpactErro
         .collect();
 
     let mut tasks: Vec<ImpactTask> = Vec::new();
-    for b in sc.base.tasks.iter().filter(|t| !t.done && !t.summary) {
+    for b in sc.base.tasks.iter().filter(|t| !t.done) {
         let Some(s) = scen.get(&b.id) else { continue };
         let own = delay.get(&b.id).copied().unwrap_or(0.0);
         let direct = sc.direct.get(&b.id).copied().unwrap_or(0.0);
@@ -972,67 +961,6 @@ mod tests {
         assert_eq!(row(&r, "A").delay_days, 5.0);
         assert_eq!(r.slips.len(), 2);
         assert_eq!(r.slips[0].0.label, "A");
-    }
-
-    fn subtask(child: u128, parent: u128) -> Edge {
-        edge(
-            EdgeType::SubtaskOf,
-            NodeType::Task,
-            child,
-            NodeType::Task,
-            parent,
-        )
-    }
-
-    /// 1 is a group of 2 (2 days) then 3 (1 day); 4 waits for the group; 5 is unrelated.
-    fn grouped() -> Fixture {
-        Fixture::new(
-            vec![
-                task(1, "Group", 9.0),
-                task(2, "Part one", 2.0),
-                task(3, "Part two", 1.0),
-                task(4, "After", 1.0),
-                task(5, "Elsewhere", 1.0),
-            ],
-            vec![subtask(2, 1), subtask(3, 1), blocks(2, 3), blocks(1, 4)],
-        )
-    }
-
-    #[test]
-    fn a_slip_on_a_group_slips_the_work_in_it_and_what_waits_for_the_group() {
-        let r = grouped().report(&[slip_task(1, 2)]);
-        // The group itself is not a row: its parts are.
-        assert!(r.tasks.iter().all(|t| t.title != "Group"));
-        assert!(row(&r, "Part one").direct && row(&r, "Part two").delay_days == 2.0);
-        // `After` waits for the last part of the group.
-        let after = row(&r, "After");
-        assert!(!after.direct);
-        assert_eq!(after.delay_days, 2.0);
-        assert!(r.tasks.iter().all(|t| t.title != "Elsewhere"));
-    }
-
-    #[test]
-    fn a_slip_on_a_task_that_the_group_waits_for_reaches_every_part_of_it() {
-        let mut f = grouped();
-        f.tasks.push(task(6, "Approval", 1.0));
-        f.edges.push(blocks(6, 1));
-        let r = f.report(&[slip_task(6, 3)]);
-        assert_eq!(row(&r, "Part one").delay_days, 3.0);
-        assert_eq!(row(&r, "Part two").delay_days, 3.0);
-        assert_eq!(row(&r, "After").delay_days, 3.0);
-        assert_eq!(row(&r, "Part one").incoming_days, 3.0);
-    }
-
-    #[test]
-    fn a_project_slip_holds_the_parts_not_the_group_twice() {
-        let mut f = grouped();
-        for t in &mut f.tasks {
-            t.project_id = Some(id(10));
-        }
-        f.projects = vec![project(10, "P", None)];
-        let r = f.report(&[slip_project(10, 2)]);
-        assert!(r.tasks.iter().all(|t| t.title != "Group"));
-        assert_eq!(row(&r, "Part one").delay_days, 2.0);
     }
 
     #[test]

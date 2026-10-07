@@ -704,25 +704,6 @@ fn adding_and_removing_reference_links_can_be_undone_and_redone() {
 }
 
 #[test]
-fn creating_and_linking_subtasks_is_undone_and_redone() {
-    let mut conn = demo();
-    let parent = task(&conn, "Rotate service credentials");
-    let other = task(&conn, "Monthly access review");
-    round_trip(&mut conn, |c| {
-        tasks::create_subtask(c, parent.id, "Audit old keys".into()).unwrap();
-    });
-    round_trip(&mut conn, |c| {
-        tasks::set_parent(c, other.id, Some(parent.id)).unwrap();
-    });
-    // Moving it to another parent removes one link and adds one: still one step.
-    tasks::set_parent(&mut conn, other.id, Some(parent.id)).unwrap();
-    let third = task(&conn, "Go-live checklist");
-    round_trip(&mut conn, |c| {
-        tasks::set_parent(c, other.id, Some(third.id)).unwrap();
-    });
-}
-
-#[test]
 fn making_an_objective_ongoing_and_reviewing_it_are_undone_and_redone() {
     let mut conn = demo();
     let o = objectives::list(&conn, false)
@@ -763,4 +744,19 @@ fn making_an_objective_ongoing_and_reviewing_it_are_undone_and_redone() {
         )
         .unwrap();
     });
+}
+
+#[test]
+fn creating_a_linked_task_is_one_step() {
+    let mut conn = demo();
+    let source = task(&conn, "Rotate service credentials");
+    for relation in [
+        LinkRelation::Blocks,
+        LinkRelation::BlockedBy,
+        LinkRelation::RelatesTo,
+    ] {
+        round_trip(&mut conn, |c| {
+            tasks::create_linked(c, source.id, relation, "Audit old keys".into()).unwrap();
+        });
+    }
 }
