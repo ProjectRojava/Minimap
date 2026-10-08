@@ -56,15 +56,6 @@ pub fn mention_query(text: &str, caret: usize) -> Option<MentionQuery> {
     })
 }
 
-/// Replaces the typed `@query` with `token` and a trailing space. Returns the new text and
-/// where the caret goes (a byte offset, just after the space).
-pub fn insert_mention(text: &str, start: usize, caret: usize, token: &str) -> (String, usize) {
-    let start = start.min(text.len());
-    let caret = caret.clamp(start, text.len());
-    let new = format!("{}{} {}", &text[..start], token, &text[caret..]);
-    (new, start + token.len() + 1)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,19 +105,5 @@ mod tests {
         let t = "ask @pr and more";
         assert_eq!(mention_query(t, 7).unwrap().query, "pr");
         assert_eq!(mention_query(t, 3), None);
-    }
-
-    #[test]
-    fn inserting_replaces_the_query_and_places_the_caret() {
-        let t = "ask @pr and more";
-        let m = mention_query(t, 7).unwrap();
-        let (new, caret) = insert_mention(t, m.start, m.caret, "@[Priya](node:1)");
-        assert_eq!(new, "ask @[Priya](node:1)  and more");
-        assert_eq!(&new[caret..], " and more");
-        // Works at the very start and end, and with non-ASCII before.
-        let (new, caret) = insert_mention("@", 0, 1, "@[A](node:1)");
-        assert_eq!((new.as_str(), caret), ("@[A](node:1) ", 13));
-        let (new, caret) = insert_mention("é @x", 3, 5, "T");
-        assert_eq!((new.as_str(), &new[caret..]), ("é T ", ""));
     }
 }

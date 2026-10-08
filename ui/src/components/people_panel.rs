@@ -11,6 +11,7 @@ use crate::{
     components::{
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER},
+        markdown_box::{saver, MarkdownField},
     },
     state::{finish, DataVersion, Selection, Toasts},
 };
@@ -60,7 +61,7 @@ pub fn PersonPanel(id: Uuid) -> impl IntoView {
     });
 
     view! {
-        <Section title="Fields">
+        <Section title="Fields" always_open=true>
             {move || match person.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
@@ -122,8 +123,11 @@ fn PersonFields(person: Person) -> impl IntoView {
             } />
         <TextField label="Weekly capacity (hours)" kind="number"
             value=person.weekly_capacity_hours.to_string() on_commit=save_capacity />
-        <TextField label="Notes" multiline=true value=person.notes.clone()
-            on_commit=move |v: String| save(UpdatePerson { notes: Some(v), ..Default::default() }) />
+        <MarkdownField label="Notes" value=person.notes.clone() node=minimap_types::NodeRef::new(NodeType::Person, id)
+            empty="No notes yet. Click the pencil to write some." placeholder="Notes about this person. Markdown works." rows=6
+            save=saver(move |v: String| async move {
+                finish(api::update_person(id, UpdatePerson { notes: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
     }
 }
 
@@ -368,13 +372,13 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
 
     if detail.person.is_self {
         return view! {
-            <Section title="Archive" tone=crate::components::page::Tone::Danger><p class="text-muted">"This is you, so it can't be archived."</p></Section>
+            <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger><p class="text-muted">"This is you, so it can't be archived."</p></Section>
         }
         .into_any();
     }
 
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || match confirming.get() {
                 None => view! { <button class=BUTTON on:click=start>"Archive person…"</button> }.into_any(),
                 Some(tasks) => view! {

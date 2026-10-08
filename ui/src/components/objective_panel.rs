@@ -13,10 +13,11 @@ use crate::{
     calendar::format_ymd,
     components::{
         date_field::today_ymd,
-        detail_pane::Section,
+        detail_pane::{Section, FIELD_GROUP},
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_SOFT, INPUT},
         health_panel::ObjectiveHealthSection,
         item_notes::ItemNotes,
+        markdown_box::{saver, MarkdownField},
         people_panel::error_line,
         summary_chips::ObjectiveSummary,
     },
@@ -48,7 +49,7 @@ pub fn ObjectivePanel(id: Uuid) -> impl IntoView {
     });
 
     view! {
-        <Section title="Fields">
+        <Section title="Fields" always_open=true>
             <ObjectiveSummary id=id />
             {move || match objective.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
@@ -170,8 +171,12 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
     view! {
         <TextField label="Title" value=objective.title.clone()
             on_commit=move |v: String| save(UpdateObjective { title: Some(v), ..Default::default() }) />
-        <TextField label="Description" multiline=true value=objective.description.clone()
-            on_commit=move |v: String| save(UpdateObjective { description: Some(v), ..Default::default() }) />
+        <MarkdownField label="Description" value=objective.description.clone() node=minimap_types::NodeRef::new(NodeType::Objective, id)
+            empty="No description yet. Click the pencil to write one." placeholder="Describe the objective. Markdown works: lists, **bold**, @ to mention." rows=6
+            save=saver(move |v: String| async move {
+                finish(api::update_objective(id, UpdateObjective { description: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
+        <div class=FIELD_GROUP>
         <div class="mb-2">
             <SelectField label="Kind" options=kind_options current=kind_now.to_owned() on_change=save_kind />
         </div>
@@ -201,6 +206,8 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
                     on_commit=save_date />
             }.into_any()
         }}
+        </div>
+        <div class=FIELD_GROUP>
         <div class="grid grid-cols-2 gap-3">
             {move || {
                 // An ongoing objective is never "done": archive it when it ends.
@@ -219,6 +226,7 @@ fn ObjectiveFields(objective: Objective) -> impl IntoView {
             <SelectField label="Priority" options=priority_options
                 current=objective.priority.to_string() on_change=save_priority
                 tint=PRIORITY_TINT />
+        </div>
         </div>
     }
 }
@@ -399,7 +407,7 @@ fn ArchiveObjective(detail: ObjectiveDetail) -> impl IntoView {
     };
 
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

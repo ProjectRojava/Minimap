@@ -11,10 +11,11 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        detail_pane::Section,
+        detail_pane::{Section, FIELD_GROUP},
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         health_panel::ProjectHealthSection,
         item_notes::ItemNotes,
+        markdown_box::{saver, MarkdownField},
         objective_panel::WeightInput,
         people_panel::{error_line, NodeButtons},
         schedule_panel::SchedulePanel,
@@ -48,7 +49,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
     });
 
     view! {
-        <Section title="Fields">
+        <Section title="Fields" always_open=true>
             <ProjectSummary id=id />
             {move || match (project.get(), people.get()) {
                 (Some(Ok(p)), Some(Ok(ps))) => view! { <ProjectFields project=p people=ps /> }.into_any(),
@@ -153,14 +154,20 @@ fn ProjectFields(project: Project, people: Vec<PersonRow>) -> impl IntoView {
             on_commit=move |v: String| save(UpdateProject { title: Some(v), ..Default::default() }) />
         <TextField label="Handle (for quick-add: #handle)" value=project.slug.clone()
             on_commit=move |v: String| save(UpdateProject { slug: Some(v), ..Default::default() }) />
-        <TextField label="Description" multiline=true value=project.description.clone()
-            on_commit=move |v: String| save(UpdateProject { description: Some(v), ..Default::default() }) />
+        <MarkdownField label="Description" value=project.description.clone() node=minimap_types::NodeRef::new(NodeType::Project, id)
+            empty="No description yet. Click the pencil to write one." placeholder="Describe the project. Markdown works: lists, **bold**, @ to mention." rows=6
+            save=saver(move |v: String| async move {
+                finish(api::update_project(id, UpdateProject { description: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
+        <div class=FIELD_GROUP>
         <div class="grid grid-cols-2 gap-3">
             <TextField label="Start date" kind="date"
                 value=project.start_date.map(|d| d.to_string()).unwrap_or_default() on_commit=save_start />
             <TextField label="Target date" kind="date"
                 value=project.target_date.map(|d| d.to_string()).unwrap_or_default() on_commit=save_target />
         </div>
+        </div>
+        <div class=FIELD_GROUP>
         <div class="grid grid-cols-2 gap-3">
             <SelectField label="Status" options=status_options
                 current=project.status.as_str().to_owned() on_change=save_status
@@ -173,6 +180,7 @@ fn ProjectFields(project: Project, people: Vec<PersonRow>) -> impl IntoView {
             <SelectField label="Owner" options=owner_options
                 current=project.owner_person_id.map(|o| o.to_string()).unwrap_or_default()
                 on_change=save_owner />
+        </div>
         </div>
     }
 }
@@ -376,7 +384,7 @@ fn ArchiveProject(detail: ProjectDetail) -> impl IntoView {
     };
 
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || match confirming.get() {
                 None => view! { <button class=BUTTON_DANGER on:click=start>"Archive project…"</button> }.into_any(),
                 Some(tasks) if tasks.is_empty() => view! {

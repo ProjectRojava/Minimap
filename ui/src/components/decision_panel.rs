@@ -9,6 +9,7 @@ use crate::{
     components::{
         detail_pane::Section,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
+        markdown_box::{saver, MarkdownField},
         people_panel::error_line,
     },
     labels::{decision_status_label, DECISION_STATUS_TINT},
@@ -34,14 +35,14 @@ pub fn DecisionPanel(id: Uuid) -> impl IntoView {
     });
 
     view! {
-        <Section title="Status">
+        <Section title="Status" always_open=true>
             {move || match state.get() {
                 Some(Ok(d)) => view! { <StatusFields decision=d /> }.into_any(),
                 Some(Err(e)) => error_line(e),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Section>
-        <Section title="Decision">
+        <Section title="Decision" always_open=true>
             {move || match text.get() {
                 Some(Ok(d)) => view! { <WriteUp decision=d /> }.into_any(),
                 Some(Err(e)) => error_line(e),
@@ -107,12 +108,21 @@ fn WriteUp(decision: Decision) -> impl IntoView {
     view! {
         <TextField label="Title" value=decision.title.clone()
             on_commit=move |v: String| save(UpdateDecision { title: Some(v), ..Default::default() }) />
-        <TextField label="Context: what prompted this?" multiline=true value=decision.context.clone()
-            on_commit=move |v: String| save(UpdateDecision { context: Some(v), ..Default::default() }) />
-        <TextField label="Decision: what was decided?" multiline=true value=decision.decision.clone()
-            on_commit=move |v: String| save(UpdateDecision { decision: Some(v), ..Default::default() }) />
-        <TextField label="Rationale: why?" multiline=true value=decision.rationale.clone()
-            on_commit=move |v: String| save(UpdateDecision { rationale: Some(v), ..Default::default() }) />
+        <MarkdownField label="Context: what prompted this?" value=decision.context.clone() node=minimap_types::NodeRef::new(minimap_types::NodeType::Decision, id)
+            empty="Nothing written yet." rows=5
+            save=saver(move |v: String| async move {
+                finish(api::update_decision(id, UpdateDecision { context: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
+        <MarkdownField label="Decision: what was decided?" value=decision.decision.clone() node=minimap_types::NodeRef::new(minimap_types::NodeType::Decision, id)
+            empty="Nothing written yet." rows=5
+            save=saver(move |v: String| async move {
+                finish(api::update_decision(id, UpdateDecision { decision: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
+        <MarkdownField label="Rationale: why?" value=decision.rationale.clone() node=minimap_types::NodeRef::new(minimap_types::NodeType::Decision, id)
+            empty="Nothing written yet." rows=5
+            save=saver(move |v: String| async move {
+                finish(api::update_decision(id, UpdateDecision { rationale: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
     }
 }
 
@@ -131,7 +141,7 @@ fn ArchiveDecision(id: Uuid) -> impl IntoView {
         });
     };
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

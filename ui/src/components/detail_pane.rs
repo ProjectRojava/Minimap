@@ -1,13 +1,20 @@
-use leptos::prelude::*;
+use leptos::{prelude::*, web_sys};
 use minimap_types::{Activity, ActivityAction, EdgeLink, EdgeType, NodeRef, NodeType};
 
 use crate::{
     api,
     components::{
-        attachments::Attachments, decision_panel::DecisionPanel, links_editor::LinksEditor,
-        note_panel::NotePanel, objective_panel::ObjectivePanel, page::Tone,
-        people_panel::PersonPanel, project_panel::ProjectPanel, task_panel::TaskPanel,
-        team_panel::TeamPanel, waiting_panel::WaitingPanel,
+        attachments::Attachments,
+        decision_panel::DecisionPanel,
+        links_editor::LinksEditor,
+        note_panel::NotePanel,
+        objective_panel::ObjectivePanel,
+        page::{Icon, Tone},
+        people_panel::PersonPanel,
+        project_panel::ProjectPanel,
+        task_panel::TaskPanel,
+        team_panel::TeamPanel,
+        waiting_panel::WaitingPanel,
     },
     nav::type_label,
     state::{DataVersion, Selection, Toasts},
@@ -117,7 +124,11 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             </Section>
         })}
 
-        <Section title="Activity" tone=Tone::Neutral>
+        <Section title="Activity" tone=Tone::Neutral collapsed=true
+            meta=move || view! {
+                {move || history.get().and_then(|h| h.ok()).filter(|h| !h.is_empty())
+                    .map(|h| format!("· {}", h.len()))}
+            }>
             {move || match history.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
@@ -132,6 +143,45 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
     }
 }
 
+/// Where a section remembers whether it is open (one entry per heading, shared by every panel).
+const SECTION_KEY: &str = "minimap.section.";
+
+/// Whether a stored value (`"1"` open, `"0"` closed) says open; anything else follows `default`.
+pub fn parse_open(stored: Option<&str>, default: bool) -> bool {
+    match stored {
+        Some("1") => true,
+        Some("0") => false,
+        _ => default,
+    }
+}
+
+fn storage() -> Option<web_sys::Storage> {
+    web_sys::window().and_then(|w| w.local_storage().ok().flatten())
+}
+
+fn stored_open(title: &str, default: bool) -> bool {
+    let value = storage().and_then(|s| s.get_item(&format!("{SECTION_KEY}{title}")).ok().flatten());
+    parse_open(value.as_deref(), default)
+}
+
+fn store_open(title: &str, open: bool) {
+    if let Some(s) = storage() {
+        let _ = s.set_item(
+            &format!("{SECTION_KEY}{title}"),
+            if open { "1" } else { "0" },
+        );
+    }
+}
+
+/// A small text button for a section's header: adds something to the section.
+pub const SECTION_ACTION: &str =
+    "rounded-sm px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/10 disabled:opacity-40";
+
+/// A block of the detail pane: a header strip (chevron, a dot for what kind of section it is, the
+/// heading, a count or note, the section's own "add" actions at the right) over its content.
+/// Click the heading to fold the section; the choice is remembered per heading. `collapsed`
+/// is how it starts the first time; `always_open` is for the item's own fields, which never fold.
+/// The content stays mounted while folded, so a half-written draft inside it survives.
 #[component]
 pub(crate) fn Section(
     title: &'static str,
@@ -139,18 +189,66 @@ pub(crate) fn Section(
     /// item's own content, red for Archive, grey for history).
     #[prop(default = Tone::Accent)]
     tone: Tone,
+    #[prop(optional)] collapsed: bool,
+    #[prop(optional)] always_open: bool,
+    /// Quiet text after the heading (a count, "2 of 5 done").
+    #[prop(optional, into)]
+    meta: ViewFn,
+    /// Buttons at the right of the header (use [`SECTION_ACTION`]).
+    #[prop(optional, into)]
+    actions: ViewFn,
     children: Children,
 ) -> impl IntoView {
-    view! {
-        <section class="px-4 py-3 border-b border-line text-[13px]">
-            <h3 class="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                <span class=format!("h-1.5 w-1.5 shrink-0 rounded-full {}", tone.dot()) aria-hidden="true"></span>
-                {title}
+    let open = RwSignal::new(always_open || stored_open(title, !collapsed));
+    let toggle = move |_| {
+        let now = !open.get_untracked();
+        open.set(now);
+        store_open(title, now);
+    };
+    let label = view! {
+        <span class=format!("h-1.5 w-1.5 shrink-0 rounded-full {}", tone.dot()) aria-hidden="true"></span>
+        <span>{title}</span>
+        <span class="font-normal normal-case tracking-normal text-muted">{meta.run()}</span>
+    };
+    let heading = if always_open {
+        view! {
+            <h3 class="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg">
+                {label}
             </h3>
-            {children()}
+        }
+        .into_any()
+    } else {
+        view! {
+            <h3 class="min-w-0">
+                <button type="button"
+                    class="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg"
+                    aria-expanded=move || open.get().to_string()
+                    title=move || if open.get() { "Fold this section" } else { "Open this section" }
+                    on:click=toggle>
+                    <span class=move || format!(
+                        "text-muted transition-transform {}",
+                        if open.get() { "" } else { "-rotate-90" })>
+                        <Icon name="chevron" size="h-3.5 w-3.5" />
+                    </span>
+                    {label}
+                </button>
+            </h3>
+        }
+        .into_any()
+    };
+    view! {
+        <section class="text-[13px]">
+            <div class="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-0.5 border-y border-line bg-hover px-4 py-1">
+                {heading}
+                <div class="ml-auto flex flex-wrap items-center gap-0.5">{actions.run()}</div>
+            </div>
+            <div class="px-4 py-3" class:hidden=move || !open.get()>{children()}</div>
         </section>
     }
 }
+
+/// A divider between groups of fields inside the Fields section (identity, state, time ...).
+pub const FIELD_GROUP: &str = "mt-3 border-t border-line pt-3";
 
 /// Links the node's own panel already shows and edits (teams and manager for a person,
 /// members for a team, contributors for an objective), so the generic list doesn't repeat them.
@@ -314,6 +412,15 @@ mod tests {
             action,
             diff,
         }
+    }
+
+    #[test]
+    fn a_stored_choice_wins_and_anything_else_follows_the_default() {
+        assert!(parse_open(Some("1"), false));
+        assert!(!parse_open(Some("0"), true));
+        assert!(parse_open(None, true));
+        assert!(!parse_open(None, false));
+        assert!(!parse_open(Some("garbage"), false));
     }
 
     #[test]

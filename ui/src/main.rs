@@ -6,6 +6,7 @@ mod help;
 mod icons;
 mod keyboard;
 mod labels;
+mod md_edit;
 mod mentions;
 mod nav;
 mod pages;

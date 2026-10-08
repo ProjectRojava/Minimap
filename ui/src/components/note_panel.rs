@@ -1,32 +1,30 @@
 //! Detail-pane body for a note: title, date and kind, a Markdown editor that autosaves and
-//! offers an `@` picker for people, projects and tasks, a preview, and the note's checklist.
+//! offers an `@` picker for people, projects and tasks, a preview, and the note's checklist. A
+//! note with text opens as formatted text with a pencil to edit it; an empty one opens for typing.
 
 use std::{str::FromStr, time::Duration};
 
-use leptos::{html, prelude::*, task::spawn_local, web_sys};
+use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    mention_token, timefmt::parse_date, AppError, ChecklistItem, NodeRef, NodeSummary, NodeType,
-    Note, NoteDetail, NoteKind, UpdateNote, Uuid,
+    timefmt::parse_date, AppError, ChecklistItem, NodeRef, NodeType, Note, NoteDetail, NoteKind,
+    UpdateNote, Uuid,
 };
-use wasm_bindgen::JsCast;
 
 use crate::{
     api,
     components::{
-        attachments::{attach_files, files_of},
         detail_pane::Section,
-        form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_ON, INPUT},
+        form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_SOFT},
+        markdown_box::{MarkdownBox, MarkdownView},
+        page::Icon,
         people_panel::{error_line, NodeButtons},
         repeat_field::RepeatField,
     },
-    mentions::{byte_to_utf16, insert_mention, mention_query, utf16_to_byte, MentionQuery},
-    nav::type_label,
     state::{finish, DataVersion, Selection, Toasts},
 };
 
 /// Pause after the last keystroke before the note is saved.
 const AUTOSAVE: Duration = Duration::from_millis(800);
-const MAX_SUGGESTIONS: usize = 8;
 
 pub fn kind_label(k: NoteKind) -> &'static str {
     match k {
@@ -36,14 +34,19 @@ pub fn kind_label(k: NoteKind) -> &'static str {
     }
 }
 
+/// A note opens as text to read; only one with nothing written yet opens ready to type in.
+pub fn starts_editing(body: &str) -> bool {
+    body.trim().is_empty()
+}
+
 #[component]
 pub fn NotePanel(id: Uuid) -> impl IntoView {
     // Loaded once per opening: the editor owns the text while it is open.
     let note = LocalResource::new(move || api::get_note(id));
     view! {
         {move || match note.get() {
-            None => view! { <Section title="Note"><p class="text-muted">"Loading…"</p></Section> }.into_any(),
-            Some(Err(e)) => view! { <Section title="Note">{error_line(e)}</Section> }.into_any(),
+            None => view! { <Section title="Note" always_open=true><p class="text-muted">"Loading…"</p></Section> }.into_any(),
+            Some(Err(e)) => view! { <Section title="Note" always_open=true>{error_line(e)}</Section> }.into_any(),
             Some(Ok(n)) => view! { <NoteEditor note=n /> }.into_any(),
         }}
         <ArchiveNote id=id />
@@ -54,7 +57,6 @@ pub fn NotePanel(id: Uuid) -> impl IntoView {
 fn NoteEditor(note: Note) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
-    let selection = expect_context::<Selection>();
     let id = note.id;
     let recurrence = note.recurrence.clone();
 
@@ -62,24 +64,12 @@ fn NoteEditor(note: Note) -> impl IntoView {
         version.track();
         api::get_note_detail(id)
     });
-    // Everything an `@` can point at.
-    let candidates = LocalResource::new(move || async move {
-        let mut all: Vec<NodeSummary> = Vec::new();
-        for t in [NodeType::Person, NodeType::Project, NodeType::Task] {
-            all.extend(api::list_node_summaries(t).await?);
-        }
-        Ok::<_, AppError>(all)
-    });
 
-    // (Leptos' own `NodeRef`, not the app's node reference.)
-    let area: leptos::prelude::NodeRef<html::Textarea> = leptos::prelude::NodeRef::new();
     let text = RwSignal::new(note.body.clone());
     let saved = RwSignal::new(note.body.clone());
     let status = RwSignal::new("");
-    let preview = RwSignal::new(false);
-    let rendered = RwSignal::new(String::new());
-    let typing = RwSignal::new(None::<MentionQuery>);
-    let choice = RwSignal::new(0usize);
+    // Read first: the note shows as formatted text with a pencil to edit it.
+    let editing = RwSignal::new(starts_editing(&note.body));
     let tick = RwSignal::new(0u64);
 
     // Saves the body if it changed. Several saves in one editing session become one activity row.
@@ -119,210 +109,10 @@ fn NoteEditor(note: Note) -> impl IntoView {
             AUTOSAVE,
         );
     };
-
-    // The `@word` being typed at the caret, if any.
-    let refresh_picker = move || {
-        let Some(el) = area.get() else {
-            return;
-        };
-        let value = el.value();
-        let utf16 = el.selection_start().ok().flatten().unwrap_or(0) as usize;
-        let query = mention_query(&value, utf16_to_byte(&value, utf16));
-        if query.is_some() && typing.get_untracked().is_none() {
-            choice.set(0);
-        }
-        typing.set(query);
-    };
-
-    let suggestions = Memo::new(move |_| -> Vec<NodeSummary> {
-        let Some(q) = typing.get() else {
-            return Vec::new();
-        };
-        let needle = q.query.to_lowercase();
-        match candidates.get() {
-            Some(Ok(all)) => all
-                .into_iter()
-                .filter(|c| c.label.to_lowercase().contains(&needle))
-                .take(MAX_SUGGESTIONS)
-                .collect(),
-            _ => Vec::new(),
-        }
-    });
-
-    let insert = move |picked: NodeSummary| {
-        let Some(q) = typing.get_untracked() else {
-            return;
-        };
-        let token = mention_token(&picked.label, picked.node.id);
-        let current = area
-            .get()
-            .map(|el| el.value())
-            .unwrap_or_else(|| text.get_untracked());
-        let (new_text, caret) = insert_mention(&current, q.start, q.caret, &token);
-        if let Some(el) = area.get() {
-            el.set_value(&new_text);
-            let pos = byte_to_utf16(&new_text, caret) as u32;
-            let _ = el.set_selection_range(pos, pos);
-            let _ = el.focus();
-        }
-        text.set(new_text);
-        typing.set(None);
-        schedule_save();
-    };
-
-    let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
-        let list = suggestions.get_untracked();
-        if typing.get_untracked().is_none() || list.is_empty() {
-            return;
-        }
-        let n = list.len();
-        match ev.key().as_str() {
-            "ArrowDown" => {
-                ev.prevent_default();
-                choice.update(|c| *c = (*c + 1) % n);
-            }
-            "ArrowUp" => {
-                ev.prevent_default();
-                choice.update(|c| *c = (*c + n - 1) % n);
-            }
-            "Enter" | "Tab" => {
-                ev.prevent_default();
-                let i = choice.get_untracked().min(n - 1);
-                insert(list[i].clone());
-            }
-            "Escape" => {
-                // Close the picker only; don't also leave the field.
-                ev.prevent_default();
-                ev.stop_propagation();
-                typing.set(None);
-            }
-            _ => {}
-        }
-    };
-
-    let show_preview = move |_| {
+    // Done: save what was typed and go back to reading it.
+    let done = move || {
         save_now();
-        let body = text.get_untracked();
-        preview.set(true);
-        spawn_local(async move {
-            match api::render_markdown(body).await {
-                Ok(html) => rendered.set(html),
-                Err(e) => toasts.error(&e),
-            }
-        });
-    };
-    // Attached pictures in the preview get their address from the app's own protocol.
-    let preview_el: leptos::prelude::NodeRef<html::Div> = leptos::prelude::NodeRef::new();
-    Effect::new(move |_| {
-        rendered.track();
-        preview.track();
-        request_animation_frame(move || {
-            let Some(el) = preview_el.get() else { return };
-            let Ok(images) = el.query_selector_all("img[data-attachment]") else {
-                return;
-            };
-            for i in 0..images.length() {
-                let Some(img) = images
-                    .item(i)
-                    .and_then(|n| n.dyn_into::<web_sys::Element>().ok())
-                else {
-                    continue;
-                };
-                if let Some(id) = img
-                    .get_attribute("data-attachment")
-                    .and_then(|v: String| Uuid::parse_str(&v).ok())
-                {
-                    let _ = img.set_attribute("src", &api::attachment_url(id));
-                }
-            }
-        });
-    });
-    // Files pasted or dropped into the text become attachments of this note, and a link to each
-    // is put in at the caret.
-    let attach_here = move |files: Vec<web_sys::File>| {
-        if files.is_empty() {
-            return;
-        }
-        spawn_local(async move {
-            let node = NodeRef::new(NodeType::Note, id);
-            let added = attach_files(node, files, toasts).await;
-            if added.is_empty() {
-                return;
-            }
-            let Some(el) = area.get() else { return };
-            let current = el.value();
-            let caret = utf16_to_byte(
-                &current,
-                el.selection_start().ok().flatten().unwrap_or(0) as usize,
-            );
-            let links: String = added
-                .iter()
-                .map(|a| a.markdown.clone())
-                .collect::<Vec<_>>()
-                .join("\n");
-            let before = &current[..caret];
-            let lead = if before.is_empty() || before.ends_with('\n') {
-                ""
-            } else {
-                "\n"
-            };
-            let new_text = format!("{before}{lead}{links}\n{}", &current[caret..]);
-            el.set_value(&new_text);
-            let pos = byte_to_utf16(&new_text, caret + lead.len() + links.len() + 1) as u32;
-            let _ = el.set_selection_range(pos, pos);
-            text.set(new_text);
-            schedule_save();
-            version.bump();
-        });
-    };
-    let on_paste = move |ev: leptos::ev::ClipboardEvent| {
-        let files = files_of(ev.clipboard_data().and_then(|d| d.files()));
-        if !files.is_empty() {
-            // A pasted picture (a screenshot) is a file, not text.
-            ev.prevent_default();
-            attach_here(files);
-        }
-    };
-    let on_drop = move |ev: leptos::ev::DragEvent| {
-        let files = files_of(ev.data_transfer().and_then(|d| d.files()));
-        if !files.is_empty() {
-            ev.prevent_default();
-            attach_here(files);
-        }
-    };
-    // Mentions in the preview open the node they point at; attachment links open the file.
-    let open_mention = move |ev: leptos::ev::MouseEvent| {
-        let target = ev
-            .target()
-            .and_then(|t| t.dyn_into::<web_sys::Element>().ok());
-        if let Some(a) = target
-            .as_ref()
-            .and_then(|el| el.closest("a.attachment-link").ok().flatten())
-        {
-            if let Some(file) = a
-                .get_attribute("data-attachment")
-                .and_then(|v| Uuid::parse_str(&v).ok())
-            {
-                spawn_local(async move {
-                    if let Err(e) = api::open_attachment(file).await {
-                        toasts.error(&e);
-                    }
-                });
-            }
-            return;
-        }
-        let anchor = target.and_then(|el| el.closest("a.mention").ok().flatten());
-        if let Some(a) = anchor {
-            let kind = a
-                .get_attribute("data-node-type")
-                .and_then(|t| NodeType::from_str(&t).ok());
-            let node_id = a
-                .get_attribute("data-node-id")
-                .and_then(|i| Uuid::parse_str(&i).ok());
-            if let (Some(t), Some(i)) = (kind, node_id) {
-                selection.open(NodeRef::new(t, i));
-            }
-        }
+        editing.set(false);
     };
 
     let save_field = move |patch: UpdateNote| {
@@ -374,9 +164,6 @@ fn NoteEditor(note: Note) -> impl IntoView {
             match api::convert_checklist_item(id, item.line, item.text).await {
                 Ok(task) => {
                     if let Ok(n) = api::get_note(id).await {
-                        if let Some(el) = area.get() {
-                            el.set_value(&n.body);
-                        }
                         text.set(n.body.clone());
                         saved.set(n.body);
                     }
@@ -388,9 +175,8 @@ fn NoteEditor(note: Note) -> impl IntoView {
         });
     };
 
-    let initial = note.body.clone();
     view! {
-        <Section title="Note">
+        <Section title="Note" always_open=true>
             <TextField label="Title" value=note.title.clone()
                 on_commit=move |v: String| save_field(UpdateNote { title: Some(v), ..Default::default() }) />
             <div class="grid grid-cols-2 gap-3">
@@ -399,51 +185,43 @@ fn NoteEditor(note: Note) -> impl IntoView {
             </div>
             <RepeatField node=NodeRef::new(NodeType::Note, id) current=recurrence />
             <div class="mt-3 mb-1 flex items-center gap-2">
-                <button class=move || format!("{BUTTON} {}", if preview.get() { "" } else { BUTTON_ON })
-                        on:click=move |_| preview.set(false)>"Write"</button>
-                <button class=move || format!("{BUTTON} {}", if preview.get() { BUTTON_ON } else { "" })
-                        on:click=show_preview>"Preview"</button>
-                <span class="ml-auto text-[11px] text-muted">{move || status.get()}</span>
+                <span class="text-[11px] text-muted">{move || status.get()}</span>
+                <span class="ml-auto">
+                    {move || if editing.get() {
+                        view! {
+                            <button class=BUTTON_SOFT title="Done editing" aria-label="Done editing"
+                                    on:click=move |_| done()>
+                                <span class="flex items-center gap-1">
+                                    <Icon name="check" size="h-3.5 w-3.5" />"Done"
+                                </span>
+                            </button>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <button class=format!("{BUTTON} px-1.5") title="Edit this note" aria-label="Edit this note"
+                                    on:click=move |_| editing.set(true)>
+                                <Icon name="edit" size="h-3.5 w-3.5" />
+                            </button>
+                        }.into_any()
+                    }}
+                </span>
             </div>
-            <div class=move || if preview.get() { "hidden" } else { "block" }>
-                <textarea node_ref=area class=format!("{INPUT} font-mono") rows="16" spellcheck="true"
-                    placeholder="Markdown. Type @ to mention a person, project or task; start a line with [ ] for a checklist item."
-                    prop:value=initial
-                    on:input=move |ev| {
-                        text.set(event_target_value(&ev));
-                        status.set("");
-                        schedule_save();
-                        refresh_picker();
-                    }
-                    on:click=move |_| refresh_picker()
-                    on:paste=on_paste
-                    on:drop=on_drop
-                    on:blur=move |_| { typing.set(None); save_now(); }
-                    on:keydown=on_keydown></textarea>
-                <Show when=move || !suggestions.get().is_empty()>
-                    <ul class="mt-1 rounded-sm border border-line bg-panel" role="listbox">
-                        {move || suggestions.get().into_iter().enumerate().map(|(i, s)| {
-                            let picked = s.clone();
-                            view! {
-                                <li role="option">
-                                    <button class=move || format!(
-                                                "flex w-full gap-2 px-2 py-0.5 text-left {}",
-                                                if choice.get() == i { "bg-active" } else { "hover:bg-hover" })
-                                            // mousedown (not click) so the textarea keeps focus
-                                            on:mousedown=move |ev| { ev.prevent_default(); insert(picked.clone()); }>
-                                        <span class="w-14 shrink-0 text-faint">{type_label(s.node.node_type)}</span>
-                                        <span class="truncate">{s.label}</span>
-                                    </button>
-                                </li>
-                            }
-                        }).collect_view()}
-                    </ul>
-                </Show>
-            </div>
-            <Show when=move || preview.get()>
-                <div node_ref=preview_el class="md min-h-24 rounded-sm border border-line p-2" on:click=open_mention
-                     inner_html=move || rendered.get()></div>
-            </Show>
+            {move || if editing.get() {
+                view! {
+                    <MarkdownBox text=text attach_to=NodeRef::new(NodeType::Note, id) rows=16 autofocus=true
+                        placeholder="Markdown. Type @ to mention a person, project or task; start a line with [ ] for a checklist item."
+                        on_change=Callback::new(move |_| { status.set(""); schedule_save(); })
+                        on_blur=Callback::new(move |_| save_now())
+                        on_submit=Callback::new(move |_| done()) />
+                }.into_any()
+            } else {
+                view! {
+                    <div class="rounded-sm border border-line p-2" on:dblclick=move |_| editing.set(true)
+                         title="Double-click to edit">
+                        <MarkdownView text=text empty="Nothing written yet." class="min-h-20" />
+                    </div>
+                }.into_any()
+            }}
         </Section>
         {move || match detail.get() {
             Some(Ok(d)) => view! { <NoteDetails detail=d on_convert=convert /> }.into_any(),
@@ -497,7 +275,7 @@ fn ArchiveNote(id: Uuid) -> impl IntoView {
         });
     };
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">
@@ -512,5 +290,18 @@ fn ArchiveNote(id: Uuid) -> impl IntoView {
                 view! { <button class=BUTTON on:click=move |_| confirming.set(true)>"Archive note…"</button> }.into_any()
             }}
         </Section>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_note_with_text_opens_to_read_and_an_empty_one_opens_to_write() {
+        assert!(!starts_editing("Use PAN as identifier"));
+        assert!(!starts_editing("\n  x"));
+        assert!(starts_editing(""));
+        assert!(starts_editing(" \n\t "));
     }
 }

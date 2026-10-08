@@ -14,8 +14,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        detail_pane::Section,
-        form::BUTTON_SOFT,
+        detail_pane::{Section, SECTION_ACTION},
         links_editor::{shown_links, LinksEditor},
         people_panel::error_line,
     },
@@ -97,6 +96,10 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                     part_buttons(!groups.parent.is_empty(), !groups.subtasks.is_empty());
                 let node = NodeRef::new(NodeType::Task, task);
                 let part_empty = groups.parent.is_empty() && groups.subtasks.is_empty();
+                let link_total = groups.blocked_by.len()
+                    + groups.blocks.len()
+                    + groups.related.len()
+                    + shown_links(node, &links).len();
                 let empty = groups.blocked_by.is_empty()
                     && groups.blocks.is_empty()
                     && groups.related.is_empty()
@@ -122,17 +125,17 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                     let (a, b, c) = (part_label.clone(), part_label.clone(), part_label.clone());
                     view! {
                         {can_add_subtasks.then(|| view! {
-                            <button class=BUTTON_SOFT
+                            <button class=SECTION_ACTION
                                     on:click=move |_| open_part(a.clone(), false, LinkRelation::Subtask)>
                                 "New sub-task…"
                             </button>
-                            <button class=BUTTON_SOFT
+                            <button class=SECTION_ACTION
                                     on:click=move |_| open_part(b.clone(), true, LinkRelation::Subtask)>
-                                "Add existing sub-tasks…"
+                                "Add existing…"
                             </button>
                         })}
                         {can_join_parent.then(|| view! {
-                            <button class=BUTTON_SOFT
+                            <button class=SECTION_ACTION
                                     on:click=move |_| open_part(c.clone(), true, LinkRelation::Parent)>
                                 "Make it part of…"
                             </button>
@@ -146,10 +149,10 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                 let actions = move || {
                     let (new_label, existing_label) = (label_new.clone(), label.clone());
                     view! {
-                        <button class=BUTTON_SOFT on:click=move |_| dialog.open(task, new_label.clone(), false)>
+                        <button class=SECTION_ACTION on:click=move |_| dialog.open(task, new_label.clone(), false)>
                             "New linked task…"
                         </button>
-                        <button class=BUTTON_SOFT on:click=move |_| dialog.open(task, existing_label.clone(), true)>
+                        <button class=SECTION_ACTION on:click=move |_| dialog.open(task, existing_label.clone(), true)>
                             "Link an existing task…"
                         </button>
                     }
@@ -165,22 +168,31 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                 let blocks_rows = group("Blocks".to_owned(), "These wait until this task is done", &groups.blocks);
                 let related_rows = group("Related tasks".to_owned(), "Connected, with no order", &groups.related);
                 let editor_links = links.clone();
+                let part_meta = if total > 0 {
+                    format!("· {}", progress_text(done, total))
+                } else {
+                    String::new()
+                };
+                let links_meta = if link_total > 0 {
+                    format!("· {link_total}")
+                } else {
+                    String::new()
+                };
                 view! {
-                    <Section title="Part of">
+                    <Section title="Part of" meta=move || part_meta.clone() actions=part_buttons_view>
                         {part_empty.then(|| view! {
-                            <p class="mb-1 text-muted">"Not part of another task, and no sub-tasks. Part of is for organising: it moves no date and holds nothing up."</p>
+                            <p class="text-muted" title="Part of is for organising: it moves no date and holds nothing up.">"None yet."</p>
                         })}
                         {parent_rows}
                         {subtask_rows}
-                        <div class="mt-3 flex flex-wrap items-center gap-2">{part_buttons_view}</div>
                     </Section>
-                    <Section title="Links">
+                    <Section title="Links" meta=move || links_meta.clone() actions=actions>
                         {empty.then(|| view! { <p class="mb-1 text-muted">"No links yet."</p> })}
                         {blocked_by_rows}
                         {blocks_rows}
                         {related_rows}
                         <div class="mt-3">
-                            <LinksEditor node=node links=editor_links compact=true actions=actions />
+                            <LinksEditor node=node links=editor_links compact=true />
                         </div>
                     </Section>
                 }.into_any()
