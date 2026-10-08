@@ -94,6 +94,22 @@ pub fn list_for_node(
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// How many active files each item has (items with none are absent), for list views.
+pub fn counts(conn: &Connection) -> Result<std::collections::HashMap<Uuid, u32>> {
+    let mut stmt = conn.prepare(
+        "SELECT node_id, COUNT(*) FROM attachments WHERE archived_at IS NULL GROUP BY node_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?)))?;
+    let mut out = std::collections::HashMap::new();
+    for row in rows {
+        let (id, n) = row?;
+        if let Ok(id) = Uuid::parse_str(&id) {
+            out.insert(id, n);
+        }
+    }
+    Ok(out)
+}
+
 /// Attaches a file (already stored under `sha256`) to an item. Attaching the same file to the
 /// same item again returns the existing attachment.
 pub fn add(

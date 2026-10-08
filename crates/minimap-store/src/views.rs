@@ -12,8 +12,8 @@ use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::{
-    convert::*, decisions, edges, error::Result, nodes, notes, objectives, people, projects, tasks,
-    teams, waiting_on,
+    attachments, convert::*, decisions, edges, error::Result, nodes, notes, objectives, people,
+    projects, tasks, teams, waiting_on,
 };
 
 const ACTIVE_TASK: &str = "t.status IN ('todo','in_progress','blocked')";
@@ -460,9 +460,22 @@ pub fn task_rows(conn: &Connection) -> Result<Vec<TaskRow>> {
     for e in edges::list_active_of_type(conn, EdgeType::AssignedTo)? {
         assignee.insert(e.from_id, e.to_id);
     }
+    // Task-to-task links, counted for each end.
+    let mut linked: HashMap<Uuid, u32> = HashMap::new();
+    for kind in [EdgeType::Blocks, EdgeType::RelatesTo] {
+        for e in edges::list_active_of_type(conn, kind)? {
+            if e.from_type == NodeType::Task && e.to_type == NodeType::Task {
+                *linked.entry(e.from_id).or_default() += 1;
+                *linked.entry(e.to_id).or_default() += 1;
+            }
+        }
+    }
+    let files = attachments::counts(conn)?;
     Ok(tasks::list(conn, false)?
         .into_iter()
         .map(|task| TaskRow {
+            link_count: linked.get(&task.id).copied().unwrap_or(0),
+            attachment_count: files.get(&task.id).copied().unwrap_or(0),
             project: task.project_id.and_then(|p| {
                 projects
                     .get(&p)

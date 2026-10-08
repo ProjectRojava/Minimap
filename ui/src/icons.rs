@@ -56,6 +56,11 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 5v3.2l2 1.3",
         ],
         "cloud" => &["M4.6 12.6a3.1 3.1 0 0 1-.5-6.15 4.1 4.1 0 0 1 7.8-.7A3.4 3.4 0 0 1 11.4 12.6z"],
+        "chain" => &[
+            "M6.5 9.5l3-3",
+            "M7.2 5.3l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1",
+            "M8.8 10.7l-1 1a2.5 2.5 0 0 1-3.5-3.5l1-1",
+        ],
         "attach" => &["M12.6 7.6 7.5 12.7a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8L6.2 11.3a1 1 0 0 1-1.4-1.4l4.9-4.9"],
         "lock" => &[
             "M3.5 7h9v6.5h-9z",
@@ -133,6 +138,8 @@ mod tests {
             "search",
             "capacity",
             "graph",
+            "chain",
+            "attach",
         ] {
             for d in paths(name).unwrap() {
                 assert!(d.starts_with('M'), "{name}: {d}");

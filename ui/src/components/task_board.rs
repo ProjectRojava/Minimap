@@ -2,11 +2,15 @@
 //! task's status. Cards keep the order the list uses (due date, priority, title); the Done
 //! column shows the newest finished work first.
 
-use std::{cmp::Reverse, collections::HashMap};
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, HashSet},
+};
 
 use leptos::{ev, prelude::*, task::spawn_local, web_sys};
 use minimap_types::{
-    AssigneeChoice, CreateTask, Date, NodeRef, NodeType, TaskRow, TaskStatus, UpdateTask, Uuid,
+    AssigneeChoice, CreateTask, Date, EdgeLink, EdgeType, NodeRef, NodeType, TaskRow, TaskStatus,
+    UpdateTask, Uuid,
 };
 use wasm_bindgen::JsCast;
 
@@ -17,7 +21,7 @@ use crate::{
         card_menu::CardMenu,
         date_field::today_ymd,
         form::BUTTON_SOFT,
-        objective_colour::{use_objective_colours, ObjectiveChips},
+        objective_colour::{assign, use_objective_colours, ObjectiveChips},
         page::{Hints, Icon, PageHeader, Tone, CHIP},
         task_list::{next_status, FilterControls, LayoutToggle, TaskFilters},
     },
@@ -156,12 +160,196 @@ fn priority_pill(priority: u8, closed: bool) -> &'static str {
     }
 }
 
+/// The hues of the chain (linked tasks) and the paperclip (files and web links): blue and green,
+/// away from red and amber, which mean "late" and "needs attention".
+const LINK_HUE: u16 = 200;
+const FILE_HUE: u16 = 145;
+
+/// The tooltip of a card's paperclip: "2 files, 1 web link", or nothing when it has neither.
+fn attachment_hint(files: u32, urls: usize) -> Option<String> {
+    let plural =
+        |n: usize, one: &str, many: &str| format!("{n} {}", if n == 1 { one } else { many });
+    match (files as usize, urls) {
+        (0, 0) => None,
+        (f, 0) => Some(plural(f, "file", "files")),
+        (0, u) => Some(plural(u, "web link", "web links")),
+        (f, u) => Some(format!(
+            "{}, {}",
+            plural(f, "file", "files"),
+            plural(u, "web link", "web links")
+        )),
+    }
+}
+
+/// The tooltip of a card's chain mark: how many tasks it is linked with.
+fn link_hint(links: u32) -> String {
+    format!(
+        "Linked with {links} {}",
+        if links == 1 { "task" } else { "tasks" }
+    )
+}
+
 /// "AB" for "Ada Byron", "P" for "priya": the avatar's letters.
 fn initials(name: &str) -> String {
     name.split_whitespace()
         .filter_map(|w| w.chars().next())
         .take(2)
         .flat_map(char::to_uppercase)
+        .collect()
+}
+
+/// How a task on the board is joined to the one that is open.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LinkKind {
+    /// `from` has to finish before `to` can start.
+    Blocks,
+    /// The two are just related; the line has no direction.
+    Relates,
+}
+
+/// One line on the board: from a task to a task.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct BoardLink {
+    from: Uuid,
+    to: Uuid,
+    kind: LinkKind,
+}
+
+/// The task links of `task` that the board draws: *blocks* (the blocker points at the task it
+/// holds up) and *related*, to other tasks only.
+fn board_links(task: Uuid, links: &[EdgeLink]) -> Vec<BoardLink> {
+    links
+        .iter()
+        .filter(|l| l.other.node.node_type == NodeType::Task)
+        .filter_map(|l| {
+            let other = l.other.node.id;
+            match (l.edge.edge_type, l.outgoing) {
+                (EdgeType::Blocks, true) => Some(BoardLink {
+                    from: task,
+                    to: other,
+                    kind: LinkKind::Blocks,
+                }),
+                (EdgeType::Blocks, false) => Some(BoardLink {
+                    from: other,
+                    to: task,
+                    kind: LinkKind::Blocks,
+                }),
+                (EdgeType::RelatesTo, _) => Some(BoardLink {
+                    from: task,
+                    to: other,
+                    kind: LinkKind::Relates,
+                }),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+/// The open task and the lines drawn from it.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Focus {
+    task: Option<Uuid>,
+    links: Vec<BoardLink>,
+}
+
+impl Focus {
+    /// The tasks joined to the open one (it is not among them).
+    fn linked(&self) -> HashSet<Uuid> {
+        self.links
+            .iter()
+            .flat_map(|l| [l.from, l.to])
+            .filter(|id| Some(*id) != self.task)
+            .collect()
+    }
+}
+
+/// A card's box in the board's own coordinates, and how far down its column is visible (a
+/// column scrolls on its own, so a card can sit outside it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CardBox {
+    left: f64,
+    right: f64,
+    top: f64,
+    bottom: f64,
+    lane_top: f64,
+    lane_bottom: f64,
+}
+
+impl CardBox {
+    /// Where a line meets the card: its middle, kept inside the visible part of the column.
+    fn mid(&self) -> f64 {
+        let (lo, hi) = (
+            self.lane_top + 6.0,
+            (self.lane_bottom - 6.0).max(self.lane_top + 6.0),
+        );
+        ((self.top + self.bottom) / 2.0).clamp(lo, hi)
+    }
+}
+
+/// How far a line between two cards of one column bulges out into the gap on their right.
+const BULGE: f64 = 16.0;
+
+/// The curve from one card to another: out of the side that faces the other card, into the side
+/// that faces this one. Cards of one column are joined round their right edge.
+fn arrow_path(from: &CardBox, to: &CardBox) -> String {
+    let (y1, y2) = (from.mid(), to.mid());
+    if (from.left - to.left).abs() < 1.0 {
+        let x = from.right;
+        return format!(
+            "M{x:.1},{y1:.1} C{c:.1},{y1:.1} {c:.1},{y2:.1} {x:.1},{y2:.1}",
+            c = x + BULGE
+        );
+    }
+    let (x1, x2) = if from.right <= to.left {
+        (from.right, to.left)
+    } else {
+        (from.left, to.right)
+    };
+    let reach = ((x2 - x1).abs() / 2.0).max(30.0) * (x2 - x1).signum();
+    format!(
+        "M{x1:.1},{y1:.1} C{:.1},{y1:.1} {:.1},{y2:.1} {x2:.1},{y2:.1}",
+        x1 + reach,
+        x2 - reach
+    )
+}
+
+/// A line to draw, ready for the SVG.
+#[derive(Clone, Debug, PartialEq)]
+struct Arrow {
+    d: String,
+    kind: LinkKind,
+}
+
+/// Measures the cards of `links` inside `stage` and works out the lines. Links to cards that
+/// are not on the board (filtered out, older finished tasks) are left out.
+fn measure_arrows(stage: &web_sys::Element, links: &[BoardLink]) -> Vec<Arrow> {
+    let origin = stage.get_bounding_client_rect();
+    let find = |id: Uuid| -> Option<CardBox> {
+        let card = stage
+            .query_selector(&format!("[data-task=\"{id}\"]"))
+            .ok()??;
+        let lane = card.closest("[data-lane]").ok()??;
+        let (c, l) = (
+            card.get_bounding_client_rect(),
+            lane.get_bounding_client_rect(),
+        );
+        Some(CardBox {
+            left: c.left() - origin.left(),
+            right: c.right() - origin.left(),
+            top: c.top() - origin.top(),
+            bottom: c.bottom() - origin.top(),
+            lane_top: l.top() - origin.top(),
+            lane_bottom: l.bottom() - origin.top(),
+        })
+    };
+    links
+        .iter()
+        .filter_map(|l| {
+            Some(Arrow {
+                d: arrow_path(&find(l.from)?, &find(l.to)?),
+                kind: l.kind,
+            })
+        })
         .collect()
 }
 
@@ -195,12 +383,14 @@ fn empty_hint(status: TaskStatus) -> &'static str {
 /// A key that changes when anything a card shows changes, so only those cards redraw.
 fn card_key(r: &TaskRow) -> String {
     format!(
-        "{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}|{}",
         r.task.id,
         r.task.updated_at.unix_timestamp_nanos(),
         r.task.status.as_str(),
         r.assignee.as_ref().map(|a| a.label.as_str()).unwrap_or(""),
         r.project.as_ref().map(|p| p.label.as_str()).unwrap_or(""),
+        r.link_count,
+        r.attachment_count,
     )
 }
 
@@ -314,8 +504,61 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     let adding = RwSignal::new(None::<TaskStatus>);
     list.on_new(move || adding.set(Some(TaskStatus::Todo)));
 
+    // Each person's colour: ranked by id like objectives, so it never changes under a filter.
+    let people = LocalResource::new(move || {
+        version.track();
+        api::list_node_summaries(NodeType::Person)
+    });
+    let hues = Memo::new(
+        move |last: Option<&HashMap<Uuid, u16>>| match people.get() {
+            Some(Ok(list)) => assign(&list.iter().map(|p| p.node.id).collect::<Vec<_>>()),
+            _ => last.cloned().unwrap_or_default(),
+        },
+    );
+
+    // The open task's links: those cards light up and lines join them.
+    let selection = expect_context::<Selection>();
+    let open_task = Memo::new(move |_| {
+        selection
+            .0
+            .get()
+            .filter(|n| n.node_type == NodeType::Task)
+            .map(|n| n.id)
+    });
+    let fetched = LocalResource::new(move || {
+        version.track();
+        let task = open_task.get();
+        async move {
+            let links = match task {
+                Some(id) => api::list_edges_for(id)
+                    .await
+                    .map(|l| board_links(id, &l))
+                    .unwrap_or_default(),
+                None => Vec::new(),
+            };
+            Focus { task, links }
+        }
+    });
+    let focus = RwSignal::new(Focus::default());
+    Effect::new(move |_| {
+        let task = open_task.get();
+        match fetched.get() {
+            Some(f) if f.task == task => focus.set(f),
+            // The answer is for another task: show none until the right one arrives.
+            _ => focus.update(|f| {
+                if f.task != task {
+                    *f = Focus::default();
+                }
+            }),
+        }
+    });
+    let linked = Memo::new(move |_| focus.with(Focus::linked));
+
     let today_date = today();
     let ctx = BoardCtx {
+        hues,
+        linked,
+        scrolled: RwSignal::new(0),
         filters,
         cols,
         dragging,
@@ -327,6 +570,24 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
         today: today_date,
     };
 
+    // The lines are measured from the cards once they are on screen, and again when a card
+    // moves (a column scrolls, the window is resized).
+    let stage = leptos::prelude::NodeRef::<leptos::html::Div>::new();
+    let arrows = RwSignal::new(Vec::<Arrow>::new());
+    window_event_listener(ev::resize, move |_| ctx.scrolled.update(|n| *n += 1));
+    Effect::new(move |_| {
+        ctx.scrolled.track();
+        cols.track();
+        let links = focus.with(|f| f.links.clone());
+        request_animation_frame(move || {
+            let found = match stage.get_untracked() {
+                Some(el) if !links.is_empty() => measure_arrows(&el, &links),
+                _ => Vec::new(),
+            };
+            arrows.set(found);
+        });
+    });
+
     view! {
         <div class="flex h-full flex-col">
             <PageHeader icon="tasks" title="Tasks" subtitle="Drag cards between columns to change their status">
@@ -334,16 +595,26 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                         on:click=move |_| adding.update(|a| *a = if a.is_some() { None } else { Some(TaskStatus::Todo) })>
                     {move || if adding.get().is_some() { "Cancel" } else { "New task" }}
                 </button>
+                <Show when=move || focus.with(|f| !f.links.is_empty())>
+                    <span class="truncate text-[11px] text-muted">
+                        {move || format!(
+                            "{} linked · arrows point to the task that has to wait, dashed lines are related",
+                            linked.with(HashSet::len))}
+                    </span>
+                </Show>
                 <span class="ml-auto"><LayoutToggle board=layout /></span>
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("1-5", "priority")] />
             </PageHeader>
             <FilterControls filters=filters inbox=false board=true />
             {move || if data.with(Option::is_some) {
                 view! {
-                    <div class="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
-                        {statuses(true).into_iter().map(|status| view! {
-                            <BoardColumn status=status ctx=ctx />
-                        }).collect_view()}
+                    <div class="flex min-h-0 flex-1 overflow-x-auto p-3">
+                        <div node_ref=stage class="relative flex min-w-max gap-3">
+                            {statuses(true).into_iter().map(|status| view! {
+                                <BoardColumn status=status ctx=ctx />
+                            }).collect_view()}
+                            <LinkLines arrows=arrows />
+                        </div>
                     </div>
                     {move || {
                         let empty = cols.with(|c| c.iter().flatten().all(|c| c.rows.is_empty()));
@@ -371,6 +642,12 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
 /// What the columns and cards share.
 #[derive(Clone, Copy)]
 struct BoardCtx {
+    /// Each person's hue (by id), for the avatar.
+    hues: Memo<HashMap<Uuid, u16>>,
+    /// The tasks joined to the open one.
+    linked: Memo<HashSet<Uuid>>,
+    /// Bumped when a column scrolls, so the lines follow their cards.
+    scrolled: RwSignal<u32>,
     filters: TaskFilters,
     cols: Memo<Option<Vec<Column>>>,
     dragging: RwSignal<Option<(Uuid, TaskStatus)>>,
@@ -380,6 +657,36 @@ struct BoardCtx {
     move_to: Callback<(Uuid, TaskStatus)>,
     order: Memo<Vec<Uuid>>,
     today: Option<Date>,
+}
+
+/// The lines over the board that join the open task to the tasks it is linked with.
+#[component]
+fn LinkLines(arrows: RwSignal<Vec<Arrow>>) -> impl IntoView {
+    let numbered = move || arrows.get().into_iter().enumerate().collect::<Vec<_>>();
+    let draw = |(_, a): (usize, Arrow)| match a.kind {
+        LinkKind::Blocks => view! {
+            <path d=a.d fill="none" class="stroke-accent" stroke-width="1.5"
+                  marker-end="url(#link-head)" />
+        }
+        .into_any(),
+        LinkKind::Relates => view! {
+            <path d=a.d fill="none" class="stroke-accent/70" stroke-width="1.5"
+                  stroke-dasharray="4 3" />
+        }
+        .into_any(),
+    };
+    view! {
+        <svg class="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible"
+             aria-hidden="true">
+            <defs>
+                <marker id="link-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+                        markerHeight="7" orient="auto">
+                    <path d="M0,1 L10,5 L0,9 z" class="fill-accent" />
+                </marker>
+            </defs>
+            <For each=numbered key=|(i, a)| (*i, a.d.clone()) children=draw />
+        </svg>
+    }
 }
 
 #[component]
@@ -392,6 +699,7 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
         adding,
         all_done,
         move_to,
+        scrolled,
         ..
     } = ctx;
     let tone = task_status_tone(status);
@@ -472,7 +780,8 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                             aria-label=format!("Add a task to {}", task_status_label(status))
                             on:click=move |_| adding.set(Some(status))>"+"</button>
                 </header>
-                <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
+                <div data-lane="" class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2"
+                     on:scroll=move |_| scrolled.update(|n| *n += 1)>
                     <Show when=move || adding.get() == Some(status)>
                         <NewCard status=status ctx=ctx />
                     </Show>
@@ -574,6 +883,8 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         over,
         order,
         today,
+        hues,
+        linked,
         ..
     } = ctx;
     let t = row.task;
@@ -589,6 +900,9 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     let is_open = move || selection.0.get() == Some(node);
     let on_cursor = move || list.cursor.get().is_some() && list.cursor.get() == index();
     let in_the_air = move || dragging.get().map(|d| d.0) == Some(id);
+    let is_linked = move || linked.with(|l| l.contains(&id));
+    // While a task's links show, the cards that have nothing to do with it step back.
+    let dimmed = move || linked.with(|l| !l.is_empty() && !l.contains(&id)) && !is_open();
 
     let repeats = t
         .recurrence
@@ -597,7 +911,9 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     let due = t.due_date.map(|d| due_pill(d, today, status));
     let heat = deadline_heat(t.due_date, today, !closed);
     let estimate = estimate_text(t.estimate_days);
-    let assignee = row.assignee.map(|a| a.label);
+    let link_count = row.link_count;
+    let attached = attachment_hint(row.attachment_count, t.links.len());
+    let assignee = row.assignee.map(|a| (a.node.id, a.label));
     let project = row.project.map(|p| p.label);
     let title_class = if closed {
         "break-words text-muted line-through"
@@ -611,6 +927,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     view! {
         <article
             draggable="true"
+            data-task=id.to_string()
             style=move || {
                 let mut style = hue().map(|h| format!("--obj-h: {h};")).unwrap_or_default();
                 if let Some(h) = heat {
@@ -622,10 +939,11 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 "group relative cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {} {}",
                 if hue().is_some() { "obj-bar" } else { "" },
                 if is_open() { "border-accent/50 bg-active" }
+                else if is_linked() { "border-accent bg-hover ring-1 ring-accent/40" }
                 else if on_cursor() { "border-line-strong bg-hover" }
                 else { "border-line bg-canvas hover:border-line-strong hover:bg-hover" },
                 if heat.is_some() && !is_open() && !on_cursor() { "heat" } else { "" },
-                if in_the_air() { "opacity-40" } else { "" })
+                if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else { "" })
             on:click=move |_| {
                 if let Some(i) = index() {
                     list.cursor.set(Some(i));
@@ -670,8 +988,24 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 {(!estimate.is_empty()).then(|| view! {
                     <span class="tabular-nums text-muted" title="Estimate">{estimate}</span>
                 })}
-                {assignee.map(|name| view! {
-                    <span class="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line-strong bg-panel text-[9px] font-semibold text-muted"
+                {(link_count > 0).then(|| view! {
+                    <span class="hue-text flex items-center gap-0.5" style=format!("--obj-h: {LINK_HUE}")
+                          title=link_hint(link_count)>
+                        <Icon name="chain" size="h-3 w-3" />
+                        <span class="tabular-nums">{link_count}</span>
+                    </span>
+                })}
+                {attached.map(|hint| view! {
+                    <span class="hue-text" style=format!("--obj-h: {FILE_HUE}") title=hint>
+                        <Icon name="attach" size="h-3 w-3" />
+                    </span>
+                })}
+                {assignee.map(|(person, name)| view! {
+                    <span class=move || format!(
+                              "ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold {}",
+                              if hues.with(|h| h.contains_key(&person)) { "avatar" }
+                              else { "border border-line-strong bg-panel text-muted" })
+                          style=move || hues.with(|h| h.get(&person).map(|h| format!("--obj-h: {h}")))
                           title=name.clone()>
                         {initials(&name)}
                     </span>
@@ -717,6 +1051,8 @@ mod tests {
             },
             project: None,
             assignee: None,
+            link_count: 0,
+            attachment_count: 0,
         }
     }
 
@@ -837,11 +1173,139 @@ mod tests {
     }
 
     #[test]
+    fn the_paperclip_counts_files_and_web_links_and_hides_when_there_are_none() {
+        assert_eq!(attachment_hint(0, 0), None);
+        assert_eq!(attachment_hint(1, 0).as_deref(), Some("1 file"));
+        assert_eq!(attachment_hint(0, 2).as_deref(), Some("2 web links"));
+        assert_eq!(
+            attachment_hint(3, 1).as_deref(),
+            Some("3 files, 1 web link")
+        );
+        assert_eq!(link_hint(1), "Linked with 1 task");
+        assert_eq!(link_hint(4), "Linked with 4 tasks");
+    }
+
+    #[test]
     fn avatars_use_up_to_two_initials() {
         assert_eq!(initials("Ada Byron"), "AB");
         assert_eq!(initials("priya"), "P");
         assert_eq!(initials("  Mary Jane Watson "), "MJ");
         assert_eq!(initials(""), "");
+    }
+
+    fn link(
+        task: Uuid,
+        other: Uuid,
+        edge_type: EdgeType,
+        outgoing: bool,
+        other_type: NodeType,
+    ) -> EdgeLink {
+        let at = OffsetDateTime::UNIX_EPOCH;
+        let (from, to) = if outgoing {
+            (task, other)
+        } else {
+            (other, task)
+        };
+        EdgeLink {
+            edge: minimap_types::Edge {
+                id: Uuid::from_u128(99),
+                edge_type,
+                from_type: if outgoing { NodeType::Task } else { other_type },
+                from_id: from,
+                to_type: if outgoing { other_type } else { NodeType::Task },
+                to_id: to,
+                attrs: serde_json::json!({}),
+                created_at: at,
+                archived_at: None,
+            },
+            outgoing,
+            other: minimap_types::NodeSummary {
+                node: NodeRef::new(other_type, other),
+                label: String::new(),
+                archived: false,
+            },
+        }
+    }
+
+    #[test]
+    fn blocks_point_from_the_blocker_and_related_tasks_have_no_direction() {
+        let [me, a, b, c] = [1, 2, 3, 4].map(Uuid::from_u128);
+        let links = [
+            link(me, a, EdgeType::Blocks, true, NodeType::Task),
+            link(me, b, EdgeType::Blocks, false, NodeType::Task),
+            link(me, c, EdgeType::RelatesTo, false, NodeType::Task),
+            // Not tasks, or not task links: nothing to draw.
+            link(
+                me,
+                Uuid::from_u128(5),
+                EdgeType::AssignedTo,
+                true,
+                NodeType::Person,
+            ),
+            link(
+                me,
+                Uuid::from_u128(6),
+                EdgeType::RelatesTo,
+                true,
+                NodeType::Project,
+            ),
+        ];
+        let made = board_links(me, &links);
+        let at = |from, to, kind| BoardLink { from, to, kind };
+        assert_eq!(
+            made,
+            [
+                at(me, a, LinkKind::Blocks),
+                at(b, me, LinkKind::Blocks),
+                at(me, c, LinkKind::Relates),
+            ]
+        );
+        let focus = Focus {
+            task: Some(me),
+            links: made,
+        };
+        assert_eq!(focus.linked(), HashSet::from([a, b, c]));
+    }
+
+    fn card(left: f64, top: f64) -> CardBox {
+        CardBox {
+            left,
+            right: left + 100.0,
+            top,
+            bottom: top + 40.0,
+            lane_top: 0.0,
+            lane_bottom: 500.0,
+        }
+    }
+
+    #[test]
+    fn a_line_leaves_the_side_that_faces_the_other_card() {
+        let right = arrow_path(&card(0.0, 0.0), &card(200.0, 100.0));
+        assert!(
+            right.starts_with("M100.0,20.0 ") && right.ends_with(" 200.0,120.0"),
+            "{right}"
+        );
+        let left = arrow_path(&card(200.0, 100.0), &card(0.0, 0.0));
+        assert!(
+            left.starts_with("M200.0,120.0 ") && left.ends_with(" 100.0,20.0"),
+            "{left}"
+        );
+    }
+
+    #[test]
+    fn cards_of_one_column_are_joined_round_their_right_edge() {
+        let d = arrow_path(&card(0.0, 0.0), &card(0.0, 200.0));
+        assert_eq!(d, "M100.0,20.0 C116.0,20.0 116.0,220.0 100.0,220.0");
+    }
+
+    #[test]
+    fn a_card_scrolled_out_of_its_column_is_met_at_the_column_edge() {
+        let mut gone = card(0.0, 900.0);
+        gone.lane_bottom = 500.0;
+        assert_eq!(gone.mid(), 494.0);
+        gone.top = -300.0;
+        gone.bottom = -260.0;
+        assert_eq!(gone.mid(), 6.0);
     }
 
     #[test]
