@@ -46,7 +46,7 @@ wasm-bindgen = "0.2.129"
 wasm-bindgen-futures = "0.4.79"
 serde-wasm-bindgen = "0.6.5"
 js-sys = "0.3.106"
-web-sys = { version = "0.3.106", features = ["CssStyleDeclaration", "DomRect", "HtmlTextAreaElement", "Location", "DataTransfer", "DragEvent", "MediaQueryList", "MediaQueryListEvent", "Storage", "File", "FileList", "Blob", "ClipboardEvent", "NodeList"] }
+web-sys = { version = "0.3.106", features = ["CssStyleDeclaration", "DomRect", "HtmlTextAreaElement", "Location", "DataTransfer", "DragEvent", "MediaQueryList", "MediaQueryListEvent", "Storage", "File", "FileList", "Blob", "ClipboardEvent", "NodeList", "HtmlDocument"] }
 console_error_panic_hook = "0.1.7"
 
 [profile.release]

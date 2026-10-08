@@ -53,10 +53,10 @@ pub fn WaitingPanel(id: Uuid) -> impl IntoView {
     view! {
         {move || match status.get() {
             Some(Ok(row)) => view! { <StatusSection row=row /> }.into_any(),
-            Some(Err(e)) => view! { <Section title="Status">{error_line(e)}</Section> }.into_any(),
-            None => view! { <Section title="Status"><p class="text-muted">"Loading…"</p></Section> }.into_any(),
+            Some(Err(e)) => view! { <Section title="Status" always_open=true>{error_line(e)}</Section> }.into_any(),
+            None => view! { <Section title="Status" always_open=true><p class="text-muted">"Loading…"</p></Section> }.into_any(),
         }}
-        <Section title="Fields">
+        <Section title="Fields" always_open=true>
             {move || match (fields.get(), people.get()) {
                 (Some(Ok(r)), Some(Ok(ps))) => view! { <WaitingFields row=r people=ps /> }.into_any(),
                 (Some(Err(e)), _) | (_, Some(Err(e))) => error_line(e),
@@ -112,7 +112,7 @@ fn StatusSection(row: WaitingOnRow) -> impl IntoView {
     };
 
     view! {
-        <Section title="Status">
+        <Section title="Status" always_open=true>
             <p class=if row.stale { "mb-2 font-medium" } else { "mb-2 text-muted" }>{summary}</p>
             <div class="flex flex-wrap items-center gap-2">
                 {if resolved {
@@ -220,7 +220,7 @@ fn ArchiveWaiting(id: Uuid) -> impl IntoView {
         });
     };
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

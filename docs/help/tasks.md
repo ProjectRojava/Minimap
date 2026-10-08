@@ -16,7 +16,8 @@ At the top of a task's detail pane a row of coloured pills shows where it stands
 
 | Field | Notes |
 |---|---|
-| Title, description | Plain text |
+| Title | Plain text |
+| Description | Formatted text (Markdown): reads as written, with a pencil to edit it. See [Notes](help:notes), *The text box* |
 | Status | to do, in progress, blocked, done, cancelled |
 | Priority | 1 (highest) to 5; default 3 |
 | Type | Optional kind of work: design, decision, bug and so on. See *Task types* below |
@@ -91,13 +92,15 @@ Links travel with the task: they are saved with it, synced and backed up like th
 
 ## Notes and findings
 
-Below the reference links, **Notes and findings** is where you keep the record of a task: what you found out, what was decided with whom, what went wrong. Type in the box and press *Add note* (or `Ctrl/Cmd+Enter`). The first line becomes the note's title, and the note is saved as an ordinary [note](help:notes) that mentions the task, so it also appears on the Notes screen and in search, and is part of backups and exports. The list under the box shows the newest notes first; click one to open it in the pane and edit it (headings, lists and checkboxes work as in any note). Projects and objectives have the same section.
+Below the reference links, **Notes and findings** is where you keep the record of a task: what you found out, what was decided with whom, what went wrong. It reads like the comments under a GitHub issue: the notes so far are listed **oldest first**, each as formatted text with its date, and the box for the next one is at the bottom. Write in the box (it has the same toolbar as every text box, see [Notes](help:notes), *The text box*) and press *Add note* or `Ctrl/Cmd+Enter`. The first line becomes the note's title, and the note is saved as an ordinary [note](help:notes) that mentions the task, so it also appears on the Notes screen and in search, and is part of backups and exports.
+
+On each note, the **pencil** edits it in place (*Save* or `Ctrl/Cmd+Enter`, *Cancel* to leave it as it was; the note's title follows its first line unless you changed the title yourself). The **⋯** menu has *Open in the pane* (to change its date or kind, or to see its checklist) and *Archive* (`Ctrl/Cmd+Z` brings it back). Only the newest ten are listed at first; *Show earlier notes* lists the rest. Projects and objectives have the same section.
 
 ## Sub-tasks and links
 
 A task's pane has two sections for tying it to other tasks, and they mean different things.
 
-**Part of** is for breaking a task into pieces. It shows the task it is part of (its **parent**) and its **sub-tasks**, with how many are done (*Sub-tasks · 2 of 5 done*; cancelled ones are not counted). It is only organisation: a sub-task keeps its own dates, assignee and status, nothing waits for it, and the schedule, critical path and dependency graph ignore it. A task is part of **one** task, and it goes **one level deep**: a sub-task can't have sub-tasks, and a task with sub-tasks can't become one. Minimap says so, by name, if you try. Archiving a parent frees its sub-tasks (they become ordinary tasks again). The buttons are *New sub-task…*, *Add existing sub-tasks…* and, for a task with no parent and no sub-tasks, *Make it part of…* (choose the one parent).
+**Part of** is for breaking a task into pieces. It shows the task it is part of (its **parent**) and its **sub-tasks**, with how many are done (*Sub-tasks · 2 of 5 done*; cancelled ones are not counted). It is only organisation: a sub-task keeps its own dates, assignee and status, nothing waits for it, and the schedule, critical path and dependency graph ignore it. A task is part of **one** task, and it goes **one level deep**: a sub-task can't have sub-tasks, and a task with sub-tasks can't become one. Minimap says so, by name, if you try. Archiving a parent frees its sub-tasks (they become ordinary tasks again). The buttons in the section's header are *New sub-task…*, *Add existing…* and, for a task with no parent and no sub-tasks, *Make it part of…* (choose the one parent).
 
 **Links** is for the order of the work and everything else. It shows the tasks that **block** this one (*Blocked by*: they must be done first), the tasks this one **blocks** (*Blocks*: they wait for it) and which tasks are **related**, each with its status (click one to open it, ✕ to remove the link), then its other links (an objective it contributes to, decisions that affect it, and so on). A task can block another one without being part of it, and the other way round. Three buttons add links:
 

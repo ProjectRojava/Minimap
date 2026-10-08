@@ -286,6 +286,9 @@ pub fn render(body: &str, resolve: &dyn Fn(Uuid) -> Option<(NodeType, String)>) 
                 }
             }
             Event::End(TagEnd::Image) => {}
+            // As in a GitHub comment, a single newline is a line break: what is typed in the
+            // box reads the same when it is shown.
+            Event::SoftBreak => events.push(Event::HardBreak),
             Event::Start(Tag::Link { dest_url, .. }) if attachment_id(&dest_url).is_some() => {
                 let id = attachment_id(&dest_url).unwrap_or_default();
                 link = Link::Attachment;
@@ -297,6 +300,15 @@ pub fn render(body: &str, resolve: &dyn Fn(Uuid) -> Option<(NodeType, String)>) 
                 let mention = dest_url
                     .strip_prefix("node:")
                     .and_then(|i| Uuid::parse_str(i).ok());
+                // The stored text is `@[Name](node:id)`: the parser leaves the `@` behind as text,
+                // and the anchor writes its own, so drop that one.
+                if mention.is_some() {
+                    if let Some(Event::Text(t)) = events.last_mut() {
+                        if let Some(rest) = t.strip_suffix('@') {
+                            *t = CowStr::from(rest.to_owned());
+                        }
+                    }
+                }
                 match mention {
                     Some(id) => match resolve(id) {
                         Some((t, label)) => {
@@ -684,6 +696,34 @@ mod tests {
             "{html}"
         );
         assert!(!html.contains(&format!("data-node-id=\"{}\"", id(2))));
+    }
+
+    #[test]
+    fn a_single_newline_is_a_line_break_and_a_blank_line_a_paragraph() {
+        let html = render("one\ntwo\n\nthree", &|_| None);
+        assert!(html.contains("one<br />\ntwo"), "{html}");
+        assert!(html.contains("<p>three</p>"), "{html}");
+    }
+
+    #[test]
+    fn a_mention_shows_one_at_sign_not_two() {
+        let body = format!(
+            "About {} and {}",
+            mention_token("Tender portal", id(1)),
+            mention_token("Gone", id(2))
+        );
+        let html = render(
+            &body,
+            &resolver(&[(1u128, NodeType::Task, "Tender portal")]),
+        );
+        assert!(!html.contains("@@"), "{html}");
+        assert!(html.contains("About <a class=\"mention\""), "{html}");
+        assert!(
+            html.contains("and <span class=\"mention missing\">@Gone"),
+            "{html}"
+        );
+        // An ordinary "@" before other text is left alone.
+        assert!(render("mail me @ home", &|_| None).contains("mail me @ home"));
     }
 
     proptest! {

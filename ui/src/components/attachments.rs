@@ -9,8 +9,8 @@ use crate::{
     api,
     components::{
         backup_settings::size_text,
-        detail_pane::Section,
-        form::{BUTTON, BUTTON_SOFT},
+        detail_pane::{Section, SECTION_ACTION},
+        form::BUTTON,
         page::{Icon, Tone},
     },
     state::{DataVersion, Toasts},
@@ -97,7 +97,14 @@ pub fn Attachments(node: NodeRef) -> impl IntoView {
     };
 
     view! {
-        <Section title="Attachments">
+        <Section title="Attachments"
+            meta=move || view! {
+                {move || list.get().and_then(|l| l.ok()).filter(|l| !l.is_empty())
+                    .map(|l| format!("· {}", l.len()))}
+            }
+            actions=move || view! {
+                <button class=SECTION_ACTION on:click=pick>"Attach file…"</button>
+            }>
             <div class=move || format!(
                      "space-y-2 rounded-sm border border-dashed p-2 {}",
                      if over.get() { "border-accent bg-accent/10" } else { "border-line" })
@@ -108,7 +115,7 @@ pub fn Attachments(node: NodeRef) -> impl IntoView {
                     None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
                     Some(Ok(items)) if items.is_empty() => view! {
-                        <p class="text-muted">"Nothing attached. Drop a file here, or use Attach file."</p>
+                        <p class="text-muted">"Nothing attached. Drop a file here."</p>
                     }.into_any(),
                     Some(Ok(items)) => view! {
                         <ul class="space-y-1">
@@ -116,12 +123,9 @@ pub fn Attachments(node: NodeRef) -> impl IntoView {
                         </ul>
                     }.into_any(),
                 }}
-                <div class="flex flex-wrap items-center gap-2">
-                    <button class=BUTTON_SOFT on:click=pick>"Attach file…"</button>
-                    <span class="text-[11px] text-muted">
-                        "Images, SVG, Markdown, PDF, Word, Excel, PowerPoint"
-                    </span>
-                </div>
+                <p class="text-[11px] text-muted">
+                    "Images, SVG, Markdown, PDF, Word, Excel, PowerPoint"
+                </p>
             </div>
         </Section>
     }
