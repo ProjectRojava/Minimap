@@ -159,6 +159,8 @@ mod tests {
             },
             project: None,
             assignee: None,
+            link_count: 0,
+            attachment_count: 0,
         }
     }
 

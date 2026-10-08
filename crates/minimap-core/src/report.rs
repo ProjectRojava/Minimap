@@ -647,6 +647,8 @@ mod tests {
                 },
                 project: Some(summary_of(NodeType::Project, 10, "API launch")),
                 assignee: Some(summary_of(NodeType::Person, 20, "Priya")),
+                link_count: 0,
+                attachment_count: 0,
             },
             overdue_days: None,
             blocked_by: by

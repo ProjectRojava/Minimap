@@ -156,3 +156,37 @@ fn the_next_task_of_a_repeating_series_keeps_the_links() {
         .unwrap();
     assert_eq!(next.links, vec![link("Runbook", "https://a.co/runbook")]);
 }
+
+#[test]
+fn task_rows_count_each_tasks_task_links_and_files_for_the_boards_marks() {
+    let mut conn = db();
+    let [a, b, c] = [(); 3].map(|_| task(&mut conn, vec![]).unwrap());
+    for (kind, from, to) in [
+        (EdgeType::Blocks, a.id, b.id),
+        (EdgeType::RelatesTo, b.id, a.id),
+    ] {
+        edges::add(
+            &mut conn,
+            NewEdge {
+                edge_type: kind,
+                from: NodeRef::new(NodeType::Task, from),
+                to: NodeRef::new(NodeType::Task, to),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .unwrap();
+    }
+    attachments::add(
+        &mut conn,
+        NodeRef::new(NodeType::Task, c.id),
+        "spec.pdf",
+        10,
+        &"a".repeat(64),
+    )
+    .unwrap();
+    let rows = views::task_rows(&conn).unwrap();
+    let of = |id| rows.iter().find(|r| r.task.id == id).unwrap();
+    assert_eq!((of(a.id).link_count, of(a.id).attachment_count), (2, 0));
+    assert_eq!((of(b.id).link_count, of(b.id).attachment_count), (2, 0));
+    assert_eq!((of(c.id).link_count, of(c.id).attachment_count), (0, 1));
+}

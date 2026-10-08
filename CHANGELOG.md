@@ -7,6 +7,9 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- **Kanban cards show marks**: a blue chain with a count when the task is linked to other tasks, and a green paperclip when it has files or web links.
+- **Click a task on the Kanban board and its linked tasks light up across every column**, the rest fade back, and arrows join them (solid: comes first → has to wait, dashed: related).
+- **Each person has their own colour** on the Kanban board's assignee circles.
 - A **⋯ menu on every Kanban card**: open the task, make a new task linked to it, link an existing task to it, or archive it. *Link…* asks how the other task relates (comes first, comes after, related); a new task opens ready to fill in (Spec 31).
 - A task's panel has one **Links** section, right under its fields, showing what it waits for, what it blocks, what is related and its other links, with buttons to link a new task, an existing task or something else (Spec 31).
 - **Ongoing objectives** for outcomes that never end ("keep internal systems healthy"): no target date, never "done", a review rhythm instead. An overdue review turns the objective amber and is listed on This week and in a new Weekly review step; ongoing objectives have their own group in the Objectives list (Spec 30, ADR-0014).
@@ -15,6 +18,7 @@ All notable changes to Minimap are documented here, organized by release. Format
 - Subtasks are removed (they were added in 0.2.0). Tasks are scheduled, counted and graphed one by one again; use *blocks* links, now easier to make, to say what comes before what. Existing subtask links are archived on upgrade (ADR-0015).
 
 ### Fixed
+- In the *Link a task* dialog, the dropdown list of tasks opened away from its button.
 - Pressing `n` to add an item, or `d` / `a` on a task row to jump to its due date or assignee, no longer types that letter into the box it opens.
 - Installed builds (AppImage, .deb, .rpm) opened to an empty window: the content security policy blocked the app from loading its own WebAssembly file. `cargo tauri dev` didn't show it because the dev server isn't subject to the policy.
 

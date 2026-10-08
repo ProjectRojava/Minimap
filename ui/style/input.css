@@ -143,6 +143,14 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .obj-chip > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .obj-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--obj); }
 .obj-bar { border-left: 3px solid var(--obj); }
+/* Coloured marks (Tasks board: the chain and the paperclip): text in a fixed hue. */
+.hue-text { color: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
+/* A person's avatar wears a hue the same way (Tasks board): tinted fill, hue ring and letters. */
+.avatar {
+  color: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l));
+  background: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.18);
+  border: 1px solid hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.7);
+}
 
 /* A task's fill warms towards the danger colour as its deadline nears: a tint laid over the
    item's own background, behind its content. `--heat` is its strength (0 to 1). An overlay
