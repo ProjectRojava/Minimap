@@ -64,6 +64,7 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!("../migrations/0010_task_links.sql")),
         M::up(include_str!("../migrations/0011_ongoing_objectives.sql")),
         M::up(include_str!("../migrations/0012_remove_subtasks.sql")),
+        M::up(include_str!("../migrations/0013_task_types.sql")),
     ])
 }
 
@@ -88,7 +89,7 @@ fn backfill_project_slugs(tx: &rusqlite::Transaction) -> rusqlite_migration::Hoo
 
 /// The schema version after the last migration (`PRAGMA user_version`); a test keeps it equal
 /// to the migration list.
-pub const LATEST_SCHEMA: u32 = 12;
+pub const LATEST_SCHEMA: u32 = 13;
 
 /// Opens (creating if needed) the unencrypted database at `path`, applies pragmas and migrations.
 /// An existing database that needs upgrading is first copied to `backups/` next to it (spec 20);

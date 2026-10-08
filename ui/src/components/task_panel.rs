@@ -4,8 +4,7 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    timefmt::fmt_ts, NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask,
-    Uuid,
+    NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask, Uuid,
 };
 
 use crate::{
@@ -19,6 +18,7 @@ use crate::{
         repeat_field::RepeatField,
         summary_chips::TaskSummary,
         task_links::TaskLinks,
+        task_type::{use_task_types, TaskTiming},
         what_if_button::WhatIfButton,
     },
     labels::{estimate_text, priority_option, task_status_label, PRIORITY_TINT, TASK_STATUS_TINT},
@@ -102,6 +102,21 @@ fn TaskFields(
             });
         }
     };
+    // The type dropdown follows the list (it is rebuilt if the list changes) and the value saved.
+    let types = use_task_types();
+    let type_now = RwSignal::new(task.task_type.clone());
+    let save_type = move |v: String| {
+        let task_type = if v.is_empty() {
+            Patch::Clear
+        } else {
+            Patch::Set(v.clone())
+        };
+        type_now.set((!v.is_empty()).then_some(v));
+        save(UpdateTask {
+            task_type,
+            ..Default::default()
+        });
+    };
     let save_project = move |v: String| {
         let project_id = match Uuid::parse_str(&v) {
             Ok(p) => Patch::Set(p),
@@ -145,22 +160,25 @@ fn TaskFields(
                 (p.person.id.to_string(), name)
             }))
             .collect();
-    let completed = task
-        .completed_at
-        .map(|t| fmt_ts(t).chars().take(10).collect::<String>());
-
     view! {
         <TextField label="Title" value=task.title.clone()
             on_commit=move |v: String| save(UpdateTask { title: Some(v), ..Default::default() }) />
         <TextField label="Description" multiline=true value=task.description.clone()
             on_commit=move |v: String| save(UpdateTask { description: Some(v), ..Default::default() }) />
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-3 gap-3">
             <SelectField label="Status" options=status_options
                 current=task.status.as_str().to_owned() on_change=save_status
                 tint=TASK_STATUS_TINT />
             <SelectField label="Priority" options=priority_options
                 current=task.priority.to_string() on_change=save_priority
                 tint=PRIORITY_TINT />
+            {move || {
+                let current = type_now.get_untracked();
+                view! {
+                    <SelectField label="Type" options=types.options(current.as_deref())
+                        current=current.unwrap_or_default() on_change=save_type />
+                }
+            }}
         </div>
         <div class="mt-2 grid grid-cols-2 gap-3">
             <SelectField label="Project" options=project_options
@@ -180,7 +198,7 @@ fn TaskFields(
                 on_commit=move |v: String| save_date(v, true) />
         </div>
         <RepeatField node=NodeRef::new(NodeType::Task, id) current=task.recurrence.clone() />
-        {completed.map(|c| view! { <p class="mt-1 text-[11px] text-muted">"Completed " {c}</p> })}
+        <TaskTiming id=id />
     }
 }
 

@@ -7,7 +7,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
-    Activity, Decision, Edge, NodeType, Note, Objective, Person, Project, Task, Team, WaitingOn,
+    Activity, Decision, Edge, NodeType, Note, Objective, Person, Project, Task, TaskType, Team,
+    WaitingOn,
 };
 
 /// The value of `manifest.json`'s `format`.
@@ -69,6 +70,8 @@ pub struct DataExport {
     pub attachments: Vec<AttachmentRecord>,
     /// The whole history, oldest first.
     pub activity: Vec<Activity>,
+    /// The list of task types a task's `task_type` points into (spec 32).
+    pub task_types: Vec<TaskType>,
 }
 
 impl DataExport {
@@ -87,6 +90,7 @@ impl DataExport {
             ("edges".to_owned(), n(self.edges.len())),
             ("attachments".to_owned(), n(self.attachments.len())),
             ("activity".to_owned(), n(self.activity.len())),
+            ("task_types".to_owned(), n(self.task_types.len())),
         ])
     }
 }
@@ -159,6 +163,7 @@ mod tests {
                 "objectives",
                 "people",
                 "projects",
+                "task_types",
                 "tasks",
                 "teams",
                 "waiting_on"

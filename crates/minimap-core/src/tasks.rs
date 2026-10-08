@@ -22,6 +22,11 @@ pub fn filter(rows: Vec<TaskRow>, f: &TaskFilter) -> Vec<TaskRow> {
             None => f.include_closed || !is_closed(r.task.status),
         })
         .filter(|r| !f.no_project || r.task.project_id.is_none())
+        .filter(|r| {
+            f.task_type
+                .as_deref()
+                .is_none_or(|t| r.task.task_type.as_deref() == Some(t))
+        })
         .filter(|r| f.project_id.is_none_or(|p| r.task.project_id == Some(p)))
         .filter(|r| {
             f.assignee_id
@@ -142,6 +147,7 @@ mod tests {
         TaskRow {
             task: Task {
                 links: Vec::new(),
+                task_type: None,
                 id: Uuid::from_u128(n),
                 title: title.into(),
                 description: String::new(),

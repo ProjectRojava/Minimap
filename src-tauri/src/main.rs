@@ -117,6 +117,7 @@ fn main() {
             commands::teams::update_team,
             commands::teams::archive_team,
             commands::edges::add_edge,
+            commands::edges::add_edges,
             commands::edges::remove_edge,
             commands::edges::set_manager,
             commands::edges::update_edge_attrs,

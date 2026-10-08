@@ -16,6 +16,25 @@ pub struct WeekTask {
     pub blocked_by: Vec<NodeSummary>,
 }
 
+/// Why a task is a red flag on This week, most serious first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Flag {
+    /// Its due date has passed and it is still open.
+    Overdue,
+    /// Due today and still open.
+    DueToday,
+    /// Its status is Blocked.
+    Blocked,
+}
+
+/// A red-flag task: what is wrong with it (most serious first; a task can be overdue and blocked).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FlaggedTask {
+    pub task: WeekTask,
+    pub flags: Vec<Flag>,
+}
+
 /// One day of the week strip.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WeekDay {
@@ -37,7 +56,13 @@ pub struct ThisWeek {
     /// The Mondays of the weeks before and after, for the previous/next buttons.
     pub prev_week_start: Date,
     pub next_week_start: Date,
+    /// "Today" for this view: the real today, or the past day chosen with `as_of`.
     pub today: Date,
+    /// Set when the screen shows the week as it stood on a past day (`today` is that day).
+    #[serde(default)]
+    pub as_of: Option<Date>,
+    /// The real today (it differs from `today` when `as_of` is set).
+    pub real_today: Date,
     /// The week contains today.
     pub is_current_week: bool,
     /// Whether a "me" person exists (for "my tasks in progress").
@@ -58,6 +83,14 @@ pub struct ThisWeek {
     /// Ongoing objectives whose review is overdue or falls by Sunday, most overdue first.
     #[serde(default)]
     pub reviews: Vec<ReviewDue>,
+    /// Every task that is overdue, due today or blocked, once each: overdue first (most days
+    /// late first), then due today, then blocked; then priority.
+    #[serde(default)]
+    pub attention: Vec<FlaggedTask>,
+    /// The week's plan without the red flags: open tasks due later this week and my tasks in
+    /// progress, once each, most important first (priority, then due date, undated last).
+    #[serde(default)]
+    pub priorities: Vec<WeekTask>,
 }
 
 /// Where a task id was last seen is irrelevant; kept so the UI can key rows.

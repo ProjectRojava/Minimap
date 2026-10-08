@@ -10,9 +10,8 @@ use crate::{
 
 fn outcome(conn: &Connection, text: &str, choices: &[QuickChoice]) -> Result<Outcome, AppError> {
     let directory = minimap_store::quick_add::directory(conn).map_err(store_error)?;
-    let hours_per_day = minimap_store::settings::get(conn)
-        .map_err(store_error)?
-        .hours_per_day;
+    let settings = minimap_store::settings::get(conn).map_err(store_error)?;
+    let hours_per_day = settings.hours_per_day;
     Ok(plan(
         text,
         &Context {
@@ -20,6 +19,7 @@ fn outcome(conn: &Connection, text: &str, choices: &[QuickChoice]) -> Result<Out
             hours_per_day,
             directory: &directory,
             choices,
+            task_types: &settings.task_types,
         },
     ))
 }
@@ -116,6 +116,7 @@ mod tests {
             conn,
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: title.into(),
                 assignee: minimap_types::AssigneeChoice::Nobody,
                 description: String::new(),
@@ -333,6 +334,7 @@ mod tests {
                 blocks: vec![],
                 objectives: vec![],
                 recurrence: None,
+                task_type: None,
             },
         };
         assert!(minimap_store::quick_add::commit(&mut conn, plan).is_err());

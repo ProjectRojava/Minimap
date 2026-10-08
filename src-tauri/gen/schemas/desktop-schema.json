@@ -195,6 +195,12 @@
           "markdownDescription": "Enables the add_edge command without any pre-configured scope."
         },
         {
+          "description": "Enables the add_edges command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-add-edges",
+          "markdownDescription": "Enables the add_edges command without any pre-configured scope."
+        },
+        {
           "description": "Enables the apply_slips command without any pre-configured scope.",
           "type": "string",
           "const": "allow-apply-slips",
@@ -913,6 +919,12 @@
           "type": "string",
           "const": "deny-add-edge",
           "markdownDescription": "Denies the add_edge command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the add_edges command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-add-edges",
+          "markdownDescription": "Denies the add_edges command without any pre-configured scope."
         },
         {
           "description": "Denies the apply_slips command without any pre-configured scope.",

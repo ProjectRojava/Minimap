@@ -4,7 +4,7 @@ use minimap_types::{AppError, Edge, EdgeType, LinkOption, NewEdge, NodeRef, Node
 use tauri::State;
 
 use crate::{
-    error::{cycle_error, rule_error, store_error},
+    error::{app_error, cycle_error, rule_error, store_error},
     state::AppState,
 };
 
@@ -65,6 +65,40 @@ pub(crate) fn add_edge_impl(conn: &mut Connection, new: NewEdge) -> Result<Edge,
             .map_err(store_error);
     }
     minimap_store::edges::add(conn, new).map_err(store_error)
+}
+
+/// Adds several links at once (the link dialog's "choose several tasks"): all of them or none,
+/// as one undo step. Every link is checked against the rules and the links before it. Supersedes
+/// links are added one at a time (they also change a decision's status).
+#[tauri::command]
+pub async fn add_edges(
+    state: State<'_, AppState>,
+    new: Vec<NewEdge>,
+) -> Result<Vec<Edge>, AppError> {
+    state.run(move |conn| add_edges_impl(conn, new)).await
+}
+
+pub(crate) fn add_edges_impl(
+    conn: &mut Connection,
+    new: Vec<NewEdge>,
+) -> Result<Vec<Edge>, AppError> {
+    if new.is_empty() {
+        return Err(app_error("invalid", "Choose at least one item to link"));
+    }
+    if new.iter().any(|n| n.edge_type == EdgeType::Supersedes) {
+        return Err(app_error(
+            "invalid",
+            "Supersedes links are added one at a time",
+        ));
+    }
+    let tx = conn.transaction().map_err(|e| store_error(e.into()))?;
+    let mut added = Vec::with_capacity(new.len());
+    for edge in new {
+        check_new_edge(&tx, &edge)?;
+        added.push(minimap_store::edges::add_in_tx(&tx, edge).map_err(store_error)?);
+    }
+    tx.commit().map_err(|e| store_error(e.into()))?;
+    Ok(added)
 }
 
 /// Changes a link's attributes (e.g. a contribution's weight) after validating them.
@@ -343,6 +377,7 @@ mod tests {
             conn,
             minimap_types::CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: title.into(),
                 assignee: minimap_types::AssigneeChoice::Nobody,
                 description: String::new(),
@@ -501,5 +536,48 @@ mod tests {
                 .code,
             "invalid_edge"
         );
+    }
+
+    fn blocks(from: Uuid, to: Uuid) -> NewEdge {
+        NewEdge {
+            edge_type: EdgeType::Blocks,
+            from: NodeRef::new(NodeType::Task, from),
+            to: NodeRef::new(NodeType::Task, to),
+            attrs: serde_json::json!({}),
+        }
+    }
+
+    #[test]
+    fn several_links_are_added_together_or_not_at_all() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let (parent, a, b, c) = (
+            task(&mut conn, "Parent"),
+            task(&mut conn, "A"),
+            task(&mut conn, "B"),
+            task(&mut conn, "C"),
+        );
+        let added = add_edges_impl(&mut conn, vec![blocks(a, parent), blocks(b, parent)]).unwrap();
+        assert_eq!(added.len(), 2);
+        // One of them is already linked: nothing from this batch is written.
+        let err =
+            add_edges_impl(&mut conn, vec![blocks(c, parent), blocks(a, parent)]).unwrap_err();
+        assert_eq!(err.code, "duplicate");
+        let active = minimap_store::edges::list_active_of_type(&conn, EdgeType::Blocks).unwrap();
+        assert_eq!(active.len(), 2);
+        // A link that would make a loop (parent waits for a, a would wait for parent) is refused
+        // and so is everything before it in the batch.
+        let err =
+            add_edges_impl(&mut conn, vec![blocks(c, parent), blocks(parent, a)]).unwrap_err();
+        assert_eq!(err.code, "cycle");
+        assert_eq!(
+            minimap_store::edges::list_active_of_type(&conn, EdgeType::Blocks)
+                .unwrap()
+                .len(),
+            2
+        );
+        // Two links of a batch that only make a loop together are caught too.
+        let err = add_edges_impl(&mut conn, vec![blocks(c, a), blocks(a, c)]).unwrap_err();
+        assert_eq!(err.code, "cycle");
+        assert!(add_edges_impl(&mut conn, vec![]).is_err());
     }
 }

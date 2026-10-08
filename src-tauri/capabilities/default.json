@@ -26,6 +26,7 @@
     "allow-update-team",
     "allow-archive-team",
     "allow-add-edge",
+    "allow-add-edges",
     "allow-remove-edge",
     "allow-set-manager",
     "allow-list-node-summaries",

@@ -190,6 +190,16 @@ pub async fn add_edge(new: NewEdge) -> Result<Edge, AppError> {
     invoke("add_edge", &NewEdgeArg { new }).await
 }
 
+#[derive(Serialize)]
+struct NewEdgesArg {
+    new: Vec<NewEdge>,
+}
+
+/// Adds several links in one step: all of them or none.
+pub async fn add_edges(new: Vec<NewEdge>) -> Result<Vec<Edge>, AppError> {
+    invoke("add_edges", &NewEdgesArg { new }).await
+}
+
 pub async fn remove_edge(edge_id: Uuid) -> Result<(), AppError> {
     invoke("remove_edge", &EdgeIdArg { edge_id }).await
 }
@@ -372,6 +382,7 @@ struct LinkedTaskArg {
     task_id: Uuid,
     relation: LinkRelation,
     title: String,
+    task_type: Option<String>,
 }
 
 /// Creates a task joined to `task_id` (it blocks it, follows it, or is related), in one step.
@@ -379,6 +390,7 @@ pub async fn create_linked_task(
     task_id: Uuid,
     relation: LinkRelation,
     title: String,
+    task_type: Option<String>,
 ) -> Result<Task, AppError> {
     invoke(
         "create_linked_task",
@@ -386,6 +398,7 @@ pub async fn create_linked_task(
             task_id,
             relation,
             title,
+            task_type,
         },
     )
     .await
@@ -594,8 +607,19 @@ struct WeekArg {
     week_start: Option<minimap_types::Date>,
 }
 
-pub async fn get_this_week(week_start: Option<minimap_types::Date>) -> Result<ThisWeek, AppError> {
-    invoke("get_this_week", &WeekArg { week_start }).await
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ThisWeekArg {
+    week_start: Option<minimap_types::Date>,
+    as_of: Option<minimap_types::Date>,
+}
+
+/// The week; with `as_of` a past day, the week as it stood on that day.
+pub async fn get_this_week(
+    week_start: Option<minimap_types::Date>,
+    as_of: Option<minimap_types::Date>,
+) -> Result<ThisWeek, AppError> {
+    invoke("get_this_week", &ThisWeekArg { week_start, as_of }).await
 }
 
 #[derive(Serialize)]

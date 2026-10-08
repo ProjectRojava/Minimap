@@ -1,6 +1,6 @@
 use minimap_core::{
     quick_add::parse_when,
-    this_week::{build, WeekInput},
+    this_week::{build_at, rewind, WeekInput},
 };
 use minimap_store::Connection;
 use minimap_types::{AppError, Date, Patch, Task, ThisWeek, UpdateTask, Uuid};
@@ -18,31 +18,44 @@ use crate::{
 pub async fn get_this_week(
     state: State<'_, AppState>,
     week_start: Option<Date>,
+    as_of: Option<Date>,
 ) -> Result<ThisWeek, AppError> {
     state
-        .run(move |conn| this_week_impl(conn, week_start))
+        .run(move |conn| this_week_impl(conn, week_start, as_of))
         .await
 }
 
 pub(crate) fn this_week_impl(
     conn: &Connection,
     week_of: Option<Date>,
+    as_of: Option<Date>,
 ) -> Result<ThisWeek, AppError> {
+    let real_today = minimap_store::today();
+    if as_of.is_some_and(|d| d > real_today) {
+        return Err(app_error("invalid", "Choose today or a day in the past"));
+    }
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     let self_id = minimap_store::people::get_self(conn)
         .map_err(store_error)?
         .map(|p| p.id);
-    Ok(build(WeekInput {
+    let mut input = WeekInput {
         tasks: minimap_store::views::task_rows(conn).map_err(store_error)?,
         blockers: minimap_store::views::open_blockers(conn).map_err(store_error)?,
         waiting: minimap_store::views::waiting_on_items(conn).map_err(store_error)?,
         notes: minimap_store::views::note_items(conn).map_err(store_error)?,
         objectives: minimap_store::objectives::list(conn, false).map_err(store_error)?,
         self_id,
-        today: minimap_store::today(),
+        today: real_today,
         week_of,
         stale_days: settings.stale_waiting_days,
-    }))
+    };
+    // A past day: the data as it stood then, as far as it is known, and that day's own week.
+    let as_of = as_of.filter(|d| *d < real_today);
+    if let Some(day) = as_of {
+        rewind(&mut input, day);
+        input.week_of = week_of.or(Some(day));
+    }
+    Ok(build_at(input, as_of, real_today))
 }
 
 /// Moves a task's due date to a natural date (`tomorrow`, `fri`, `next-week`, `+3d`,
@@ -112,6 +125,7 @@ mod tests {
             conn,
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: title.into(),
                 assignee: who,
                 description: String::new(),
@@ -126,6 +140,24 @@ mod tests {
         )
         .unwrap();
         t.id
+    }
+
+    #[test]
+    fn a_past_day_is_allowed_and_a_future_day_is_refused() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let today = minimap_store::today();
+        person(&mut conn, "Me", true);
+        let past = this_week_impl(&conn, None, Some(today - Duration::days(10))).unwrap();
+        assert_eq!(past.as_of, Some(today - Duration::days(10)));
+        assert_eq!(past.today, today - Duration::days(10));
+        assert_eq!(past.real_today, today);
+        // Today itself is just the normal view.
+        assert_eq!(
+            this_week_impl(&conn, None, Some(today)).unwrap().as_of,
+            None
+        );
+        let err = this_week_impl(&conn, None, Some(today + Duration::days(1))).unwrap_err();
+        assert_eq!(err.code, "invalid");
     }
 
     #[test]
@@ -183,7 +215,7 @@ mod tests {
             },
         )
         .unwrap();
-        let w = this_week_impl(&conn, None).unwrap();
+        let w = this_week_impl(&conn, None, None).unwrap();
         assert!(w.has_self && w.is_current_week);
         assert_eq!(w.overdue.len(), 1);
         assert_eq!(w.overdue[0].row.task.id, late);
@@ -217,11 +249,11 @@ mod tests {
             )
             .unwrap();
         }
-        let w = this_week_impl(&conn, None).unwrap();
+        let w = this_week_impl(&conn, None, None).unwrap();
         assert_eq!(w.one_on_ones.len(), 1);
         assert_eq!(w.one_on_ones[0].title, "1:1 with Priya");
         // A week asked for by any of its dates snaps to Monday.
-        let other = this_week_impl(&conn, Some(today - Duration::days(30))).unwrap();
+        let other = this_week_impl(&conn, Some(today - Duration::days(30)), None).unwrap();
         assert_eq!(other.one_on_ones.len(), 1);
         assert!(!other.is_current_week);
     }

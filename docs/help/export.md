@@ -17,6 +17,7 @@ You are never locked in. **Export your data**, under *Settings → Data & backup
 | `objectives.json`, `projects.json`, `tasks.json`, `people.json`, `teams.json`, `notes.json`, `decisions.json`, `waiting_on.json` | One list per kind of item |
 | `edges.json` | Every link between items, with the ids it joins |
 | `attachments.json` | The attached files (which item, name, size, checksum) |
+| `task_types.json` | Your list of task types; a task's `task_type` is the `id` of one of them |
 | `activity.json` | The full history of changes, oldest first |
 | `manifest.json` | What this export is: format and version, app and database version, when it was made, how many records each file holds |
 | `README.md` | A description of the folder |
@@ -26,7 +27,7 @@ You are never locked in. **Export your data**, under *Settings → Data & backup
 
 **With Markdown ticked:**
 
-- `projects/<name>.md`: one file per project with its details, owner, dates, objectives, dependencies, its tasks as a checklist (assignee, due date, estimate, priority, what blocks it, whether it repeats, its reference links), the decisions that affect it and what you are waiting on;
+- `projects/<name>.md`: one file per project with its details, owner, dates, objectives, dependencies, its tasks as a checklist (type, assignee, due date, estimate, priority, what blocks it, whether it repeats, its reference links), the decisions that affect it and what you are waiting on;
 - `inbox.md`: the tasks that belong to no project;
 - `notes/<date>-<title>.md`: each note on its own, with mentions as `@Name` and links to pictures and files pointing into `attachments/`.
 

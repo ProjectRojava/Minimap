@@ -24,5 +24,6 @@ pub fn collect(conn: &Connection) -> Result<DataExport> {
         edges: edges::list_all(conn)?,
         attachments: attachments::list_records(conn)?,
         activity: activity::list_all(conn)?,
+        task_types: crate::settings::task_types(conn)?,
     })
 }

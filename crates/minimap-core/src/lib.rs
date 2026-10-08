@@ -23,6 +23,7 @@ pub mod schedule;
 pub mod search;
 pub mod slug;
 pub mod sync;
+pub mod task_types;
 pub mod tasks;
 pub mod this_week;
 pub mod undo;
