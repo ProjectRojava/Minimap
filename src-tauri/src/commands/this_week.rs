@@ -143,6 +143,53 @@ mod tests {
     }
 
     #[test]
+    fn a_listed_task_shows_the_notes_that_mention_it_newest_first() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let today = minimap_store::today();
+        person(&mut conn, "Me", true);
+        let stuck = task(
+            &mut conn,
+            "Stuck",
+            None,
+            TaskStatus::Blocked,
+            AssigneeChoice::Nobody,
+        );
+        let quiet = task(
+            &mut conn,
+            "Quiet",
+            None,
+            TaskStatus::Blocked,
+            AssigneeChoice::Nobody,
+        );
+        for (n, text) in ["first", "second", "third", "fourth"].iter().enumerate() {
+            minimap_store::notes::create(
+                &mut conn,
+                CreateNote {
+                    title: (*text).into(),
+                    body: format!(
+                        "{text} finding\n\nAbout {}",
+                        minimap_types::mention_token("Stuck", stuck)
+                    ),
+                    note_date: Some(today - Duration::days(4 - n as i64)),
+                    kind: None,
+                    recurrence: None,
+                },
+            )
+            .unwrap();
+        }
+        let w = this_week_impl(&conn, None, None).unwrap();
+        assert_eq!(w.attention.len(), 2);
+        // Only the task that has notes has an entry: three of four, newest first, with no
+        // closing "About" line in the text.
+        assert_eq!(w.task_notes.len(), 1);
+        let notes = &w.task_notes[0];
+        assert_eq!((notes.task, notes.total), (stuck, 4));
+        let shown: Vec<&str> = notes.notes.iter().map(|n| n.snippet.as_str()).collect();
+        assert_eq!(shown, ["fourth finding", "third finding", "second finding"]);
+        assert!(w.task_notes.iter().all(|t| t.task != quiet));
+    }
+
+    #[test]
     fn a_past_day_is_allowed_and_a_future_day_is_refused() {
         let mut conn = minimap_store::open_in_memory().unwrap();
         let today = minimap_store::today();
