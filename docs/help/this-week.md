@@ -14,6 +14,8 @@ From the top:
 - **Ongoing objectives to review**: [ongoing objectives](help:objectives) whose review is overdue or falls by Sunday, with *Mark reviewed* on each.
 - **1:1s this week**: 1:1 notes dated this week.
 
+**Latest notes under each task.** Every task in *Needs attention* and in *Priorities this week* shows, under its line, the **three newest notes** that mention it (the notes you write under *Notes and findings* on the task, and any note that mentions it with `@`): the note's date and the start of its text, up to two lines, with a small *1:1* or *meeting* tag where that applies. Click a note to open it in the pane (clicking the task's own line opens the task). When a task has more than three, the last line says how many more (*+2 earlier*). Tasks with no notes show nothing extra.
+
 "Your tasks in progress" means assigned to the person marked *you*. Late, due-today and blocked tasks are shown whoever they are assigned to.
 
 ## Doing things from here
@@ -32,6 +34,8 @@ The arrows next to the dates move one week back or forward, so you can look ahea
 ## Looking back to a past day
 
 **Click a past day in the strip of seven days.** The screen then shows **the week as it stood on that day**: that day is "today", so what was overdue, due that day and blocked is judged against it, and the counts, the red panel and the priorities all follow. A blue bar at the top says so, and *Back to today* (or clicking today's tile, or the *This week* button) returns. The chosen day is marked *viewing* and today keeps its *today* label. The arrows then move the chosen day a week at a time, and days after today can't be clicked.
+
+Notes are shown as they stood too: a note dated after that day is left out.
 
 It is rebuilt from what Minimap keeps, so it is close but not a photograph: tasks you **finished since** show as open again (as *to do*, because the status they had then isn't kept), tasks you **made since** are left out, waiting-ons asked or resolved since are treated the same way, and **due dates are as they are now** (a date you moved later shows its new date). 
 

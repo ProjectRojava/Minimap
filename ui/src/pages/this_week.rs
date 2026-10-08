@@ -5,8 +5,8 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    Date, Flag, FlaggedTask, NodeRef, NodeType, NoteRow, TaskStatus, ThisWeek as Week, UpdateTask,
-    Uuid, WaitingOnRow, WeekDay, WeekTask,
+    Date, Flag, FlaggedTask, NodeRef, NodeType, NoteKind, NoteRow, TaskNotes, TaskStatus,
+    ThisWeek as Week, UpdateTask, Uuid, WaitingOnRow, WeekDay, WeekTask,
 };
 
 use crate::{
@@ -19,8 +19,8 @@ use crate::{
         sync_status::SyncBanner,
         waiting_panel::age_text,
     },
-    labels::{task_status_label, task_status_tone},
-    state::{finish, DataVersion, ListNav, Toasts},
+    labels::{note_kind_tone, task_status_label, task_status_tone},
+    state::{finish, DataVersion, ListNav, Selection, Toasts},
     timeline::day_text,
 };
 
@@ -345,6 +345,12 @@ fn Body(
     });
     let back_to_today = looking_back.is_some();
     let c = counts(&week);
+    // Each listed task's latest notes, by task.
+    let notes_of: std::collections::HashMap<Uuid, TaskNotes> = week
+        .task_notes
+        .iter()
+        .map(|n| (n.task, n.clone()))
+        .collect();
 
     let mut index = 0usize;
     let attention = if week.attention.is_empty() {
@@ -362,7 +368,7 @@ fn Body(
             .attention
             .iter()
             .enumerate()
-            .map(|(i, f)| view! { <FlagRow item=f.clone() index=first + i /> })
+            .map(|(i, f)| view! { <FlagRow item=f.clone() index=first + i notes=notes_of.get(&f.task.id()).cloned() /> })
             .collect_view();
         view! {
             <section class="mx-4 mt-4 overflow-hidden rounded-sm border border-danger/60 bg-danger/5 [&>[role=row]:last-child]:border-b-0"
@@ -385,7 +391,7 @@ fn Body(
             .priorities
             .iter()
             .enumerate()
-            .map(|(i, t)| view! { <PlanRow row=t.clone() rank=i + 1 index=first + i today=today /> })
+            .map(|(i, t)| view! { <PlanRow row=t.clone() rank=i + 1 index=first + i today=today notes=notes_of.get(&t.id()).cloned() /> })
             .collect_view();
         view! {
             <section class=CARD aria-label="Priorities this week">
@@ -663,9 +669,68 @@ pub fn blocked_text(t: &WeekTask) -> Option<String> {
     Some(format!("waiting for {}", names.join(", ")))
 }
 
+/// The text of a note on a task's row: its day, a short read of it, two lines at most. Clicking
+/// one opens that note in the pane (not the task).
+fn note_line(kind: NoteKind, snippet: &str) -> (Option<&'static str>, String) {
+    let tag = (kind != NoteKind::General).then_some(match kind {
+        NoteKind::OneOnOne => "1:1",
+        _ => "meeting",
+    });
+    let text = if snippet.trim().is_empty() {
+        "(nothing written)".to_owned()
+    } else {
+        snippet.to_owned()
+    };
+    (tag, text)
+}
+
+/// "+2 earlier" when a task has more notes than are shown.
+fn earlier_text(total: u32, shown: usize) -> Option<String> {
+    let more = (total as usize).saturating_sub(shown);
+    (more > 0).then(|| format!("+{more} earlier"))
+}
+
+/// A task's latest notes, under its row and lined up with its title.
+#[component]
+fn RecentNotes(notes: TaskNotes, indent: &'static str) -> impl IntoView {
+    let selection = expect_context::<Selection>();
+    let earlier = earlier_text(notes.total, notes.notes.len());
+    let items = notes
+        .notes
+        .into_iter()
+        .map(|n| {
+            let node = NodeRef::new(NodeType::Note, n.id);
+            let (tag, text) = note_line(n.kind, &n.snippet);
+            view! {
+                <li>
+                    <button class="flex w-full items-baseline gap-2 text-left text-[12px] text-muted hover:text-fg"
+                            title=n.snippet.clone() aria-label=format!("Open the note from {}", n.note_date)
+                            on:click=move |ev| { ev.stop_propagation(); selection.open(node); }>
+                        <span class="shrink-0 tabular-nums">{n.note_date.to_string()}</span>
+                        {tag.map(|t| view! { <span class=note_kind_tone(n.kind).chip()>{t}</span> })}
+                        <span class="line-clamp-2 min-w-0">{text}</span>
+                    </button>
+                </li>
+            }
+        })
+        .collect_view();
+    view! {
+        <div class=format!("pb-2 pr-4 {indent}")>
+            <ul class="space-y-0.5 border-l-2 border-line-strong pl-2.5" aria-label="Latest notes">
+                {items}
+                {earlier.map(|t| view! { <li class="text-[11px] text-muted">{t}</li> })}
+            </ul>
+        </div>
+    }
+}
+
 /// A red-flag task: why first, in a pill nobody can miss, then the task.
 #[component]
-fn FlagRow(item: FlaggedTask, index: usize) -> impl IntoView {
+fn FlagRow(
+    item: FlaggedTask,
+    index: usize,
+    #[prop(default = None)] notes: Option<TaskNotes>,
+) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let t = item.task.row.task.clone();
@@ -682,8 +747,14 @@ fn FlagRow(item: FlaggedTask, index: usize) -> impl IntoView {
         })
         .collect_view();
     let blockers = blocked_text(&item.task);
+    // Under the title: the pill column is 11rem wide, then a gap.
+    let below = move || {
+        notes
+            .clone()
+            .map(|n| view! { <RecentNotes notes=n indent="pl-[14.5rem]" /> })
+    };
     view! {
-        <NodeRow node=node index=index>
+        <NodeRow node=node index=index below=below>
             <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
                            text-[10px] text-transparent hover:border-success hover:text-success"
                     title="Mark done" aria-label="Mark done"
@@ -703,7 +774,13 @@ fn FlagRow(item: FlaggedTask, index: usize) -> impl IntoView {
 
 /// A task of the week's plan, numbered by importance; the first three stand out.
 #[component]
-fn PlanRow(row: WeekTask, rank: usize, index: usize, today: Date) -> impl IntoView {
+fn PlanRow(
+    row: WeekTask,
+    rank: usize,
+    index: usize,
+    today: Date,
+    #[prop(default = None)] notes: Option<TaskNotes>,
+) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let t = row.row.task.clone();
@@ -722,8 +799,14 @@ fn PlanRow(row: WeekTask, rank: usize, index: usize, today: Date) -> impl IntoVi
     } else {
         "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line text-[10px] tabular-nums text-muted"
     };
+    // Under the title: the rank circle and the tick box come first.
+    let below = move || {
+        notes
+            .clone()
+            .map(|n| view! { <RecentNotes notes=n indent="pl-[4.75rem]" /> })
+    };
     view! {
-        <NodeRow node=node index=index>
+        <NodeRow node=node index=index below=below>
             <span class=number>{rank}</span>
             <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
                            text-[10px] text-transparent hover:border-success hover:text-success"
@@ -804,6 +887,24 @@ mod tests {
     use time::macros::date;
 
     #[test]
+    fn a_note_line_tags_one_on_ones_and_says_when_nothing_is_written() {
+        assert_eq!(
+            note_line(NoteKind::General, "Vendor said 2 weeks"),
+            (None, "Vendor said 2 weeks".to_owned())
+        );
+        assert_eq!(note_line(NoteKind::OneOnOne, "x").0, Some("1:1"));
+        assert_eq!(note_line(NoteKind::Meeting, "x").0, Some("meeting"));
+        assert_eq!(note_line(NoteKind::General, "  ").1, "(nothing written)");
+    }
+
+    #[test]
+    fn older_notes_than_the_three_shown_are_counted() {
+        assert_eq!(earlier_text(3, 3), None);
+        assert_eq!(earlier_text(1, 1), None);
+        assert_eq!(earlier_text(5, 3).as_deref(), Some("+2 earlier"));
+    }
+
+    #[test]
     fn dates_read_naturally() {
         let today = date!(2027 - 03 - 03);
         assert_eq!(due_text(today, today), "today");
@@ -872,6 +973,7 @@ mod tests {
             reviews: Vec::new(),
             attention,
             priorities,
+            task_notes: Vec::new(),
         }
     }
 

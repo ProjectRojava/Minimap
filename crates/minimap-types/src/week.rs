@@ -48,6 +48,29 @@ pub struct WeekDay {
     pub one_on_ones: u32,
 }
 
+/// One of a task's latest notes as This week shows it: the day, and a short read of the text.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TaskNote {
+    pub id: Uuid,
+    pub note_date: Date,
+    pub kind: crate::NoteKind,
+    /// The first lines of the note with markup stripped and the closing "About @task" line
+    /// left out, as one run of text.
+    pub snippet: String,
+}
+
+/// The latest notes that mention a task (newest first, at most `RECENT_NOTES`) and how many
+/// there are in all.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TaskNotes {
+    pub task: Uuid,
+    pub total: u32,
+    pub notes: Vec<TaskNote>,
+}
+
+/// How many notes This week shows under each task.
+pub const RECENT_NOTES: usize = 3;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThisWeek {
     /// The Monday and Sunday of the week shown.
@@ -91,6 +114,10 @@ pub struct ThisWeek {
     /// progress, once each, most important first (priority, then due date, undated last).
     #[serde(default)]
     pub priorities: Vec<WeekTask>,
+    /// The latest notes of each task in `attention` and `priorities` that has any (notes dated
+    /// after the day shown are left out when looking back).
+    #[serde(default)]
+    pub task_notes: Vec<TaskNotes>,
 }
 
 /// Where a task id was last seen is irrelevant; kept so the UI can key rows.

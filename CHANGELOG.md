@@ -7,6 +7,7 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- **This week shows each task's latest three notes**: under every task in *Needs attention* and *Priorities this week*, the three newest notes that mention it, with their date and the start of their text; click one to open it, and a *+N earlier* line says when there are more. Looking back to a past day leaves out notes dated after it (Spec 36).
 - **A GitHub-style text box everywhere you write**: descriptions (task, project, objective, team), the context, decision and rationale of a decision, notes on a person, notes and the note box on an item all share one box with *Write* and *Preview* tabs and a toolbar (heading, bold, italic, quote, code, link, bulleted, numbered and task lists, @ mention, attach a file). `Ctrl/Cmd+B` and `Ctrl/Cmd+I` work, `Enter` continues a list, and `Ctrl/Cmd+Z` steps back through toolbar changes (Spec 34).
 - **Descriptions read as formatted text** with a pencil to edit, *Save* and *Cancel* (`Ctrl/Cmd+Enter` saves; `Esc` cancels when nothing was typed) (Spec 34).
 - **Notes and findings are a thread**: each note on a task, project or objective shows as formatted text with its date, oldest first, with a pencil to edit it in place and a ⋯ menu (open in the pane, archive); the box for the next one is at the bottom (Spec 34).

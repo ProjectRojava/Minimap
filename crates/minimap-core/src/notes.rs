@@ -136,22 +136,46 @@ pub fn convert_line(body: &str, line: usize, label: &str, id: Uuid) -> Option<St
 pub fn excerpt(body: &str, max_chars: usize) -> String {
     let line = body
         .lines()
-        .map(|l| replace_mentions(l.trim(), |m| format!("@{}", m.label)))
-        .map(|l| {
-            let l = l.trim_start_matches('#').trim();
-            let l = ["- [ ] ", "- [x] ", "[ ] ", "[x] ", "- ", "* ", "+ ", "> "]
-                .iter()
-                .find_map(|p| l.strip_prefix(p))
-                .unwrap_or(l);
-            l.trim().to_owned()
-        })
+        .map(clean_line)
         .find(|l| !l.is_empty())
         .unwrap_or_default();
+    shorten(&line, max_chars)
+}
+
+/// One line without its markup: mentions as `@Name`, heading, list and quote markers off.
+fn clean_line(l: &str) -> String {
+    let l = replace_mentions(l.trim(), |m| format!("@{}", m.label));
+    let l = l.trim_start_matches('#').trim();
+    let l = ["- [ ] ", "- [x] ", "[ ] ", "[x] ", "- ", "* ", "+ ", "> "]
+        .iter()
+        .find_map(|p| l.strip_prefix(p))
+        .unwrap_or(l);
+    l.trim().to_owned()
+}
+
+fn shorten(line: &str, max_chars: usize) -> String {
     if line.chars().count() <= max_chars {
-        return line;
+        return line.to_owned();
     }
     let cut: String = line.chars().take(max_chars).collect();
     format!("{}…", cut.trim_end())
+}
+
+/// A short read of a note for a place with room for more than [`excerpt`]: its non-empty lines
+/// (markup stripped) joined with " · ", cut at `max_chars`. The closing "About @[task](node:…)"
+/// line that notes written on an item end with is left out, since the place already says whose
+/// note it is.
+pub fn snippet(body: &str, max_chars: usize) -> String {
+    let lines: Vec<String> = body
+        .lines()
+        .filter(|l| {
+            let l = l.trim();
+            !(l.starts_with("About @[") && l.ends_with(')'))
+        })
+        .map(clean_line)
+        .filter(|l| !l.is_empty())
+        .collect();
+    shorten(&lines.join(" · "), max_chars)
 }
 
 /// Filters notes and orders them newest first (note date, then creation).
@@ -509,6 +533,23 @@ mod tests {
         assert!(convert_line(body, 0, "x", id(1)).is_none());
         assert!(convert_line(body, 7, "x", id(1)).is_none());
         assert!(convert_line(&out, 1, "x", id(1)).is_none());
+    }
+
+    #[test]
+    fn a_snippet_joins_the_lines_and_leaves_out_the_closing_about_line() {
+        let body = format!(
+            "Vendor said **2 weeks**\n\n- wants a PO\n- ask {}\n\nAbout {}\n",
+            mention_token("Priya", id(1)),
+            mention_token("Gateway", id(2))
+        );
+        assert_eq!(
+            snippet(&body, 240),
+            "Vendor said **2 weeks** · wants a PO · ask @Priya"
+        );
+        assert_eq!(snippet("abcdefghijkl", 5), "abcde…");
+        assert_eq!(snippet("\n\n", 10), "");
+        // An "About" line that is not the closing mention stays.
+        assert_eq!(snippet("About this: it works", 40), "About this: it works");
     }
 
     #[test]
