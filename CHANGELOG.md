@@ -7,13 +7,19 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- **A GitHub-style text box everywhere you write**: descriptions (task, project, objective, team), the context, decision and rationale of a decision, notes on a person, notes and the note box on an item all share one box with *Write* and *Preview* tabs and a toolbar (heading, bold, italic, quote, code, link, bulleted, numbered and task lists, @ mention, attach a file). `Ctrl/Cmd+B` and `Ctrl/Cmd+I` work, `Enter` continues a list, and `Ctrl/Cmd+Z` steps back through toolbar changes (Spec 34).
+- **Descriptions read as formatted text** with a pencil to edit, *Save* and *Cancel* (`Ctrl/Cmd+Enter` saves; `Esc` cancels when nothing was typed) (Spec 34).
+- **Notes and findings are a thread**: each note on a task, project or objective shows as formatted text with its date, oldest first, with a pencil to edit it in place and a ⋯ menu (open in the pane, archive); the box for the next one is at the bottom (Spec 34).
 - **Sub-tasks, separate from blocking**: a task can now be *part of* another task (one parent, one level deep) without that meaning anything waits. The task panel has a *Part of* section with the sub-tasks and how many are done, the Kanban card shows *2/5 sub-tasks* (or the parent's name on a sub-task), and the card menu has *Add a sub-task…*. Part of moves no date and never touches the schedule (Spec 33, ADR-0017).
 
 ### Changed
+- **The detail pane is easier to read**: every section sits under a header strip with its title, a count and its own add buttons at the right, so the sections are clearly set apart. Click a header to fold the section (Minimap remembers); the fields stay open, *Activity* and *Archive* start folded, and thin lines group the fields (Spec 35).
+- **Line breaks are kept** in formatted text: a single newline shows as a line break, so what you type in the box reads the same when shown. Links in formatted text now open in your browser or mail program when clicked (web and email addresses only).
+- **Notes open as formatted text**: a note with text now opens as it reads, with a pencil to edit it (and *Done* to go back); an empty new note still opens for typing. This covers the notes on tasks, projects and objectives too, since they are ordinary notes.
 - **Blocking is worded as blocking again**: the link dialog and task panel say *Blocks this*, *Blocked by this*, *Blocked by* and *Blocks* instead of parent and child. Your existing links are the same links, just worded correctly; *Parent* and *Sub-task* now mean *part of* (Spec 33).
 
 ### Fixed
-- (nothing yet)
+- **Mentions showed two @ signs** (`@@Name`) in a note's formatted view.
 
 ---
 

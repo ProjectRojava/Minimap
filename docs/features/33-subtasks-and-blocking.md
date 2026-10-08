@@ -10,7 +10,7 @@ Let a task be a *piece of* another task without that meaning the other waits for
 **In** (built)
 - **`subtask_of` link** (task → task, sub-task → parent; ADR-0017). One parent per task, one level deep; refusals name the tasks (`core::subtasks`, `store::tasks::check_subtask`). No effect on the schedule, critical path, what-if, capacity, health or the dependency graph.
 - **Wording**: *Blocks* / *Blocked by* for the order of the work in the pane and dialog. Parent/child words belong to *part of* only.
-- **Task pane**: a *Part of* section (parent, sub-tasks with "N of M done", buttons *New sub-task…*, *Add existing sub-tasks…*, *Make it part of…*, offered only where the rule allows) above *Links* (Blocked by, Blocks, Related tasks, other links).
+- **Task pane**: a *Part of* section (parent, sub-tasks with "N of M done", buttons *New sub-task…*, *Add existing…*, *Make it part of…*, offered only where the rule allows) above *Links* (Blocked by, Blocks, Related tasks, other links).
 - **Link dialog**: five choices in two rows: *Blocks this*, *Blocked by this*, *Related* / *Parent*, *Sub-task*; a sentence under them names who waits, or says nothing waits. A parent is chosen alone. `LinkDialog::open_as` presets the relation.
 - **Kanban**: a violet chip on a parent (*2/5 sub-tasks*) and on a sub-task (the parent's name); selecting a card lights its family and draws dotted lines (no arrow) to it; the ⋯ menu has *Add a sub-task…*; the blue chain chip counts only blocks and related links.
 - `TaskRow.parent / subtask_count / subtasks_done` (cancelled and archived sub-tasks not counted).

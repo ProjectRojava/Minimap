@@ -20,13 +20,34 @@ From the keyboard: `Ctrl/Cmd+K` then `note 1:1 @priya` creates a 1:1 (its title 
 
 ## Writing
 
-The editor has **Write** and **Preview** tabs. It **saves by itself** about a second after you stop typing and when you leave the box; there is no Save button. Write ordinary Markdown: headings, lists, bold, links, tables.
+A note that has text **opens as it will read**: headings, lists, bold, links and mentions formatted, with a **pencil** at the top right of the text. Click the pencil (or double-click the text) to edit; press **Done** to go back to reading. A new, empty note opens ready to type in. While you edit, the note **saves by itself** about a second after you stop typing and when you leave the box (and when you press *Done*); there is no Save button.
 
-Preview is safe: raw HTML is shown as text, and external links don't navigate away (they show their address when you hover).
+The notes you write on a task, project or objective (*Notes and findings*) are ordinary notes, so they work the same way; see [Tasks](help:tasks).
+
+## The text box
+
+Every place you write longer text uses the same box, modelled on a GitHub comment: the **description** of a task, project, objective or team, the **context, decision and rationale** of a decision, the **notes** on a person, a note's text, and the box for a new note on an item. Descriptions and decision text read as formatted text with a pencil; press the pencil, edit, then **Save** (or `Ctrl/Cmd+Enter`) or **Cancel**. `Esc` also cancels, but only when you haven't typed anything yet, so a slip never throws text away.
+
+Above the text are two tabs, **Write** and **Preview** (what it will look like), and a toolbar:
+
+| Button | What it does |
+|---|---|
+| **H** | Makes the line a heading; press again to undo |
+| **B**, *I* | Bold and italic around the selection (`Ctrl/Cmd+B`, `Ctrl/Cmd+I`); press again to take it off |
+| ❝ | Quotes the selected lines |
+| `<>` | Code: inline for a word, a block for several lines |
+| Chain | A link, with the address ready to type over (links open in your browser or mail program when you click them in the formatted text) |
+| •, 1., ☑ | Bulleted, numbered and task lists for the selected lines. Pressing `Enter` in a list starts the next item; `Enter` on an empty item ends the list |
+| **@** | Mention a person, project or task |
+| Paperclip | Attach a file and put a link to it in the text |
+
+Everything the toolbar does can also be typed as plain Markdown, and `Ctrl/Cmd+Z` inside the box steps back through toolbar changes like any typing. A single line break shows as a line break, and a blank line starts a new paragraph. Raw HTML is shown as text, and addresses are limited to web and email links.
+
+Mentions in a description or decision are shown with the item's current name and open it when clicked, but they do not create a link on the graph: only notes do (below).
 
 ## Mentions with `@`
 
-Type `@` and a picker lists **people, projects and tasks** (type to filter; `↑`/`↓` to choose; `Enter` or `Tab` to insert; `Esc` to cancel). A mention is stored as `@[Name](node:...)`, shown by its **current name** in the preview, and it makes a *mentions* link from the note to that item. Click a mention in the preview to open the item. Removing the mention from the text removes the link.
+Type `@` and a picker lists **people, projects and tasks** (type to filter; `↑`/`↓` to choose; `Enter` or `Tab` to insert; `Esc` to cancel). A mention is stored as `@[Name](node:...)`, shown by its **current name** when the note is read, and it makes a *mentions* link from the note to that item. Click a mention in the formatted note to open the item. Removing the mention from the text removes the link.
 
 ## Checklists become tasks
 
@@ -40,7 +61,7 @@ Open `[ ]` items are also **carried over** to the next note of a repeating serie
 
 ## Attachments
 
-Paste or drop a file onto the editor (or use *Attach file…*) and a link is inserted where the cursor is. Pictures show in the preview. See [Google Drive](help:google-drive) for the file types, size limit and where files are kept.
+Paste or drop a file onto the editor (or use *Attach file…*) and a link is inserted where the cursor is. Pictures show when the note is read. See [Google Drive](help:google-drive) for the file types, size limit and where files are kept.
 
 ## Privacy and undo
 

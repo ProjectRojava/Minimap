@@ -68,6 +68,9 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8.5 7.5h5",
             "M8.5 11.5h5",
         ],
+        "chevron" => &["M4.5 6.5 8 10l3.5-3.5"],
+        "edit" => &["M2.5 13.5l.7-3L10.8 3a1.4 1.4 0 0 1 2 2l-7.6 7.6z", "M9.6 4.2l2.2 2.2"],
+        "check" => &["M3 8.5l3.2 3.2L13 4.5"],
         "attach" => &["M12.6 7.6 7.5 12.7a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8L6.2 11.3a1 1 0 0 1-1.4-1.4l4.9-4.9"],
         "lock" => &[
             "M3.5 7h9v6.5h-9z",
@@ -147,6 +150,9 @@ mod tests {
             "graph",
             "chain",
             "subtasks",
+            "chevron",
+            "edit",
+            "check",
             "attach",
         ] {
             for d in paths(name).unwrap() {

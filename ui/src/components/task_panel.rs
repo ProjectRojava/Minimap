@@ -10,9 +10,10 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        detail_pane::Section,
+        detail_pane::{Section, FIELD_GROUP},
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         item_notes::ItemNotes,
+        markdown_box::{saver, MarkdownField},
         people_panel::error_line,
         reference_links::ReferenceLinks,
         repeat_field::RepeatField,
@@ -33,7 +34,7 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
     let projects = LocalResource::new(move || api::list_node_summaries(NodeType::Project));
 
     view! {
-        <Section title="Fields">
+        <Section title="Fields" always_open=true>
             <TaskSummary id=id />
             {move || match (detail.get(), people.get(), projects.get()) {
                 (Some(Ok(d)), Some(Ok(ps)), Some(Ok(pr))) => view! { <TaskFields detail=d people=ps projects=pr /> }.into_any(),
@@ -163,8 +164,12 @@ fn TaskFields(
     view! {
         <TextField label="Title" value=task.title.clone()
             on_commit=move |v: String| save(UpdateTask { title: Some(v), ..Default::default() }) />
-        <TextField label="Description" multiline=true value=task.description.clone()
-            on_commit=move |v: String| save(UpdateTask { description: Some(v), ..Default::default() }) />
+        <MarkdownField label="Description" value=task.description.clone() node=minimap_types::NodeRef::new(NodeType::Task, id)
+            empty="No description yet. Click the pencil to write one." placeholder="Describe the task. Markdown works: lists, **bold**, @ to mention." rows=6
+            save=saver(move |v: String| async move {
+                finish(api::update_task(id, UpdateTask { description: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
+        <div class=FIELD_GROUP>
         <div class="grid grid-cols-3 gap-3">
             <SelectField label="Status" options=status_options
                 current=task.status.as_str().to_owned() on_change=save_status
@@ -187,7 +192,9 @@ fn TaskFields(
                 current=detail.assignee.as_ref().map(|a| a.node.id.to_string()).unwrap_or_default()
                 on_change=save_assignee />
         </div>
-        <div class="mt-2 grid grid-cols-3 gap-3">
+        </div>
+        <div class=FIELD_GROUP>
+        <div class="grid grid-cols-3 gap-3">
             <TextField label="Estimate (3d, 4h)" placeholder="3d" value=estimate_text(task.estimate_days)
                 on_commit=save_estimate />
             <TextField label="Start date" kind="date"
@@ -199,6 +206,7 @@ fn TaskFields(
         </div>
         <RepeatField node=NodeRef::new(NodeType::Task, id) current=task.recurrence.clone() />
         <TaskTiming id=id />
+        </div>
     }
 }
 
@@ -219,7 +227,7 @@ fn ArchiveTask(id: Uuid) -> impl IntoView {
     };
 
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

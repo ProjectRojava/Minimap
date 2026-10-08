@@ -55,6 +55,8 @@ Dates are written `YYYY-MM-DD` (for example `2027-03-31`) everywhere. The schedu
 
 Click any row, or press `Enter` on it, and its **detail pane** opens on the right: every field, its links grouped by type (and editable), attached files and its activity. `Esc` closes it.
 
+The pane is made of **sections**, each under its own header strip with a coloured dot, a count where it helps (*Links · 3*) and, at the right, the buttons that add to that section (*New sub-task…*, *New linked task…*, *Attach file…*). The item's own fields are always open; every other section can be **folded** by clicking its header, and Minimap remembers which ones you folded. *Activity* and *Archive* start folded, so the pane opens on what you use most. Inside the fields, thin lines separate the groups (title and description, then status and who, then dates).
+
 ## Where your data lives
 
 In one database file in the app's data folder on this computer. *Settings → Data & backup* shows the exact place and can open the folder. See [Settings](help:settings), [Backup and restore](help:backup-restore) and [Google Drive](help:google-drive).

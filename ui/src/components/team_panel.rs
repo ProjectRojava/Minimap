@@ -8,6 +8,7 @@ use crate::{
     components::{
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER},
+        markdown_box::{saver, MarkdownField},
         people_panel::{error_line, team_options, NodeButtons},
     },
     state::{finish, DataVersion, Selection, Toasts},
@@ -27,7 +28,7 @@ pub fn TeamPanel(id: Uuid) -> impl IntoView {
     });
 
     view! {
-        <Section title="Fields">
+        <Section title="Fields" always_open=true>
             {move || match team.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
@@ -61,8 +62,11 @@ fn TeamFields(team: Team) -> impl IntoView {
     view! {
         <TextField label="Name" value=team.name.clone()
             on_commit=move |v: String| save(UpdateTeam { name: Some(v), ..Default::default() }) />
-        <TextField label="Description" multiline=true value=team.description.clone()
-            on_commit=move |v: String| save(UpdateTeam { description: Some(v), ..Default::default() }) />
+        <MarkdownField label="Description" value=team.description.clone() node=minimap_types::NodeRef::new(minimap_types::NodeType::Team, id)
+            empty="No description yet. Click the pencil to write one." placeholder="What does this team do?" rows=6
+            save=saver(move |v: String| async move {
+                finish(api::update_team(id, UpdateTeam { description: Some(v), ..Default::default() }).await, toasts, version).is_some()
+            }) />
     }
 }
 
@@ -155,7 +159,7 @@ fn ArchiveTeam(detail: TeamDetail) -> impl IntoView {
     };
 
     view! {
-        <Section title="Archive" tone=crate::components::page::Tone::Danger>
+        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
             {move || if confirming.get() {
                 view! {
                     <div class="space-y-2">

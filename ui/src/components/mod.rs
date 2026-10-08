@@ -16,6 +16,7 @@ pub mod health_panel;
 pub mod item_notes;
 pub mod link_dialog;
 pub mod links_editor;
+pub mod markdown_box;
 pub mod node_row;
 pub mod note_panel;
 pub mod objective_colour;
