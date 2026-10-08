@@ -1,8 +1,8 @@
-//! The "⋯" menu on a Kanban card: open the task, make a task linked to it, link an existing
-//! task to it, or archive it.
+//! The "⋯" menu on a Kanban card: open the task, add a sub-task to it, make a task linked to it,
+//! link an existing task to it, or archive it.
 
 use leptos::{ev, html, prelude::*, task::spawn_local};
-use minimap_types::{NodeRef, NodeType, Uuid};
+use minimap_types::{LinkRelation, NodeRef, NodeType, Uuid};
 
 use crate::{
     api,
@@ -21,13 +21,15 @@ pub fn archived_message(label: &str) -> String {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Item {
     Open,
+    SubTask,
     LinkNew,
     LinkExisting,
     Archive,
 }
 
-const ITEMS: [(Item, &str); 4] = [
+const ITEMS: [(Item, &str); 5] = [
     (Item::Open, "Open"),
+    (Item::SubTask, "Add a sub-task…"),
     (Item::LinkNew, "Link a new task…"),
     (Item::LinkExisting, "Link an existing task…"),
     (Item::Archive, "Archive"),
@@ -95,6 +97,7 @@ pub fn CardMenuHost() -> impl IntoView {
         let (task, name) = (request.task, request.label);
         match item {
             Item::Open => selection.open(NodeRef::new(NodeType::Task, task)),
+            Item::SubTask => dialog.open_as(task, name, false, LinkRelation::Subtask),
             Item::LinkNew => dialog.open(task, name, false),
             Item::LinkExisting => dialog.open(task, name, true),
             Item::Archive => spawn_local(async move {
@@ -163,6 +166,7 @@ mod tests {
             names,
             [
                 "Open",
+                "Add a sub-task…",
                 "Link a new task…",
                 "Link an existing task…",
                 "Archive"

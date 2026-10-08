@@ -204,6 +204,8 @@ fn priority_pill(priority: u8, closed: bool) -> &'static str {
 /// away from red and amber, which mean "late" and "needs attention".
 const LINK_HUE: u16 = 200;
 const FILE_HUE: u16 = 145;
+/// Sub-tasks (what a task is part of): violet, apart from the other two.
+const PART_HUE: u16 = 280;
 
 /// The tooltip of a card's paperclip: "2 files, 1 web link", or nothing when it has neither.
 fn attachment_hint(files: u32, urls: usize) -> Option<String> {
@@ -221,12 +223,32 @@ fn attachment_hint(files: u32, urls: usize) -> Option<String> {
     }
 }
 
-/// The tooltip of a card's chain mark: how many tasks it is linked with.
+/// The tooltip of a card's chain mark: how many tasks it blocks, waits for or is related to.
 fn link_hint(links: u32) -> String {
     format!(
-        "Linked with {links} {}. Open the card to see them.",
+        "Blocks, waits for or is related to {links} {}. Open the card to see them.",
         if links == 1 { "task" } else { "tasks" }
     )
+}
+
+/// The line at the top of the board while a task's links show: what the lines mean.
+fn focus_hint(linked: usize) -> String {
+    format!(
+        "{linked} linked · arrows point from a blocker to the task that waits, dashed lines are related, dotted lines are sub-tasks"
+    )
+}
+
+/// The words on a parent card's sub-task mark: "2/5 sub-tasks" (done of counted).
+fn subtask_label(done: u32, total: u32) -> String {
+    format!(
+        "{done}/{total} sub-{}",
+        if total == 1 { "task" } else { "tasks" }
+    )
+}
+
+/// The tooltip of a parent card's sub-task mark.
+fn subtask_hint(done: u32, total: u32) -> String {
+    format!("{done} of {total} sub-tasks done. Open the card to see them.")
 }
 
 /// The words on a card's chain mark: "2 linked tasks".
@@ -253,6 +275,8 @@ enum LinkKind {
     Blocks,
     /// The two are just related; the line has no direction.
     Relates,
+    /// `from` (a sub-task) is part of `to` (its parent). Organisation only: no order, no arrow.
+    Part,
 }
 
 /// One line on the board: from a task to a task.
@@ -264,7 +288,7 @@ struct BoardLink {
 }
 
 /// The task links of `task` that the board draws: *blocks* (the blocker points at the task it
-/// holds up) and *related*, to other tasks only.
+/// holds up), *related* and *part of* (a sub-task to its parent), to other tasks only.
 fn board_links(task: Uuid, links: &[EdgeLink]) -> Vec<BoardLink> {
     links
         .iter()
@@ -286,6 +310,16 @@ fn board_links(task: Uuid, links: &[EdgeLink]) -> Vec<BoardLink> {
                     from: task,
                     to: other,
                     kind: LinkKind::Relates,
+                }),
+                (EdgeType::SubtaskOf, true) => Some(BoardLink {
+                    from: task,
+                    to: other,
+                    kind: LinkKind::Part,
+                }),
+                (EdgeType::SubtaskOf, false) => Some(BoardLink {
+                    from: other,
+                    to: task,
+                    kind: LinkKind::Part,
                 }),
                 _ => None,
             }
@@ -448,7 +482,7 @@ fn clicked_blank_space(ev: &ev::MouseEvent) -> bool {
 
 fn card_key(r: &TaskRow) -> String {
     format!(
-        "{}|{}|{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}",
         r.task.id,
         r.task.updated_at.unix_timestamp_nanos(),
         r.task.status.as_str(),
@@ -456,6 +490,8 @@ fn card_key(r: &TaskRow) -> String {
         r.project.as_ref().map(|p| p.label.as_str()).unwrap_or(""),
         r.link_count,
         r.attachment_count,
+        r.subtasks_done * 1000 + r.subtask_count,
+        r.parent.as_ref().map(|p| p.label.as_str()).unwrap_or(""),
     )
 }
 
@@ -696,9 +732,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 </button>
                 <Show when=move || focus.with(|f| !f.links.is_empty())>
                     <span class="truncate text-[11px] text-muted">
-                        {move || format!(
-                            "{} linked · arrows point from a child to its parent, dashed lines are related",
-                            linked.with(HashSet::len))}
+                        {move || focus_hint(linked.with(HashSet::len))}
                     </span>
                 </Show>
                 <span class="ml-auto"><LayoutToggle board=layout /></span>
@@ -772,6 +806,12 @@ fn LinkLines(arrows: RwSignal<Vec<Arrow>>) -> impl IntoView {
         LinkKind::Relates => view! {
             <path d=a.d fill="none" class="stroke-accent/70" stroke-width="1.5"
                   stroke-dasharray="4 3" />
+        }
+        .into_any(),
+        // Dots, not dashes, and no head: part-of is not an order.
+        LinkKind::Part => view! {
+            <path d=a.d fill="none" class="stroke-accent/70" stroke-width="2"
+                  stroke-linecap="round" stroke-dasharray="0.1 5" />
         }
         .into_any(),
     };
@@ -1018,7 +1058,9 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     let estimate = estimate_text(t.estimate_days);
     let link_count = row.link_count;
     let attached = attachment_hint(row.attachment_count, t.links.len());
-    let marks = link_count > 0 || attached.is_some();
+    let subtasks = (row.subtask_count > 0).then_some((row.subtasks_done, row.subtask_count));
+    let parent = row.parent.map(|p| p.label);
+    let marks = link_count > 0 || attached.is_some() || subtasks.is_some() || parent.is_some();
     let assignee = row.assignee.map(|a| (a.node.id, a.label));
     let project = row.project.map(|p| p.label);
     let title_class = if closed {
@@ -1102,6 +1144,21 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                             <span>{link_label(link_count)}</span>
                         </span>
                     })}
+                    {subtasks.map(|(done, total)| view! {
+                        <span class="hue-chip" style=format!("--obj-h: {PART_HUE}") title=subtask_hint(done, total)>
+                            <Icon name="subtasks" size="h-3.5 w-3.5" />
+                            <span>{subtask_label(done, total)}</span>
+                        </span>
+                    })}
+                    {parent.map(|name| {
+                        let title = format!("Part of “{name}”");
+                        view! {
+                            <span class="hue-chip max-w-full" style=format!("--obj-h: {PART_HUE}") title=title>
+                                <Icon name="subtasks" size="h-3.5 w-3.5" />
+                                <span class="truncate">{name}</span>
+                            </span>
+                        }
+                    })}
                     {attached.clone().map(|text| {
                         let title = format!("Attached: {text}");
                         view! {
@@ -1176,6 +1233,9 @@ mod tests {
             assignee: None,
             link_count: 0,
             attachment_count: 0,
+            parent: None,
+            subtask_count: 0,
+            subtasks_done: 0,
         }
     }
 
@@ -1381,11 +1441,11 @@ mod tests {
         );
         assert_eq!(
             link_hint(1),
-            "Linked with 1 task. Open the card to see them."
+            "Blocks, waits for or is related to 1 task. Open the card to see them."
         );
         assert_eq!(
             link_hint(4),
-            "Linked with 4 tasks. Open the card to see them."
+            "Blocks, waits for or is related to 4 tasks. Open the card to see them."
         );
         assert_eq!(link_label(1), "1 linked task");
         assert_eq!(link_label(4), "4 linked tasks");
@@ -1435,11 +1495,14 @@ mod tests {
 
     #[test]
     fn blocks_point_from_the_blocker_and_related_tasks_have_no_direction() {
-        let [me, a, b, c] = [1, 2, 3, 4].map(Uuid::from_u128);
+        let [me, a, b, c, d, e] = [1, 2, 3, 4, 7, 8].map(Uuid::from_u128);
         let links = [
             link(me, a, EdgeType::Blocks, true, NodeType::Task),
             link(me, b, EdgeType::Blocks, false, NodeType::Task),
             link(me, c, EdgeType::RelatesTo, false, NodeType::Task),
+            // Part of: a sub-task points at its parent, whichever end the open task is.
+            link(me, d, EdgeType::SubtaskOf, true, NodeType::Task),
+            link(me, e, EdgeType::SubtaskOf, false, NodeType::Task),
             // Not tasks, or not task links: nothing to draw.
             link(
                 me,
@@ -1464,13 +1527,32 @@ mod tests {
                 at(me, a, LinkKind::Blocks),
                 at(b, me, LinkKind::Blocks),
                 at(me, c, LinkKind::Relates),
+                at(me, d, LinkKind::Part),
+                at(e, me, LinkKind::Part),
             ]
         );
         let focus = Focus {
             task: Some(me),
             links: made,
         };
-        assert_eq!(focus.linked(), HashSet::from([a, b, c]));
+        assert_eq!(focus.linked(), HashSet::from([a, b, c, d, e]));
+    }
+
+    #[test]
+    fn the_board_says_what_each_kind_of_line_means() {
+        let hint = focus_hint(3);
+        assert!(hint.starts_with("3 linked"));
+        for word in ["blocker", "dashed", "dotted"] {
+            assert!(hint.contains(word), "{hint}");
+        }
+        assert!(!hint.contains("child"));
+    }
+
+    #[test]
+    fn the_sub_task_mark_counts_done_over_all() {
+        assert_eq!(subtask_label(2, 5), "2/5 sub-tasks");
+        assert_eq!(subtask_label(0, 1), "0/1 sub-task");
+        assert!(subtask_hint(2, 5).starts_with("2 of 5 sub-tasks done"));
     }
 
     fn card(left: f64, top: f64) -> CardBox {

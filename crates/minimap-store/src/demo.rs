@@ -623,6 +623,16 @@ const BLOCKS: &[(&str, &str, u32)] = &[
     ("s2", "s3", 0), ("s3", "s4", 1), ("s5", "s4", 0),
 ];
 
+/// (sub-task, the task it is part of): organisation only (spec 33), so none of these touch the
+/// schedule. One level: no parent here is itself a sub-task.
+const PARTS: &[(&str, &str)] = &[
+    ("e8", "e10"),
+    ("e13", "e10"),
+    ("p11", "p10"),
+    ("p14", "p9"),
+    ("s10", "s9"),
+];
+
 /// Done tasks and when they were finished (calendar days from today; `None` = the Monday of
 /// this week). The ones still open at the start of the week are finished in [`this_week`].
 const FINISHED: &[(&str, Option<i64>)] = &[
@@ -958,6 +968,14 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             serde_json::json!({})
         };
         s.link(EdgeType::Blocks, s.task_ref(from), s.task_ref(to), attrs)?;
+    }
+    for (child, parent) in PARTS {
+        s.link(
+            EdgeType::SubtaskOf,
+            s.task_ref(child),
+            s.task_ref(parent),
+            serde_json::json!({}),
+        )?;
     }
     for key in ["s7", "s8"] {
         s.link(

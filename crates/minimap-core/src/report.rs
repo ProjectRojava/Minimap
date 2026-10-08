@@ -650,6 +650,9 @@ mod tests {
                 assignee: Some(summary_of(NodeType::Person, 20, "Priya")),
                 link_count: 0,
                 attachment_count: 0,
+                parent: None,
+                subtask_count: 0,
+                subtasks_done: 0,
             },
             overdue_days: None,
             blocked_by: by

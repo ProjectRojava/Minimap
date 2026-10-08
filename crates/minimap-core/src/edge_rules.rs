@@ -42,8 +42,9 @@ pub fn is_allowed(edge_type: EdgeType, from: NodeType, to: NodeType) -> bool {
         E::Affects => from == N::Decision && matches!(to, N::Project | N::Task | N::Objective),
         E::About => from == N::WaitingOn && matches!(to, N::Task | N::Project),
         E::Supersedes => (from, to) == (N::Decision, N::Decision),
-        // Removed (ADR-0015): no new links of this kind.
-        E::SubtaskOf => false,
+        // A sub-task is part of one task (spec 33, ADR-0017). One parent and one level are
+        // rules about the other links, in `subtasks`.
+        E::SubtaskOf => (from, to) == (N::Task, N::Task),
     }
 }
 
@@ -224,6 +225,7 @@ mod tests {
             (E::About, N::WaitingOn, N::Task),
             (E::About, N::WaitingOn, N::Project),
             (E::Supersedes, N::Decision, N::Decision),
+            (E::SubtaskOf, N::Task, N::Task),
         ];
         for &(e, f, t) in &allowed {
             assert!(is_allowed(e, f, t), "{e} {f}->{t}");
@@ -309,6 +311,7 @@ mod tests {
             E::Affects,
             E::About,
             E::Supersedes,
+            E::SubtaskOf,
         ] {
             assert!(keys(e).is_empty(), "{e}");
         }

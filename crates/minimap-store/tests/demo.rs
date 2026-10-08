@@ -31,7 +31,7 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
     assert_eq!(summary.notes, 3);
     assert_eq!(summary.decisions, 5);
     assert_eq!(summary.waiting_ons, 3);
-    assert_eq!(summary.links, 101);
+    assert_eq!(summary.links, 106);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 40);
     assert_eq!(count(&conn, "people"), 8);
@@ -416,4 +416,28 @@ fn most_tasks_have_a_type_and_one_decision_moved_and_was_decided_late() {
     let finished = region.completed_at.unwrap().date();
     assert_eq!(finish_timing(due, finished), Finish::OnTime);
     assert_eq!(finish_timing(first, finished), Finish::Late(7));
+}
+
+#[test]
+fn some_tasks_are_part_of_others_one_level_deep_and_one_is_done() {
+    let conn = seeded(TODAY);
+    let all = tasks::list(&conn, false).unwrap();
+    let parts: Vec<_> = edges::list_active_of_type(&conn, EdgeType::SubtaskOf).unwrap();
+    assert_eq!(parts.len(), 5);
+    let pairs: Vec<_> = parts.iter().map(|e| (e.from_id, e.to_id)).collect();
+    for (child, parent) in &pairs {
+        assert!(!pairs.iter().any(|(c, _)| c == parent), "two levels");
+        assert_eq!(pairs.iter().filter(|(c, _)| c == child).count(), 1);
+    }
+    // The board's chips have something to show: a parent with none done, and one that is all done.
+    let rows = views::task_rows(&conn).unwrap();
+    let progress = |title: &str| {
+        let r = rows.iter().find(|r| r.task.title == title).unwrap();
+        (r.subtasks_done, r.subtask_count)
+    };
+    assert_eq!(progress("Go-live checklist"), (0, 2));
+    assert_eq!(progress("Cost dashboard for teams"), (1, 1));
+    assert!(all
+        .iter()
+        .any(|t| t.title == "Weekly cost report automation"));
 }

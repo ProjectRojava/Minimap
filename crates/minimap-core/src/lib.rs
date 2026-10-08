@@ -22,6 +22,7 @@ pub mod report;
 pub mod schedule;
 pub mod search;
 pub mod slug;
+pub mod subtasks;
 pub mod sync;
 pub mod task_types;
 pub mod tasks;

@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use leptos::prelude::*;
-use minimap_types::{AppError, NodeRef, Uuid};
+use minimap_types::{AppError, LinkRelation, NodeRef, Uuid};
 
 use crate::nav::move_cursor;
 
@@ -42,14 +42,28 @@ pub struct LinkRequest {
     pub label: String,
     /// Open on the *Existing task* tab (otherwise *New task*).
     pub existing: bool,
+    /// The relation that starts chosen.
+    pub relation: LinkRelation,
 }
 
 impl LinkDialog {
     pub fn open(&self, task: Uuid, label: impl Into<String>, existing: bool) {
+        self.open_as(task, label, existing, LinkRelation::Blocks);
+    }
+
+    /// Like [`open`](Self::open), with the relation already chosen (the "Part of" buttons).
+    pub fn open_as(
+        &self,
+        task: Uuid,
+        label: impl Into<String>,
+        existing: bool,
+        relation: LinkRelation,
+    ) {
         self.0.set(Some(LinkRequest {
             task,
             label: label.into(),
             existing,
+            relation,
         }));
     }
 

@@ -127,8 +127,8 @@ pub async fn set_assignee(
         .await
 }
 
-/// Creates a task linked to `task_id`: it blocks it, follows it, or is just related. It joins
-/// the same project.
+/// Creates a task linked to `task_id`: it blocks it, is blocked by it, is related, is its parent or
+/// is its sub-task. It joins the same project.
 #[tauri::command]
 pub async fn create_linked_task(
     state: State<'_, AppState>,
