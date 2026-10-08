@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 
 use minimap_types::{
     DataExport, Decision, EdgeType, Note, NoteKind, Objective, Person, Project, Task, TaskStatus,
-    Uuid, WaitingOn,
+    TaskType, Uuid, WaitingOn,
 };
 
 use crate::{notes::mentions_as_names, report::escape, slug::slugify};
@@ -104,6 +104,8 @@ struct Lookup<'a> {
     objectives: HashMap<Uuid, &'a Objective>,
     decisions: HashMap<Uuid, &'a Decision>,
     waiting: HashMap<Uuid, &'a WaitingOn>,
+    /// Task types by id.
+    types: HashMap<&'a str, &'a TaskType>,
     /// Active edges of one type: (from, to, attrs).
     edges: HashMap<EdgeType, Vec<(Uuid, Uuid, &'a serde_json::Value)>>,
 }
@@ -124,6 +126,7 @@ impl<'a> Lookup<'a> {
             objectives: data.objectives.iter().map(|o| (o.id, o)).collect(),
             decisions: data.decisions.iter().map(|d| (d.id, d)).collect(),
             waiting: data.waiting_on.iter().map(|w| (w.id, w)).collect(),
+            types: data.task_types.iter().map(|t| (t.id.as_str(), t)).collect(),
             edges,
         }
     }
@@ -173,6 +176,9 @@ fn task_line(t: &Task, l: &Lookup) -> String {
             None => "done".to_owned(),
         }),
         TaskStatus::Todo => {}
+    }
+    if let Some(kind) = t.task_type.as_deref().and_then(|id| l.types.get(id)) {
+        bits.push(escape(&kind.name));
     }
     if let Some(p) = l.assignee(t.id) {
         bits.push(escape(&p.name));
@@ -455,6 +461,7 @@ pub fn readme(markdown: bool) -> String {
          - `objectives.json`, `projects.json`, `tasks.json`, `people.json`, `teams.json`, `notes.json`, `decisions.json`, `waiting_on.json`: one file per kind of item, each a list. Archived items are included and have `archived_at` set\n\
          - `edges.json`: every link between items (`blocks`, `depends_on`, `assigned_to`, ...), with `from_id` and `to_id` pointing at item ids; removed links have `archived_at` set\n\
          - `attachments.json`: the files attached to items (which item, name, size, checksum); the files themselves are in `attachments/<id>/`\n\
+         - `task_types.json`: your list of task types; a task's `task_type` is the `id` of one of them\n\
          - `activity.json`: the full history of changes, oldest first. Each entry has a `diff` of `{field: [old, new]}`\n\n\
          Ids are UUIDs, dates are `YYYY-MM-DD` and timestamps are RFC 3339 in UTC.\n\n\
          Note bodies are Markdown. A mention of an item looks like `@[Name](node:<id>)` and a picture or file like `![name](attachment:<id>)`.\n\n\
@@ -505,6 +512,7 @@ mod tests {
     fn task(n: u128, title: &str, project: Option<u128>, status: TaskStatus) -> Task {
         Task {
             links: Vec::new(),
+            task_type: None,
             id: id(n),
             title: title.into(),
             description: String::new(),
@@ -597,6 +605,7 @@ mod tests {
         due.due_date = Some(date!(2027 - 03 - 05));
         due.estimate_days = Some(6.5);
         due.priority = 1;
+        due.task_type = Some("decision".into());
         let blocked = task(13, "Go live", Some(1), TaskStatus::Todo);
         let objective = Objective {
             ongoing: false,
@@ -697,6 +706,7 @@ mod tests {
                     serde_json::json!({}),
                 ),
             ],
+            task_types: minimap_types::default_task_types(),
             ..Default::default()
         }
     }
@@ -720,7 +730,7 @@ mod tests {
              - Security: Sign-off first\n\n\
              ## Tasks\n\n\
              ### Open\n\n\
-             - [ ] Build clusters — in progress · Priya Nair · due 2027-03-05 · 6.5d · P1\n\
+             - [ ] Build clusters — in progress · Decision · Priya Nair · due 2027-03-05 · 6.5d · P1\n\
              - [ ] Go live — blocked by Build clusters\n\n\
              ### Finished\n\n\
              - [x] Pick a region — done 2027-02-10\n\n\

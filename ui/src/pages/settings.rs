@@ -18,6 +18,7 @@ use crate::{
         export_settings::ExportSettings,
         page::{Card, PageHeader},
         security_settings::SecuritySettings,
+        task_type_settings::TaskTypeSettings,
     },
     settings_tab::Tab,
     state::{finish, DataVersion, Toasts},
@@ -143,6 +144,7 @@ pub fn Settings() -> impl IntoView {
             <div class="flex-1 overflow-y-auto" node_ref=scroller>
                 {panel(Tab::General, view! {
                     <TimeSettings settings=settings />
+                    <TaskTypeSettings />
                     <Appearance />
                 }.into_any())}
                 {panel(Tab::Thresholds, view! {

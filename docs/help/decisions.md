@@ -30,4 +30,6 @@ The [Weekly review](help:weekly-review) lists the decisions *made* that week (pr
 
 ## Tip
 
+If you have to decide something **by a certain day**, track the deciding itself as a task of type *Decision* with a due date: the task shows whether you decided on time or how many days late, and keeps the date you first planned. See [Tasks](help:tasks). The decision record is where you write what was decided and why.
+
 Record the decision when it is made, even in one line. A proposal can wait as *proposed* until it is decided.

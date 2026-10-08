@@ -214,6 +214,8 @@ pub struct TaskFilter {
     pub no_project: bool,
     /// Include done and cancelled tasks (unless a `status` is chosen).
     pub include_closed: bool,
+    /// Only tasks of this type (an id from Settings' task types).
+    pub task_type: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -270,6 +272,8 @@ pub struct Settings {
     pub backup_folder: Option<String>,
     /// Back up automatically (on start when the last backup is over a day old, then daily).
     pub auto_backup: bool,
+    /// The kinds of work a task can be (spec 32); `default_task_types()` until edited.
+    pub task_types: Vec<crate::TaskType>,
 }
 
 impl Default for Settings {
@@ -285,6 +289,7 @@ impl Default for Settings {
             report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
             backup_folder: None,
             auto_backup: true,
+            task_types: crate::default_task_types(),
         }
     }
 }
@@ -304,6 +309,9 @@ pub struct UpdateSettings {
     /// A new backup folder (an absolute path); an empty text goes back to the default.
     pub backup_folder: Option<String>,
     pub auto_backup: Option<bool>,
+    /// The whole new list. An entry with an empty `id` is a new type (it gets one from its name);
+    /// a type cannot be removed, only archived.
+    pub task_types: Option<Vec<crate::TaskType>>,
 }
 
 // ---------------------------------------------------------------- waiting-on

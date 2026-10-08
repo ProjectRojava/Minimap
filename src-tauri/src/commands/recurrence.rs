@@ -131,6 +131,7 @@ mod tests {
             conn,
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: "Board update".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

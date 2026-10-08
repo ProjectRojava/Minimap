@@ -179,6 +179,7 @@ pub(crate) fn nullable_fields(node_type: NodeType) -> &'static [&'static str] {
             "start_date",
             "due_date",
             "recurrence",
+            "task_type",
         ],
         NodeType::Person => &["email"],
         NodeType::Team => &["parent_team_id"],

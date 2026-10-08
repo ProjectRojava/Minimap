@@ -143,8 +143,15 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .obj-chip > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .obj-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--obj); }
 .obj-bar { border-left: 3px solid var(--obj); }
-/* Coloured marks (Tasks board: the chain and the paperclip): text in a fixed hue. */
-.hue-text { color: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
+/* The marks on a Tasks-board card (linked tasks, attached files and web links): a labelled chip
+   in a fixed hue, big enough to read. */
+.hue-chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px;
+  border-radius: 2px; font-size: 11px; line-height: 16px; white-space: nowrap;
+  color: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l));
+  background: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.12);
+  border: 1px solid hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.5);
+}
 /* A person's avatar wears a hue the same way (Tasks board): tinted fill, hue ring and letters. */
 .avatar {
   color: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l));

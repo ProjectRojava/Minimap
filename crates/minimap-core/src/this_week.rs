@@ -3,12 +3,16 @@
 //! Sections answer different questions, so a task can be in more than one (an overdue task
 //! that is also blocked shows in both): overdue (before today), due this week (today through
 //! Sunday), blocked, my tasks in progress, waiting-ons that are stale or due, 1:1s this week.
+//!
+//! The screen itself shows two lists made from them in which every task appears once:
+//! `attention` (the red flags: overdue, due today, blocked) and `priorities` (the rest of the
+//! week's work, most important first).
 
 use std::collections::HashMap;
 
 use minimap_types::{
-    Date, NodeSummary, NoteFilter, NoteItem, NoteKind, TaskRow, TaskStatus, ThisWeek, Uuid,
-    WaitingOnFilter, WaitingOnItem, WaitingOnRow, WeekDay, WeekTask,
+    Date, Flag, FlaggedTask, NodeSummary, NoteFilter, NoteItem, NoteKind, TaskRow, TaskStatus,
+    ThisWeek, Uuid, WaitingOnFilter, WaitingOnItem, WaitingOnRow, WeekDay, WeekTask,
 };
 use time::Duration;
 
@@ -30,6 +34,29 @@ pub struct WeekInput {
     pub stale_days: u32,
 }
 
+/// Re-dates the data to how it stood at the end of `day` as far as the records allow: tasks made
+/// after it are left out, tasks finished after it are open again (status to do: what they were
+/// then isn't kept), waiting-ons asked after it are left out and ones resolved after it are open
+/// again. Due dates are as they are now. `today` becomes `day`.
+pub fn rewind(input: &mut WeekInput, day: Date) {
+    input.tasks.retain(|r| r.task.created_at.date() <= day);
+    for r in &mut input.tasks {
+        if r.task.completed_at.is_some_and(|c| c.date() > day) {
+            r.task.completed_at = None;
+            if r.task.status == TaskStatus::Done {
+                r.task.status = TaskStatus::Todo;
+            }
+        }
+    }
+    input.waiting.retain(|w| w.waiting.asked_on <= day);
+    for w in &mut input.waiting {
+        if w.waiting.resolved_on.is_some_and(|d| d > day) {
+            w.waiting.resolved_on = None;
+        }
+    }
+    input.today = day;
+}
+
 /// The Monday of the week containing `d`.
 pub fn monday_of(d: Date) -> Date {
     d - Duration::days(i64::from(d.weekday().number_days_from_monday()))
@@ -40,6 +67,13 @@ fn is_open(row: &TaskRow) -> bool {
 }
 
 pub fn build(input: WeekInput) -> ThisWeek {
+    let today = input.today;
+    build_at(input, None, today)
+}
+
+/// [`build`] for a view of the past: `input` has been `rewind`-ed to `as_of`, and `real_today` is
+/// the actual day.
+pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> ThisWeek {
     let today = input.today;
     let week_start = monday_of(input.week_of.unwrap_or(today));
     let week_end = week_start + Duration::days(6);
@@ -164,7 +198,13 @@ pub fn build(input: WeekInput) -> ThisWeek {
         })
         .collect();
 
+    let (attention, priorities) = triage(&overdue, &due_this_week, &blocked, &in_progress, today);
+
     ThisWeek {
+        as_of,
+        real_today,
+        attention,
+        priorities,
         week_start,
         week_end,
         prev_week_start: week_start - Duration::days(7),
@@ -181,6 +221,82 @@ pub fn build(input: WeekInput) -> ThisWeek {
         one_on_ones,
         reviews: crate::objectives::reviews_due(&input.objectives, today, week_end),
     }
+}
+
+/// Splits the week's tasks into the red flags and the rest of the plan, each task once.
+fn triage(
+    overdue: &[WeekTask],
+    due_this_week: &[WeekTask],
+    blocked: &[WeekTask],
+    in_progress: &[WeekTask],
+    today: Date,
+) -> (Vec<FlaggedTask>, Vec<WeekTask>) {
+    let mut seen: Vec<Uuid> = Vec::new();
+    let mut all: Vec<&WeekTask> = Vec::new();
+    for t in overdue
+        .iter()
+        .chain(due_this_week)
+        .chain(blocked)
+        .chain(in_progress)
+    {
+        if !seen.contains(&t.id()) {
+            seen.push(t.id());
+            all.push(t);
+        }
+    }
+    let flags_of = |t: &WeekTask| -> Vec<Flag> {
+        let mut flags = Vec::new();
+        if t.overdue_days.is_some() {
+            flags.push(Flag::Overdue);
+        }
+        if t.row.task.due_date == Some(today) {
+            flags.push(Flag::DueToday);
+        }
+        if t.row.task.status == TaskStatus::Blocked {
+            flags.push(Flag::Blocked);
+        }
+        flags
+    };
+    let mut attention: Vec<FlaggedTask> = Vec::new();
+    let mut priorities: Vec<WeekTask> = Vec::new();
+    for t in all {
+        let flags = flags_of(t);
+        if flags.is_empty() {
+            priorities.push(t.clone());
+        } else {
+            attention.push(FlaggedTask {
+                task: t.clone(),
+                flags,
+            });
+        }
+    }
+    attention.sort_by(|a, b| {
+        let key = |f: &FlaggedTask| {
+            (
+                f.flags[0],
+                std::cmp::Reverse(f.task.overdue_days.unwrap_or(0)),
+                f.task.row.task.priority,
+            )
+        };
+        key(a)
+            .cmp(&key(b))
+            .then_with(|| a.task.row.task.title.cmp(&b.task.row.task.title))
+            .then_with(|| a.task.id().cmp(&b.task.id()))
+    });
+    priorities.sort_by(|a, b| {
+        let key = |t: &WeekTask| {
+            (
+                t.row.task.priority,
+                t.row.task.due_date.is_none(),
+                t.row.task.due_date,
+            )
+        };
+        key(a)
+            .cmp(&key(b))
+            .then_with(|| a.row.task.title.cmp(&b.row.task.title))
+            .then_with(|| a.id().cmp(&b.id()))
+    });
+    (attention, priorities)
 }
 
 #[cfg(test)]
@@ -201,6 +317,7 @@ mod tests {
         TaskRow {
             task: Task {
                 links: Vec::new(),
+                task_type: None,
                 id: id(n),
                 title: title.into(),
                 description: String::new(),
@@ -608,6 +725,144 @@ mod tests {
         });
         assert_eq!(anyone.in_progress.len(), 3);
         assert!(!anyone.has_self);
+    }
+
+    #[test]
+    fn red_flags_and_priorities_hold_every_task_once_most_serious_first() {
+        let tasks = vec![
+            row(
+                1,
+                "Late a week",
+                TaskStatus::Todo,
+                Some(date!(2027 - 02 - 24)),
+                3,
+            ),
+            row(
+                2,
+                "Late a day, blocked",
+                TaskStatus::Blocked,
+                Some(date!(2027 - 03 - 02)),
+                1,
+            ),
+            row(3, "Today", TaskStatus::InProgress, Some(TODAY), 2),
+            row(4, "Blocked, no date", TaskStatus::Blocked, None, 1),
+            row(
+                5,
+                "Friday P3",
+                TaskStatus::Todo,
+                Some(date!(2027 - 03 - 05)),
+                3,
+            ),
+            row(
+                6,
+                "Thursday P1",
+                TaskStatus::Todo,
+                Some(date!(2027 - 03 - 04)),
+                1,
+            ),
+            assigned(
+                row(7, "Mine, undated P1", TaskStatus::InProgress, None, 1),
+                1,
+            ),
+            row(
+                8,
+                "Next week",
+                TaskStatus::Todo,
+                Some(date!(2027 - 03 - 09)),
+                1,
+            ),
+            row(9, "Done", TaskStatus::Done, Some(TODAY), 1),
+        ];
+        let w = week(tasks);
+        let flagged: Vec<(&str, Vec<Flag>)> = w
+            .attention
+            .iter()
+            .map(|f| (f.task.row.task.title.as_str(), f.flags.clone()))
+            .collect();
+        assert_eq!(
+            flagged,
+            [
+                ("Late a week", vec![Flag::Overdue]),
+                ("Late a day, blocked", vec![Flag::Overdue, Flag::Blocked]),
+                ("Today", vec![Flag::DueToday]),
+                ("Blocked, no date", vec![Flag::Blocked]),
+            ]
+        );
+        // The rest of the week, most important first, undated last within a priority.
+        assert_eq!(
+            titles(&w.priorities),
+            ["Thursday P1", "Mine, undated P1", "Friday P3"]
+        );
+        // Nothing is in both lists.
+        for f in &w.attention {
+            assert!(w.priorities.iter().all(|p| p.id() != f.task.id()));
+        }
+    }
+
+    #[test]
+    fn a_past_day_shows_the_week_as_it_stood_then() {
+        let day = date!(2027 - 03 - 02); // Tuesday
+        let at = |d: Date| d.midnight().assume_utc();
+        let mut finished_later = row(
+            1,
+            "Done since",
+            TaskStatus::Done,
+            Some(date!(2027 - 03 - 01)),
+            3,
+        );
+        finished_later.task.completed_at = Some(at(date!(2027 - 03 - 03)));
+        let mut finished_before = row(
+            2,
+            "Done then",
+            TaskStatus::Done,
+            Some(date!(2027 - 03 - 01)),
+            3,
+        );
+        finished_before.task.completed_at = Some(at(date!(2027 - 03 - 01)));
+        let mut made_later = row(
+            3,
+            "Made since",
+            TaskStatus::Todo,
+            Some(date!(2027 - 03 - 02)),
+            3,
+        );
+        made_later.task.created_at = at(date!(2027 - 03 - 03));
+        let still_open = row(4, "Open", TaskStatus::Todo, Some(date!(2027 - 03 - 02)), 3);
+        let mut input = WeekInput {
+            objectives: Vec::new(),
+            tasks: vec![finished_later, finished_before, made_later, still_open],
+            blockers: HashMap::new(),
+            waiting: vec![
+                waiting_item(10, date!(2027 - 02 - 01), Some(date!(2027 - 03 - 02))),
+                waiting_item(11, date!(2027 - 03 - 03), None),
+            ],
+            notes: vec![],
+            self_id: Some(id(1)),
+            today: TODAY,
+            week_of: None,
+            stale_days: 7,
+        };
+        input.waiting[0].waiting.resolved_on = Some(date!(2027 - 03 - 03));
+        rewind(&mut input, day);
+        input.week_of = Some(day);
+        let w = build_at(input, Some(day), TODAY);
+        assert_eq!((w.as_of, w.today, w.real_today), (Some(day), day, TODAY));
+        assert!(w.is_current_week);
+        // Finished later counts as open then (late by a day); finished before and made later do not.
+        assert_eq!(titles(&w.overdue), ["Done since"]);
+        assert_eq!(w.overdue[0].overdue_days, Some(1));
+        let due_today: Vec<&str> = w
+            .due_this_week
+            .iter()
+            .map(|t| t.row.task.title.as_str())
+            .collect();
+        assert_eq!(due_today, ["Open"]);
+        // The waiting-on resolved later is open again; the one asked later is not there.
+        assert_eq!(w.waiting.len(), 1);
+        assert_eq!(w.waiting[0].waiting.id, id(10));
+        // Without rewinding nothing is marked.
+        let plain = week(vec![]);
+        assert_eq!((plain.as_of, plain.real_today), (None, TODAY));
     }
 
     #[test]

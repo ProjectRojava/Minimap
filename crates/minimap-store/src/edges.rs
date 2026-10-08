@@ -96,7 +96,7 @@ pub fn add(conn: &mut Connection, new: NewEdge) -> Result<Edge> {
 }
 
 /// [`add`] inside a caller's transaction.
-pub(crate) fn add_in_tx(tx: &Transaction, new: NewEdge) -> Result<Edge> {
+pub fn add_in_tx(tx: &Transaction, new: NewEdge) -> Result<Edge> {
     for end in [new.from, new.to] {
         if nodes::archived_at(tx, end)?.is_some() {
             return Err(StoreError::Invalid(format!(

@@ -20,6 +20,7 @@ use crate::{
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveDot},
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
+        task_type::{use_task_types, TypeChip},
     },
     labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
     state::{finish, DataVersion, ListNav, Toasts},
@@ -71,6 +72,77 @@ fn priority_options() -> Vec<(String, String)> {
         .collect()
 }
 
+/// How the Kanban board orders the cards of every column (one setting for all of them, kept on
+/// this computer).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BoardSort {
+    /// Open columns by deadline (soonest first), Done newest finished first.
+    #[default]
+    Default,
+    /// Earliest deadline first; tasks without one last.
+    DueSoonest,
+    /// Latest deadline first; tasks without one last.
+    DueLatest,
+    /// P1 first, then earliest deadline.
+    Priority,
+}
+
+impl BoardSort {
+    pub const ALL: [BoardSort; 4] = [
+        BoardSort::Default,
+        BoardSort::DueSoonest,
+        BoardSort::DueLatest,
+        BoardSort::Priority,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            BoardSort::Default => "default",
+            BoardSort::DueSoonest => "due_soonest",
+            BoardSort::DueLatest => "due_latest",
+            BoardSort::Priority => "priority",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.id() == id)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            BoardSort::Default => "Sort: default",
+            BoardSort::DueSoonest => "Sort: deadline, soonest",
+            BoardSort::DueLatest => "Sort: deadline, latest",
+            BoardSort::Priority => "Sort: priority",
+        }
+    }
+
+    /// The dropdown's options.
+    pub fn options() -> Vec<(String, String)> {
+        Self::ALL
+            .into_iter()
+            .map(|s| (s.id().to_owned(), s.label().to_owned()))
+            .collect()
+    }
+}
+
+const BOARD_SORT_KEY: &str = "minimap.board-sort";
+
+/// The remembered order (a convenience of this computer: nothing breaks without it).
+fn load_board_sort() -> BoardSort {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(BOARD_SORT_KEY).ok().flatten())
+        .and_then(|id| BoardSort::from_id(&id))
+        .unwrap_or_default()
+}
+
+fn save_board_sort(sort: BoardSort) {
+    if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = storage.set_item(BOARD_SORT_KEY, sort.id());
+    }
+}
+
 /// The filters of the Tasks screen. They live outside the list and the board so switching
 /// between the two keeps what you searched for.
 #[derive(Clone, Copy)]
@@ -81,8 +153,12 @@ pub struct TaskFilters {
     pub assignee: RwSignal<String>,
     pub due_from: RwSignal<String>,
     pub due_to: RwSignal<String>,
+    /// A task type's id; empty = any type.
+    pub task_type: RwSignal<String>,
     /// List: show done tasks. Board: show the Cancelled column.
     pub show_closed: RwSignal<bool>,
+    /// The board's card order (every column).
+    pub board_sort: RwSignal<BoardSort>,
 }
 
 impl TaskFilters {
@@ -94,7 +170,9 @@ impl TaskFilters {
             assignee: RwSignal::new(String::new()),
             due_from: RwSignal::new(String::new()),
             due_to: RwSignal::new(String::new()),
+            task_type: RwSignal::new(String::new()),
             show_closed: RwSignal::new(false),
+            board_sort: RwSignal::new(load_board_sort()),
         }
     }
 
@@ -116,6 +194,7 @@ impl TaskFilters {
             text: (!t.trim().is_empty()).then_some(t),
             no_project: inbox,
             include_closed: board || self.show_closed.get(),
+            task_type: Some(self.task_type.get()).filter(|t| !t.is_empty()),
         }
     }
 }
@@ -146,52 +225,178 @@ pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl In
         assignee,
         due_from,
         due_to,
+        task_type,
         show_closed,
+        board_sort,
     } = filters;
+    let types = use_task_types();
+    // Bumped by "Reset" so the dropdowns and date boxes, which keep their own value, start over.
+    let epoch = RwSignal::new(0u32);
+    let changed = move || {
+        changed_count(&Changed {
+            text: text.get(),
+            status: status.get(),
+            project: project.get(),
+            assignee: assignee.get(),
+            task_type: task_type.get(),
+            due_from: due_from.get(),
+            due_to: due_to.get(),
+            show_closed: show_closed.get(),
+            sort: board_sort.get(),
+            board,
+        })
+    };
+    let any_changed = move || changed() > 0;
+    let reset = move |_| {
+        text.set(String::new());
+        status.set(String::new());
+        project.set(String::new());
+        assignee.set(String::new());
+        task_type.set(String::new());
+        due_from.set(String::new());
+        due_to.set(String::new());
+        show_closed.set(false);
+        board_sort.set(BoardSort::Default);
+        save_board_sort(BoardSort::Default);
+        epoch.update(|e| *e += 1);
+    };
+    let on = move |active: bool| if active { MARKED } else { "" };
     view! {
         <div class=FILTER_BAR>
-            <input class=format!("{COMPACT_INPUT} w-44") type="search" placeholder="Search tasks"
+            <input class=move || format!("{COMPACT_INPUT} w-44 {}", on(!text.get().trim().is_empty()))
+                   type="search" placeholder="Search tasks"
                    prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
             {(!board).then(|| view! {
-                {move || view! { <SelectField compact=true current=status.get_untracked()
-                    options=any_status_options() on_change=move |v: String| status.set(v) /> }}
+                {move || { epoch.track(); view! {
+                    <span class=move || on(!status.get().is_empty())>
+                        <SelectField compact=true current=status.get_untracked()
+                            options=any_status_options() on_change=move |v: String| status.set(v) />
+                    </span>
+                } }}
             })}
             {(!inbox).then(|| view! {
                 {move || {
+                    epoch.track();
                     let options: Vec<(String, String)> = std::iter::once((String::new(), "Any project".to_owned()))
                         .chain(match projects.get() {
                             Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
                             _ => Vec::new(),
                         })
                         .collect();
-                    view! { <SelectField compact=true current=project.get_untracked() options=options
-                                         on_change=move |v: String| project.set(v) /> }
+                    view! {
+                        <span class=move || on(!project.get().is_empty())>
+                            <SelectField compact=true current=project.get_untracked() options=options
+                                         on_change=move |v: String| project.set(v) />
+                        </span>
+                    }
                 }}
             })}
             {move || {
+                epoch.track();
                 let options: Vec<(String, String)> = std::iter::once((String::new(), "Anyone".to_owned()))
                     .chain(match people.get() {
                         Some(Ok(p)) => p.into_iter().map(|p| (p.person.id.to_string(), p.person.name)).collect(),
                         _ => Vec::new(),
                     })
                     .collect();
-                view! { <SelectField compact=true current=assignee.get_untracked() options=options
-                                     on_change=move |v: String| assignee.set(v) /> }
+                view! {
+                    <span class=move || on(!assignee.get().is_empty())>
+                        <SelectField compact=true current=assignee.get_untracked() options=options
+                                     on_change=move |v: String| assignee.set(v) />
+                    </span>
+                }
             }}
-            <label class="flex items-center gap-1 text-[11px] text-muted">"Due"
-                <DateField compact=true current=due_from.get_untracked()
-                           on_commit=move |v: String| due_from.set(v) />
-                "to"
-                <DateField compact=true current=due_to.get_untracked()
-                           on_commit=move |v: String| due_to.set(v) />
+            {move || {
+                epoch.track();
+                let options: Vec<(String, String)> = std::iter::once((String::new(), "Any type".to_owned()))
+                    .chain(types.all().into_iter().map(|t| {
+                        let name = if t.archived { format!("{} (archived)", t.name) } else { t.name };
+                        (t.id, name)
+                    }))
+                    .collect();
+                view! {
+                    <span class=move || on(!task_type.get().is_empty())>
+                        <SelectField compact=true current=task_type.get_untracked() options=options
+                                     on_change=move |v: String| task_type.set(v) />
+                    </span>
+                }
+            }}
+            <label class=move || format!("flex items-center gap-1 text-[11px] {}",
+                    if due_from.get().is_empty() && due_to.get().is_empty() { "text-muted" } else { "text-accent" })>"Due"
+                {move || { epoch.track(); view! {
+                    <span class=move || on(!due_from.get().is_empty())>
+                        <DateField compact=true current=due_from.get_untracked()
+                                   on_commit=move |v: String| due_from.set(v) />
+                    </span>
+                    "to"
+                    <span class=move || on(!due_to.get().is_empty())>
+                        <DateField compact=true current=due_to.get_untracked()
+                                   on_commit=move |v: String| due_to.set(v) />
+                    </span>
+                } }}
             </label>
-            <label class="flex items-center gap-1 text-[11px] text-muted">
+            {board.then(|| view! {
+                {move || { epoch.track(); view! {
+                    <span class=move || on(board_sort.get() != BoardSort::Default)>
+                        <SelectField compact=true options=BoardSort::options()
+                            current=board_sort.get_untracked().id().to_owned()
+                            on_change=move |v: String| if let Some(sort) = BoardSort::from_id(&v) {
+                                board_sort.set(sort);
+                                save_board_sort(sort);
+                            } />
+                    </span>
+                } }}
+            })}
+            <label class=move || format!("flex items-center gap-1 text-[11px] {}",
+                    if show_closed.get() { "text-accent" } else { "text-muted" })>
                 <input type="checkbox" prop:checked=move || show_closed.get()
                        on:change=move |ev| show_closed.set(event_target_checked(&ev)) />
                 {if board { "Show cancelled" } else { "Show done" }}
             </label>
+            <Show when=any_changed>
+                <button class=BUTTON_SOFT
+                        title="Put every filter and the sort back to their defaults"
+                        on:click=reset>
+                    {move || format!("Reset ({} changed)", changed())}
+                </button>
+            </Show>
         </div>
     }
+}
+
+/// The ring round a filter that has been changed from its default.
+const MARKED: &str = "rounded-sm ring-1 ring-accent";
+
+/// What the filter bar holds, for counting what differs from the defaults.
+struct Changed {
+    text: String,
+    status: String,
+    project: String,
+    assignee: String,
+    task_type: String,
+    due_from: String,
+    due_to: String,
+    show_closed: bool,
+    sort: BoardSort,
+    /// The board has no status filter (its columns are the statuses) but has the sort.
+    board: bool,
+}
+
+/// How many controls are set to something other than their default (a due range counts once).
+fn changed_count(f: &Changed) -> usize {
+    [
+        !f.text.trim().is_empty(),
+        !f.board && !f.status.is_empty(),
+        !f.project.is_empty(),
+        !f.assignee.is_empty(),
+        !f.task_type.is_empty(),
+        !f.due_from.is_empty() || !f.due_to.is_empty(),
+        f.show_closed,
+        f.board && f.sort != BoardSort::Default,
+    ]
+    .into_iter()
+    .filter(|on| *on)
+    .count()
 }
 
 /// The List / Board switch in the header of the Tasks screen (`board` is true on the board).
@@ -309,6 +514,8 @@ pub fn TaskList(
     let create_one = move |title: String| {
         let input = CreateTask {
             links: Vec::new(),
+            // New tasks take the type being filtered on, like the project.
+            task_type: Some(filters.task_type.get_untracked()).filter(|t| !t.is_empty()),
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -553,6 +760,7 @@ fn TaskRowView(
                         <ObjectiveDot objective=o />
                     })}
                     <span class=title_class>{t.title}</span>
+                    <TypeChip id=t.task_type.clone() />
                     {repeats.map(|text| view! {
                         <span class=Tone::Neutral.chip() title=text>"↻"</span>
                     })}
@@ -569,5 +777,58 @@ fn TaskRowView(
                 </span>
             </div>
         </NodeRow>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn untouched(board: bool) -> Changed {
+        Changed {
+            text: String::new(),
+            status: String::new(),
+            project: String::new(),
+            assignee: String::new(),
+            task_type: String::new(),
+            due_from: String::new(),
+            due_to: String::new(),
+            show_closed: false,
+            sort: BoardSort::Default,
+            board,
+        }
+    }
+
+    #[test]
+    fn nothing_is_changed_until_a_control_leaves_its_default() {
+        assert_eq!(changed_count(&untouched(true)), 0);
+        assert_eq!(changed_count(&untouched(false)), 0);
+    }
+
+    #[test]
+    fn each_changed_control_counts_once_and_a_due_range_counts_as_one() {
+        let mut f = untouched(true);
+        f.project = "p".into();
+        f.text = "  ".into(); // blank text is no search
+        assert_eq!(changed_count(&f), 1);
+        f.due_from = "2027-03-01".into();
+        f.due_to = "2027-03-31".into();
+        f.show_closed = true;
+        f.sort = BoardSort::Priority;
+        f.assignee = "a".into();
+        f.task_type = "decision".into();
+        f.text = "docs".into();
+        assert_eq!(changed_count(&f), 7);
+    }
+
+    #[test]
+    fn the_status_filter_is_only_on_the_list_and_the_sort_only_on_the_board() {
+        let mut f = untouched(true);
+        f.status = "todo".into();
+        assert_eq!(changed_count(&f), 0, "the board has no status filter");
+        f.board = false;
+        assert_eq!(changed_count(&f), 1);
+        f.sort = BoardSort::DueLatest;
+        assert_eq!(changed_count(&f), 1, "the list has no board sort");
     }
 }

@@ -165,6 +165,7 @@ fn it_only_fills_an_empty_database_and_a_refusal_changes_nothing() {
         &mut other,
         CreateTask {
             links: Vec::new(),
+            task_type: None,
             title: "Mine".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -378,4 +379,41 @@ fn some_things_repeat() {
     let rule = note.recurrence.unwrap();
     assert_eq!(rule.describe(), "every Wednesday");
     assert!(rule.template.unwrap().contains("@[Priya Nair](node:"));
+}
+
+#[test]
+fn most_tasks_have_a_type_and_one_decision_moved_and_was_decided_late() {
+    let conn = seeded(TODAY);
+    let types = settings::task_types(&conn).unwrap();
+    let all = tasks::list(&conn, false).unwrap();
+    let typed: Vec<_> = all.iter().filter(|t| t.task_type.is_some()).collect();
+    assert!(
+        typed.len() >= 25 && typed.len() < all.len(),
+        "{}",
+        typed.len()
+    );
+    // Every type used is in the default list, and each of the main kinds is shown somewhere.
+    for t in &typed {
+        assert!(TaskType::find(&types, t.task_type.as_deref().unwrap()).is_some());
+    }
+    for kind in ["design", "build", "decision", "review", "research", "admin"] {
+        assert!(
+            typed.iter().any(|t| t.task_type.as_deref() == Some(kind)),
+            "no {kind} task"
+        );
+    }
+    // The region decision: planned a week before the date it was moved to, finished on it.
+    let region = all
+        .iter()
+        .find(|t| t.title == "Choose the EU cloud region")
+        .unwrap();
+    assert_eq!(region.task_type.as_deref(), Some("decision"));
+    let history = plan_history(&activity::list_for_node(&conn, region.id).unwrap());
+    let first = history.first.unwrap();
+    let due = region.due_date.unwrap();
+    assert_eq!(history.moves, 1);
+    assert_eq!((due - first).whole_days(), 7);
+    let finished = region.completed_at.unwrap().date();
+    assert_eq!(finish_timing(due, finished), Finish::OnTime);
+    assert_eq!(finish_timing(first, finished), Finish::Late(7));
 }

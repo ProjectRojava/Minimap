@@ -10,6 +10,7 @@ fn two_tasks(conn: &mut Connection) -> (Task, Task) {
             conn,
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

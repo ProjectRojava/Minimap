@@ -219,6 +219,9 @@ pub struct Task {
     /// Reference links (spec 28), in the order they were added.
     #[serde(default)]
     pub links: Vec<RefLink>,
+    /// The kind of work this is: the `id` of an entry in Settings' task types (spec 32).
+    #[serde(default)]
+    pub task_type: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -261,6 +264,8 @@ pub struct CreateTask {
     pub recurrence: Option<Recurrence>,
     #[serde(default)]
     pub links: Vec<RefLink>,
+    #[serde(default)]
+    pub task_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -277,6 +282,7 @@ pub struct UpdateTask {
     pub recurrence: Patch<Recurrence>,
     /// The whole list of reference links, replacing the old one.
     pub links: Option<Vec<RefLink>>,
+    pub task_type: Patch<String>,
 }
 
 impl UpdateTask {
@@ -291,6 +297,7 @@ impl UpdateTask {
         set(&mut t.priority, self.priority);
         self.recurrence.apply(&mut t.recurrence);
         set(&mut t.links, self.links);
+        self.task_type.apply(&mut t.task_type);
     }
 }
 

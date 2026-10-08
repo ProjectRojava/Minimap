@@ -23,7 +23,8 @@ use crate::{
         form::BUTTON_SOFT,
         objective_colour::{assign, use_objective_colours, ObjectiveChips},
         page::{Hints, Icon, PageHeader, Tone, CHIP},
-        task_list::{next_status, FilterControls, LayoutToggle, TaskFilters},
+        task_list::{next_status, BoardSort, FilterControls, LayoutToggle, TaskFilters},
+        task_type::{finish_badge, TypeChip},
     },
     labels::{
         deadline_heat, estimate_text, heat_strength, priority_short, task_status_label,
@@ -59,6 +60,48 @@ fn statuses(show_cancelled: bool) -> Vec<TaskStatus> {
     all
 }
 
+/// Puts a column's cards in order. Ties fall back to priority, then title, like the list. One
+/// setting orders every column; `Default` is by deadline (soonest first) in the open columns and
+/// newest first in Done.
+fn sort_cards(cards: &mut [TaskRow], sort: BoardSort, status: TaskStatus) {
+    let title = |r: &TaskRow| r.task.title.to_lowercase();
+    let sort = match (sort, status) {
+        (BoardSort::Default, TaskStatus::Done) => None,
+        (BoardSort::Default, _) => Some(BoardSort::DueSoonest),
+        (other, _) => Some(other),
+    };
+    match sort {
+        Some(BoardSort::DueLatest) => cards.sort_by_cached_key(|r| {
+            (
+                r.task.due_date.is_none(),
+                Reverse(r.task.due_date),
+                r.task.priority,
+                title(r),
+            )
+        }),
+        Some(BoardSort::Priority) => cards.sort_by_cached_key(|r| {
+            (
+                r.task.priority,
+                r.task.due_date.is_none(),
+                r.task.due_date,
+                title(r),
+            )
+        }),
+        Some(_) => cards.sort_by_cached_key(|r| {
+            (
+                r.task.due_date.is_none(),
+                r.task.due_date,
+                r.task.priority,
+                title(r),
+            )
+        }),
+        // Just finished first (a card dropped here has no completion time yet).
+        None => {
+            cards.sort_by_key(|r| (r.task.completed_at.is_some(), Reverse(r.task.completed_at)))
+        }
+    }
+}
+
 /// Sorts the tasks into columns. `pending` holds moves that are saving: those cards already
 /// sit in their new column, so a drop never waits for the database.
 fn columns(
@@ -66,6 +109,7 @@ fn columns(
     pending: &HashMap<Uuid, TaskStatus>,
     show_cancelled: bool,
     all_done: bool,
+    sort: BoardSort,
 ) -> Vec<Column> {
     statuses(show_cancelled)
         .into_iter()
@@ -79,15 +123,11 @@ fn columns(
                     r
                 })
                 .collect();
+            sort_cards(&mut cards, sort, status);
             let mut hidden = 0;
-            if status == TaskStatus::Done {
-                // Just finished first (a card dropped here has no completion time yet).
-                cards
-                    .sort_by_key(|r| (r.task.completed_at.is_some(), Reverse(r.task.completed_at)));
-                if !all_done && cards.len() > DONE_VISIBLE {
-                    hidden = cards.len() - DONE_VISIBLE;
-                    cards.truncate(DONE_VISIBLE);
-                }
+            if status == TaskStatus::Done && !all_done && cards.len() > DONE_VISIBLE {
+                hidden = cards.len() - DONE_VISIBLE;
+                cards.truncate(DONE_VISIBLE);
             }
             Column {
                 status,
@@ -184,7 +224,15 @@ fn attachment_hint(files: u32, urls: usize) -> Option<String> {
 /// The tooltip of a card's chain mark: how many tasks it is linked with.
 fn link_hint(links: u32) -> String {
     format!(
-        "Linked with {links} {}",
+        "Linked with {links} {}. Open the card to see them.",
+        if links == 1 { "task" } else { "tasks" }
+    )
+}
+
+/// The words on a card's chain mark: "2 linked tasks".
+fn link_label(links: u32) -> String {
+    format!(
+        "{links} linked {}",
         if links == 1 { "task" } else { "tasks" }
     )
 }
@@ -381,6 +429,23 @@ fn empty_hint(status: TaskStatus) -> &'static str {
 }
 
 /// A key that changes when anything a card shows changes, so only those cards redraw.
+/// Whether a click landed on blank board: not on a card, a button, a field or a link.
+fn clicked_blank_space(ev: &ev::MouseEvent) -> bool {
+    let Some(target) = ev
+        .target()
+        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+    else {
+        return false;
+    };
+    let busy = target
+        .closest(
+            "[data-task], button, a, input, select, textarea, label, [role=listbox], [role=menu]",
+        )
+        .ok()
+        .flatten();
+    busy.is_none()
+}
+
 fn card_key(r: &TaskRow) -> String {
     format!(
         "{}|{}|{}|{}|{}|{}|{}",
@@ -427,8 +492,17 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
 
     let cols = Memo::new(move |_| {
         data.with(|d| {
-            d.as_ref()
-                .map(|d| pending.with(|p| columns(d, p, filters.show_closed.get(), all_done.get())))
+            d.as_ref().map(|d| {
+                pending.with(|p| {
+                    columns(
+                        d,
+                        p,
+                        filters.show_closed.get(),
+                        all_done.get(),
+                        filters.board_sort.get(),
+                    )
+                })
+            })
         })
     });
     // Cards in keyboard order (column by column) for j/k.
@@ -518,12 +592,25 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
 
     // The open task's links: those cards light up and lines join them.
     let selection = expect_context::<Selection>();
-    let open_task = Memo::new(move |_| {
+    let selected_task = Memo::new(move |_| {
         selection
             .0
             .get()
             .filter(|n| n.node_type == NodeType::Task)
             .map(|n| n.id)
+    });
+    // A click on empty board puts the highlights away for the open task (the pane stays open);
+    // opening another task, or the same card again, brings them back.
+    let dismissed = RwSignal::new(None::<Uuid>);
+    Effect::new(move |_| {
+        let task = selected_task.get();
+        if dismissed.get_untracked() != task {
+            dismissed.set(None);
+        }
+    });
+    let open_task = Memo::new(move |_| {
+        let task = selected_task.get();
+        task.filter(|id| dismissed.get() != Some(*id))
     });
     let fetched = LocalResource::new(move || {
         version.track();
@@ -555,6 +642,17 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     let linked = Memo::new(move |_| focus.with(Focus::linked));
 
     let today_date = today();
+    // A click anywhere but a card or a control (blank space in a column, between columns, the
+    // margins) returns the board to normal.
+    let on_background_click = move |ev: ev::MouseEvent| {
+        if !clicked_blank_space(&ev) {
+            return;
+        }
+        if let Some(id) = selected_task.get_untracked() {
+            dismissed.set(Some(id));
+        }
+    };
+
     let ctx = BoardCtx {
         hues,
         linked,
@@ -565,6 +663,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
         over,
         adding,
         all_done,
+        dismissed,
         move_to: Callback::new(move |(id, status)| move_to(id, status)),
         order,
         today: today_date,
@@ -589,7 +688,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     });
 
     view! {
-        <div class="flex h-full flex-col">
+        <div class="flex h-full flex-col" on:click=on_background_click>
             <PageHeader icon="tasks" title="Tasks" subtitle="Drag cards between columns to change their status">
                 <button class=BUTTON_SOFT
                         on:click=move |_| adding.update(|a| *a = if a.is_some() { None } else { Some(TaskStatus::Todo) })>
@@ -598,7 +697,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 <Show when=move || focus.with(|f| !f.links.is_empty())>
                     <span class="truncate text-[11px] text-muted">
                         {move || format!(
-                            "{} linked · arrows point to the task that has to wait, dashed lines are related",
+                            "{} linked · arrows point from a child to its parent, dashed lines are related",
                             linked.with(HashSet::len))}
                     </span>
                 </Show>
@@ -654,6 +753,7 @@ struct BoardCtx {
     over: RwSignal<Option<TaskStatus>>,
     adding: RwSignal<Option<TaskStatus>>,
     all_done: RwSignal<bool>,
+    dismissed: RwSignal<Option<Uuid>>,
     move_to: Callback<(Uuid, TaskStatus)>,
     order: Memo<Vec<Uuid>>,
     today: Option<Date>,
@@ -840,6 +940,8 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
         }
         let new = CreateTask {
             links: Vec::new(),
+            // A board filtered to a type adds tasks of that type.
+            task_type: Some(ctx.filters.task_type.get_untracked()).filter(|t| !t.is_empty()),
             title: t.to_owned(),
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -885,6 +987,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         today,
         hues,
         linked,
+        dismissed,
         ..
     } = ctx;
     let t = row.task;
@@ -908,11 +1011,14 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         .recurrence
         .as_ref()
         .map(|r| format!("Repeats {}", r.describe()));
+    let task_type = t.task_type.clone();
+    let finished = finish_badge(&t);
     let due = t.due_date.map(|d| due_pill(d, today, status));
     let heat = deadline_heat(t.due_date, today, !closed);
     let estimate = estimate_text(t.estimate_days);
     let link_count = row.link_count;
     let attached = attachment_hint(row.attachment_count, t.links.len());
+    let marks = link_count > 0 || attached.is_some();
     let assignee = row.assignee.map(|a| (a.node.id, a.label));
     let project = row.project.map(|p| p.label);
     let title_class = if closed {
@@ -948,6 +1054,8 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 if let Some(i) = index() {
                     list.cursor.set(Some(i));
                 }
+                // Clicking the open card again shows its links again.
+                dismissed.set(None);
                 selection.open(node);
             }
             on:dragstart=move |ev: ev::DragEvent| {
@@ -966,8 +1074,12 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             <CardMenu task=id label=title_label />
             {move || {
                 let objectives = colours.of_project(project_id);
-                (!objectives.is_empty()).then(|| view! {
-                    <div class="mb-1.5 pr-4"><ObjectiveChips objectives=objectives /></div>
+                let kind = task_type.clone();
+                (kind.is_some() || !objectives.is_empty()).then(|| view! {
+                    <div class="mb-1.5 flex flex-wrap items-center gap-1 pr-4">
+                        <TypeChip id=kind />
+                        <ObjectiveChips objectives=objectives />
+                    </div>
                 })
             }}
             <div class="flex items-start gap-1.5 pr-4">
@@ -982,23 +1094,33 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                     <span class="truncate">{p}</span>
                 </div>
             })}
+            {marks.then(|| view! {
+                <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {(link_count > 0).then(|| view! {
+                        <span class="hue-chip" style=format!("--obj-h: {LINK_HUE}") title=link_hint(link_count)>
+                            <Icon name="chain" size="h-3.5 w-3.5" />
+                            <span>{link_label(link_count)}</span>
+                        </span>
+                    })}
+                    {attached.clone().map(|text| {
+                        let title = format!("Attached: {text}");
+                        view! {
+                            <span class="hue-chip" style=format!("--obj-h: {FILE_HUE}") title=title>
+                                <Icon name="attach" size="h-3.5 w-3.5" />
+                                <span>{text}</span>
+                            </span>
+                        }
+                    })}
+                </div>
+            })}
             <div class="mt-2 flex items-center gap-1.5 text-[11px]">
                 <span class=priority_class title="Priority (1 is highest)">{priority_short(priority)}</span>
                 {due.map(|pill| view! { <span class=pill.class title=pill.hint>{pill.text}</span> })}
+                {finished.map(|(text, tone)| view! {
+                    <span class=tone.text() title="Finished against the due date">{text}</span>
+                })}
                 {(!estimate.is_empty()).then(|| view! {
                     <span class="tabular-nums text-muted" title="Estimate">{estimate}</span>
-                })}
-                {(link_count > 0).then(|| view! {
-                    <span class="hue-text flex items-center gap-0.5" style=format!("--obj-h: {LINK_HUE}")
-                          title=link_hint(link_count)>
-                        <Icon name="chain" size="h-3 w-3" />
-                        <span class="tabular-nums">{link_count}</span>
-                    </span>
-                })}
-                {attached.map(|hint| view! {
-                    <span class="hue-text" style=format!("--obj-h: {FILE_HUE}") title=hint>
-                        <Icon name="attach" size="h-3 w-3" />
-                    </span>
                 })}
                 {assignee.map(|(person, name)| view! {
                     <span class=move || format!(
@@ -1031,6 +1153,7 @@ mod tests {
         TaskRow {
             task: minimap_types::Task {
                 links: Vec::new(),
+                task_type: None,
                 id: {
                     static NEXT: AtomicU64 = AtomicU64::new(1);
                     Uuid::from_u128(NEXT.fetch_add(1, Ordering::Relaxed).into())
@@ -1074,6 +1197,78 @@ mod tests {
         assert_eq!(statuses(true).last(), Some(&TaskStatus::Cancelled));
     }
 
+    fn dated(title: &str, status: TaskStatus, due: Option<&str>, priority: u8) -> TaskRow {
+        let mut r = row(title, status);
+        r.task.due_date = due.map(date);
+        r.task.priority = priority;
+        r
+    }
+
+    #[test]
+    fn one_setting_orders_every_column_by_deadline_or_priority() {
+        let mut rows = Vec::new();
+        for status in [TaskStatus::Todo, TaskStatus::Blocked] {
+            rows.extend([
+                dated("none", status, None, 1),
+                dated("late", status, Some("2027-03-20"), 3),
+                dated("soon-p3", status, Some("2027-03-02"), 3),
+                dated("soon-p1", status, Some("2027-03-02"), 1),
+            ]);
+        }
+        let by = |sort: BoardSort, column: usize| {
+            let cols = columns(&rows, &HashMap::new(), false, false, sort);
+            titles(&cols[column])
+                .into_iter()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+        for column in [0, 2] {
+            // Undated tasks are always last; a tie on the date goes to the higher priority.
+            let soonest = ["soon-p1", "soon-p3", "late", "none"];
+            assert_eq!(by(BoardSort::Default, column), soonest);
+            assert_eq!(by(BoardSort::DueSoonest, column), soonest);
+            assert_eq!(
+                by(BoardSort::DueLatest, column),
+                ["late", "soon-p1", "soon-p3", "none"]
+            );
+            assert_eq!(
+                by(BoardSort::Priority, column),
+                ["soon-p1", "none", "soon-p3", "late"]
+            );
+        }
+    }
+
+    #[test]
+    fn done_is_newest_finished_by_default_and_follows_the_chosen_order_otherwise() {
+        let mut a = row("a", TaskStatus::Done);
+        a.task.completed_at = Some(OffsetDateTime::UNIX_EPOCH + Duration::days(5));
+        a.task.due_date = Some(date("2027-03-20"));
+        let mut b = row("b", TaskStatus::Done);
+        b.task.completed_at = Some(OffsetDateTime::UNIX_EPOCH + Duration::days(1));
+        b.task.due_date = Some(date("2027-03-02"));
+        let rows = [a, b];
+        let order = |sort| {
+            let cols = columns(&rows, &HashMap::new(), false, false, sort);
+            titles(&cols[3])
+                .into_iter()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(order(BoardSort::Default), ["a", "b"]);
+        assert_eq!(order(BoardSort::DueSoonest), ["b", "a"]);
+        assert_eq!(order(BoardSort::DueLatest), ["a", "b"]);
+    }
+
+    #[test]
+    fn the_board_orders_have_ids_that_read_back() {
+        for sort in BoardSort::ALL {
+            assert_eq!(BoardSort::from_id(sort.id()), Some(sort));
+        }
+        assert_eq!(BoardSort::from_id("nonsense"), None);
+        assert_eq!(BoardSort::default(), BoardSort::Default);
+        assert_eq!(BoardSort::options().len(), BoardSort::ALL.len());
+    }
+
     #[test]
     fn cards_keep_the_lists_order_inside_a_column() {
         let rows = [
@@ -1081,7 +1276,7 @@ mod tests {
             row("b", TaskStatus::InProgress),
             row("c", TaskStatus::Todo),
         ];
-        let cols = columns(&rows, &HashMap::new(), false, false);
+        let cols = columns(&rows, &HashMap::new(), false, false, BoardSort::Default);
         assert_eq!(titles(&cols[0]), ["a", "c"]);
         assert_eq!(titles(&cols[1]), ["b"]);
         assert!(cols[2].rows.is_empty() && cols[3].rows.is_empty());
@@ -1091,7 +1286,7 @@ mod tests {
     fn a_saving_move_already_sits_in_its_new_column() {
         let rows = [row("a", TaskStatus::Todo), row("b", TaskStatus::Todo)];
         let pending = HashMap::from([(rows[0].task.id, TaskStatus::Blocked)]);
-        let cols = columns(&rows, &pending, false, false);
+        let cols = columns(&rows, &pending, false, false, BoardSort::Default);
         assert_eq!(titles(&cols[0]), ["b"]);
         assert_eq!(titles(&cols[2]), ["a"]);
         assert_eq!(cols[2].rows[0].task.status, TaskStatus::Blocked);
@@ -1100,8 +1295,11 @@ mod tests {
     #[test]
     fn cancelled_tasks_show_only_when_asked_for() {
         let rows = [row("a", TaskStatus::Cancelled)];
-        assert_eq!(columns(&rows, &HashMap::new(), false, false).len(), 4);
-        let shown = columns(&rows, &HashMap::new(), true, false);
+        assert_eq!(
+            columns(&rows, &HashMap::new(), false, false, BoardSort::Default).len(),
+            4
+        );
+        let shown = columns(&rows, &HashMap::new(), true, false, BoardSort::Default);
         assert_eq!(titles(&shown[4]), ["a"]);
     }
 
@@ -1115,11 +1313,11 @@ mod tests {
             })
             .collect();
         rows.reverse();
-        let done = &columns(&rows, &HashMap::new(), false, false)[3];
+        let done = &columns(&rows, &HashMap::new(), false, false, BoardSort::Default)[3];
         assert_eq!(done.rows.len(), DONE_VISIBLE);
         assert_eq!(done.hidden, 3);
         assert_eq!(done.rows[0].task.title, format!("t{}", DONE_VISIBLE + 2));
-        let all = &columns(&rows, &HashMap::new(), false, true)[3];
+        let all = &columns(&rows, &HashMap::new(), false, true, BoardSort::Default)[3];
         assert_eq!((all.rows.len(), all.hidden), (DONE_VISIBLE + 3, 0));
     }
 
@@ -1129,7 +1327,7 @@ mod tests {
         old.task.completed_at = Some(OffsetDateTime::UNIX_EPOCH + Duration::days(9));
         let fresh = row("fresh", TaskStatus::InProgress);
         let pending = HashMap::from([(fresh.task.id, TaskStatus::Done)]);
-        let done = &columns(&[old, fresh], &pending, false, false)[3];
+        let done = &columns(&[old, fresh], &pending, false, false, BoardSort::Default)[3];
         assert_eq!(titles(done), ["fresh", "old"]);
     }
 
@@ -1181,8 +1379,16 @@ mod tests {
             attachment_hint(3, 1).as_deref(),
             Some("3 files, 1 web link")
         );
-        assert_eq!(link_hint(1), "Linked with 1 task");
-        assert_eq!(link_hint(4), "Linked with 4 tasks");
+        assert_eq!(
+            link_hint(1),
+            "Linked with 1 task. Open the card to see them."
+        );
+        assert_eq!(
+            link_hint(4),
+            "Linked with 4 tasks. Open the card to see them."
+        );
+        assert_eq!(link_label(1), "1 linked task");
+        assert_eq!(link_label(4), "4 linked tasks");
     }
 
     #[test]

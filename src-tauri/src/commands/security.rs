@@ -396,6 +396,7 @@ mod tests {
             vault.conn.as_mut().unwrap(),
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

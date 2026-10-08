@@ -80,6 +80,7 @@ pub fn TaskSummary(id: Uuid) -> impl IntoView {
                     <Pill tone=task_status_tone(t.status)>{task_status_label(t.status)}</Pill>
                     <Pill tone=priority_tone(t.priority)>{priority_short(t.priority)}</Pill>
                     {due.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    <crate::components::task_type::TypeChip id=t.task_type.clone() />
                     <ServedObjectives project=t.project_id />
                 </div>
             }

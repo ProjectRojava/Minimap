@@ -7,6 +7,11 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- **Look back to a past day on This week**: click a past day in the day strip and the screen shows the week as it stood then (what was overdue, due and blocked that day), with a bar and *Back to today*.
+- **Changed filters stand out**: on Tasks, any filter or sort that is not at its default gets an accent ring, and a *Reset (N changed)* button puts them all back.
+- **Sort the Kanban board by deadline**: a *Sort* dropdown in the Tasks filter bar orders the cards of every column at once by deadline (soonest or latest first) or priority; your choice is remembered.
+- **Task types**: say what kind of work a task is (Design, Build, Decision, Review, Research, Bug, Admin to start with). Pick one in the task's panel, with `type:` in quick-add or when linking a new task; it shows as a coloured label on cards and rows and you can filter by it. Add, rename, recolour or archive types in Settings → General (Spec 32, ADR-0016).
+- **Planned against actual**: a finished task says whether it was done on time or how many days late or early, and a task whose due date moved remembers the date it was first planned for, so a decision you meant to make by Friday shows when you really made it (Spec 32).
 - **Kanban cards show marks**: a blue chain with a count when the task is linked to other tasks, and a green paperclip when it has files or web links.
 - **Click a task on the Kanban board and its linked tasks light up across every column**, the rest fade back, and arrows join them (solid: comes first → has to wait, dashed: related).
 - **Each person has their own colour** on the Kanban board's assignee circles.
@@ -15,6 +20,11 @@ All notable changes to Minimap are documented here, organized by release. Format
 - **Ongoing objectives** for outcomes that never end ("keep internal systems healthy"): no target date, never "done", a review rhythm instead. An overdue review turns the objective amber and is listed on This week and in a new Weekly review step; ongoing objectives have their own group in the Objectives list (Spec 30, ADR-0014).
 
 ### Changed
+- **This week is redesigned**: a headline and five counts at the top, a red *Needs attention* panel with every overdue, due-today or blocked task once (with a pill saying why and what it waits for), then *Priorities this week* numbered most important first, and day tiles that turn red for days with late work. Tasks no longer repeat across sections.
+- The marks on Kanban cards are bigger and say what they mean: a blue chip "2 linked tasks" and a green chip "1 file, 2 web links" instead of tiny icons.
+- On the Kanban board, clicking empty space now clears the highlighted linked tasks and arrows (the task's panel stays open); click its card again to show them.
+- *Link an existing task…* lets you tick several tasks at once (for example all the children of a parent); they are linked together or not at all, in one undo step (Spec 31).
+- Linking tasks now says **Parent**, **Child** or **Related** instead of *Comes first / Comes after*, with a sentence naming which task waits for which. A task's Links section lists its *Parents* and *Children*. The links themselves are unchanged: a child is a task the parent waits for (Spec 31).
 - Subtasks are removed (they were added in 0.2.0). Tasks are scheduled, counted and graphed one by one again; use *blocks* links, now easier to make, to say what comes before what. Existing subtask links are archived on upgrade (ADR-0015).
 
 ### Fixed

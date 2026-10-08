@@ -39,6 +39,8 @@ pub mod task_board;
 pub mod task_links;
 pub mod task_list;
 pub mod task_panel;
+pub mod task_type;
+pub mod task_type_settings;
 pub mod team_panel;
 pub mod titlebar;
 pub mod toasts;

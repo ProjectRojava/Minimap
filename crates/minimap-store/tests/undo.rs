@@ -149,6 +149,7 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
             c,
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: "Write the runbook".into(),
                 assignee: AssigneeChoice::Person(priya),
                 description: String::new(),
@@ -176,6 +177,7 @@ fn creating_many_tasks_is_one_step() {
                 .iter()
                 .map(|t| CreateTask {
                     links: Vec::new(),
+                    task_type: None,
                     title: (*t).into(),
                     assignee: AssigneeChoice::Me,
                     description: String::new(),
@@ -235,6 +237,27 @@ fn updating_fields_including_clearing_a_date_and_finishing_a_task() {
     });
     let reopened = task(&conn, "Savings review with finance");
     assert!(reopened.completed_at.is_none() && reopened.status == TaskStatus::Todo);
+}
+
+#[test]
+fn changing_and_clearing_a_task_type_is_undone() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    let typed = |c: &mut Connection, patch: Patch<String>| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                task_type: patch,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    };
+    round_trip(&mut conn, |c| typed(c, Patch::Set("design".into())));
+    typed(&mut conn, Patch::Set("review".into()));
+    round_trip(&mut conn, |c| typed(c, Patch::Set("bug".into())));
+    round_trip(&mut conn, |c| typed(c, Patch::Clear));
 }
 
 #[test]
@@ -579,6 +602,7 @@ fn undoing_a_creation_never_deletes_anything() {
             c,
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: "Temp".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
@@ -756,7 +780,7 @@ fn creating_a_linked_task_is_one_step() {
         LinkRelation::RelatesTo,
     ] {
         round_trip(&mut conn, |c| {
-            tasks::create_linked(c, source.id, relation, "Audit old keys".into()).unwrap();
+            tasks::create_linked(c, source.id, relation, "Audit old keys".into(), None).unwrap();
         });
     }
 }

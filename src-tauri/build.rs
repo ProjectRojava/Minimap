@@ -28,6 +28,7 @@ const COMMANDS: &[&str] = &[
     "update_team",
     "archive_team",
     "add_edge",
+    "add_edges",
     "remove_edge",
     "set_manager",
     "update_edge_attrs",

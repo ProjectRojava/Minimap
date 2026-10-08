@@ -8,6 +8,7 @@ fn task(conn: &mut Connection, title: &str, project: Option<uuid::Uuid>) -> Task
         conn,
         CreateTask {
             links: Vec::new(),
+            task_type: None,
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -34,17 +35,30 @@ fn edge_between(conn: &Connection, kind: EdgeType, from: uuid::Uuid, to: uuid::U
 fn the_new_task_blocks_follows_or_relates_to_the_one_it_came_from() {
     let mut conn = open_in_memory().unwrap();
     let source = task(&mut conn, "Source", None);
-    let before =
-        tasks::create_linked(&mut conn, source.id, LinkRelation::Blocks, "First".into()).unwrap();
+    let before = tasks::create_linked(
+        &mut conn,
+        source.id,
+        LinkRelation::Blocks,
+        "First".into(),
+        None,
+    )
+    .unwrap();
     let after = tasks::create_linked(
         &mut conn,
         source.id,
         LinkRelation::BlockedBy,
         "Later".into(),
+        None,
     )
     .unwrap();
-    let near =
-        tasks::create_linked(&mut conn, source.id, LinkRelation::RelatesTo, "Near".into()).unwrap();
+    let near = tasks::create_linked(
+        &mut conn,
+        source.id,
+        LinkRelation::RelatesTo,
+        "Near".into(),
+        None,
+    )
+    .unwrap();
     assert!(edge_between(&conn, EdgeType::Blocks, before.id, source.id));
     assert!(edge_between(&conn, EdgeType::Blocks, source.id, after.id));
     assert!(edge_between(&conn, EdgeType::RelatesTo, source.id, near.id));
@@ -68,9 +82,17 @@ fn it_joins_the_project_and_priority_and_an_archived_task_is_refused() {
     )
     .unwrap();
     let source = task(&mut conn, "Source", Some(project.id));
-    let made =
-        tasks::create_linked(&mut conn, source.id, LinkRelation::Blocks, "New".into()).unwrap();
+    let made = tasks::create_linked(
+        &mut conn,
+        source.id,
+        LinkRelation::Blocks,
+        "New".into(),
+        None,
+    )
+    .unwrap();
     assert_eq!((made.project_id, made.priority), (Some(project.id), 1));
     nodes::archive(&mut conn, NodeRef::new(NodeType::Task, source.id)).unwrap();
-    assert!(tasks::create_linked(&mut conn, source.id, LinkRelation::Blocks, "x".into()).is_err());
+    assert!(
+        tasks::create_linked(&mut conn, source.id, LinkRelation::Blocks, "x".into(), None).is_err()
+    );
 }

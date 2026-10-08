@@ -149,6 +149,9 @@ pub enum QuickMain {
         objectives: Vec<Ref>,
         /// `every:...`: finishing it makes the next one.
         recurrence: Option<crate::Recurrence>,
+        /// `type:...`: the id of a task type.
+        #[serde(default)]
+        task_type: Option<String>,
     },
     Project {
         title: String,
