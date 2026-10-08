@@ -18,26 +18,58 @@ use crate::{
     state::{finish, DataVersion, LinkDialog, LinkRequest, Selection, Toasts},
 };
 
-/// The three ways two tasks can be joined, in the words the dialog uses: what the *other* task
-/// is called, and what that means for the order of the work. A child is part of its parent, and a
-/// parent waits until its children are done, so under the words it is the same `blocks` link.
-pub const RELATIONS: [(LinkRelation, &str, &str); 3] = [
-    (
-        LinkRelation::BlockedBy,
-        "Parent",
-        "This task is part of it. It waits until this task is done",
-    ),
+/// The ways two tasks can be joined, in the words the dialog uses: what the *other* task is, and
+/// what that means. Two families that never mix: the order of the work (`blocks`, `related`) and
+/// what is part of what (`subtask_of`), which moves no date and holds nothing up.
+pub const RELATIONS: [(LinkRelation, &str, &str); 5] = [
     (
         LinkRelation::Blocks,
-        "Child",
-        "It is part of this task. This task waits until it is done",
+        "Blocks this",
+        "It must be done first. This task waits for it",
+    ),
+    (
+        LinkRelation::BlockedBy,
+        "Blocked by this",
+        "It waits until this task is done",
     ),
     (
         LinkRelation::RelatesTo,
         "Related",
         "Connected, with no order between them",
     ),
+    (LinkRelation::Parent, "Parent", "This task is part of it"),
+    (LinkRelation::Subtask, "Sub-task", "It is part of this task"),
 ];
+
+/// The two rows of choices: a heading and the relations under it.
+pub const RELATION_GROUPS: [(&str, &[LinkRelation]); 2] = [
+    (
+        "Order of the work",
+        &[
+            LinkRelation::Blocks,
+            LinkRelation::BlockedBy,
+            LinkRelation::RelatesTo,
+        ],
+    ),
+    (
+        "What is part of what",
+        &[LinkRelation::Parent, LinkRelation::Subtask],
+    ),
+];
+
+/// The words for a relation: its name and what it means.
+pub fn relation_words(relation: LinkRelation) -> (&'static str, &'static str) {
+    RELATIONS
+        .iter()
+        .find(|r| r.0 == relation)
+        .map(|r| (r.1, r.2))
+        .unwrap_or(("", ""))
+}
+
+/// A task is part of one task, so a parent is chosen alone.
+pub fn picks_one(relation: LinkRelation) -> bool {
+    relation == LinkRelation::Parent
+}
 
 /// One sentence that says what the choice does, naming this task: shown under the choices so it
 /// is never unclear which task waits for which.
@@ -48,19 +80,27 @@ pub fn relation_summary(relation: LinkRelation, task: &str) -> String {
         task.trim()
     };
     match relation {
-        LinkRelation::BlockedBy => format!("The other task waits until “{task}” is done."),
         LinkRelation::Blocks => format!("“{task}” waits until the other task is done."),
+        LinkRelation::BlockedBy => format!("The other task waits until “{task}” is done."),
         LinkRelation::RelatesTo => "Neither task waits for the other.".to_owned(),
+        LinkRelation::Parent => {
+            format!("“{task}” is part of the other task. Nothing waits and no date moves.")
+        }
+        LinkRelation::Subtask => {
+            format!("The other task is part of “{task}”. Nothing waits and no date moves.")
+        }
     }
 }
 
 /// The link to add between `source` and an `other` task for `relation`: its type and the ends,
-/// in the order they are stored (the task that blocks is `from`).
+/// in the order they are stored (the task that blocks is `from`; the sub-task is `from`).
 pub fn relation_edge(relation: LinkRelation, source: Uuid, other: Uuid) -> NewEdge {
     let (edge_type, from, to) = match relation {
         LinkRelation::Blocks => (EdgeType::Blocks, other, source),
         LinkRelation::BlockedBy => (EdgeType::Blocks, source, other),
         LinkRelation::RelatesTo => (EdgeType::RelatesTo, source, other),
+        LinkRelation::Parent => (EdgeType::SubtaskOf, source, other),
+        LinkRelation::Subtask => (EdgeType::SubtaskOf, other, source),
     };
     NewEdge {
         edge_type,
@@ -103,6 +143,19 @@ pub fn toggled(picked: &[Uuid], id: Uuid) -> Vec<Uuid> {
     }
 }
 
+/// `picked` after ticking `id`: like [`toggled`], or, when only one can be chosen, just `id`
+/// (ticking it again clears it).
+pub fn pick(picked: &[Uuid], id: Uuid, one_only: bool) -> Vec<Uuid> {
+    if !one_only {
+        return toggled(picked, id);
+    }
+    if picked == [id] {
+        Vec::new()
+    } else {
+        vec![id]
+    }
+}
+
 /// The button of the "Existing task" tab.
 pub fn link_button_text(chosen: usize) -> String {
     match chosen {
@@ -130,7 +183,7 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
     let label = request.label.clone();
     let summary_label = request.label.clone();
     let existing = RwSignal::new(request.existing);
-    let relation = RwSignal::new(LinkRelation::Blocks);
+    let relation = RwSignal::new(request.relation);
     let title = RwSignal::new(String::new());
     let picked = RwSignal::new(Vec::<Uuid>::new());
     let query = RwSignal::new(String::new());
@@ -210,21 +263,38 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
         _ => {}
     };
 
-    let relation_buttons = RELATIONS
+    let relation_rows = RELATION_GROUPS
         .iter()
-        .map(|(value, name, hint)| {
-            let value = *value;
+        .map(|(heading, members)| {
+            let buttons = members
+                .iter()
+                .map(|value| {
+                    let value = *value;
+                    let (name, hint) = relation_words(value);
+                    view! {
+                        <button type="button"
+                            class=move || format!(
+                                "flex flex-col items-start rounded-sm border border-line px-2 py-1 text-left \
+                                 hover:border-accent/50 {}",
+                                if relation.get() == value { BUTTON_ON } else { "" })
+                            aria-pressed=move || (relation.get() == value).to_string()
+                            on:click=move |_| {
+                                relation.set(value);
+                                // A task is part of one task: keep a single choice.
+                                if picks_one(value) {
+                                    picked.update(|p| p.truncate(1));
+                                }
+                            }>
+                            <span class="text-[12px] font-medium">{name}</span>
+                            <span class="text-[11px] text-muted">{hint}</span>
+                        </button>
+                    }
+                })
+                .collect_view();
+            let columns = if members.len() == 3 { "grid-cols-3" } else { "grid-cols-2" };
             view! {
-                <button type="button"
-                    class=move || format!(
-                        "flex flex-col items-start rounded-sm border border-line px-2 py-1 text-left \
-                         hover:border-accent/50 {}",
-                        if relation.get() == value { BUTTON_ON } else { "" })
-                    aria-pressed=move || (relation.get() == value).to_string()
-                    on:click=move |_| relation.set(value)>
-                    <span class="text-[12px] font-medium">{*name}</span>
-                    <span class="text-[11px] text-muted">{*hint}</span>
-                </button>
+                <p class="mb-0.5 text-[11px] text-faint">{*heading}</p>
+                <div class=format!("mb-1.5 grid gap-2 {columns}")>{buttons}</div>
             }
         })
         .collect_view();
@@ -246,11 +316,11 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
                 "Link a task to " <span class="text-accent">{label}</span>
             </h2>
             <div class="mb-3 flex gap-2">{tab(false, "New task")}{tab(true, "Existing task")}</div>
-            <p class="mb-1 text-[11px] text-muted">"The other task is a…"</p>
-            <div class="mb-1 grid grid-cols-3 gap-2">{relation_buttons}</div>
+            <p class="mb-1 text-[11px] text-muted">"The other task…"</p>
+            {relation_rows}
             <p class="mb-3 text-[11px] text-muted">{move || relation_summary(relation.get(), &summary_label)}</p>
             {move || if existing.get() {
-                view! { <TaskPicker source=source tasks=tasks current=current picked=picked query=query /> }.into_any()
+                view! { <TaskPicker source=source tasks=tasks current=current picked=picked query=query relation=relation /> }.into_any()
             } else {
                 view! {
                     <label class="block">
@@ -290,6 +360,7 @@ fn TaskPicker(
     current: LocalResource<Result<Vec<minimap_types::EdgeLink>, minimap_types::AppError>>,
     picked: RwSignal<Vec<Uuid>>,
     query: RwSignal<String>,
+    relation: RwSignal<LinkRelation>,
 ) -> impl IntoView {
     let rows = move || {
         let (Some(Ok(all)), Some(Ok(links))) = (tasks.get(), current.get()) else {
@@ -319,7 +390,7 @@ fn TaskPicker(
                         <label class="flex cursor-pointer items-center gap-2 px-2 py-1 hover:bg-hover">
                             <input type="checkbox"
                                 prop:checked=move || picked.get().contains(&id)
-                                on:change=move |_| picked.update(|p| *p = toggled(p, id)) />
+                                on:change=move |_| picked.update(|p| *p = pick(p, id, picks_one(relation.get_untracked()))) />
                             <span class="min-w-0 truncate">{label}</span>
                         </label>
                     </li>
@@ -328,6 +399,7 @@ fn TaskPicker(
         </ul>
         <p class="mt-1 text-[11px] text-muted">
             {move || match picked.get().len() {
+                0 if picks_one(relation.get()) => "Tick the task this one is part of.".to_owned(),
                 0 => "Tick one or more tasks.".to_owned(),
                 1 => "1 task chosen.".to_owned(),
                 n => format!("{n} tasks chosen."),
@@ -391,13 +463,13 @@ mod tests {
     #[test]
     fn the_task_that_comes_first_is_the_one_that_blocks() {
         let (source, other) = (id(1), id(2));
-        // The other task is a child: it blocks this one (this waits for it).
+        // The other task blocks this one (this waits for it).
         let e = relation_edge(LinkRelation::Blocks, source, other);
         assert_eq!(
             (e.edge_type, e.from.id, e.to.id),
             (EdgeType::Blocks, other, source)
         );
-        // The other task is a parent: this task blocks it.
+        // The other task is blocked by this one: this task blocks it.
         let e = relation_edge(LinkRelation::BlockedBy, source, other);
         assert_eq!(
             (e.edge_type, e.from.id, e.to.id),
@@ -411,6 +483,22 @@ mod tests {
     }
 
     #[test]
+    fn the_sub_task_is_the_end_the_link_starts_from() {
+        let (source, other) = (id(1), id(2));
+        // The other task is this one's parent: this one is the sub-task.
+        let e = relation_edge(LinkRelation::Parent, source, other);
+        assert_eq!(
+            (e.edge_type, e.from.id, e.to.id),
+            (EdgeType::SubtaskOf, source, other)
+        );
+        let e = relation_edge(LinkRelation::Subtask, source, other);
+        assert_eq!(
+            (e.edge_type, e.from.id, e.to.id),
+            (EdgeType::SubtaskOf, other, source)
+        );
+    }
+
+    #[test]
     fn the_dialog_is_not_moved_by_a_transform_so_its_dropdowns_land_under_their_buttons() {
         // A transformed ancestor re-bases `position: fixed` (which `SelectField` lists use).
         let needle = ["-trans", "late-"].concat();
@@ -419,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn the_summary_names_the_task_that_waits() {
+    fn the_summary_names_the_task_that_waits_or_says_that_none_does() {
         assert_eq!(
             relation_summary(LinkRelation::BlockedBy, "Ship it"),
             "The other task waits until “Ship it” is done."
@@ -433,23 +521,55 @@ mod tests {
             "Neither task waits for the other."
         );
         assert!(relation_summary(LinkRelation::Blocks, " ").starts_with("“this task”"));
+        // Part-of is organisation: the sentence says nothing waits.
+        for r in [LinkRelation::Parent, LinkRelation::Subtask] {
+            let text = relation_summary(r, "Ship it");
+            assert!(
+                text.contains("“Ship it”") && text.contains("Nothing waits"),
+                "{text}"
+            );
+        }
     }
 
     #[test]
-    fn parent_and_child_are_told_apart_by_the_order_of_the_work() {
-        let name = |r: LinkRelation| RELATIONS.iter().find(|x| x.0 == r).unwrap().1;
-        assert_eq!(name(LinkRelation::BlockedBy), "Parent");
-        assert_eq!(name(LinkRelation::Blocks), "Child");
-        assert_eq!(name(LinkRelation::RelatesTo), "Related");
+    fn blocking_and_part_of_are_named_apart() {
+        let name = |r: LinkRelation| relation_words(r).0;
+        assert_eq!(name(LinkRelation::Blocks), "Blocks this");
+        assert_eq!(name(LinkRelation::BlockedBy), "Blocked by this");
+        assert_eq!(name(LinkRelation::Parent), "Parent");
+        assert_eq!(name(LinkRelation::Subtask), "Sub-task");
+        // Parent and child are no longer words for blocking.
+        assert!(RELATIONS
+            .iter()
+            .filter(|r| r.0 == LinkRelation::Blocks || r.0 == LinkRelation::BlockedBy)
+            .all(|r| !r.1.contains("arent") && !r.1.contains("hild")));
     }
 
     #[test]
-    fn every_relation_is_offered_once_with_words() {
+    fn every_relation_is_offered_once_in_one_row_with_words() {
         let mut seen: Vec<LinkRelation> = RELATIONS.iter().map(|r| r.0).collect();
         seen.dedup();
-        assert_eq!(seen.len(), 3);
+        assert_eq!(seen.len(), 5);
         assert!(RELATIONS
             .iter()
             .all(|(_, name, hint)| !name.is_empty() && !hint.is_empty()));
+        let mut grouped: Vec<LinkRelation> = RELATION_GROUPS
+            .iter()
+            .flat_map(|(_, members)| members.iter().copied())
+            .collect();
+        assert_eq!(grouped.len(), 5);
+        grouped.dedup();
+        assert_eq!(grouped.len(), 5);
+        assert!(grouped.iter().all(|r| seen.contains(r)));
+    }
+
+    #[test]
+    fn a_parent_is_chosen_alone_but_sub_tasks_and_links_can_be_several() {
+        let (a, b) = (id(1), id(2));
+        assert!(picks_one(LinkRelation::Parent));
+        assert!(!picks_one(LinkRelation::Subtask) && !picks_one(LinkRelation::Blocks));
+        assert_eq!(pick(&[a], b, true), [b]);
+        assert_eq!(pick(&[a], a, true), Vec::<Uuid>::new());
+        assert_eq!(pick(&[a], b, false), [a, b]);
     }
 }

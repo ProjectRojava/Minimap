@@ -63,9 +63,9 @@ str_enum!(NodeType {
     WaitingOn => "waiting_on",
 });
 
-// `SubtaskOf` is legacy: subtasks were removed (ADR-0015). It stays so databases and sync
-// snapshots that still hold such links keep loading; it is allowed between no node types and
-// ignored everywhere.
+// `SubtaskOf` (child -> parent) is the organisational "part of" link between two tasks (spec 33,
+// ADR-0017). It was withdrawn once (ADR-0015, when it also drove the schedule) and came back as
+// a plain tree: it has no effect on dates, blocking or the schedule.
 str_enum!(EdgeType {
     Blocks => "blocks",
     DependsOn => "depends_on",

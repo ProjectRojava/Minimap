@@ -44,5 +44,6 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 30 | [Ongoing objectives](30-ongoing-objectives.md) | — | Should | 04, 15, 16, 19 |
 | 31 | [Card menu and linking tasks](31-card-menu-and-linking.md) | — | Should | 06, 07 |
 | 32 | [Task types](32-task-types.md) | — | Should | 06, 12, 23, 26 |
+| 33 | [Sub-tasks, apart from blocking](33-subtasks-and-blocking.md) | — | Should | 06, 07, 31 |
 
 `Must`/`Should`/`Later` follow the MVP brainstorm and are suggestions; change them freely. Where a spec disagrees with `CLAUDE.md`, the spec wins once you mark it Ready, and Claude records the deviation as an ADR.

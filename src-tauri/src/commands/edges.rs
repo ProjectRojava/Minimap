@@ -28,6 +28,10 @@ pub(crate) fn check_new_edge(conn: &Connection, new: &NewEdge) -> Result<(), App
             return Err(store_error(minimap_store::StoreError::DuplicateEdge));
         }
     }
+    // A task is part of one task, one level deep (spec 33).
+    if new.edge_type == EdgeType::SubtaskOf {
+        minimap_store::tasks::check_subtask(conn, new.from.id, new.to.id).map_err(store_error)?;
+    }
     if !edge_rules::must_be_acyclic(new.edge_type) {
         return Ok(());
     }
@@ -534,6 +538,65 @@ mod tests {
             add(&mut conn, link(EdgeType::RelatesTo, tt, tt))
                 .unwrap_err()
                 .code,
+            "invalid_edge"
+        );
+    }
+
+    fn part_of(child: Uuid, parent: Uuid) -> NewEdge {
+        link(
+            EdgeType::SubtaskOf,
+            (NodeType::Task, child),
+            (NodeType::Task, parent),
+        )
+    }
+
+    #[test]
+    fn a_sub_task_link_keeps_to_one_parent_and_one_level_and_is_not_a_blocking_loop() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let (epic, other, a, b) = (
+            task(&mut conn, "Epic"),
+            task(&mut conn, "Other"),
+            task(&mut conn, "A"),
+            task(&mut conn, "B"),
+        );
+        // Several sub-tasks of one parent, in one batch.
+        add_edges_impl(&mut conn, vec![part_of(a, epic), part_of(b, epic)]).unwrap();
+        // A second parent for A, a parent that is a sub-task, a sub-task that is a parent.
+        for (bad, text) in [
+            (part_of(a, other), "already part of “Epic”"),
+            (part_of(other, a), "itself part of “Epic”"),
+            (part_of(epic, other), "has sub-tasks of its own"),
+        ] {
+            let err = add_edge_impl(&mut conn, bad).unwrap_err();
+            assert_eq!(err.code, "invalid");
+            assert!(err.message.contains(text), "{}", err.message);
+        }
+        // Two links of one batch that only break the rule together are refused as a whole.
+        let err = add_edges_impl(&mut conn, vec![part_of(other, epic), part_of(epic, other)])
+            .unwrap_err();
+        assert_eq!(err.code, "invalid");
+        assert_eq!(
+            minimap_store::edges::list_active_of_type(&conn, EdgeType::SubtaskOf)
+                .unwrap()
+                .len(),
+            2
+        );
+        // Part-of is not sequencing: a task may block its own parent and be blocked by it.
+        add_edge_impl(&mut conn, blocks(a, epic)).unwrap();
+        add_edge_impl(&mut conn, blocks(epic, b)).unwrap();
+        // Only tasks have sub-tasks.
+        let p = project(&mut conn, "P");
+        assert_eq!(
+            add_edge_impl(
+                &mut conn,
+                link(
+                    EdgeType::SubtaskOf,
+                    (NodeType::Task, a),
+                    (NodeType::Project, p)
+                )
+            )
+            .unwrap_err()
+            .code,
             "invalid_edge"
         );
     }

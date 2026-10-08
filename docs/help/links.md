@@ -25,8 +25,11 @@ Some relations are edited where they live instead: a task's assignee on the task
 | **affects** | decision → project, task or objective | none | [Decisions](help:decisions) |
 | **about** | waiting-on → task or project | none | [Waiting on](help:waiting-on) |
 | **supersedes** | decision → decision (newer → older) | none | Marks the older decision superseded |
+| **part of** | task → task (sub-task → parent) | none | [Sub-tasks](help:tasks): organising a task into pieces. A task is part of one task, one level deep. Moves no date and holds nothing up |
 
-Direction matters: *Design blocks Build* means Build waits for Design (in the task pane, Design is Build's *child* and Build is Design's *parent*). The pane shows the same link from both ends, worded to suit each (for example *Blocked by* on Build).
+Direction matters: *Design blocks Build* means Build waits for Design. The task pane shows the same link from both ends, worded to suit each (*Blocks* on Design, *Blocked by* on Build).
+
+**Blocking and part of are different things.** *Blocks* is about the order of the work: one task can't start until another is done, whether or not they have anything else to do with each other. *Part of* is about structure: a task is a piece of a bigger task. A task can be a piece of one task and blocked by another, and two tasks can be linked both ways. Only *blocks* links move dates, the critical path or the dependency graph.
 
 ## Loops are refused
 

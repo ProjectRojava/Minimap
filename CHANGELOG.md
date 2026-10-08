@@ -7,10 +7,10 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
-- (nothing yet)
+- **Sub-tasks, separate from blocking**: a task can now be *part of* another task (one parent, one level deep) without that meaning anything waits. The task panel has a *Part of* section with the sub-tasks and how many are done, the Kanban card shows *2/5 sub-tasks* (or the parent's name on a sub-task), and the card menu has *Add a sub-task…*. Part of moves no date and never touches the schedule (Spec 33, ADR-0017).
 
 ### Changed
-- (nothing yet)
+- **Blocking is worded as blocking again**: the link dialog and task panel say *Blocks this*, *Blocked by this*, *Blocked by* and *Blocks* instead of parent and child. Your existing links are the same links, just worded correctly; *Parent* and *Sub-task* now mean *part of* (Spec 33).
 
 ### Fixed
 - (nothing yet)
