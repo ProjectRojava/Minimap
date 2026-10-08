@@ -47,5 +47,6 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 33 | [Sub-tasks, apart from blocking](33-subtasks-and-blocking.md) | — | Should | 06, 07, 31 |
 | 34 | [The Markdown box](34-markdown-box.md) | — | Should | 06, 09, 22, 28 |
 | 35 | [Detail pane sections](35-detail-pane-sections.md) | — | Should | 02 |
+| 36 | [Latest notes on This week](36-this-week-notes.md) | — | Should | 09, 16, 34 |
 
 `Must`/`Should`/`Later` follow the MVP brainstorm and are suggestions; change them freely. Where a spec disagrees with `CLAUDE.md`, the spec wins once you mark it Ready, and Claude records the deviation as an ADR.

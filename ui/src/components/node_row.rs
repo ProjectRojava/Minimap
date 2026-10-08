@@ -21,6 +21,9 @@ pub fn NodeRow(
     /// How red the row's fill is, in percent (a task near its deadline).
     #[prop(default = None)]
     heat: Option<u8>,
+    /// Something shown under the row's own line (This week's latest notes), part of the row.
+    #[prop(optional, into)]
+    below: ViewFn,
     children: Children,
 ) -> impl IntoView {
     let selection = expect_context::<Selection>();
@@ -32,7 +35,7 @@ pub fn NodeRow(
         <div
             role="row"
             class=move || format!(
-                "group relative flex items-center gap-3 px-4 h-8 border-b border-line cursor-default select-none {}",
+                "group relative border-b border-line cursor-default select-none {}",
                 if is_open() { "bg-active shadow-[inset_2px_0_0_var(--color-accent)]" }
                 else if on_cursor() { "bg-hover shadow-[inset_2px_0_0_var(--color-muted)]" }
                 else if heat.is_some() { "heat hover:bg-hover" }
@@ -46,7 +49,8 @@ pub fn NodeRow(
             {hue.map(|hue| move || hue.get().map(|h| view! {
                 <span class="obj-edge" style=format!("--obj-h: {h}") />
             }))}
-            {children()}
+            <div class="flex h-8 items-center gap-3 px-4">{children()}</div>
+            {below.run()}
         </div>
     }
 }

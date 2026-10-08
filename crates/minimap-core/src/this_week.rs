@@ -11,8 +11,9 @@
 use std::collections::HashMap;
 
 use minimap_types::{
-    Date, Flag, FlaggedTask, NodeSummary, NoteFilter, NoteItem, NoteKind, TaskRow, TaskStatus,
-    ThisWeek, Uuid, WaitingOnFilter, WaitingOnItem, WaitingOnRow, WeekDay, WeekTask,
+    Date, Flag, FlaggedTask, NodeSummary, NoteFilter, NoteItem, NoteKind, TaskNote, TaskNotes,
+    TaskRow, TaskStatus, ThisWeek, Uuid, WaitingOnFilter, WaitingOnItem, WaitingOnRow, WeekDay,
+    WeekTask, RECENT_NOTES,
 };
 use time::Duration;
 
@@ -199,12 +200,19 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
         .collect();
 
     let (attention, priorities) = triage(&overdue, &due_this_week, &blocked, &in_progress, today);
+    let listed: Vec<Uuid> = attention
+        .iter()
+        .map(|f| f.task.id())
+        .chain(priorities.iter().map(WeekTask::id))
+        .collect();
+    let task_notes = recent_notes(&input.notes, &listed, today);
 
     ThisWeek {
         as_of,
         real_today,
         attention,
         priorities,
+        task_notes,
         week_start,
         week_end,
         prev_week_start: week_start - Duration::days(7),
@@ -221,6 +229,46 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
         one_on_ones,
         reviews: crate::objectives::reviews_due(&input.objectives, today, week_end),
     }
+}
+
+/// The latest `RECENT_NOTES` notes that mention each of `tasks` (newest first by note date, then
+/// creation), with how many there are; tasks without notes are left out. Notes dated after
+/// `today` are not counted, so a look back at a past day does not show what was written later.
+fn recent_notes(notes: &[NoteItem], tasks: &[Uuid], today: Date) -> Vec<TaskNotes> {
+    tasks
+        .iter()
+        .filter_map(|task| {
+            let mut mine: Vec<&NoteItem> = notes
+                .iter()
+                .filter(|n| n.note.note_date <= today)
+                .filter(|n| n.mentions.iter().any(|m| m.node.id == *task))
+                .collect();
+            if mine.is_empty() {
+                return None;
+            }
+            mine.sort_by(|a, b| {
+                b.note
+                    .note_date
+                    .cmp(&a.note.note_date)
+                    .then_with(|| b.note.created_at.cmp(&a.note.created_at))
+                    .then_with(|| b.note.id.cmp(&a.note.id))
+            });
+            Some(TaskNotes {
+                task: *task,
+                total: mine.len() as u32,
+                notes: mine
+                    .iter()
+                    .take(RECENT_NOTES)
+                    .map(|n| TaskNote {
+                        id: n.note.id,
+                        note_date: n.note.note_date,
+                        kind: n.note.kind,
+                        snippet: notes::snippet(&n.note.body, 240),
+                    })
+                    .collect(),
+            })
+        })
+        .collect()
 }
 
 /// Splits the week's tasks into the red flags and the rest of the plan, each task once.
@@ -463,6 +511,109 @@ mod tests {
             },
             mentions: vec![],
         }
+    }
+
+    fn about(mut n: NoteItem, task: u128) -> NoteItem {
+        n.note.body = format!("{}\n\nAbout @[T](node:{})", n.note.title, id(task));
+        n.mentions = vec![NodeSummary {
+            node: NodeRef::new(NodeType::Task, id(task)),
+            label: "T".into(),
+            archived: false,
+        }];
+        n
+    }
+
+    // ---------------------------------------------------------------- notes under tasks
+
+    #[test]
+    fn each_listed_task_gets_its_latest_three_notes_newest_first() {
+        let late = row(
+            10,
+            "Late",
+            TaskStatus::Todo,
+            Some(TODAY - Duration::days(2)),
+            2,
+        );
+        let doing = assigned(row(11, "Doing", TaskStatus::InProgress, None, 3), 1);
+        let idle = row(12, "Idle", TaskStatus::Todo, None, 3);
+        let day = |n: i64| TODAY - Duration::days(n);
+        let notes = vec![
+            about(note(1, "oldest", NoteKind::General, day(9)), 10),
+            about(note(2, "second", NoteKind::General, day(3)), 10),
+            about(note(3, "third", NoteKind::Meeting, day(2)), 10),
+            about(note(4, "newest", NoteKind::General, day(1)), 10),
+            // Written for a day that has not come yet: not shown.
+            about(
+                note(5, "future", NoteKind::General, TODAY + Duration::days(1)),
+                10,
+            ),
+            about(note(6, "mine", NoteKind::General, day(1)), 11),
+            // A task that is not on the screen gets nothing.
+            about(note(7, "elsewhere", NoteKind::General, day(1)), 12),
+            // A note about nothing in particular.
+            note(8, "loose", NoteKind::General, day(1)),
+        ];
+        let w = build(WeekInput {
+            objectives: Vec::new(),
+            tasks: vec![late, doing, idle],
+            blockers: HashMap::new(),
+            waiting: vec![],
+            notes,
+            self_id: Some(id(1)),
+            today: TODAY,
+            week_of: None,
+            stale_days: 7,
+        });
+        assert_eq!(w.task_notes.len(), 2);
+        let of = |task: u128| w.task_notes.iter().find(|t| t.task == id(task)).unwrap();
+        let late_notes = of(10);
+        assert_eq!(late_notes.total, 4, "the future note is not counted");
+        assert_eq!(
+            late_notes.notes.iter().map(|n| n.id).collect::<Vec<_>>(),
+            [id(4), id(3), id(2)]
+        );
+        // The closing line is not in the snippet.
+        assert_eq!(late_notes.notes[0].snippet, "newest");
+        assert_eq!(late_notes.notes[1].kind, NoteKind::Meeting);
+        assert_eq!(of(11).notes.len(), 1);
+        assert!(w.task_notes.iter().all(|t| t.task != id(12)));
+    }
+
+    #[test]
+    fn a_look_back_does_not_show_notes_written_later() {
+        // Due on the day looked at, so it is listed.
+        let late = row(
+            10,
+            "Late",
+            TaskStatus::Todo,
+            Some(TODAY - Duration::days(3)),
+            2,
+        );
+        let notes = vec![
+            about(
+                note(1, "then", NoteKind::General, TODAY - Duration::days(5)),
+                10,
+            ),
+            about(
+                note(2, "since", NoteKind::General, TODAY - Duration::days(1)),
+                10,
+            ),
+        ];
+        let w = build(WeekInput {
+            objectives: Vec::new(),
+            tasks: vec![late],
+            blockers: HashMap::new(),
+            waiting: vec![],
+            notes,
+            self_id: None,
+            // Looking at the day before "since" was written.
+            today: TODAY - Duration::days(3),
+            week_of: None,
+            stale_days: 7,
+        });
+        assert_eq!(w.task_notes.len(), 1);
+        assert_eq!(w.task_notes[0].total, 1);
+        assert_eq!(w.task_notes[0].notes[0].id, id(1));
     }
 
     // ---------------------------------------------------------------- weeks
