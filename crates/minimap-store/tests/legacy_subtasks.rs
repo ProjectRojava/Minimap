@@ -1,5 +1,6 @@
-//! Subtasks were removed (ADR-0015): links that still say `subtask_of` must keep loading, and the
-//! migration archives them so nothing shows them.
+//! Subtasks were removed once (ADR-0015) and came back as a plain tree (ADR-0017): links that
+//! still say `subtask_of` from the first version must keep loading, and migration 0012 archives
+//! the ones that existed then so the new feature starts clean.
 
 use minimap_store::*;
 use minimap_types::*;
@@ -58,14 +59,4 @@ fn an_old_subtask_link_still_loads_and_the_migration_archives_it() {
     assert!(all[0].archived_at.is_some());
     // Nothing else about the two tasks changed.
     assert!(views::task_detail(&conn, child.id).is_ok());
-}
-
-#[test]
-fn no_new_subtask_link_can_be_made() {
-    use minimap_core::edge_rules;
-    for from in NodeType::ALL {
-        for to in NodeType::ALL {
-            assert!(!edge_rules::is_allowed(EdgeType::SubtaskOf, *from, *to));
-        }
-    }
 }

@@ -30,16 +30,22 @@ impl Edge {
     }
 }
 
-/// How a new task relates to the one it is made from (the "Link a new task" action).
+/// How the *other* task relates to the one a link is made from (the link dialog, "Link a new
+/// task"). Two families: the order of the work (`blocks`) and what is part of what (`subtask_of`,
+/// spec 33), which has no effect on the schedule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkRelation {
-    /// The new task is a child: it has to be done first (it blocks the one it was made from).
+    /// The other task blocks this one: it has to be done first.
     Blocks,
-    /// The new task is a parent: it waits for the one it was made from (that one blocks it).
+    /// The other task is blocked by this one: it waits for this one.
     BlockedBy,
     /// Just related, with no order.
     RelatesTo,
+    /// The other task is this one's parent: this one is part of it.
+    Parent,
+    /// The other task is a sub-task of this one: it is part of this one.
+    Subtask,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -167,9 +167,11 @@ pub fn kind_edited_elsewhere(node_type: NodeType, edge_type: EdgeType, outgoing:
         }
         NodeType::Team => !outgoing && edge_type == EdgeType::MemberOf,
         NodeType::Objective => !outgoing && edge_type == EdgeType::ContributesTo,
-        // The assignee and the blocks links are edited in the task's own panel.
+        // The assignee, the blocks links and the parent / sub-task links are edited in the
+        // task's own panel.
         NodeType::Task => {
-            (outgoing && edge_type == EdgeType::AssignedTo) || edge_type == EdgeType::Blocks
+            (outgoing && edge_type == EdgeType::AssignedTo)
+                || matches!(edge_type, EdgeType::Blocks | EdgeType::SubtaskOf)
         }
         // A note's mentions come from its text.
         NodeType::Note => outgoing && edge_type == EdgeType::Mentions,
@@ -205,8 +207,8 @@ pub fn link_heading(edge_type: EdgeType, outgoing: bool) -> &'static str {
         (About, false) => "Waiting-ons",
         (Supersedes, true) => "Supersedes",
         (Supersedes, false) => "Superseded by",
-        // Removed (ADR-0015); archived on upgrade, so it is not normally seen.
-        (SubtaskOf, _) => "Legacy link",
+        (SubtaskOf, true) => "Part of",
+        (SubtaskOf, false) => "Sub-tasks",
     }
 }
 
@@ -318,6 +320,8 @@ mod tests {
     fn headings_cover_both_directions() {
         assert_eq!(link_heading(EdgeType::Blocks, true), "Blocks");
         assert_eq!(link_heading(EdgeType::Blocks, false), "Blocked by");
+        assert_eq!(link_heading(EdgeType::SubtaskOf, true), "Part of");
+        assert_eq!(link_heading(EdgeType::SubtaskOf, false), "Sub-tasks");
         // On a project, task or objective the incoming `affects` links are its decisions.
         assert_eq!(link_heading(EdgeType::Affects, false), "Decisions");
         assert_eq!(link_heading(EdgeType::Supersedes, true), "Supersedes");
@@ -415,6 +419,9 @@ mod tests {
         assert!(hidden(NodeType::Task, EdgeType::AssignedTo, true));
         assert!(hidden(NodeType::Task, EdgeType::Blocks, true));
         assert!(hidden(NodeType::Task, EdgeType::Blocks, false));
+        // So are its parent and sub-tasks (spec 33).
+        assert!(hidden(NodeType::Task, EdgeType::SubtaskOf, true));
+        assert!(hidden(NodeType::Task, EdgeType::SubtaskOf, false));
     }
 
     #[test]

@@ -167,6 +167,9 @@ mod tests {
             assignee: None,
             link_count: 0,
             attachment_count: 0,
+            parent: None,
+            subtask_count: 0,
+            subtasks_done: 0,
         }
     }
 

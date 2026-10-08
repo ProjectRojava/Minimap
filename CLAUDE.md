@@ -50,8 +50,9 @@ Matrix (enforce in core, reject anything else):
 | affects | Decision → Project/Task/Objective | — |
 | about | WaitingOn → Task/Project | — |
 | supersedes | Decision → Decision (newer → older) | — |
+| subtask_of | Task → Task (sub-task → parent) | — (organisation only: no effect on dates or the schedule; ADR-0017) |
 
-Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `supersedes`, `reports_to`, or team nesting; no self-edges; archiving a node archives its edges; hard delete only after archive, with UI confirmation.
+Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `supersedes`, `reports_to`, or team nesting; no self-edges; a task is a sub-task of at most one task and the tree is one level deep (`subtask_of`, spec 33); archiving a node archives its edges; hard delete only after archive, with UI confirmation.
 
 ### Activity log
 `activity(id, at, node_type, node_id, action [created/updated/archived/edge_added/edge_removed], diff JSON {field:[old,new]})`. Every write goes through a repository method that appends to `activity` in the same transaction.

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use minimap_types::{
     Contribution, DecisionItem, EdgeType, LinkedNode, Membership, NodeRef, NodeSummary, NodeType,
     NoteItem, ObjectiveDetail, ObjectiveRow, PersonArchivePreview, PersonDetail, PersonRow,
-    ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TaskDetail, TaskRow, TeamDetail,
-    TeamRow, WaitingOnItem,
+    ProjectArchivePreview, ProjectDetail, ProjectRow, ProjectTask, TaskDetail, TaskRow, TaskStatus,
+    TeamDetail, TeamRow, WaitingOnItem,
 };
 use rusqlite::Connection;
 use uuid::Uuid;
@@ -471,22 +471,48 @@ pub fn task_rows(conn: &Connection) -> Result<Vec<TaskRow>> {
         }
     }
     let files = attachments::counts(conn)?;
-    Ok(tasks::list(conn, false)?
-        .into_iter()
-        .map(|task| TaskRow {
-            link_count: linked.get(&task.id).copied().unwrap_or(0),
-            attachment_count: files.get(&task.id).copied().unwrap_or(0),
-            project: task.project_id.and_then(|p| {
-                projects
-                    .get(&p)
-                    .map(|n| summary_of(NodeType::Project, p, n.clone()))
-            }),
-            assignee: assignee.get(&task.id).and_then(|p| {
-                people
-                    .get(p)
-                    .map(|n| summary_of(NodeType::Person, *p, n.clone()))
-            }),
-            task,
+    let active = tasks::list(conn, false)?;
+    // Sub-tasks (spec 33): each child's parent, and the parent's progress over its live children.
+    let status: HashMap<Uuid, TaskStatus> = active.iter().map(|t| (t.id, t.status)).collect();
+    let title: HashMap<Uuid, &str> = active.iter().map(|t| (t.id, t.title.as_str())).collect();
+    let mut parent: HashMap<Uuid, Uuid> = HashMap::new();
+    let mut children: HashMap<Uuid, Vec<TaskStatus>> = HashMap::new();
+    for e in edges::list_active_of_type(conn, EdgeType::SubtaskOf)? {
+        let (Some(s), Some(_)) = (status.get(&e.from_id), status.get(&e.to_id)) else {
+            continue;
+        };
+        parent.entry(e.from_id).or_insert(e.to_id);
+        children.entry(e.to_id).or_default().push(*s);
+    }
+    Ok(active
+        .iter()
+        .cloned()
+        .map(|task| {
+            let (subtasks_done, subtask_count) = minimap_core::subtasks::progress(
+                children.get(&task.id).into_iter().flatten().copied(),
+            );
+            TaskRow {
+                subtask_count,
+                subtasks_done,
+                parent: parent.get(&task.id).and_then(|p| {
+                    title
+                        .get(p)
+                        .map(|t| summary_of(NodeType::Task, *p, (*t).to_owned()))
+                }),
+                link_count: linked.get(&task.id).copied().unwrap_or(0),
+                attachment_count: files.get(&task.id).copied().unwrap_or(0),
+                project: task.project_id.and_then(|p| {
+                    projects
+                        .get(&p)
+                        .map(|n| summary_of(NodeType::Project, p, n.clone()))
+                }),
+                assignee: assignee.get(&task.id).and_then(|p| {
+                    people
+                        .get(p)
+                        .map(|n| summary_of(NodeType::Person, *p, n.clone()))
+                }),
+                task,
+            }
         })
         .collect())
 }

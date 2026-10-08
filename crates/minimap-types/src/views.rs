@@ -229,6 +229,14 @@ pub struct TaskRow {
     /// Files attached to the task.
     #[serde(default)]
     pub attachment_count: u32,
+    /// The task this one is a sub-task of (spec 33).
+    #[serde(default)]
+    pub parent: Option<NodeSummary>,
+    /// Sub-tasks this task has, cancelled ones left out, and how many of them are done.
+    #[serde(default)]
+    pub subtask_count: u32,
+    #[serde(default)]
+    pub subtasks_done: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

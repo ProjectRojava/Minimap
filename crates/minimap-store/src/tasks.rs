@@ -191,9 +191,37 @@ pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> 
     Ok(())
 }
 
+/// May `child` become a sub-task of `parent`? One parent, one level (spec 33): the refusal names
+/// the tasks. Reads the live links, so inside a transaction it also sees the ones before it.
+pub fn check_subtask(conn: &Connection, child: Uuid, parent: Uuid) -> Result<()> {
+    let pairs: Vec<(Uuid, Uuid)> = edges::list_active_of_type(conn, EdgeType::SubtaskOf)?
+        .into_iter()
+        .map(|e| (e.from_id, e.to_id))
+        .collect();
+    let Err(why) = minimap_core::subtasks::check_new(&pairs, child, parent) else {
+        return Ok(());
+    };
+    let name = |id: Uuid| {
+        nodes::summary(conn, NodeRef::new(NodeType::Task, id))
+            .map(|s| s.label)
+            .unwrap_or_else(|_| id.to_string())
+    };
+    let other = match why {
+        minimap_core::subtasks::SubtaskError::AlreadyHasParent(p)
+        | minimap_core::subtasks::SubtaskError::ParentIsSubtask(p) => name(p),
+        minimap_core::subtasks::SubtaskError::ChildHasSubtasks => String::new(),
+    };
+    Err(StoreError::Invalid(why.message(
+        &name(child),
+        &name(parent),
+        &other,
+    )))
+}
+
 /// A new task linked to `source`, in one transaction (one undo step): it joins the source's
 /// project and takes its priority, is assigned to the user like any new task, and is joined to the
-/// source by `relation`. A new task can't close a loop, so no loop check is needed.
+/// source by `relation`. A new task can't close a loop, so no loop check is needed; a new parent or
+/// sub-task still has to fit the one-parent, one-level rule.
 pub fn create_linked(
     conn: &mut Connection,
     source: Uuid,
@@ -229,7 +257,12 @@ pub fn create_linked(
         LinkRelation::Blocks => (EdgeType::Blocks, created.id, source),
         LinkRelation::BlockedBy => (EdgeType::Blocks, source, created.id),
         LinkRelation::RelatesTo => (EdgeType::RelatesTo, source, created.id),
+        LinkRelation::Parent => (EdgeType::SubtaskOf, source, created.id),
+        LinkRelation::Subtask => (EdgeType::SubtaskOf, created.id, source),
     };
+    if edge_type == EdgeType::SubtaskOf {
+        check_subtask(&tx, a, b)?;
+    }
     edges::add_in_tx(
         &tx,
         NewEdge {
