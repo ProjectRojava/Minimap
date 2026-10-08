@@ -1,6 +1,10 @@
 //! The "link a task" dialog: make a new task joined to this one, or join an existing task to it,
 //! saying how they relate. Opened from a Kanban card's menu or a task's panel; a new task opens
 //! in the detail pane when it is made.
+//!
+//! The dialog is centred with `inset-x-0 mx-auto`, not a transform: a transformed element becomes
+//! the reference for `position: fixed` inside it, which would put the dropdown lists of its
+//! `SelectField`s (placed in viewport pixels) in the wrong place.
 
 use leptos::{ev, html, prelude::*, task::spawn_local};
 use minimap_types::{EdgeType, LinkRelation, NewEdge, NodeRef, NodeType, Uuid};
@@ -157,7 +161,7 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
     view! {
         <div class="fixed inset-0 z-[80] bg-scrim" on:mousedown=move |_| dialog.close()></div>
         <div role="dialog" aria-label="Link a task"
-             class="fixed left-1/2 top-[14vh] z-[81] w-[34rem] max-w-[94vw] -translate-x-1/2 \
+             class="fixed inset-x-0 mx-auto top-[14vh] z-[81] w-[34rem] max-w-[94vw] \
                     rounded-sm border border-line bg-panel p-4 text-[13px]"
              on:keydown=on_keydown>
             <h2 class="mb-3 text-[14px] font-semibold">
@@ -232,6 +236,14 @@ mod tests {
             (e.edge_type, e.from.id, e.to.id),
             (EdgeType::RelatesTo, source, other)
         );
+    }
+
+    #[test]
+    fn the_dialog_is_not_moved_by_a_transform_so_its_dropdowns_land_under_their_buttons() {
+        // A transformed ancestor re-bases `position: fixed` (which `SelectField` lists use).
+        let needle = ["-trans", "late-"].concat();
+        let source = include_str!("link_dialog.rs");
+        assert!(!source.contains(&needle));
     }
 
     #[test]

@@ -221,6 +221,12 @@ pub struct TaskRow {
     pub task: Task,
     pub project: Option<NodeSummary>,
     pub assignee: Option<NodeSummary>,
+    /// Active links to other tasks (blocks either way, related), for the board's link mark.
+    #[serde(default)]
+    pub link_count: u32,
+    /// Files attached to the task.
+    #[serde(default)]
+    pub attachment_count: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
