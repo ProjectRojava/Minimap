@@ -7,6 +7,21 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- (nothing yet)
+
+### Changed
+- (nothing yet)
+
+### Fixed
+- (nothing yet)
+
+---
+
+## [0.3.0] - 2026-10-08
+
+**Task types, parent/child linking, a redesigned This week, and a more useful Kanban board.**
+
+### Added
 - **Look back to a past day on This week**: click a past day in the day strip and the screen shows the week as it stood then (what was overdue, due and blocked that day), with a bar and *Back to today*.
 - **Changed filters stand out**: on Tasks, any filter or sort that is not at its default gets an accent ring, and a *Reset (N changed)* button puts them all back.
 - **Sort the Kanban board by deadline**: a *Sort* dropdown in the Tasks filter bar orders the cards of every column at once by deadline (soonest or latest first) or priority; your choice is remembered.
