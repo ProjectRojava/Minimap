@@ -80,6 +80,7 @@ impl Device {
                 c,
                 CreateTask {
                     links: Vec::new(),
+                    task_type: None,
                     title: title.into(),
                     assignee: AssigneeChoice::Nobody,
                     description: String::new(),

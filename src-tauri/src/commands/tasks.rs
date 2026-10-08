@@ -135,9 +135,10 @@ pub async fn create_linked_task(
     task_id: Uuid,
     relation: LinkRelation,
     title: String,
+    task_type: Option<String>,
 ) -> Result<Task, AppError> {
     state
-        .run(move |conn| create_linked_task_impl(conn, task_id, relation, title))
+        .run(move |conn| create_linked_task_impl(conn, task_id, relation, title, task_type))
         .await
 }
 
@@ -146,12 +147,14 @@ pub(crate) fn create_linked_task_impl(
     task_id: Uuid,
     relation: LinkRelation,
     title: String,
+    task_type: Option<String>,
 ) -> Result<Task, AppError> {
     let title = title.trim().to_owned();
     if title.is_empty() {
         return Err(app_error("invalid", "The new task needs a title"));
     }
-    minimap_store::tasks::create_linked(conn, task_id, relation, title).map_err(store_error)
+    minimap_store::tasks::create_linked(conn, task_id, relation, title, task_type)
+        .map_err(store_error)
 }
 
 /// Archives the task and its links.
@@ -201,6 +204,7 @@ pub(crate) fn create_tasks_bulk_impl(
         .filter(|t| !t.trim().is_empty())
         .map(|title| CreateTask {
             links: Vec::new(),
+            task_type: None,
             title,
             assignee,
             description: String::new(),
@@ -236,9 +240,15 @@ mod tests {
         let mut conn = conn();
         let source = task(&mut conn, "Source");
         assert_eq!(
-            create_linked_task_impl(&mut conn, source.id, LinkRelation::Blocks, "  ".into())
-                .unwrap_err()
-                .code,
+            create_linked_task_impl(
+                &mut conn,
+                source.id,
+                LinkRelation::Blocks,
+                "  ".into(),
+                None
+            )
+            .unwrap_err()
+            .code,
             "invalid"
         );
         let made = create_linked_task_impl(
@@ -246,14 +256,25 @@ mod tests {
             source.id,
             LinkRelation::BlockedBy,
             " Send the PO ".into(),
+            Some("decision".into()),
         )
         .unwrap();
         assert_eq!(made.title, "Send the PO");
+        assert_eq!(made.task_type.as_deref(), Some("decision"));
+        assert!(create_linked_task_impl(
+            &mut conn,
+            source.id,
+            LinkRelation::RelatesTo,
+            "x".into(),
+            Some("no-such-type".into())
+        )
+        .is_err());
         assert!(create_linked_task_impl(
             &mut conn,
             Uuid::now_v7(),
             LinkRelation::Blocks,
-            "x".into()
+            "x".into(),
+            None
         )
         .is_err());
     }

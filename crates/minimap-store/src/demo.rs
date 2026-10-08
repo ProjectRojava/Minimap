@@ -136,6 +136,20 @@ fn demo_links(key: &str) -> Vec<RefLink> {
     }
 }
 
+/// Task types (spec 32) on most tasks, from the default list; a few stay untyped.
+fn demo_type(key: &str) -> Option<&'static str> {
+    Some(match key {
+        "e1" | "e12" | "s2" => "decision",
+        "e3" | "p4" | "s1" => "design",
+        "e2" | "e4" | "e5" | "e6" | "e7" | "e8" | "e9" | "p2" | "p5" | "p6" | "p7" | "p9"
+        | "p13" => "build",
+        "s4" | "s5" | "p12" | "i2" => "review",
+        "p3" | "p8" | "s6" => "research",
+        "e10" | "e11" | "p10" | "p11" | "p14" | "s7" | "s8" | "s9" | "i1" => "admin",
+        _ => return None,
+    })
+}
+
 fn task_table() -> Vec<Task> {
     vec![
         // ---- EU Region (at risk: late by a couple of working days, one overdue, one blocked)
@@ -900,9 +914,13 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
                 status: Some(spec.status),
                 estimate_days: spec.estimate,
                 start_date: spec.start.map(d),
-                due_date: spec.due.map(d),
+                // The region decision was first planned a week earlier than it ended up.
+                due_date: spec
+                    .due
+                    .map(|n| d(if spec.key == "e1" { n - 7 } else { n })),
                 priority: Some(spec.priority),
                 links: demo_links(spec.key),
+                task_type: demo_type(spec.key).map(str::to_owned),
                 recurrence: spec
                     .repeats
                     .map(|text| {
@@ -919,6 +937,16 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
                 NodeRef::new(NodeType::Task, task.id),
                 s.person_ref(spec.who),
                 serde_json::json!({ "allocation_pct": pct }),
+            )?;
+        }
+        if spec.key == "e1" {
+            tasks::update_in_tx(
+                &tx,
+                task.id,
+                UpdateTask {
+                    due_date: Patch::Set(d(-14)),
+                    ..Default::default()
+                },
             )?;
         }
         s.tasks.insert(spec.key, task.id);

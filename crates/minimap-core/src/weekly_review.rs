@@ -375,6 +375,7 @@ mod tests {
         TaskRow {
             task: Task {
                 links: Vec::new(),
+                task_type: None,
                 id: id(n),
                 title: title.into(),
                 description: String::new(),

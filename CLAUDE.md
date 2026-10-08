@@ -27,7 +27,7 @@ Trunk↔Tauri: `beforeDevCommand: trunk serve --config ui/Trunk.toml`, `beforeBu
 Every node: `id` (uuid v7), `created_at`, `updated_at`, `archived_at` (soft delete).
 - **Objective**: title, description, target_date, status (on_track/at_risk/off_track/done), priority 1–5, ongoing (no end: no target_date, never done, ADR-0014), review_every_days, last_reviewed_on
 - **Project**: title, slug (unique handle among active projects, e.g. `api-launch`), description, owner_person_id, start_date, target_date, status (planned/active/paused/done/cancelled), priority
-- **Task**: title, description, project_id (nullable), status (todo/in_progress/blocked/done/cancelled), estimate_days (decimal), start_date, due_date, completed_at, priority
+- **Task**: title, description, project_id (nullable), status (todo/in_progress/blocked/done/cancelled), estimate_days (decimal), start_date, due_date, completed_at, priority, task_type (optional id of an entry in the user's task-type list in Settings: design, decision, bug... spec 32)
 - **Person**: name, role_title, email?, weekly_capacity_hours (default 40), is_self (exactly one), notes
 - **Team**: name, description, parent_team_id (nestable)
 - **Note**: title, body (Markdown), note_date, kind (one_on_one/meeting/general)
@@ -93,7 +93,7 @@ wait @raj on "Security review sign-off" by:next-wed
 note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
 ```
-`@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO; `fri` is today on a Friday, `next-wed` is that day in the next Mon-Sun week); no leading keyword = task · `est:` (3d, 4h) · `blocks:`/`for:`/`affects:` edges to a named node.
+`@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO; `fri` is today on a Friday, `next-wed` is that day in the next Mon-Sun week); no leading keyword = task · `est:` (3d, 4h) · `type:` a task type by name or id · `blocks:`/`for:`/`affects:` edges to a named node.
 
 ## 8. Storage, encryption, backup
 DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random key in the OS keychain via `keyring`, or a user passphrase (never a stored key); re-keying is a verified export-and-swap because SQLCipher can't encrypt in place (ADR-0010). `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). **Google Drive storage** (ADR-0011, spec 22): optional; once connected, every change autosaves an encrypted snapshot of the local DB to Drive (one file per device, 5 s idle, at most 30 s) and devices merge each other's snapshots automatically (row-level, newest `updated_at` wins, hard deletes via tombstones, invariants repaired and reported); no locks, no conflict dialogs. Hourly/daily checkpoints; attachments are encrypted content-addressed blobs on Drive with a local LRU cache. Everything uploaded is encrypted with a vault key (recovery key shown once). Without Drive the user is warned that data is on this device only. Desktop OAuth: loopback redirect + PKCE, `drive.file` scope only, refresh token in the OS keychain via `keyring` (local DB fallback); network calls happen in the Rust backend (`minimap-sync`), never the webview. The live DB never sits in a synced folder. Migrations run on startup in a transaction after a pre-migration backup.

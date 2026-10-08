@@ -4,13 +4,14 @@
 use minimap_types::{
     DecisionStatus, DirectoryEntry, NodeRef, NodeSummary, NodeType, NoteKind, QuickAssignee,
     QuickChoice, QuickDetail, QuickKind, QuickMain, QuickPick, QuickPlan, QuickPreview, QuickRef,
-    Ref, RefState,
+    Ref, RefState, TaskType,
 };
 use time::{Date, Duration, Weekday};
 
 use crate::{
     recurrence::{first_on_or_after, parse_every},
     search::{distance, typo_budget},
+    task_types,
     tasks::parse_estimate,
 };
 
@@ -22,6 +23,8 @@ pub struct Context<'a> {
     pub hours_per_day: f64,
     pub directory: &'a [DirectoryEntry],
     pub choices: &'a [QuickChoice],
+    /// The task types a `type:` can name (spec 32).
+    pub task_types: &'a [TaskType],
 }
 
 pub struct Outcome {
@@ -160,9 +163,9 @@ fn lex(input: &str) -> (Vec<Token>, bool) {
     (tokens, quoted)
 }
 
-const KEYS: [&str; 13] = [
+const KEYS: [&str; 14] = [
     "due", "by", "target", "start", "est", "blocks", "for", "affects", "owner", "about", "status",
-    "date", "every",
+    "date", "every", "type",
 ];
 const KEYS_EXTRA: [&str; 1] = ["kind"];
 
@@ -611,7 +614,7 @@ fn parse_tokens(kind: QuickKind, tokens: &[Token]) -> Parsed {
                 continue;
             }
             let allowed = match kind {
-                QuickKind::Task => ["due", "by", "start", "est", "every"].as_slice(),
+                QuickKind::Task => ["due", "by", "start", "est", "every", "type"].as_slice(),
                 QuickKind::Project => ["target", "due", "by", "start"].as_slice(),
                 QuickKind::Wait => ["by", "due"].as_slice(),
                 QuickKind::Note => ["date", "kind", "every"].as_slice(),
@@ -757,6 +760,45 @@ fn every_value(
     found
 }
 
+/// The `type:` value: which task type it is ("Type: Decision"). A name or id of a type that is in
+/// the list and not archived; anything else is a problem that lists what is available.
+fn type_value(
+    p: &mut Parsed,
+    types: &[TaskType],
+    details: &mut Vec<QuickDetail>,
+) -> Option<String> {
+    let mut found = None;
+    for (k, v) in &p.values.clone() {
+        if k == "type" {
+            match task_types::find_active(types, v) {
+                Some(t) => {
+                    details.push(QuickDetail {
+                        label: "Type".into(),
+                        value: t.name.clone(),
+                    });
+                    found = Some(t.id.clone());
+                }
+                None => {
+                    let names: Vec<&str> = types
+                        .iter()
+                        .filter(|t| !t.archived)
+                        .map(|t| t.name.as_str())
+                        .collect();
+                    p.problems.push(if names.is_empty() {
+                        format!("type:{v} - there are no task types to choose from")
+                    } else {
+                        format!(
+                            "type:{v} isn't a task type. Choose one of {}",
+                            names.join(", ")
+                        )
+                    });
+                }
+            }
+        }
+    }
+    found
+}
+
 /// Turns one line of quick-add into a preview and (when nothing is unclear) a plan.
 pub fn plan(text: &str, cx: &Context) -> Outcome {
     let (mut tokens, unclosed) = lex(text);
@@ -826,6 +868,7 @@ pub fn plan(text: &str, cx: &Context) -> Outcome {
                 details.push(detail("Due", day_text(first)));
                 due = Some(first);
             }
+            let task_type = type_value(&mut p, cx.task_types, &mut details);
             let mut estimate = None;
             for (k, v) in &p.values.clone() {
                 if k == "est" {
@@ -856,6 +899,7 @@ pub fn plan(text: &str, cx: &Context) -> Outcome {
                 blocks: of(Slot::Blocks),
                 objectives: of(Slot::Objective),
                 recurrence,
+                task_type,
             });
         }
         QuickKind::Project => {
@@ -1251,8 +1295,66 @@ mod tests {
         assert!(problems("task x every:")[0].contains("needs a value"));
     }
 
+    #[test]
+    fn type_names_a_task_type_by_id_or_name() {
+        let task_type = |text: &str| -> Option<String> {
+            let QuickMain::Task { task_type, .. } = run(text).plan.unwrap().main else {
+                panic!()
+            };
+            task_type
+        };
+        assert_eq!(
+            task_type("task Pick the store type:decision").as_deref(),
+            Some("decision")
+        );
+        assert_eq!(
+            task_type("task Pick the store type:Design").as_deref(),
+            Some("design")
+        );
+        assert_eq!(task_type("task Pick the store").as_deref(), None);
+        let out = run("task Pick the store type:decision");
+        let shown = out
+            .preview
+            .details
+            .iter()
+            .find(|d| d.label == "Type")
+            .map(|d| d.value.clone());
+        assert_eq!(shown.as_deref(), Some("Decision"));
+    }
+
+    #[test]
+    fn a_type_that_is_not_in_the_list_says_what_is() {
+        let out = run("task x type:nonsense");
+        assert!(!out.preview.ready);
+        let problem = &out.preview.problems[0];
+        assert!(problem.contains("isn't a task type"), "{problem}");
+        assert!(
+            problem.contains("Design") && problem.contains("Bug"),
+            "{problem}"
+        );
+        assert!(run("project x type:design").preview.problems[0].contains("isn't used"));
+        assert!(run("task x type:").preview.problems[0].contains("needs a value"));
+        // An archived type is not offered.
+        let dir = directory();
+        let mut types = minimap_types::default_task_types();
+        types[0].archived = true;
+        let out = plan(
+            "task x type:design",
+            &Context {
+                today: TODAY,
+                hours_per_day: 8.0,
+                directory: &dir,
+                choices: &[],
+                task_types: &types,
+            },
+        );
+        assert!(!out.preview.ready);
+        assert!(!out.preview.problems[0].contains("Design"));
+    }
+
     fn run_with(text: &str, choices: &[QuickChoice]) -> Outcome {
         let dir = directory();
+        let types = minimap_types::default_task_types();
         plan(
             text,
             &Context {
@@ -1260,6 +1362,7 @@ mod tests {
                 hours_per_day: 8.0,
                 directory: &dir,
                 choices,
+                task_types: &types,
             },
         )
     }
@@ -1413,6 +1516,7 @@ mod tests {
                     blocks: vec![existing(NodeType::Task, 30)],
                     objectives: vec![],
                     recurrence: None,
+                    task_type: None,
                 }
             }
         );
@@ -1688,6 +1792,7 @@ mod tests {
                 hours_per_day: 8.0,
                 directory: &none,
                 choices: &[],
+                task_types: &[],
             },
         );
         assert!(!out.preview.ready);
@@ -1887,6 +1992,7 @@ mod tests {
                 hours_per_day: 4.0,
                 directory: &dir,
                 choices: &[],
+                task_types: &[],
             },
         );
         let QuickMain::Task { estimate_days, .. } = out.plan.unwrap().main else {

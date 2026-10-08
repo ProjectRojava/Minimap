@@ -298,6 +298,7 @@ pub fn convert_checklist_item(
         &tx,
         CreateTask {
             links: Vec::new(),
+            task_type: None,
             title: item.text,
             assignee,
             description: String::new(),

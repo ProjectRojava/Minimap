@@ -30,6 +30,7 @@ pub(crate) fn add_task(conn: &mut Connection, title: &str) {
         conn,
         CreateTask {
             links: Vec::new(),
+            task_type: None,
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: format!("About {title}"),

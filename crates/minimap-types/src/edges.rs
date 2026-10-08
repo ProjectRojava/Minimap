@@ -34,9 +34,9 @@ impl Edge {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkRelation {
-    /// The new task has to be done first: it blocks the one it was made from.
+    /// The new task is a child: it has to be done first (it blocks the one it was made from).
     Blocks,
-    /// The new task comes after: the one it was made from blocks it.
+    /// The new task is a parent: it waits for the one it was made from (that one blocks it).
     BlockedBy,
     /// Just related, with no order.
     RelatesTo,

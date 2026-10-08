@@ -36,6 +36,7 @@ fn person(conn: &mut Connection, name: &str) -> Person {
 fn task_with(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
     let mut input = CreateTask {
         links: Vec::new(),
+        task_type: None,
         title: "Board update".into(),
         assignee: AssigneeChoice::Nobody,
         description: "Numbers and risks".into(),
@@ -537,6 +538,7 @@ fn quick(conn: &mut Connection, text: &str) -> QuickResult {
             hours_per_day: 8.0,
             directory: &directory,
             choices: &[],
+            task_types: &minimap_types::default_task_types(),
         },
     );
     assert!(

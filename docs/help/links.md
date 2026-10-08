@@ -26,7 +26,7 @@ Some relations are edited where they live instead: a task's assignee on the task
 | **about** | waiting-on → task or project | none | [Waiting on](help:waiting-on) |
 | **supersedes** | decision → decision (newer → older) | none | Marks the older decision superseded |
 
-Direction matters: *Design blocks Build* means Build waits for Design. The pane shows the same link from both ends, worded to suit each (for example *Blocked by* on Build).
+Direction matters: *Design blocks Build* means Build waits for Design (in the task pane, Design is Build's *child* and Build is Design's *parent*). The pane shows the same link from both ends, worded to suit each (for example *Blocked by* on Build).
 
 ## Loops are refused
 

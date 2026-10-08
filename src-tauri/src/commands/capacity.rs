@@ -73,6 +73,7 @@ mod tests {
             conn,
             CreateTask {
                 links: Vec::new(),
+                task_type: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Person(who),
                 description: String::new(),

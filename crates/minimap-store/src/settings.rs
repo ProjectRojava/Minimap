@@ -15,6 +15,7 @@ const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
 const REPORT_TEMPLATE: &str = "report_template";
 const BACKUP_FOLDER: &str = "backup_folder";
 const AUTO_BACKUP: &str = "auto_backup";
+const TASK_TYPES: &str = "task_types";
 
 /// Settings that belong to this device and are never synced (or put in a snapshot).
 pub const LOCAL_ONLY: [&str; 3] = [THEME, BACKUP_FOLDER, AUTO_BACKUP];
@@ -66,6 +67,15 @@ pub fn default_weekly_capacity_hours(conn: &Connection) -> Result<f64> {
         .unwrap_or(minimap_types::DEFAULT_WEEKLY_CAPACITY_HOURS))
 }
 
+/// The task types (spec 32): the stored list, else the defaults. A stored list that no longer
+/// validates falls back to the defaults, like the other structured settings.
+pub fn task_types(conn: &Connection) -> Result<Vec<minimap_types::TaskType>> {
+    let stored = read(conn, TASK_TYPES)?
+        .and_then(|v| serde_json::from_value::<Vec<minimap_types::TaskType>>(v).ok())
+        .filter(|list| minimap_core::task_types::validate(list).is_ok());
+    Ok(stored.unwrap_or_else(minimap_types::default_task_types))
+}
+
 pub fn get(conn: &Connection) -> Result<Settings> {
     let mut s = Settings::default();
     if let Some(h) = read(conn, HOURS_PER_DAY)?.and_then(|v| v.as_f64()) {
@@ -112,6 +122,7 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.backup_folder = Some(f);
         }
     }
+    s.task_types = task_types(conn)?;
     if let Some(on) = read(conn, AUTO_BACKUP)?.and_then(|v| v.as_bool()) {
         s.auto_backup = on;
     }
@@ -178,7 +189,21 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             ));
         }
     }
+    // New types get their ids; removing a type is refused (it would orphan tasks).
+    let task_types = match &patch.task_types {
+        Some(list) => {
+            let current = task_types(conn)?;
+            Some(
+                minimap_core::task_types::normalise(list.clone(), &current)
+                    .map_err(StoreError::Invalid)?,
+            )
+        }
+        None => None,
+    };
     let tx = conn.transaction()?;
+    if let Some(list) = &task_types {
+        write(&tx, TASK_TYPES, &serde_json::to_value(list)?)?;
+    }
     match folder {
         Some("") => {
             tx.execute("DELETE FROM settings WHERE key = ?1", [BACKUP_FOLDER])?;

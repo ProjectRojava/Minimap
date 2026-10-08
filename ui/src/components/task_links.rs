@@ -1,5 +1,6 @@
-//! The "Links" section of a task's panel: what it waits for, what waits for it and which tasks are
-//! related, then its other links (the generic list), with the ways to add one side by side: a new
+//! The "Links" section of a task's panel: its children (what it waits for), its parents (what
+//! waits for it) and which tasks are related, then its other links (the generic list), with the
+//! ways to add one side by side: a new
 //! linked task, an existing task, or something else. A task has no second Links list further down.
 
 use leptos::{prelude::*, task::spawn_local};
@@ -17,21 +18,22 @@ use crate::{
     state::{finish, DataVersion, LinkDialog, Selection, Toasts},
 };
 
-/// The links of a task sorted for display: `(waits for, blocks, related tasks)`.
+/// The links of a task sorted for display: `(children, parents, related tasks)`. A child is a task
+/// this one waits for (it blocks this one); a parent is a task that waits for this one.
 pub fn group_links(links: &[EdgeLink]) -> (Vec<&EdgeLink>, Vec<&EdgeLink>, Vec<&EdgeLink>) {
-    let mut waits = Vec::new();
-    let mut blocks = Vec::new();
+    let mut children = Vec::new();
+    let mut parents = Vec::new();
     let mut related = Vec::new();
     for l in links {
         match (l.edge.edge_type, l.outgoing) {
-            // Another task blocks this one.
-            (EdgeType::Blocks, false) => waits.push(l),
-            (EdgeType::Blocks, true) => blocks.push(l),
+            // Another task blocks this one: it is a child.
+            (EdgeType::Blocks, false) => children.push(l),
+            (EdgeType::Blocks, true) => parents.push(l),
             (EdgeType::RelatesTo, _) if l.other.node.node_type == NodeType::Task => related.push(l),
             _ => {}
         }
     }
-    (waits, blocks, related)
+    (children, parents, related)
 }
 
 #[component]
@@ -61,10 +63,10 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                         .map(|r| r.task.title.clone())
                         .unwrap_or_default();
                     let status_of = |id: Uuid| rows.iter().find(|r| r.task.id == id).map(|r| r.task.status);
-                    let (waits, blocks, related) = group_links(&links);
+                    let (children, parents, related) = group_links(&links);
                     let node = NodeRef::new(NodeType::Task, task);
-                    let empty = waits.is_empty()
-                        && blocks.is_empty()
+                    let empty = children.is_empty()
+                        && parents.is_empty()
                         && related.is_empty()
                         && shown_links(node, &links).is_empty();
                     let group = |title: &'static str, hint: &'static str, list: Vec<&EdgeLink>| {
@@ -95,8 +97,8 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                     };
                     view! {
                         {empty.then(|| view! { <p class="mb-1 text-muted">"No links yet."</p> })}
-                        {group("Waits for (blocked by)", "These have to be done before this task can start", waits)}
-                        {group("Blocks", "This task has to be done before these can start", blocks)}
+                        {group("Parents", "This task is part of these. They wait until it is done", parents)}
+                        {group("Children", "These are part of this task. It waits until they are done", children)}
                         {group("Related tasks", "Connected, with no order", related)}
                         <div class="mt-3">
                             <LinksEditor node=node links=links.clone() compact=true actions=actions />
@@ -165,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn links_are_sorted_into_waits_blocks_and_related_tasks_only() {
+    fn links_are_sorted_into_children_parents_and_related_tasks_only() {
         let links = vec![
             link(EdgeType::Blocks, false, NodeType::Task, 1),
             link(EdgeType::Blocks, true, NodeType::Task, 2),
@@ -175,10 +177,10 @@ mod tests {
             link(EdgeType::RelatesTo, true, NodeType::Decision, 5),
             link(EdgeType::AssignedTo, true, NodeType::Person, 6),
         ];
-        let (waits, blocks, related) = group_links(&links);
+        let (children, parents, related) = group_links(&links);
         let ids = |v: &[&EdgeLink]| v.iter().map(|l| l.edge.id.as_u128()).collect::<Vec<_>>();
-        assert_eq!(ids(&waits), [1]);
-        assert_eq!(ids(&blocks), [2]);
+        assert_eq!(ids(&children), [1]);
+        assert_eq!(ids(&parents), [2]);
         assert_eq!(ids(&related), [3, 4]);
     }
 }

@@ -101,6 +101,7 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
             blocks,
             objectives,
             recurrence,
+            task_type,
         } => {
             let assignee = match assignee {
                 QuickAssignee::Default => AssigneeChoice::Me,
@@ -111,6 +112,7 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
                 &tx,
                 CreateTask {
                     links: Vec::new(),
+                    task_type,
                     title,
                     assignee,
                     description: String::new(),
@@ -300,6 +302,7 @@ fn create_new(tx: &Transaction, node_type: NodeType, name: String) -> Result<Nod
                 tx,
                 CreateTask {
                     links: Vec::new(),
+                    task_type: None,
                     title: name,
                     assignee: AssigneeChoice::Me,
                     description: String::new(),

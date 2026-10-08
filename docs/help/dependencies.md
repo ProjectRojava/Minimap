@@ -6,7 +6,7 @@ The **Dependencies** screen (`g l`) draws what blocks what as a graph, left to r
 
 A toggle at the top chooses:
 
-- **Tasks**: one box per task, with arrows for *blocks* links (from the task that must finish to the one that waits).
+- **Tasks**: one box per task, with arrows for *blocks* links (from the task that must finish, a child, to the one that waits, its parent).
 - **Projects**: one box per project, with arrows for *depends on* links (from the project that is needed to the one that depends on it).
 
 ## Filters

@@ -15,11 +15,12 @@ use crate::{
 };
 
 const TABLE: &str = "tasks";
-const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links";
+const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type";
 
 fn from_row(r: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
         links: col_links(r, 14)?,
+        task_type: r.get(15)?,
         id: col_uuid(r, 0)?,
         title: r.get(1)?,
         description: r.get(2)?,
@@ -89,6 +90,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
     let status = input.status.unwrap_or(TaskStatus::Todo);
     let t = Task {
         links: minimap_core::links::clean(input.links).map_err(StoreError::Invalid)?,
+        task_type: input.task_type,
         id: Uuid::now_v7(),
         title: input.title,
         description: input.description,
@@ -105,9 +107,10 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
         archived_at: None,
     };
     validate(&t)?;
+    check_type(tx, None, t.task_type.as_deref())?;
     tx.execute(
         &format!(
-            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)"
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)"
         ),
         params![
             id_s(t.id),
@@ -125,6 +128,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
             ts_opt_s(t.archived_at),
             recurrence_s(t.recurrence.as_ref()),
             links_s(&t.links),
+            t.task_type,
         ],
     )?;
     activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
@@ -132,6 +136,25 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
         edges::add_in_tx(tx, assigned_to(t.id, person))?;
     }
     Ok(t)
+}
+
+/// A type chosen for a task must be in Settings' list and not retired. A task may keep a retired
+/// type it already has (`before`).
+fn check_type(conn: &Connection, before: Option<&str>, chosen: Option<&str>) -> Result<()> {
+    let Some(id) = chosen.filter(|id| Some(*id) != before) else {
+        return Ok(());
+    };
+    let types = crate::settings::task_types(conn)?;
+    match minimap_types::TaskType::find(&types, id) {
+        Some(t) if !t.archived => Ok(()),
+        Some(t) => Err(StoreError::Invalid(format!(
+            "The task type \"{}\" is archived. Pick another type.",
+            t.name
+        ))),
+        None => Err(StoreError::Invalid(
+            "That task type is not in the list. Add it in Settings first.".into(),
+        )),
+    }
 }
 
 fn assigned_to(task: Uuid, person: Uuid) -> NewEdge {
@@ -176,6 +199,7 @@ pub fn create_linked(
     source: Uuid,
     relation: LinkRelation,
     title: String,
+    task_type: Option<String>,
 ) -> Result<Task> {
     let tx = conn.transaction()?;
     let from = get(&tx, source)?;
@@ -188,6 +212,7 @@ pub fn create_linked(
         &tx,
         CreateTask {
             links: Vec::new(),
+            task_type,
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -251,6 +276,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
         new.completed_at = None;
     }
     validate(&new)?;
+    check_type(tx, old.task_type.as_deref(), new.task_type.as_deref())?;
     // Finishing a repeating task hands its rule on to the next one (spec 27): this one no
     // longer repeats.
     let handed_on = if finishing {
@@ -265,7 +291,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
     new.updated_at = at;
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, updated_at=?13 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, updated_at=?13 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -281,6 +307,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
             recurrence_s(new.recurrence.as_ref()),
             links_s(&new.links),
             ts_s(new.updated_at),
+            new.task_type,
         ],
     )?;
     activity::record(
@@ -316,6 +343,7 @@ fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
         tx,
         CreateTask {
             links: done.links.clone(),
+            task_type: done.task_type.clone(),
             title: done.title.clone(),
             assignee: AssigneeChoice::Nobody,
             description: done.description.clone(),

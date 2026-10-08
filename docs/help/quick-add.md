@@ -18,6 +18,7 @@ wait @raj on "Security review sign-off" by:next-wed
 note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
 task Board update every:mon
+task Pick the data store type:decision due:fri
 ```
 
 - **Keyword first**: `task`, `project`, `wait` (or `waiting`), `note`, `decision`. No keyword means a task.
@@ -44,6 +45,7 @@ task Board update every:mon
 | `kind:` | `1:1`, `meeting`, `general` | note |
 | `status:` | `proposed` or `decided` | decision |
 | `every:` | repeats: `day`, `mon`, `2w`, `month` (see [Recurring items](help:recurring)) | task, note |
+| `type:` | the task's type, by name or id: `type:decision`, `type:"Legal review"` (see [Tasks](help:tasks)) | task |
 | `1:1` | a bare word: makes the note a 1:1 | note |
 
 A marker a kind doesn't use is reported ("`est:` isn't used for a project"), never silently dropped.
