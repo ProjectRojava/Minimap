@@ -7,6 +7,18 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## [0.4.0] - 2026-10-09
+
+**Meetings, task focus, task-type borders, and a clearer detail pane.**
+
+### Added
 - **Show the Drive recovery key again**: Settings → Google Drive → *Add another computer* shows (and copies) the recovery key from a computer that is already connected, so a second computer can join the same Drive data.
 - **Held-up work on Dependencies**: tasks further down the chain from a *blocked* task (A → B blocked → C → D) are now tinted red, so you can see everything a stuck task is holding up.
 - **About**: a new entry in the sidebar footer (`g u`) showing who made Minimap (Uditt Lamba, with a clickable email, uditt.lamba@pm.me) and the version you are running (Spec 40).
