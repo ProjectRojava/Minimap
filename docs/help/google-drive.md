@@ -6,8 +6,19 @@ Connecting Google Drive is **optional**. Without it Minimap works fully, but you
 
 Open *Settings → Data & backup → Google Drive* and press **Sign in with Google**. Your browser opens, you approve, and you come back.
 
-- **First computer** (nothing on Drive yet): Minimap sets up the Drive folder and shows a **recovery key** once. **Save it.** It is what lets a new computer open your Drive data.
-- **Another computer** (Drive already has data): after signing in, paste the recovery key. A computer with no data of its own then adopts what is on Drive; one that already has data merges it (a safety backup is made first).
+- **First computer** (nothing on Drive yet): Minimap sets up the Drive folder and shows a **recovery key**. **Save it** in a password manager or on paper. It is what lets a new computer open your Drive data.
+- **Another computer** (Drive already has data): see *Add another computer* below.
+
+### Add another computer
+
+Two computers share one Drive vault. To join a second one:
+
+1. **On the computer that is already connected**, open *Settings → Data & backup → Google Drive*, find **Add another computer** and press **Show recovery key**, then **Copy**. (*Hide* puts it away again.) The key is only available on a computer that is connected.
+2. **On the new computer**, install the same version of Minimap, open the same card and press **Sign in with Google**. Use **the same Google account**. If you use your own Google client under *Advanced: the Google OAuth client*, enter **the same client ID and secret** on both computers: Minimap can only see files created by its own client, so a different one won't find your data.
+3. Minimap finds the data on Drive and asks for the **recovery key**. Paste it and press **Connect**. A wrong key is refused after a short wait and nothing changes.
+4. A new computer with no data **adopts what is on Drive** (the screen reloads). One that already has data **merges** it, after making a safety backup.
+
+If, instead of asking for a key, Minimap shows you a **new** recovery key, it found an empty Drive, so you signed in with a different account or client. Cancel and check both before saving anything.
 
 ## What is private about it
 

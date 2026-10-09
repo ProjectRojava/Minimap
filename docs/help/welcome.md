@@ -31,7 +31,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 
 | Group | Screen | What it is for |
 |---|---|---|
-| | [This week](help:this-week) | Your landing screen: overdue, due, blocked, in progress, waiting, 1:1s |
+| | [This week](help:this-week) | Your landing screen: overdue, due, blocked, the tasks you keep in focus, in progress, waiting, 1:1s |
 | | [Overview](help:overview) | Health of objectives and projects, top risks, overloaded people |
 | | Inbox | Tasks that belong to no project (the Tasks screen, filtered) |
 | Plan | [Objectives](help:objectives) | The outcomes you are after, and what contributes to them |
@@ -46,6 +46,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 | Log | [Waiting on](help:waiting-on) | What you are waiting for from others, and how long |
 | Review | [Weekly review](help:weekly-review) | A guided look back, ending in a status report |
 | | [Settings](help:settings) | Appearance, working time, thresholds, backups, encryption, Drive |
+| | About | Who made Minimap (name and email, click the email to write to them) and the version you are running. In the sidebar footer, or `g u` |
 
 ## Using this help
 

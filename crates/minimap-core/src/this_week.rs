@@ -4,16 +4,17 @@
 //! that is also blocked shows in both): overdue (before today), due this week (today through
 //! Sunday), blocked, my tasks in progress, waiting-ons that are stale or due, 1:1s this week.
 //!
-//! The screen itself shows two lists made from them in which every task appears once:
-//! `attention` (the red flags: overdue, due today, blocked) and `priorities` (the rest of the
-//! week's work, most important first).
+//! The screen itself shows three lists made from them in which every task appears once:
+//! `attention` (the red flags: overdue, due today, blocked), `focus` (tasks the user keeps in
+//! focus, spec 37, that have no red flag) and `priorities` (the rest of the week's work, most
+//! important first). A focused task with a red flag is in `attention`: late work comes first.
 
 use std::collections::HashMap;
 
 use minimap_types::{
-    Date, Flag, FlaggedTask, NodeSummary, NoteFilter, NoteItem, NoteKind, TaskNote, TaskNotes,
-    TaskRow, TaskStatus, ThisWeek, Uuid, WaitingOnFilter, WaitingOnItem, WaitingOnRow, WeekDay,
-    WeekTask, RECENT_NOTES,
+    Date, Flag, FlaggedTask, FocusTask, NodeSummary, NoteFilter, NoteItem, NoteKind, TaskNote,
+    TaskNotes, TaskRow, TaskStatus, ThisWeek, Uuid, WaitingOnFilter, WaitingOnItem, WaitingOnRow,
+    WeekDay, WeekTask, PREVIEW_CHARS, RECENT_NOTES,
 };
 use time::Duration;
 
@@ -65,6 +66,11 @@ pub fn monday_of(d: Date) -> Date {
 
 fn is_open(row: &TaskRow) -> bool {
     !matches!(row.task.status, TaskStatus::Done | TaskStatus::Cancelled)
+}
+
+/// In focus on `today`: set, and not past its last day.
+fn in_focus(row: &TaskRow, today: Date) -> bool {
+    row.task.focus.is_some_and(|f| f.is_active(today))
 }
 
 pub fn build(input: WeekInput) -> ThisWeek {
@@ -120,7 +126,30 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
             .then_with(|| a.row.task.id.cmp(&b.row.task.id))
     };
 
-    let open: Vec<&TaskRow> = input.tasks.iter().filter(|r| is_open(r)).collect();
+    // Meetings (spec 38) are their own list: they are never late, due today or in the plan.
+    let open: Vec<&TaskRow> = input
+        .tasks
+        .iter()
+        .filter(|r| is_open(r) && !r.task.is_meeting())
+        .collect();
+    let mut meetings: Vec<WeekTask> = input
+        .tasks
+        .iter()
+        .filter(|r| is_open(r) && r.task.is_meeting())
+        .filter(|r| {
+            r.task
+                .due_date
+                .is_some_and(|d| d >= due_from && d <= week_end)
+        })
+        .map(&wrap)
+        .collect();
+    meetings.sort_by(|a, b| {
+        let key = |t: &WeekTask| (t.row.task.due_date, t.row.task.start_minute);
+        key(a)
+            .cmp(&key(b))
+            .then_with(|| a.row.task.title.cmp(&b.row.task.title))
+            .then_with(|| a.id().cmp(&b.id()))
+    });
     let mut overdue: Vec<WeekTask> = open
         .iter()
         .filter(|r| r.task.due_date.is_some_and(|d| d < today))
@@ -187,6 +216,10 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
                     .iter()
                     .filter(|r| r.task.due_date == Some(date))
                     .count() as u32,
+                meetings: meetings
+                    .iter()
+                    .filter(|m| m.row.task.due_date == Some(date))
+                    .count() as u32,
                 waiting_expected: input
                     .waiting
                     .iter()
@@ -199,13 +232,48 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
         })
         .collect();
 
-    let (attention, priorities) = triage(&overdue, &due_this_week, &blocked, &in_progress, today);
+    // Tasks in focus (spec 37) come from any due date: they are chosen, not scheduled.
+    let focused: Vec<WeekTask> = open
+        .iter()
+        .filter(|r| in_focus(r, today))
+        .map(|r| wrap(r))
+        .collect();
+    let focus_count = focused.len() as u32;
+    let (attention, priorities, focus) = triage(
+        &overdue,
+        &due_this_week,
+        &blocked,
+        &in_progress,
+        &focused,
+        today,
+    );
     let listed: Vec<Uuid> = attention
         .iter()
         .map(|f| f.task.id())
+        .chain(focus.iter().map(WeekTask::id))
         .chain(priorities.iter().map(WeekTask::id))
+        .chain(meetings.iter().map(WeekTask::id))
         .collect();
     let task_notes = recent_notes(&input.notes, &listed, today);
+    let focus = focus
+        .into_iter()
+        .map(|task| {
+            let newest_note = task_notes
+                .iter()
+                .find(|n| n.task == task.id())
+                .and_then(|n| n.notes.first())
+                .map(|n| n.note_date);
+            let touched = newest_note
+                .into_iter()
+                .chain(Some(task.row.task.updated_at.date()))
+                .max()
+                .unwrap_or(today);
+            FocusTask {
+                quiet_days: (today - touched).whole_days().max(0) as u32,
+                task,
+            }
+        })
+        .collect();
 
     ThisWeek {
         as_of,
@@ -213,6 +281,9 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
         attention,
         priorities,
         task_notes,
+        focus,
+        focus_count,
+        meetings,
         week_start,
         week_end,
         prev_week_start: week_start - Duration::days(7),
@@ -264,6 +335,7 @@ fn recent_notes(notes: &[NoteItem], tasks: &[Uuid], today: Date) -> Vec<TaskNote
                         note_date: n.note.note_date,
                         kind: n.note.kind,
                         snippet: notes::snippet(&n.note.body, 240),
+                        body: notes::preview_body(&n.note.body, PREVIEW_CHARS),
                     })
                     .collect(),
             })
@@ -271,14 +343,16 @@ fn recent_notes(notes: &[NoteItem], tasks: &[Uuid], today: Date) -> Vec<TaskNote
         .collect()
 }
 
-/// Splits the week's tasks into the red flags and the rest of the plan, each task once.
+/// Splits the week's tasks into the red flags, the tasks in focus and the rest of the plan, each
+/// task once: a task with a red flag is a flag even when it is in focus.
 fn triage(
     overdue: &[WeekTask],
     due_this_week: &[WeekTask],
     blocked: &[WeekTask],
     in_progress: &[WeekTask],
+    focused: &[WeekTask],
     today: Date,
-) -> (Vec<FlaggedTask>, Vec<WeekTask>) {
+) -> (Vec<FlaggedTask>, Vec<WeekTask>, Vec<WeekTask>) {
     let mut seen: Vec<Uuid> = Vec::new();
     let mut all: Vec<&WeekTask> = Vec::new();
     for t in overdue
@@ -286,6 +360,7 @@ fn triage(
         .chain(due_this_week)
         .chain(blocked)
         .chain(in_progress)
+        .chain(focused)
     {
         if !seen.contains(&t.id()) {
             seen.push(t.id());
@@ -307,10 +382,15 @@ fn triage(
     };
     let mut attention: Vec<FlaggedTask> = Vec::new();
     let mut priorities: Vec<WeekTask> = Vec::new();
+    let mut focus: Vec<WeekTask> = Vec::new();
     for t in all {
         let flags = flags_of(t);
         if flags.is_empty() {
-            priorities.push(t.clone());
+            if t.row.task.focus.is_some_and(|f| f.is_active(today)) {
+                focus.push(t.clone());
+            } else {
+                priorities.push(t.clone());
+            }
         } else {
             attention.push(FlaggedTask {
                 task: t.clone(),
@@ -331,7 +411,7 @@ fn triage(
             .then_with(|| a.task.row.task.title.cmp(&b.task.row.task.title))
             .then_with(|| a.task.id().cmp(&b.task.id()))
     });
-    priorities.sort_by(|a, b| {
+    let by_importance = |a: &WeekTask, b: &WeekTask| {
         let key = |t: &WeekTask| {
             (
                 t.row.task.priority,
@@ -343,8 +423,10 @@ fn triage(
             .cmp(&key(b))
             .then_with(|| a.row.task.title.cmp(&b.row.task.title))
             .then_with(|| a.id().cmp(&b.id()))
-    });
-    (attention, priorities)
+    };
+    priorities.sort_by(by_importance);
+    focus.sort_by(by_importance);
+    (attention, priorities, focus)
 }
 
 #[cfg(test)]
@@ -366,6 +448,9 @@ mod tests {
             task: Task {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 id: id(n),
                 title: title.into(),
                 description: String::new(),
@@ -574,6 +659,8 @@ mod tests {
         );
         // The closing line is not in the snippet.
         assert_eq!(late_notes.notes[0].snippet, "newest");
+        // The screen renders the Markdown, without the closing line either.
+        assert_eq!(late_notes.notes[0].body, "newest");
         assert_eq!(late_notes.notes[1].kind, NoteKind::Meeting);
         assert_eq!(of(11).notes.len(), 1);
         assert!(w.task_notes.iter().all(|t| t.task != id(12)));
@@ -614,6 +701,278 @@ mod tests {
         assert_eq!(w.task_notes.len(), 1);
         assert_eq!(w.task_notes[0].total, 1);
         assert_eq!(w.task_notes[0].notes[0].id, id(1));
+    }
+
+    // ---------------------------------------------------------------- focus (spec 37)
+
+    fn focused(mut r: TaskRow, focus: minimap_types::Focus) -> TaskRow {
+        r.task.focus = Some(focus);
+        r
+    }
+
+    fn week_with_notes(tasks: Vec<TaskRow>, notes: Vec<NoteItem>) -> ThisWeek {
+        build(WeekInput {
+            objectives: Vec::new(),
+            tasks,
+            blockers: HashMap::new(),
+            waiting: vec![],
+            notes,
+            self_id: Some(id(1)),
+            today: TODAY,
+            week_of: None,
+            stale_days: 7,
+        })
+    }
+
+    #[test]
+    fn a_focused_task_shows_whatever_its_due_date_and_leaves_the_priorities() {
+        use minimap_types::Focus;
+        let far = focused(
+            row(
+                1,
+                "Far away",
+                TaskStatus::Todo,
+                Some(date!(2027 - 09 - 30)),
+                3,
+            ),
+            Focus::PINNED,
+        );
+        let undated = focused(row(2, "No date", TaskStatus::Todo, None, 1), Focus::PINNED);
+        // Due this week and also in focus: in Focus, not repeated under the priorities.
+        let soon = focused(
+            row(
+                3,
+                "This week",
+                TaskStatus::Todo,
+                Some(date!(2027 - 03 - 05)),
+                2,
+            ),
+            Focus::PINNED,
+        );
+        let plain = row(4, "Plain", TaskStatus::Todo, Some(date!(2027 - 03 - 05)), 2);
+        let w = week(vec![far, undated, soon, plain]);
+        let names: Vec<&str> = w
+            .focus
+            .iter()
+            .map(|f| f.task.row.task.title.as_str())
+            .collect();
+        // Most important first, undated after dated of the same priority.
+        assert_eq!(names, ["No date", "This week", "Far away"]);
+        assert_eq!(w.focus_count, 3);
+        assert_eq!(titles(&w.priorities), ["Plain"]);
+        assert!(w.attention.is_empty());
+    }
+
+    #[test]
+    fn a_red_flag_wins_over_focus_and_the_task_is_still_listed_once() {
+        use minimap_types::Focus;
+        let late = focused(
+            row(
+                1,
+                "Late",
+                TaskStatus::Todo,
+                Some(TODAY - Duration::days(2)),
+                3,
+            ),
+            Focus::PINNED,
+        );
+        let stuck = focused(row(2, "Stuck", TaskStatus::Blocked, None, 3), Focus::PINNED);
+        let w = week(vec![late, stuck]);
+        assert!(w.focus.is_empty());
+        assert_eq!(w.attention.len(), 2);
+        assert!(w.attention.iter().all(|f| f.task.row.task.focus.is_some()));
+        // Still counted for the "too many in focus" nudge.
+        assert_eq!(w.focus_count, 2);
+    }
+
+    #[test]
+    fn a_focus_ends_after_its_last_day_and_with_the_task() {
+        use minimap_types::Focus;
+        let until = |d: Date| Focus { until: Some(d) };
+        let tasks = vec![
+            focused(
+                row(1, "Today only", TaskStatus::Todo, None, 3),
+                until(TODAY),
+            ),
+            focused(
+                row(2, "Ended yesterday", TaskStatus::Todo, None, 3),
+                until(TODAY - Duration::days(1)),
+            ),
+            focused(row(3, "Done", TaskStatus::Done, None, 3), Focus::PINNED),
+            focused(
+                row(4, "Cancelled", TaskStatus::Cancelled, None, 3),
+                Focus::PINNED,
+            ),
+        ];
+        let w = week(tasks);
+        let names: Vec<&str> = w
+            .focus
+            .iter()
+            .map(|f| f.task.row.task.title.as_str())
+            .collect();
+        assert_eq!(names, ["Today only"]);
+        assert_eq!(w.focus_count, 1);
+        // The one whose focus ended is an ordinary task: it is not due, so it is not listed.
+        assert!(w.priorities.is_empty());
+    }
+
+    #[test]
+    fn a_focused_task_with_nothing_for_two_weeks_says_how_long_it_has_been_quiet() {
+        use minimap_types::Focus;
+        let touched = |n: u128, title: &str, days_ago: i64| {
+            let mut r = focused(row(n, title, TaskStatus::Todo, None, 3), Focus::PINNED);
+            r.task.updated_at = (TODAY - Duration::days(days_ago))
+                .with_hms(9, 0, 0)
+                .unwrap()
+                .assume_utc();
+            r
+        };
+        let tasks = vec![
+            touched(1, "Fresh", 0),
+            touched(2, "Quiet", 20),
+            touched(3, "Noted", 20),
+            touched(4, "Quiet, edited later than today", 0),
+        ];
+        // A note written 3 days ago about "Noted" counts as a touch.
+        let notes = vec![about(
+            note(1, "progress", NoteKind::General, TODAY - Duration::days(3)),
+            3,
+        )];
+        let w = week_with_notes(tasks, notes);
+        let quiet = |title: &str| {
+            w.focus
+                .iter()
+                .find(|f| f.task.row.task.title == title)
+                .unwrap()
+                .quiet_days
+        };
+        assert_eq!(quiet("Fresh"), 0);
+        assert_eq!(quiet("Quiet"), 20);
+        assert_eq!(quiet("Noted"), 3);
+        assert_eq!(quiet("Quiet, edited later than today"), 0);
+    }
+
+    #[test]
+    fn focus_rows_get_their_latest_notes_too() {
+        use minimap_types::Focus;
+        let t = focused(row(1, "Watched", TaskStatus::Todo, None, 3), Focus::PINNED);
+        let notes = vec![about(
+            note(1, "where it stands", NoteKind::General, TODAY),
+            1,
+        )];
+        let w = week_with_notes(vec![t], notes);
+        assert_eq!(w.task_notes.len(), 1);
+        assert_eq!(w.task_notes[0].task, id(1));
+    }
+
+    #[test]
+    fn a_past_day_judges_focus_against_that_day() {
+        use minimap_types::Focus;
+        let day = TODAY - Duration::days(2);
+        let mut r = focused(
+            row(1, "Was in focus", TaskStatus::Todo, None, 3),
+            Focus {
+                until: Some(TODAY - Duration::days(1)),
+            },
+        );
+        r.task.created_at = (day - Duration::days(5))
+            .with_hms(9, 0, 0)
+            .unwrap()
+            .assume_utc();
+        let mut input = WeekInput {
+            objectives: Vec::new(),
+            tasks: vec![r],
+            blockers: HashMap::new(),
+            waiting: vec![],
+            notes: vec![],
+            self_id: None,
+            today: TODAY,
+            week_of: None,
+            stale_days: 7,
+        };
+        rewind(&mut input, day);
+        let w = build_at(input, Some(day), TODAY);
+        // Its last day came after the day looked at, so it was still in focus then.
+        assert_eq!(w.focus.len(), 1);
+    }
+
+    // ---------------------------------------------------------------- meetings (spec 38)
+
+    fn meeting_row(n: u128, title: &str, status: TaskStatus, due: Date, minute: u16) -> TaskRow {
+        let mut r = row(n, title, status, Some(due), 3);
+        r.task.task_type = Some(minimap_types::MEETING_TYPE.into());
+        r.task.start_minute = Some(minute);
+        r
+    }
+
+    #[test]
+    fn meetings_are_their_own_list_by_day_then_time_and_never_a_flag() {
+        let tasks = vec![
+            // Today, later than the next one in the list order.
+            meeting_row(1, "Afternoon", TaskStatus::Todo, TODAY, 15 * 60),
+            meeting_row(2, "Standup", TaskStatus::InProgress, TODAY, 9 * 60 + 30),
+            meeting_row(
+                3,
+                "Friday",
+                TaskStatus::Todo,
+                TODAY + Duration::days(2),
+                8 * 60,
+            ),
+            // Not for this list: done, next week, and an ordinary task due today.
+            meeting_row(4, "Done", TaskStatus::Done, TODAY, 8 * 60),
+            meeting_row(
+                5,
+                "Next week",
+                TaskStatus::Todo,
+                TODAY + Duration::days(7),
+                8 * 60,
+            ),
+            row(6, "Plain", TaskStatus::Todo, Some(TODAY), 3),
+        ];
+        let w = week(tasks);
+        assert_eq!(titles(&w.meetings), ["Standup", "Afternoon", "Friday"]);
+        // A meeting due today is not a "Due today" red flag, and is not in the plan either.
+        assert_eq!(
+            w.attention
+                .iter()
+                .map(|f| f.task.row.task.title.as_str())
+                .collect::<Vec<_>>(),
+            ["Plain"]
+        );
+        assert!(w.priorities.is_empty());
+        assert_eq!(w.due_this_week.len(), 1);
+        // The strip counts meetings apart from tasks.
+        let today = w.days.iter().find(|d| d.is_today).unwrap();
+        assert_eq!((today.tasks_due, today.meetings), (1, 2));
+        let friday = &w.days[4];
+        assert_eq!((friday.tasks_due, friday.meetings), (0, 1));
+    }
+
+    #[test]
+    fn a_meeting_that_has_gone_by_is_not_listed_and_a_late_one_is_not_a_flag() {
+        let yesterday = TODAY - Duration::days(1);
+        // Still "to do" a day after: the clock will close it; meanwhile it is not a red flag.
+        let w = week(vec![meeting_row(
+            1,
+            "Yesterday",
+            TaskStatus::Todo,
+            yesterday,
+            9 * 60,
+        )]);
+        assert!(w.meetings.is_empty());
+        assert!(w.attention.is_empty() && w.overdue.is_empty());
+    }
+
+    #[test]
+    fn the_notes_of_a_meeting_are_under_it_like_any_task() {
+        let m = meeting_row(1, "Design review", TaskStatus::Todo, TODAY, 10 * 60);
+        let notes = vec![about(
+            note(1, "agreed the plan", NoteKind::Meeting, TODAY),
+            1,
+        )];
+        let w = week_with_notes(vec![m], notes);
+        assert_eq!(w.task_notes.len(), 1);
+        assert_eq!(w.task_notes[0].task, id(1));
     }
 
     // ---------------------------------------------------------------- weeks

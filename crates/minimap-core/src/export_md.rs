@@ -183,8 +183,14 @@ fn task_line(t: &Task, l: &Lookup) -> String {
     if let Some(p) = l.assignee(t.id) {
         bits.push(escape(&p.name));
     }
-    if let Some(d) = t.due_date {
-        bits.push(format!("due {d}"));
+    match (t.due_date, t.start_minute.filter(|_| t.is_meeting())) {
+        // A meeting reads as the day and the time it is at (spec 38).
+        (Some(d), Some(m)) => bits.push(format!(
+            "meeting {d} {}",
+            minimap_types::fmt_range(m, t.meeting_minutes())
+        )),
+        (Some(d), None) => bits.push(format!("due {d}")),
+        _ => {}
     }
     if let Some(e) = t.estimate_days {
         bits.push(days(e));
@@ -513,6 +519,9 @@ mod tests {
         Task {
             links: Vec::new(),
             task_type: None,
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             id: id(n),
             title: title.into(),
             description: String::new(),
@@ -749,6 +758,17 @@ mod tests {
             !sec.contains("## Tasks"),
             "a project without tasks has no tasks section"
         );
+    }
+
+    #[test]
+    fn a_meeting_reads_as_its_day_and_time() {
+        let mut d = data();
+        d.tasks[1].task_type = Some(minimap_types::MEETING_TYPE.into());
+        d.tasks[1].due_date = Some(date!(2027 - 03 - 05));
+        d.tasks[1].start_minute = Some(10 * 60 + 30);
+        let files = markdown(&d, &HashMap::new());
+        let text = file(&files, "projects/eu-region.md");
+        assert!(text.contains("meeting 2027-03-05 10:30–11:30"), "{text}");
     }
 
     #[test]

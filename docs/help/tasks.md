@@ -20,19 +20,20 @@ At the top of a task's detail pane a row of coloured pills shows where it stands
 | Description | Formatted text (Markdown): reads as written, with a pencil to edit it. See [Notes](help:notes), *The text box* |
 | Status | to do, in progress, blocked, done, cancelled |
 | Priority | 1 (highest) to 5; default 3 |
-| Type | Optional kind of work: design, decision, bug and so on. See *Task types* below |
+| Type | Optional kind of work: design, decision, bug and so on. See *Task types* below. *Meeting* is special: see *Meetings* below |
 | Project | Optional. No project means the inbox |
 | Assignee | One person, or nobody |
 | Estimate | `3d`, `1.5d`, `4h` or a bare number (days). Hours use your hours-per-working-day setting. Leave it empty if you don't know |
 | Start date, due date | Optional. A start date means "not before" for the schedule |
 | Repeats | Optional rule such as `mon` or `2w`: see [Recurring items](help:recurring) |
+| Focus | Optional: keep the task on [This week](help:this-week) every day, whatever its due date. See *Focus* below |
 | Reference links | Web pages, Google Drive files and other addresses: see below |
 
 A task with **no estimate** is scheduled as one day and flagged *unestimated*, so projects can tell you how much of their plan is a guess.
 
 ## The board
 
-The board has a column for each status: **To do**, **In progress**, **Blocked** and **Done**, plus **Cancelled** when you tick *Show cancelled*. Each card shows the title, its project, the priority, the due date, the estimate and the assignee's initials in a circle. Each person has a **colour of their own** (the same colour wherever they appear on the board; hover the circle for their name), so who has what is clear at a glance. **Priority** is a pill: P1 solid amber, P2 tinted amber, the rest quiet. The **due date** is a pill that gets louder as the day nears: *In 5d* (amber tint) within a week, *Tomorrow* and *Today* (solid amber), *3d overdue* (solid red); further out, or when the task is done or cancelled, it is the plain date. Hover it for the exact date. A small coloured label above the title is the task's **type** (see *Task types* below); a finished task shows how it did against its due date (*on time*, *2d late*, *1d early*). A circular arrow means the task repeats. Under the project, a **blue chip with a chain** says how many tasks it is tied to by the order of the work (*2 linked tasks*: it blocks them, waits for them or is related to them), a **violet chip with a small tree** shows the progress of a task's sub-tasks (*2/5 sub-tasks*) or, on a sub-task, the name of the task it is part of, and a **green chip with a paperclip** says what is attached (*2 files, 1 web link*). Cards with none of these show no chip. A task wears the colour of the **objective its project contributes to**: a coloured edge and a chip with the objective's name on the board, an edge and a dot in the list. Tasks without a project, or whose project serves no objective, stay plain. See [Objectives](help:objectives).
+The board has a column for each status: **To do**, **In progress**, **Blocked** and **Done**, plus **Cancelled** when you tick *Show cancelled*. Each column is tinted in its status colour (In progress in the accent colour, Blocked amber, Done green, To do and Cancelled grey), the whole column and not just its top edge. Each card shows the title, its project, the priority, the due date, the estimate and the assignee's initials in a circle. Each person has a **colour of their own** (the same colour wherever they appear on the board; hover the circle for their name), so who has what is clear at a glance. **Priority** is a pill: P1 solid amber, P2 tinted amber, the rest quiet. The **due date** is a pill that gets louder as the day nears: *In 5d* (amber tint) within a week, *Tomorrow* and *Today* (solid amber), *3d overdue* (solid red); further out, or when the task is done or cancelled, it is the plain date. Hover it for the exact date. A small coloured label above the title is the task's **type** (see *Task types* below), and the **card's border** shows it too, as a thick line you can tell without any colour: **double** for *Decision*, **dashed** for *Design*, *Bug* and *Meeting*, **dotted** for *Research* and *Admin*, a **heavier solid** line for *Review*, and a plain solid line for *Build*, for cards with no type and for types you add yourself. The border's colour is the card's **objective colour** (see below); a card whose project serves no objective has a grey border. When you open or select a card it gets a tint and a ring instead of a new border colour. You can make every border a plain line in [Settings](help:settings), *Appearance*; a finished task shows how it did against its due date (*on time*, *2d late*, *1d early*). A circular arrow means the task repeats. A **star** in the corner (next to the ⋯) is lit when the task is in focus (see *Focus* below) and shows when you point at the card otherwise. Under the project, a **blue chip with a chain** says how many tasks it is tied to by the order of the work (*2 linked tasks*: it blocks them, waits for them or is related to them), a **violet chip with a small tree** shows the progress of a task's sub-tasks (*2/5 sub-tasks*) or, on a sub-task, the name of the task it is part of, and a **green chip with a paperclip** says what is attached (*2 files, 1 web link*). Cards with none of these show no chip. A task wears the colour of the **objective its project contributes to**: a coloured border and a chip with the objective's name on the board, an edge and a dot in the list. Tasks without a project, or whose project serves no objective, stay plain. See [Objectives](help:objectives).
 
 - **Deadlines warm the card.** An open task with a due date starts to take on a red tint 14 days before it is due. The tint grows a little every day, is clearly red on the due day and a touch stronger once it is overdue, so what is closest to its deadline stands out as you scan the board. Done and cancelled tasks, and tasks with no due date, stay plain; the card you have open or selected shows the normal highlight instead. The list rows warm the same way.
 - **Drag a card onto another column** to change its status. The column lights up where it will land, the card moves at once, and the change is saved behind it (you can undo it with `Ctrl/Cmd+Z`).
@@ -42,7 +43,7 @@ The board has a column for each status: **To do**, **In progress**, **Blocked** 
 - **Order inside a column** is chosen with the *Sort* dropdown in the filter bar, and applies to every column at once. *Default* puts the earliest deadline first (tasks with no deadline last, a tie going to the higher priority) and shows Done with the most recently finished first. *Deadline, soonest* and *Deadline, latest* order every column, Done included, by due date; *Priority* puts P1 first, then the earliest deadline. Your choice is remembered on this computer. Dragging changes the status, not the position. Done shows the 15 newest in its order; press *Show older* for the rest.
 - Dropping a repeating task on **Done** creates its next one, exactly as finishing it anywhere else does.
 
-Keyboard: `j` / `k` move through the cards column by column, and `x`, `s` and `1`–`5` act on the highlighted card (see below).
+Keyboard: `j` / `k` move through the cards column by column, and `x`, `s`, `f` and `1`–`5` act on the highlighted card (see below).
 
 ## Finding tasks
 
@@ -50,7 +51,7 @@ The filters above the board or list combine: text (matches title, description, p
 
 ## Working in the list
 
-Every row has its own controls (status, priority, project, assignee, due date), so most changes need no trip to the detail pane. Keyboard shortcuts for the highlighted row (on the board, only `j`, `k`, `Enter`, `x`, `s` and `1`–`5` apply):
+Every row has its own controls (status, priority, project, assignee, due date), so most changes need no trip to the detail pane. Keyboard shortcuts for the highlighted row (on the board, only `j`, `k`, `Enter`, `x`, `s`, `f` and `1`–`5` apply):
 
 | Key | Does |
 |---|---|
@@ -58,20 +59,39 @@ Every row has its own controls (status, priority, project, assignee, due date), 
 | `Enter` | Open the detail pane |
 | `x` | Mark done (or reopen) |
 | `s` | Move to the next status |
+| `f` | Put in focus, or take out of focus |
 | `1`–`5` | Set the priority |
 | `d` | Focus the due date |
 | `a` | Focus the assignee |
+
+## Focus
+
+Normally a task reaches [This week](help:this-week) by its date: late, due, blocked or in progress. **Focus** is the other way in: you pick tasks to see **every day**, however far off (or missing) their due date is. They get their own *Focus* section on This week.
+
+- **Put a task in focus** with the **star** on its card or row (hover to see it; click to light it), with `f` on the highlighted card or row, or with the **Focus** box in the pane:
+  - *Every day, until I take it out*: stays until you remove it.
+  - *Today only*: shows today and then drops off.
+  - *Every day, until a date…*: pick the last day; after it the task drops off by itself. A date that has passed is refused.
+- **Take it out** by clicking the lit star, pressing `f` again, or choosing *Not in focus*. A **★ In focus** pill at the top of the pane says it is in focus.
+- A finished or cancelled task is not shown in focus. Its setting stays, so reopening it brings it back.
+- A repeating task's next one keeps a focus that has no end date; a focus with a last day belonged to the one you finished.
+
+Focus is only a way of looking at the task: it never changes the due date, the schedule, health or capacity. Changing it is one step for [Undo](help:undo).
+
+## Meetings
+
+A **meeting** is a task that happens at a time: the built-in type *Meeting*, with a day, a start time and a length instead of dates and an estimate. It starts and ends on its own, takes no part in the schedule and has follow-ups. Everything about it is on the [Meetings](help:meetings) page; to see only meetings, pick *Meeting* in the *Type* filter. *New meeting* (next to *New task* here, or in the command palette) makes one; picking *Meeting* as a task's *Type* asks when. Meetings show their time on the board and the list, in time order within a day.
 
 ## Task types
 
 A **type** says what kind of work a task is: *Design*, *Build*, *Decision*, *Review*, *Research*, *Bug* or *Admin* to start with. A task has **one type or none**; tasks you already had stay without one until you choose.
 
 - **Set it** with the *Type* dropdown next to Status and Priority in the task's pane, with `type:` in [quick-add](help:quick-add) (`task Pick the data store type:decision due:fri`), or in the *Type* box when you link a new task.
-- **See it** as a small coloured label on the board card, after the title in the list, and among the pills at the top of the pane.
+- **See it** as a small coloured label on the board card (whose border also takes the type's colour and a line style, see *The board*), after the title in the list, and among the pills at the top of the pane.
 - **Filter by it** with the *Type* dropdown above the board or list. New tasks you add while a type is chosen get that type.
 - **Make your own** in [Settings](help:settings) under General, *Task types*: add a type, rename it (every task that has it follows), pick one of eight colours, or archive it. A type is never deleted: tasks that have an archived type keep it (shown dimmed), and it is simply no longer offered for new tasks. Restore brings it back.
 
-A type is a label. It does not change the schedule, capacity or health.
+A type is a label. It does not change the schedule, capacity or health. (*Meeting* is the one with behaviour; see [Meetings](help:meetings).)
 
 ### Decisions that have a date
 

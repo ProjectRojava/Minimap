@@ -771,6 +771,12 @@ fn type_value(
     for (k, v) in &p.values.clone() {
         if k == "type" {
             match task_types::find_active(types, v) {
+                // A meeting needs a day and a time, which a quick-add line can't carry (spec 38).
+                Some(t) if t.id == minimap_types::MEETING_TYPE => {
+                    p.problems.push(format!(
+                        "type:{v} - a meeting needs a time. Use New meeting on the Tasks screen or in the command palette"
+                    ));
+                }
                 Some(t) => {
                     details.push(QuickDetail {
                         label: "Type".into(),
@@ -781,7 +787,7 @@ fn type_value(
                 None => {
                     let names: Vec<&str> = types
                         .iter()
-                        .filter(|t| !t.archived)
+                        .filter(|t| !t.archived && t.id != minimap_types::MEETING_TYPE)
                         .map(|t| t.name.as_str())
                         .collect();
                     p.problems.push(if names.is_empty() {
@@ -1293,6 +1299,20 @@ mod tests {
         assert!(problems("decision x every:mon")[0].contains("isn't used"));
         assert!(problems("wait @raj on x every:mon")[0].contains("isn't used"));
         assert!(problems("task x every:")[0].contains("needs a value"));
+    }
+
+    #[test]
+    fn a_meeting_cannot_be_made_from_a_line_because_it_needs_a_time() {
+        let out = run("task Weekly sync type:meeting due:fri");
+        assert!(!out.preview.ready);
+        assert!(
+            out.preview.problems[0].contains("needs a time"),
+            "{:?}",
+            out.preview.problems
+        );
+        // The other types are still offered, but not the meeting.
+        let out = run("task x type:nonsense");
+        assert!(!out.preview.problems[0].contains("Meeting"));
     }
 
     #[test]

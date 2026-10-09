@@ -31,7 +31,7 @@ fn refusal(debug_build: bool, drive_connected: bool) -> Option<AppError> {
     None
 }
 
-/// Adds the demo dataset (3 objectives, 3 projects, 40 tasks, 8 people, ...) to an empty
+/// Adds the demo dataset (3 objectives, 3 projects, 45 tasks, 8 people, ...) to an empty
 /// database, dated around today. Debug builds only.
 #[tauri::command]
 pub async fn seed_demo_data(state: State<'_, AppState>) -> Result<DemoSummary, AppError> {
@@ -138,12 +138,12 @@ mod tests {
         assert!(status.found);
 
         let removal = remove_impl(&mut conn, &data, &Key::None).unwrap();
-        assert_eq!(removal.removed.tasks, 40);
+        assert_eq!(removal.removed.tasks, 45);
         // The backup exists and still holds the demo data: it is the way back.
         let backup = std::path::PathBuf::from(removal.backup.unwrap());
         assert!(backup.starts_with(data.join("backups")) && backup.exists());
         let copy = minimap_store::open(&backup).unwrap();
-        assert_eq!(minimap_store::tasks::list(&copy, false).unwrap().len(), 40);
+        assert_eq!(minimap_store::tasks::list(&copy, false).unwrap().len(), 45);
         // The live database is back to nothing but me.
         assert!(minimap_store::tasks::list(&conn, false).unwrap().is_empty());
         assert!(!minimap_store::demo_remove::status(&conn).unwrap().found);

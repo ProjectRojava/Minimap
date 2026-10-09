@@ -40,8 +40,11 @@ pub struct FlaggedTask {
 pub struct WeekDay {
     pub date: Date,
     pub is_today: bool,
-    /// Open tasks due that day.
+    /// Open tasks due that day (meetings are counted apart).
     pub tasks_due: u32,
+    /// Open meetings that day (spec 38).
+    #[serde(default)]
+    pub meetings: u32,
     /// Open waiting-ons expected that day.
     pub waiting_expected: u32,
     /// 1:1 notes dated that day.
@@ -57,7 +60,14 @@ pub struct TaskNote {
     /// The first lines of the note with markup stripped and the closing "About @task" line
     /// left out, as one run of text.
     pub snippet: String,
+    /// The start of the note's Markdown (the closing "About @task" line left out, cut at
+    /// `PREVIEW_CHARS`), for the screen to render.
+    #[serde(default)]
+    pub body: String,
 }
+
+/// How much of a note's Markdown This week receives.
+pub const PREVIEW_CHARS: usize = 600;
 
 /// The latest notes that mention a task (newest first, at most `RECENT_NOTES`) and how many
 /// there are in all.
@@ -70,6 +80,22 @@ pub struct TaskNotes {
 
 /// How many notes This week shows under each task.
 pub const RECENT_NOTES: usize = 3;
+
+/// A task in focus (spec 37) that has no red flag, so it is shown in the Focus section.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FocusTask {
+    pub task: WeekTask,
+    /// Days since the task, or a note about it, last changed (0 = today). The Focus section
+    /// asks "still the one?" once this reaches `FOCUS_QUIET_DAYS`.
+    pub quiet_days: u32,
+}
+
+/// More tasks in focus than this and This week suggests choosing: a highlight that holds
+/// everything highlights nothing.
+pub const FOCUS_SOFT_LIMIT: usize = 5;
+
+/// A task in focus that has not changed, and has had no note, for this many days is asked about.
+pub const FOCUS_QUIET_DAYS: u32 = 14;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThisWeek {
@@ -114,10 +140,23 @@ pub struct ThisWeek {
     /// progress, once each, most important first (priority, then due date, undated last).
     #[serde(default)]
     pub priorities: Vec<WeekTask>,
-    /// The latest notes of each task in `attention` and `priorities` that has any (notes dated
+    /// The latest notes of each task in `attention`, `focus` and `priorities` that has any (notes dated
     /// after the day shown are left out when looking back).
     #[serde(default)]
     pub task_notes: Vec<TaskNotes>,
+    /// Open tasks in focus that are not red flags (spec 37), most important first (priority,
+    /// then due date, undated last). A focused task that is overdue, due today or blocked is in
+    /// `attention` instead.
+    #[serde(default)]
+    pub focus: Vec<FocusTask>,
+    /// Every open task in focus today, flagged or not (for the "too many" nudge).
+    #[serde(default)]
+    pub focus_count: u32,
+    /// Open meetings (to do or in progress) from today through Sunday, by day then start time
+    /// (spec 38). Meetings are not tasks to chase: they are in none of the other lists, and are
+    /// never overdue or "due today" flags; the clock closes them when they end.
+    #[serde(default)]
+    pub meetings: Vec<WeekTask>,
 }
 
 /// Where a task id was last seen is irrelevant; kept so the UI can key rows.

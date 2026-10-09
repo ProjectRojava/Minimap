@@ -13,6 +13,7 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
+        focus::{is_on, set_focus, toggle_choice, FocusStar},
         form::{
             date_patch, DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT,
             COMPACT_INPUT, INPUT,
@@ -20,7 +21,8 @@ use crate::{
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveDot},
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
-        task_type::{use_task_types, TypeChip},
+        task_board::today,
+        task_type::{type_for_new_task, use_task_types, TypeChip},
     },
     labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
     state::{finish, DataVersion, ListNav, Toasts},
@@ -476,6 +478,11 @@ pub fn TaskList(
                 status: Some(next_status(row.task.status)),
                 ..Default::default()
             }),
+            "f" => {
+                let on = is_on(row.task.focus.as_ref(), today());
+                set_focus(id, toggle_choice(on), toasts, version);
+                None
+            }
             k @ ("1" | "2" | "3" | "4" | "5") => Some(UpdateTask {
                 priority: k.parse().ok(),
                 ..Default::default()
@@ -514,8 +521,11 @@ pub fn TaskList(
     let create_one = move |title: String| {
         let input = CreateTask {
             links: Vec::new(),
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             // New tasks take the type being filtered on, like the project.
-            task_type: Some(filters.task_type.get_untracked()).filter(|t| !t.is_empty()),
+            task_type: type_for_new_task(&filters.task_type.get_untracked()),
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -578,8 +588,9 @@ pub fn TaskList(
                 <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New task" }}
                 </button>
+                {layout.map(|_| view! { <crate::components::meeting::NewMeetingButton /> })}
                 {layout.map(|board| view! { <span class="ml-auto"><LayoutToggle board=board /></span> })}
-                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("f", "focus"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
             </PageHeader>
             <FilterControls filters=filters inbox=inbox board=false />
             <Show when=move || adding.get()>
@@ -670,13 +681,23 @@ fn TaskRowView(
     let project_id = t.project_id;
     let edge = Signal::derive(move || colours.first_hue(&colours.of_project(project_id)));
     let open = !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled);
-    let heat = deadline_heat(t.due_date, crate::components::task_board::today(), open);
+    let heat = deadline_heat(
+        t.due_date,
+        crate::components::task_board::today(),
+        open && !t.is_meeting(),
+    );
+    let is_meeting = t.is_meeting();
+    let meeting_time = t
+        .start_minute
+        .filter(|_| is_meeting)
+        .map(|m| minimap_types::fmt_range(m, t.meeting_minutes()));
     // "↻" after the title of a task that repeats; hover says how.
     let repeats = t
         .recurrence
         .as_ref()
         .map(|r| format!("Repeats {}", r.describe()));
     let closed = matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled);
+    let focus = t.focus;
     let project_options: Vec<(String, String)> =
         std::iter::once((String::new(), "No project".to_owned()))
             .chain(projects)
@@ -764,6 +785,10 @@ fn TaskRowView(
                     {repeats.map(|text| view! {
                         <span class=Tone::Neutral.chip() title=text>"↻"</span>
                     })}
+                    {meeting_time.map(|range| view! {
+                        <span class=Tone::Accent.chip() title="When the meeting is">{range}</span>
+                    })}
+                    {(!closed && !is_meeting).then(|| view! { <FocusStar task=id focus=focus /> })}
                 </span>
                 <span on:click=|ev| ev.stop_propagation()>
                     <SelectField compact=true options=project_options current=project_now on_change=on_project />

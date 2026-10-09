@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use leptos::prelude::*;
-use minimap_types::{AppError, LinkRelation, NodeRef, Uuid};
+use minimap_types::{AppError, Clock, LinkRelation, NodeRef, Uuid};
 
 use crate::nav::move_cursor;
 
@@ -64,6 +64,37 @@ impl LinkDialog {
             label: label.into(),
             existing,
             relation,
+        }));
+    }
+
+    pub fn close(&self) {
+        self.0.set(None);
+    }
+}
+
+/// The clock on the user's wall, kept fresh by the meeting clock every half minute (spec 38), so
+/// "in 35 min" labels move on their own. `None` until the first tick.
+#[derive(Clone, Copy)]
+pub struct NowClock(pub RwSignal<Option<Clock>>);
+
+/// The "new meeting" dialog (spec 38): a plain new meeting, or a follow-up to the meeting named.
+#[derive(Clone, Copy)]
+pub struct MeetingDialog(pub RwSignal<Option<MeetingRequest>>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MeetingRequest {
+    /// The meeting a follow-up is for (its id and title), or none for a new meeting.
+    pub follow_up_of: Option<(Uuid, String)>,
+}
+
+impl MeetingDialog {
+    pub fn new_meeting(&self) {
+        self.0.set(Some(MeetingRequest { follow_up_of: None }));
+    }
+
+    pub fn follow_up(&self, source: Uuid, title: impl Into<String>) {
+        self.0.set(Some(MeetingRequest {
+            follow_up_of: Some((source, title.into())),
         }));
     }
 

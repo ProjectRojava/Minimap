@@ -80,6 +80,18 @@ pub fn col_recurrence(r: &Row, i: usize) -> rusqlite::Result<Option<minimap_type
     Ok(s.and_then(|s| serde_json::from_str(&s).ok()))
 }
 
+/// A focus as stored: JSON text, or NULL.
+pub fn focus_s(f: Option<&minimap_types::Focus>) -> Option<String> {
+    f.and_then(|f| serde_json::to_string(f).ok())
+}
+
+/// A stored focus. One that no longer reads (damaged, or from a newer version) is no focus: the
+/// task still loads.
+pub fn col_focus(r: &Row, i: usize) -> rusqlite::Result<Option<minimap_types::Focus>> {
+    let s: Option<String> = r.get(i)?;
+    Ok(s.and_then(|s| serde_json::from_str(&s).ok()))
+}
+
 /// Reference links as stored: a JSON list.
 pub fn links_s(links: &[minimap_types::RefLink]) -> String {
     serde_json::to_string(links).unwrap_or_else(|_| "[]".to_owned())

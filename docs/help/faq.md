@@ -32,6 +32,10 @@ Compare each person's **weekly capacity** (People) with your **hours per working
 
 It was probably made by a **repeating** task you finished. See [Recurring items](help:recurring); `Ctrl/Cmd+Z` takes it back, and clearing the *Repeats* box stops it.
 
+## A meeting changed status by itself
+
+That is what meetings do: they become *in progress* when they start and *done* when they end, while Minimap is open (and when you next open it, for ones that ended while it was closed). To postpone one, change its time; to stop it, set it to *cancelled*. See [Meetings](help:meetings).
+
 ## A date landed on a Monday when I said Saturday
 
 The schedule only uses working days, so a weekend start becomes the next working day. Due dates you type stay exactly as typed.
@@ -43,7 +47,7 @@ The preview card says why: an unreadable date, a bad estimate, an unclosed quote
 ## Google Drive says it needs attention
 
 - **Sign in again**: your access expired or was revoked. Press *Sign in with Google*.
-- **The recovery key doesn't match**: you typed the key of another Drive, or mistyped it. It is 64 letters and digits, usually in groups of four.
+- **The recovery key doesn't match**: you typed the key of another Drive, or mistyped it. It is 64 letters and digits, usually in groups of four. A computer that is already connected can show it again: *Settings → Data & backup → Google Drive → Add another computer → Show recovery key*.
 - **Newer version**: another computer has a newer Minimap and Drive holds data this version can't read. Update this computer.
 - **Offline**: nothing is wrong; it will catch up. A warning appears after a few days.
 

@@ -22,6 +22,9 @@ fn task(conn: &mut Connection, links: Vec<RefLink>) -> Result<Task> {
         CreateTask {
             links,
             task_type: None,
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             title: "Fetch company details".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),

@@ -108,6 +108,7 @@ pub fn node_class(n: &GraphNode) -> String {
         (n.critical, "critical"),
         (n.late, "late"),
         (n.blocked, "blocked"),
+        (n.held_up, "held-up"),
         (n.done, "done"),
         (n.context, "context"),
     ] {
@@ -327,6 +328,7 @@ pub fn Graph() -> impl IntoView {
                     <span class=Tone::Accent.chip()>"critical path"</span>
                     <span class=Tone::Danger.chip()>"late"</span>
                     <span class=Tone::Warning.chip()>"blocked"</span>
+                    <span class=Tone::Danger.chip()>"held up by a blocked task"</span>
                     <span class=Tone::Neutral.chip()>"dim = context"</span>
                     <span>"drag to pan · scroll to zoom · click to open"</span>
                 </div>
@@ -419,6 +421,7 @@ mod tests {
             critical: false,
             late: false,
             blocked: false,
+            held_up: false,
         };
         f(&mut n);
         n

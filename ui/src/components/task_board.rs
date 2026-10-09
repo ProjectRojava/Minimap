@@ -20,11 +20,14 @@ use crate::{
     components::{
         card_menu::CardMenu,
         date_field::today_ymd,
+        focus::{is_on, set_focus, toggle_choice, FocusStar},
         form::BUTTON_SOFT,
         objective_colour::{assign, use_objective_colours, ObjectiveChips},
         page::{Hints, Icon, PageHeader, Tone, CHIP},
         task_list::{next_status, BoardSort, FilterControls, LayoutToggle, TaskFilters},
-        task_type::{finish_badge, TypeChip},
+        task_type::{
+            finish_badge, frame_colour, frame_style, type_for_new_task, use_task_types, TypeChip,
+        },
     },
     labels::{
         deadline_heat, estimate_text, heat_strength, priority_short, task_status_label,
@@ -75,6 +78,7 @@ fn sort_cards(cards: &mut [TaskRow], sort: BoardSort, status: TaskStatus) {
             (
                 r.task.due_date.is_none(),
                 Reverse(r.task.due_date),
+                r.task.start_minute,
                 r.task.priority,
                 title(r),
             )
@@ -84,6 +88,7 @@ fn sort_cards(cards: &mut [TaskRow], sort: BoardSort, status: TaskStatus) {
                 r.task.priority,
                 r.task.due_date.is_none(),
                 r.task.due_date,
+                r.task.start_minute,
                 title(r),
             )
         }),
@@ -91,6 +96,7 @@ fn sort_cards(cards: &mut [TaskRow], sort: BoardSort, status: TaskStatus) {
             (
                 r.task.due_date.is_none(),
                 r.task.due_date,
+                r.task.start_minute,
                 r.task.priority,
                 title(r),
             )
@@ -440,14 +446,14 @@ pub(crate) fn today() -> Option<Date> {
     minimap_types::timefmt::parse_date(&format_ymd(y, m, d)).ok()
 }
 
-/// A coloured rule across the top of a column, from the status's tone.
-fn top_rule(tone: Tone) -> &'static str {
+/// A column's tint (background and border), from the status's tone.
+fn column_tint(tone: Tone) -> &'static str {
     match tone {
-        Tone::Accent => "border-t-accent",
-        Tone::Success => "border-t-success",
-        Tone::Warning => "border-t-warning",
-        Tone::Danger => "border-t-danger",
-        Tone::Neutral => "border-t-line-strong",
+        Tone::Accent => "bg-accent/10 border-accent/50",
+        Tone::Success => "bg-success/10 border-success/50",
+        Tone::Warning => "bg-warning/10 border-warning/50",
+        Tone::Danger => "bg-danger/10 border-danger/50",
+        Tone::Neutral => "bg-panel border-line-strong",
     }
 }
 
@@ -574,7 +580,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
         });
     };
 
-    // Keyboard on the card under the cursor: x done, s next status, 1-5 priority.
+    // Keyboard on the card under the cursor: x done, s next status, f focus, 1-5 priority.
     list.on_row_key(move |key, node| {
         let Some(row) = data.with_untracked(|d| {
             d.as_ref()
@@ -594,6 +600,10 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 },
             ),
             "s" => move_to(id, next_status(current)),
+            "f" => {
+                let on = is_on(row.task.focus.as_ref(), today());
+                set_focus(id, toggle_choice(on), toasts, version);
+            }
             k @ ("1" | "2" | "3" | "4" | "5") => {
                 let patch = UpdateTask {
                     priority: k.parse().ok(),
@@ -730,13 +740,14 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                         on:click=move |_| adding.update(|a| *a = if a.is_some() { None } else { Some(TaskStatus::Todo) })>
                     {move || if adding.get().is_some() { "Cancel" } else { "New task" }}
                 </button>
+                <crate::components::meeting::NewMeetingButton />
                 <Show when=move || focus.with(|f| !f.links.is_empty())>
                     <span class="truncate text-[11px] text-muted">
                         {move || focus_hint(linked.with(HashSet::len))}
                     </span>
                 </Show>
                 <span class="ml-auto"><LayoutToggle board=layout /></span>
-                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("1-5", "priority")] />
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("f", "focus"), ("1-5", "priority")] />
             </PageHeader>
             <FilterControls filters=filters inbox=false board=true />
             {move || if data.with(Option::is_some) {
@@ -893,9 +904,9 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             <section
                 aria-label=task_status_label(status)
                 class=move || format!(
-                    "flex w-72 min-w-[16rem] shrink-0 flex-col rounded-sm border border-t-2 border-line {} {}",
-                    top_rule(tone),
-                    if target() { "bg-hover !border-accent border-dashed" } else { "bg-panel" })
+                    "flex w-72 min-w-[16rem] shrink-0 flex-col rounded-sm border {} {}",
+                    column_tint(tone),
+                    if target() { "!bg-hover !border-accent border-dashed" } else { "" })
                 on:dragover=move |ev: ev::DragEvent| {
                     ev.prevent_default();
                     if let Some(dt) = ev.data_transfer() {
@@ -980,8 +991,11 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
         }
         let new = CreateTask {
             links: Vec::new(),
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             // A board filtered to a type adds tasks of that type.
-            task_type: Some(ctx.filters.task_type.get_untracked()).filter(|t| !t.is_empty()),
+            task_type: type_for_new_task(&ctx.filters.task_type.get_untracked()),
             title: t.to_owned(),
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -1052,9 +1066,25 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         .as_ref()
         .map(|r| format!("Repeats {}", r.describe()));
     let task_type = t.task_type.clone();
+    // The frame for its type (spec 39), if the setting is on.
+    let types = use_task_types();
+    let frame_of = StoredValue::new(task_type.clone());
+    let frame = move || {
+        let kind = frame_of.with_value(|id| id.as_deref().and_then(|id| types.find(id)));
+        frame_style(kind.as_ref(), types.borders())
+    };
+    let focus = t.focus;
     let finished = finish_badge(&t);
     let due = t.due_date.map(|d| due_pill(d, today, status));
-    let heat = deadline_heat(t.due_date, today, !closed);
+    // A meeting has a time, not a deadline: it doesn't warm up as the day nears (spec 38).
+    let is_meeting = t.is_meeting();
+    let heat = deadline_heat(t.due_date, today, !closed && !is_meeting);
+    let meeting_time = t.start_minute.filter(|_| is_meeting).map(|m| {
+        (
+            minimap_types::fmt_range(m, t.meeting_minutes()),
+            t.status == TaskStatus::InProgress,
+        )
+    });
     let estimate = estimate_text(t.estimate_days);
     let link_count = row.link_count;
     let attached = attachment_hint(row.attachment_count, t.links.len());
@@ -1077,7 +1107,10 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             draggable="true"
             data-task=id.to_string()
             style=move || {
-                let mut style = hue().map(|h| format!("--obj-h: {h};")).unwrap_or_default();
+                // The border is the objective's colour (it was the left edge); the type gives the
+                // line (spec 39).
+                let mut style = frame_colour(hue()).unwrap_or_default();
+                style.push_str(&frame().unwrap_or_default());
                 if let Some(h) = heat {
                     style.push_str(&format!("--heat: {};", heat_strength(h)));
                 }
@@ -1085,11 +1118,12 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             }
             class=move || format!(
                 "group relative cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {} {}",
-                if hue().is_some() { "obj-bar" } else { "" },
-                if is_open() { "border-accent/50 bg-active" }
-                else if is_linked() { "border-accent bg-hover ring-1 ring-accent/40" }
-                else if on_cursor() { "border-line-strong bg-hover" }
-                else { "border-line bg-canvas hover:border-line-strong hover:bg-hover" },
+                "card-frame",
+                // The border is the card's own, so its states are a tint and a ring.
+                if is_open() { "bg-active ring-1 ring-accent/60" }
+                else if is_linked() { "bg-hover ring-1 ring-accent" }
+                else if on_cursor() { "bg-hover ring-1 ring-line-strong" }
+                else { "bg-canvas hover:bg-hover" },
                 if heat.is_some() && !is_open() && !on_cursor() { "heat" } else { "" },
                 if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else { "" })
             on:click=move |_| {
@@ -1114,17 +1148,20 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             }
         >
             <CardMenu task=id label=title_label />
+            {(!closed && !is_meeting).then(|| view! {
+                <FocusStar task=id focus=focus place="absolute right-6 top-1" />
+            })}
             {move || {
                 let objectives = colours.of_project(project_id);
                 let kind = task_type.clone();
                 (kind.is_some() || !objectives.is_empty()).then(|| view! {
-                    <div class="mb-1.5 flex flex-wrap items-center gap-1 pr-4">
+                    <div class="mb-1.5 flex flex-wrap items-center gap-1 pr-10">
                         <TypeChip id=kind />
                         <ObjectiveChips objectives=objectives />
                     </div>
                 })
             }}
-            <div class="flex items-start gap-1.5 pr-4">
+            <div class="flex items-start gap-1.5 pr-10">
                 <span class=title_class>{t.title}</span>
                 {repeats.map(|text| view! {
                     <span class="shrink-0 text-muted" title=text>"↻"</span>
@@ -1173,6 +1210,10 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             <div class="mt-2 flex items-center gap-1.5 text-[11px]">
                 <span class=priority_class title="Priority (1 is highest)">{priority_short(priority)}</span>
                 {due.map(|pill| view! { <span class=pill.class title=pill.hint>{pill.text}</span> })}
+                {meeting_time.map(|(range, live)| view! {
+                    <span class=if live { "tabular-nums font-medium text-accent" } else { "tabular-nums text-muted" }
+                          title="When the meeting is">{range}</span>
+                })}
                 {finished.map(|(text, tone)| view! {
                     <span class=tone.text() title="Finished against the due date">{text}</span>
                 })}
@@ -1211,6 +1252,9 @@ mod tests {
             task: minimap_types::Task {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 id: {
                     static NEXT: AtomicU64 = AtomicU64::new(1);
                     Uuid::from_u128(NEXT.fetch_add(1, Ordering::Relaxed).into())
@@ -1605,9 +1649,9 @@ mod tests {
     }
 
     #[test]
-    fn every_column_has_a_rule_and_a_hint() {
+    fn every_column_has_a_tint_and_a_hint() {
         for s in TaskStatus::ALL.iter().copied() {
-            assert!(top_rule(task_status_tone(s)).starts_with("border-t-"));
+            assert!(column_tint(task_status_tone(s)).contains("border-"));
             assert!(!empty_hint(s).is_empty());
         }
     }

@@ -27,7 +27,7 @@ You are never locked in. **Export your data**, under *Settings → Data & backup
 
 **With Markdown ticked:**
 
-- `projects/<name>.md`: one file per project with its details, owner, dates, objectives, dependencies, its tasks as a checklist (type, assignee, due date, estimate, priority, what blocks it, whether it repeats, its reference links), the decisions that affect it and what you are waiting on;
+- `projects/<name>.md`: one file per project with its details, owner, dates, objectives, dependencies, its tasks as a checklist (type, assignee, due date, estimate, priority, what blocks it, whether it repeats, its reference links; a meeting says `meeting 2027-03-05 10:30–11:30`), the decisions that affect it and what you are waiting on;
 - `inbox.md`: the tasks that belong to no project;
 - `notes/<date>-<title>.md`: each note on its own, with mentions as `@Name` and links to pictures and files pointing into `attachments/`.
 

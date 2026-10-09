@@ -6,7 +6,8 @@
 //! `today`'s week), so a fixed `today` gives the same dataset every time. Titles, dates,
 //! statuses, estimates and links are fixed; only the generated ids differ between runs.
 //!
-//! Contents: 3 objectives (one ongoing), 3 projects (EU Region is at risk), 40 tasks (cross-project `blocks`),
+//! Contents: 3 objectives (one ongoing), 3 projects (EU Region is at risk), 40 tasks (cross-project `blocks`) and
+//! 5 meetings (one today, one tomorrow with a follow-up, a weekly sync held on Monday and its next),
 //! 8 people (me and 7 others, one overloaded) in 2 nested teams with reporting lines, 3 notes
 //! (one 1:1 with mentions and a checklist), 5 decisions (one replaced by another) and 3
 //! waiting-ons (one stale, one resolved this week).
@@ -19,10 +20,11 @@ use std::collections::HashMap;
 
 use minimap_core::{recurrence::parse_every, this_week::monday_of};
 use minimap_types::{
-    mention_token, AssigneeChoice, CreateDecision, CreateNote, CreateObjective, CreatePerson,
-    CreateProject, CreateTask, CreateTeam, CreateWaitingOn, DecisionStatus, DemoSummary, EdgeType,
-    NewEdge, NodeRef, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence,
-    RefLink, TaskStatus, UpdateObjective, UpdateTask, UpdateWaitingOn,
+    mention_token, AssigneeChoice, Cadence, CreateDecision, CreateNote, CreateObjective,
+    CreatePerson, CreateProject, CreateTask, CreateTeam, CreateWaitingOn, DecisionStatus,
+    DemoSummary, EdgeType, Focus, NewEdge, NodeRef, NodeType, NoteKind, ObjectiveStatus, Patch,
+    ProjectStatus, Recurrence, RefLink, TaskStatus, UpdateObjective, UpdateTask, UpdateWaitingOn,
+    MEETING_TYPE,
 };
 use rusqlite::{params, Connection, Transaction};
 use time::{Date, Duration, OffsetDateTime, Time};
@@ -104,6 +106,42 @@ const fn t(
 
 use TaskStatus::{Cancelled, Done, InProgress, Todo};
 
+/// One demo meeting (spec 38): a task of the built-in meeting type at a day and a time, assigned
+/// to one person in a project.
+#[allow(clippy::too_many_arguments)]
+fn demo_meeting(
+    s: &Seeder,
+    title: &str,
+    who: &str,
+    project: &str,
+    due: Date,
+    minute: u16,
+    status: TaskStatus,
+    recurrence: Option<Recurrence>,
+) -> Result<Uuid> {
+    let task = tasks::create_in_tx(
+        s.tx,
+        CreateTask {
+            links: Vec::new(),
+            task_type: Some(MEETING_TYPE.to_owned()),
+            focus: None,
+            start_minute: Some(minute),
+            length_minutes: Some(60),
+            title: title.into(),
+            assignee: AssigneeChoice::Person(s.people[who]),
+            description: String::new(),
+            project_id: Some(s.projects[project]),
+            status: Some(status),
+            estimate_days: None,
+            start_date: None,
+            due_date: Some(due),
+            priority: Some(2),
+            recurrence,
+        },
+    )?;
+    Ok(task.id)
+}
+
 /// The 40 tasks, one per line. `e3` and `e13` change status during "this week" (see
 /// [`this_week`]).
 #[rustfmt::skip]
@@ -148,6 +186,19 @@ fn demo_type(key: &str) -> Option<&'static str> {
         "e10" | "e11" | "p10" | "p11" | "p14" | "s7" | "s8" | "s9" | "i1" => "admin",
         _ => return None,
     })
+}
+
+/// Focus (spec 37) on two tasks whose deadlines are weeks away: the go-live checklist is pinned,
+/// the gateway migration is kept in sight for the next two weeks. Neither is on This week by
+/// date, which is the point of focus.
+fn demo_focus(key: &str, today: Date) -> Option<Focus> {
+    match key {
+        "e10" => Some(Focus::PINNED),
+        "p6" => Some(Focus {
+            until: Some(today + Duration::days(14)),
+        }),
+        _ => None,
+    }
 }
 
 fn task_table() -> Vec<Task> {
@@ -931,6 +982,9 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
                 priority: Some(spec.priority),
                 links: demo_links(spec.key),
                 task_type: demo_type(spec.key).map(str::to_owned),
+                focus: demo_focus(spec.key, today),
+                start_minute: None,
+                length_minutes: None,
                 recurrence: spec
                     .repeats
                     .map(|text| {
@@ -984,6 +1038,79 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             objective(maintenance.id),
             serde_json::json!({ "weight": 1.0 }),
         )?;
+    }
+
+    // ---------------------------------------------------------------- meetings
+    // Five meetings (spec 38), apart from the 40 tasks: one today, one tomorrow with a follow-up
+    // next week, and a weekly sync that was held on Monday and has its next one made and linked.
+    {
+        let monday = monday_of(today);
+        let weekly: Recurrence = Cadence::Weekly {
+            every: 1,
+            weekday: 0,
+        }
+        .into();
+        demo_meeting(
+            &s,
+            "Security review sync",
+            "raj",
+            SEC,
+            d(0),
+            16 * 60,
+            TaskStatus::Todo,
+            None,
+        )?;
+        let cutover = demo_meeting(
+            &s,
+            "EU cutover review",
+            "priya",
+            EU,
+            d(1),
+            14 * 60,
+            TaskStatus::Todo,
+            None,
+        )?;
+        let follow_up = demo_meeting(
+            &s,
+            "Follow-up: EU cutover review",
+            "priya",
+            EU,
+            d(8),
+            14 * 60,
+            TaskStatus::Todo,
+            None,
+        )?;
+        let held = demo_meeting(
+            &s,
+            "Platform weekly sync",
+            "tomas",
+            PF,
+            monday,
+            10 * 60,
+            TaskStatus::Done,
+            None,
+        )?;
+        let next = demo_meeting(
+            &s,
+            "Platform weekly sync",
+            "tomas",
+            PF,
+            monday + Duration::days(7),
+            10 * 60,
+            TaskStatus::Todo,
+            Some(weekly),
+        )?;
+        let follows = |from: Uuid, to: Uuid| {
+            s.link(
+                EdgeType::FollowsUp,
+                NodeRef::new(NodeType::Task, from),
+                NodeRef::new(NodeType::Task, to),
+                serde_json::json!({}),
+            )
+        };
+        follows(follow_up, cutover)?;
+        follows(next, held)?;
+        s.tasks.insert("m-held", held);
     }
 
     // ------------------------------------------------------------------- notes
@@ -1166,6 +1293,11 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             params![id_s(s.tasks[key]), ts_s(finished)],
         )?;
     }
+    // The weekly sync was held on Monday, an hour from ten.
+    tx.execute(
+        "UPDATE tasks SET completed_at = ?2 WHERE id = ?1",
+        params![id_s(s.tasks["m-held"]), ts_s(at(monday, 11))],
+    )?;
     // The task finished at the start of today's session, after the week began.
     tx.execute(
         "UPDATE tasks SET completed_at = ?2 WHERE id = ?1",

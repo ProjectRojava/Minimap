@@ -14,6 +14,9 @@ fn task(conn: &mut Connection, task_type: Option<&str>) -> Result<Task> {
         CreateTask {
             links: Vec::new(),
             task_type: task_type.map(str::to_owned),
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             title: "Pick the data store".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -123,7 +126,7 @@ fn the_list_can_be_extended_renamed_and_recoloured_but_not_shortened() {
     let s = set_types(&mut conn, list).unwrap();
     assert_eq!(s.task_types[0].id, "design");
     assert_eq!(s.task_types[0].name, "UX design");
-    assert_eq!(s.task_types[7].id, "legal-review");
+    assert_eq!(s.task_types[8].id, "legal-review");
     // It survives a reload and a new type can be used at once.
     assert_eq!(settings::get(&conn).unwrap().task_types, s.task_types);
     task(&mut conn, Some("legal-review")).unwrap();
@@ -176,6 +179,9 @@ fn a_repeating_task_hands_its_type_on() {
         CreateTask {
             links: Vec::new(),
             task_type: Some("admin".into()),
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             title: "Access review".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -245,4 +251,41 @@ fn the_due_date_history_is_in_the_activity_log() {
     let history = plan_history(&rows);
     assert_eq!(history.first, Some(date!(2027 - 03 - 01)));
     assert_eq!(history.moves, 2);
+}
+
+#[test]
+fn card_borders_are_on_by_default_stay_as_set_and_belong_to_this_device() {
+    let mut conn = db();
+    assert!(settings::get(&conn).unwrap().type_borders);
+    let off = settings::update(
+        &mut conn,
+        UpdateSettings {
+            type_borders: Some(false),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(!off.type_borders);
+    // Another setting changing leaves it alone, and it reads back.
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            hours_per_day: Some(7.0),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(!s.type_borders);
+    assert!(!settings::get(&conn).unwrap().type_borders);
+    // Like the theme, it is never synced or put in a snapshot.
+    assert!(settings::LOCAL_ONLY.contains(&"type_borders"));
+    let on = settings::update(
+        &mut conn,
+        UpdateSettings {
+            type_borders: Some(true),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(on.type_borders);
 }

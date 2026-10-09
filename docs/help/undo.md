@@ -16,6 +16,7 @@ Creating, editing, archiving and restoring items, adding and removing links, cha
 - **Attached files** (adding or removing) and the **details of a link** (its weight, lag, role).
 - **Note text.** What you type in a note has its own undo inside the editor. Creating and archiving a note can be undone.
 - **Settings.**
+- **A meeting starting and ending on its own.** The clock moves meetings to *in progress* and *done*; that is not a step. Scheduling a follow-up or moving a meeting yourself is.
 
 ## When things have changed
 

@@ -5,22 +5,27 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    Date, Flag, FlaggedTask, NodeRef, NodeType, NoteKind, NoteRow, TaskNotes, TaskStatus,
-    ThisWeek as Week, UpdateTask, Uuid, WaitingOnRow, WeekDay, WeekTask,
+    Date, Flag, FlaggedTask, FocusTask, NodeRef, NodeType, NoteKind, NoteRow, TaskNotes,
+    TaskStatus, ThisWeek as Week, UpdateTask, Uuid, WaitingOnRow, WeekDay, WeekTask,
+    FOCUS_QUIET_DAYS, FOCUS_SOFT_LIMIT,
 };
 
 use crate::{
     api,
     components::{
+        focus::{is_on, set_focus, toggle_choice, FocusStar},
         form::{BUTTON, BUTTON_SUCCESS, COMPACT_INPUT},
+        markdown_box::{clicked_a_link, MarkdownView},
+        meeting::starts_in_text,
         node_row::NodeRow,
         page::{EmptyState, Hints, PageHeader, Tone, CHIP_STRONG},
         review_row::ReviewRow,
         sync_status::SyncBanner,
+        task_board::today as local_today,
         waiting_panel::age_text,
     },
     labels::{note_kind_tone, task_status_label, task_status_tone},
-    state::{finish, DataVersion, ListNav, Selection, Toasts},
+    state::{finish, DataVersion, ListNav, MeetingDialog, NowClock, Selection, Toasts},
     timeline::day_text,
 };
 
@@ -52,6 +57,13 @@ pub fn day_summary(d: &WeekDay) -> String {
     if d.tasks_due > 0 {
         parts.push(format!("{} due", d.tasks_due));
     }
+    if d.meetings > 0 {
+        parts.push(if d.meetings == 1 {
+            "1 meeting".to_owned()
+        } else {
+            format!("{} meetings", d.meetings)
+        });
+    }
     if d.waiting_expected > 0 {
         parts.push(format!("{} waiting", d.waiting_expected));
     }
@@ -68,6 +80,8 @@ pub fn day_summary(d: &WeekDay) -> String {
 /// Total rows across the sections (for the empty state).
 pub fn total_items(w: &Week) -> usize {
     w.overdue.len()
+        + w.meetings.len()
+        + w.focus.len()
         + w.due_this_week.len()
         + w.blocked.len()
         + w.in_progress.len()
@@ -83,6 +97,8 @@ pub struct Counts {
     pub due_today: usize,
     pub blocked: usize,
     pub planned: usize,
+    /// Open tasks in focus (spec 37), flagged or not.
+    pub focus: usize,
     pub waiting: usize,
 }
 
@@ -98,6 +114,7 @@ pub fn counts(w: &Week) -> Counts {
         due_today: with(Flag::DueToday),
         blocked: with(Flag::Blocked),
         planned: w.priorities.len(),
+        focus: w.focus_count as usize,
         waiting: w.waiting.len(),
     }
 }
@@ -105,7 +122,9 @@ pub fn counts(w: &Week) -> Counts {
 /// The one line at the top that says how the week stands.
 pub fn headline(w: &Week) -> String {
     match w.attention.len() {
-        0 if w.priorities.is_empty() => "Nothing needs you this week".to_owned(),
+        0 if w.priorities.is_empty() && w.focus.is_empty() => {
+            "Nothing needs you this week".to_owned()
+        }
         0 => "Nothing is late or stuck. Here is the plan".to_owned(),
         1 => "1 task needs your attention".to_owned(),
         n => format!("{n} tasks need your attention"),
@@ -279,7 +298,17 @@ fn Body(
     // Rows in display order, so j/k/Enter walk the whole screen.
     let mut nodes: Vec<NodeRef> = Vec::new();
     nodes.extend(
+        week.meetings
+            .iter()
+            .map(|m| NodeRef::new(NodeType::Task, m.id())),
+    );
+    nodes.extend(
         week.attention
+            .iter()
+            .map(|f| NodeRef::new(NodeType::Task, f.task.id())),
+    );
+    nodes.extend(
+        week.focus
             .iter()
             .map(|f| NodeRef::new(NodeType::Task, f.task.id())),
     );
@@ -300,16 +329,28 @@ fn Body(
     );
     list.set_items(nodes);
 
-    // `x` completes the task (or resolves the waiting-on) under the cursor.
-    list.on_row_key(move |key, node| {
-        if key != "x" {
-            return;
-        }
-        match node.node_type {
-            NodeType::Task => complete(node.id, toasts, version),
-            NodeType::WaitingOn => resolve(node.id, toasts, version),
-            _ => {}
-        }
+    // The tasks in focus today, for `f` (it takes a task out, or puts another in).
+    let in_focus: std::collections::HashSet<Uuid> = week
+        .attention
+        .iter()
+        .map(|f| &f.task)
+        .chain(week.focus.iter().map(|f| &f.task))
+        .filter(|t| is_on(t.row.task.focus.as_ref(), local_today()))
+        .map(WeekTask::id)
+        .collect();
+
+    // `x` completes the task (or resolves the waiting-on) under the cursor; `f` puts a task in
+    // focus or takes it out.
+    list.on_row_key(move |key, node| match (key.as_str(), node.node_type) {
+        ("x", NodeType::Task) => complete(node.id, toasts, version),
+        ("x", NodeType::WaitingOn) => resolve(node.id, toasts, version),
+        ("f", NodeType::Task) => set_focus(
+            node.id,
+            toggle_choice(in_focus.contains(&node.id)),
+            toasts,
+            version,
+        ),
+        _ => {}
     });
 
     let today = week.today;
@@ -353,6 +394,23 @@ fn Body(
         .collect();
 
     let mut index = 0usize;
+    let meetings_card = (!week.meetings.is_empty()).then(|| {
+        let first = index;
+        index += week.meetings.len();
+        let rows = week
+            .meetings
+            .iter()
+            .enumerate()
+            .map(|(i, m)| view! { <MeetingRow row=m.clone() index=first + i today=today notes=notes_of.get(&m.id()).cloned() /> })
+            .collect_view();
+        view! {
+            <section class=CARD aria-label="Meetings">
+                <CardHead title="Meetings" count=week.meetings.len() tone=Tone::Accent
+                    hint="Today and the rest of the week. They start and end on their own" />
+                {rows}
+            </section>
+        }
+    });
     let attention = if week.attention.is_empty() {
         view! {
             <div class="mx-4 mt-4 flex items-center gap-2 rounded-sm border border-success/40 bg-success/10 px-4 py-2.5 text-success">
@@ -384,6 +442,27 @@ fn Body(
         }
         .into_any()
     };
+    let focus_section = (!week.focus.is_empty()).then(|| {
+        let first = index;
+        index += week.focus.len();
+        let nudge = focus_nudge(week.focus_count as usize);
+        let rows = week
+            .focus
+            .iter()
+            .enumerate()
+            .map(|(i, f)| view! { <FocusRow item=f.clone() index=first + i today=today notes=notes_of.get(&f.task.id()).cloned() /> })
+            .collect_view();
+        view! {
+            <section class=CARD aria-label="Focus">
+                <CardHead title="Focus" count=week.focus.len() tone=Tone::Accent
+                    hint="Kept here every day, whatever the due date" />
+                {nudge.map(|text| view! {
+                    <p class="border-b border-line bg-warning/10 px-4 py-1.5 text-[12px] text-warning">{text}</p>
+                })}
+                {rows}
+            </section>
+        }
+    });
     let priorities = (!week.priorities.is_empty()).then(|| {
         let first = index;
         index += week.priorities.len();
@@ -462,7 +541,7 @@ fn Body(
             <span class="tabular-nums text-muted">{range_text(week.week_start, week.week_end)}</span>
             <button class=BUTTON aria-label="Next week" on:click=next>"›"</button>
             <button class=BUTTON disabled=current && !back_to_today on:click=reset>"This week"</button>
-            <Hints keys=&[("j/k", "move"), ("Enter", "open"), ("x", "done")] />
+            <Hints keys=&[("j/k", "move"), ("Enter", "open"), ("x", "done"), ("f", "focus")] />
         </PageHeader>
         <div class="min-h-0 flex-1 overflow-y-auto pb-6">
             <SyncBanner />
@@ -483,12 +562,15 @@ fn Body(
                     <Stat label="Overdue" value=c.overdue tone=Tone::Danger />
                     <Stat label="Due today" value=c.due_today tone=Tone::Warning />
                     <Stat label="Blocked" value=c.blocked tone=Tone::Warning />
+                    <Stat label="In focus" value=c.focus tone=Tone::Accent />
                     <Stat label="Planned" value=c.planned tone=Tone::Accent />
                     <Stat label="Waiting on" value=c.waiting tone=Tone::Neutral />
                 </div>
             </div>
             <div class="mx-4 mt-4 grid grid-cols-7 gap-1.5" role="group" aria-label="Days of the week">{strip}</div>
+            {meetings_card}
             {attention}
+            {focus_section}
             {priorities}
             {waiting}
             {reviews}
@@ -669,19 +751,51 @@ pub fn blocked_text(t: &WeekTask) -> Option<String> {
     Some(format!("waiting for {}", names.join(", ")))
 }
 
-/// The text of a note on a task's row: its day, a short read of it, two lines at most. Clicking
-/// one opens that note in the pane (not the task).
-fn note_line(kind: NoteKind, snippet: &str) -> (Option<&'static str>, String) {
-    let tag = (kind != NoteKind::General).then_some(match kind {
-        NoteKind::OneOnOne => "1:1",
-        _ => "meeting",
-    });
-    let text = if snippet.trim().is_empty() {
-        "(nothing written)".to_owned()
+/// How far off a task in focus is due, said loosely ("due in 5 weeks"): the point of focus is that
+/// the date is not what puts the task here.
+pub fn due_in_text(due: Date, today: Date) -> String {
+    let days = (due - today).whole_days();
+    match days {
+        i64::MIN..=-1 => format!("due {} ago", plural(-days, "day")),
+        0 => "due today".to_owned(),
+        1 => "due tomorrow".to_owned(),
+        2..=13 => format!("due in {days} days"),
+        14..=59 => format!("due in {}", plural(days / 7, "week")),
+        _ => format!("due in {}", plural(days / 30, "month")),
+    }
+}
+
+fn plural(n: i64, unit: &str) -> String {
+    if n == 1 {
+        format!("1 {unit}")
     } else {
-        snippet.to_owned()
-    };
-    (tag, text)
+        format!("{n} {unit}s")
+    }
+}
+
+/// The line over the Focus section when more tasks are in focus than `FOCUS_SOFT_LIMIT`.
+pub fn focus_nudge(count: usize) -> Option<String> {
+    (count > FOCUS_SOFT_LIMIT).then(|| {
+        format!(
+            "{count} tasks are in focus. Past {FOCUS_SOFT_LIMIT} nothing stands out: take some out."
+        )
+    })
+}
+
+/// "No change for 16 days. Still the one?" once a task in focus has been quiet for
+/// `FOCUS_QUIET_DAYS`.
+pub fn quiet_text(quiet_days: u32) -> Option<String> {
+    (quiet_days >= FOCUS_QUIET_DAYS)
+        .then(|| format!("No change for {quiet_days} days. Still the one?"))
+}
+
+/// The small tag on a note of a task's row: *1:1* or *meeting*, nothing for a general note.
+fn kind_tag(kind: NoteKind) -> Option<&'static str> {
+    match kind {
+        NoteKind::General => None,
+        NoteKind::OneOnOne => Some("1:1"),
+        _ => Some("meeting"),
+    }
 }
 
 /// "+2 earlier" when a task has more notes than are shown.
@@ -700,16 +814,29 @@ fn RecentNotes(notes: TaskNotes, indent: &'static str) -> impl IntoView {
         .into_iter()
         .map(|n| {
             let node = NodeRef::new(NodeType::Note, n.id);
-            let (tag, text) = note_line(n.kind, &n.snippet);
+            let tag = kind_tag(n.kind);
             view! {
                 <li>
-                    <button class="flex w-full items-baseline gap-2 text-left text-[12px] text-muted hover:text-fg"
-                            title=n.snippet.clone() aria-label=format!("Open the note from {}", n.note_date)
-                            on:click=move |ev| { ev.stop_propagation(); selection.open(node); }>
+                    // Not a <button>: the formatted text inside has links and mentions of its own.
+                    <div role="button" tabindex="0"
+                         class="flex w-full cursor-pointer items-baseline gap-2 text-left text-[12px] text-muted hover:text-fg"
+                         aria-label=format!("Open the note from {}", n.note_date)
+                         on:click=move |ev| { ev.stop_propagation(); selection.open(node); }
+                         on:keydown=move |ev| {
+                             if ev.key() == "Enter" {
+                                 ev.stop_propagation();
+                                 selection.open(node);
+                             }
+                         }>
                         <span class="shrink-0 tabular-nums">{n.note_date.to_string()}</span>
                         {tag.map(|t| view! { <span class=note_kind_tone(n.kind).chip()>{t}</span> })}
-                        <span class="line-clamp-2 min-w-0">{text}</span>
-                    </button>
+                        // A mention, file or link opens itself; anything else opens the note.
+                        <div class="max-h-[4.75rem] min-w-0 flex-1 overflow-hidden"
+                             on:click=|ev| { if clicked_a_link(&ev) { ev.stop_propagation(); } }>
+                            <MarkdownView text=n.body.clone() empty="(nothing written)"
+                                class="text-[12px] [&>:last-child]:mb-0" />
+                        </div>
+                    </div>
                 </li>
             }
         })
@@ -767,6 +894,127 @@ fn FlagRow(
             {(t.priority <= 2).then(|| view! { <span class=CHIP_STRONG>{format!("P{}", t.priority)}</span> })}
             {blockers.map(|b| view! { <span class="min-w-0 truncate text-[11px] text-warning">{b}</span> })}
             {assignee.map(|a| view! { <span class="shrink-0 text-[11px] text-muted">{a}</span> })}
+            <FocusStar task=id focus=t.focus />
+            <TaskActions id=id />
+        </NodeRow>
+    }
+}
+
+/// A meeting (spec 38): its time first, then what it is, with how soon it starts. It closes
+/// itself when it ends; the tick box ends it early, and *Follow-up…* schedules a follow-up.
+#[component]
+fn MeetingRow(
+    row: WeekTask,
+    index: usize,
+    today: Date,
+    #[prop(default = None)] notes: Option<TaskNotes>,
+) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let dialog = expect_context::<MeetingDialog>();
+    let now = expect_context::<NowClock>();
+    let t = row.row.task.clone();
+    let id = t.id;
+    let title = t.title.clone();
+    let node = NodeRef::new(NodeType::Task, id);
+    let project = row.row.project.as_ref().map(|p| p.label.clone());
+    let range = t
+        .start_minute
+        .map(|m| minimap_types::fmt_range(m, t.meeting_minutes()))
+        .unwrap_or_default();
+    let day = t.due_date.map(|d| meeting_day(d, today));
+    // How soon, or "now", follows the clock; the status says the same once the tick has run.
+    let soon = {
+        let t = t.clone();
+        move || now.0.get().and_then(|c| starts_in_text(&t, &c))
+    };
+    let live = t.status == TaskStatus::InProgress;
+    let below = move || {
+        notes
+            .clone()
+            .map(|n| view! { <RecentNotes notes=n indent="pl-[10.25rem]" /> })
+    };
+    view! {
+        <NodeRow node=node index=index below=below>
+            <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
+                           text-[10px] text-transparent hover:border-success hover:text-success"
+                    title="End the meeting now" aria-label="End the meeting now"
+                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version); }>"✓"</button>
+            <span class="w-14 shrink-0 text-[12px] font-medium text-muted">{day}</span>
+            <span class="w-28 shrink-0 text-[12px] tabular-nums">{range}</span>
+            <span class="min-w-0 truncate">
+                <span class="font-semibold">{t.title.clone()}</span>
+                {project.map(|p| view! { <span class="ml-2 text-muted">{p}</span> })}
+            </span>
+            {live.then(|| view! { <span class=Tone::Accent.chip()>"NOW"</span> })}
+            {move || soon().filter(|s| !(live && s == "now")).map(|s| view! {
+                <span class="shrink-0 text-[12px] font-medium text-accent">{s}</span>
+            })}
+            <span class="ml-auto flex shrink-0 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100"
+                  on:click=|ev| ev.stop_propagation()>
+                <button class=BUTTON title="Schedule a follow-up meeting"
+                        on:click=move |_| dialog.follow_up(id, title.clone())>"Follow-up…"</button>
+            </span>
+        </NodeRow>
+    }
+}
+
+/// "Today", "Tomorrow" or "Fri 5" for the day of a meeting.
+pub fn meeting_day(day: Date, today: Date) -> String {
+    match (day - today).whole_days() {
+        0 => "Today".to_owned(),
+        1 => "Tomorrow".to_owned(),
+        _ => format!("{} {}", weekday_short(day), day.day()),
+    }
+}
+
+/// A task in focus: kept here every day whatever its due date, with how far off the date is and
+/// a nudge when nothing has happened to it for a while.
+#[component]
+fn FocusRow(
+    item: FocusTask,
+    index: usize,
+    today: Date,
+    #[prop(default = None)] notes: Option<TaskNotes>,
+) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let t = item.task.row.task.clone();
+    let id = t.id;
+    let node = NodeRef::new(NodeType::Task, id);
+    let project = item.task.row.project.as_ref().map(|p| p.label.clone());
+    let due = t.due_date.map(|d| due_in_text(d, today));
+    let until = t
+        .focus
+        .and_then(|f| f.until)
+        .map(|d| format!("in focus through {d}"));
+    let status = (t.status != TaskStatus::Todo)
+        .then(|| (task_status_tone(t.status), task_status_label(t.status)));
+    let quiet = quiet_text(item.quiet_days);
+    let below = move || {
+        notes
+            .clone()
+            .map(|n| view! { <RecentNotes notes=n indent="pl-[4.75rem]" /> })
+    };
+    view! {
+        <NodeRow node=node index=index below=below>
+            <FocusStar task=id focus=t.focus />
+            <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
+                           text-[10px] text-transparent hover:border-success hover:text-success"
+                    title="Mark done" aria-label="Mark done"
+                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version); }>"✓"</button>
+            <span class="min-w-0 truncate">
+                <span class="font-semibold">{t.title.clone()}</span>
+                {project.map(|p| view! { <span class="ml-2 text-muted">{p}</span> })}
+            </span>
+            {(t.priority <= 2).then(|| view! { <span class=CHIP_STRONG>{format!("P{}", t.priority)}</span> })}
+            {status.map(|(tone, s)| view! { <span class=tone.chip()>{s}</span> })}
+            {due.map(|text| view! { <span class="shrink-0 text-[12px] tabular-nums text-muted">{text}</span> })}
+            {until.map(|text| view! { <span class="shrink-0 text-[11px] text-muted">{text}</span> })}
+            {quiet.map(|text| {
+                let title = format!("{text} Click the star to take it out of focus.");
+                view! { <span class="min-w-0 truncate text-[11px] text-warning" title=title>{text}</span> }
+            })}
             <TaskActions id=id />
         </NodeRow>
     }
@@ -821,6 +1069,7 @@ fn PlanRow(
             {due.map(|(text, soon)| view! {
                 <span class=if soon { "shrink-0 text-[12px] font-medium text-warning" } else { "shrink-0 text-[12px] tabular-nums text-muted" }>{text}</span>
             })}
+            <FocusStar task=id focus=t.focus />
             <TaskActions id=id />
         </NodeRow>
     }
@@ -887,14 +1136,10 @@ mod tests {
     use time::macros::date;
 
     #[test]
-    fn a_note_line_tags_one_on_ones_and_says_when_nothing_is_written() {
-        assert_eq!(
-            note_line(NoteKind::General, "Vendor said 2 weeks"),
-            (None, "Vendor said 2 weeks".to_owned())
-        );
-        assert_eq!(note_line(NoteKind::OneOnOne, "x").0, Some("1:1"));
-        assert_eq!(note_line(NoteKind::Meeting, "x").0, Some("meeting"));
-        assert_eq!(note_line(NoteKind::General, "  ").1, "(nothing written)");
+    fn only_one_on_ones_and_meetings_get_a_tag() {
+        assert_eq!(kind_tag(NoteKind::General), None);
+        assert_eq!(kind_tag(NoteKind::OneOnOne), Some("1:1"));
+        assert_eq!(kind_tag(NoteKind::Meeting), Some("meeting"));
     }
 
     #[test]
@@ -935,6 +1180,9 @@ mod tests {
                     recurrence: None,
                     links: Vec::new(),
                     task_type: None,
+                    focus: None,
+                    start_minute: None,
+                    length_minutes: None,
                     created_at: time::OffsetDateTime::UNIX_EPOCH,
                     updated_at: time::OffsetDateTime::UNIX_EPOCH,
                     archived_at: None,
@@ -974,6 +1222,9 @@ mod tests {
             attention,
             priorities,
             task_notes: Vec::new(),
+            focus: Vec::new(),
+            focus_count: 0,
+            meetings: Vec::new(),
         }
     }
 
@@ -999,6 +1250,7 @@ mod tests {
                 due_today: 1,
                 blocked: 2,
                 planned: 1,
+                focus: 0,
                 waiting: 0
             }
         );
@@ -1023,6 +1275,58 @@ mod tests {
     }
 
     #[test]
+    fn focus_counts_in_the_tiles_and_keeps_the_headline_calm() {
+        let mut w = week(Vec::new(), Vec::new(), true);
+        assert_eq!(headline(&w), "Nothing needs you this week");
+        w.focus = vec![FocusTask {
+            task: task(1, TaskStatus::Todo),
+            quiet_days: 0,
+        }];
+        w.focus_count = 1;
+        assert_eq!(counts(&w).focus, 1);
+        assert_eq!(headline(&w), "Nothing is late or stuck. Here is the plan");
+        assert_eq!(total_items(&w), 1);
+        // A flagged task in focus counts as a flag and in the focus tile.
+        w.focus.clear();
+        w.focus_count = 2;
+        assert_eq!(counts(&w).focus, 2);
+    }
+
+    #[test]
+    fn a_far_off_date_is_said_loosely() {
+        let today = date!(2027 - 03 - 03);
+        let in_days = |n: i64| due_in_text(today + time::Duration::days(n), today);
+        assert_eq!(in_days(0), "due today");
+        assert_eq!(in_days(1), "due tomorrow");
+        assert_eq!(in_days(9), "due in 9 days");
+        assert_eq!(in_days(14), "due in 2 weeks");
+        assert_eq!(in_days(35), "due in 5 weeks");
+        assert_eq!(in_days(60), "due in 2 months");
+        assert_eq!(in_days(400), "due in 13 months");
+        assert_eq!(in_days(-1), "due 1 day ago");
+        assert_eq!(in_days(-4), "due 4 days ago");
+        assert_eq!(
+            due_in_text(date!(2027 - 03 - 03) + time::Duration::days(30), today),
+            "due in 4 weeks"
+        );
+        assert_eq!(in_days(30), "due in 4 weeks");
+    }
+
+    #[test]
+    fn too_many_in_focus_and_a_quiet_focus_are_asked_about() {
+        assert_eq!(focus_nudge(0), None);
+        assert_eq!(focus_nudge(FOCUS_SOFT_LIMIT), None);
+        let text = focus_nudge(FOCUS_SOFT_LIMIT + 1).unwrap();
+        assert!(text.starts_with(&format!("{} tasks are in focus", FOCUS_SOFT_LIMIT + 1)));
+        assert_eq!(quiet_text(0), None);
+        assert_eq!(quiet_text(FOCUS_QUIET_DAYS - 1), None);
+        assert_eq!(
+            quiet_text(16).as_deref(),
+            Some("No change for 16 days. Still the one?")
+        );
+    }
+
+    #[test]
     fn red_flag_pills_say_why_and_late_is_the_loudest() {
         let (text, class) = flag_pill(Flag::Overdue, Some(3));
         assert_eq!(text, "3 days late");
@@ -1041,6 +1345,7 @@ mod tests {
             date,
             is_today: date == today,
             tasks_due: due,
+            meetings: 0,
             waiting_expected: 0,
             one_on_ones: 1,
         };
@@ -1071,11 +1376,54 @@ mod tests {
     }
 
     #[test]
+    fn a_meetings_day_is_said_as_today_tomorrow_or_the_weekday() {
+        let today = date!(2027 - 03 - 03);
+        assert_eq!(meeting_day(today, today), "Today");
+        assert_eq!(meeting_day(date!(2027 - 03 - 04), today), "Tomorrow");
+        assert_eq!(meeting_day(date!(2027 - 03 - 05), today), "Fri 5");
+        // The strip counts meetings apart from tasks, and they count as something on.
+        let day = WeekDay {
+            date: today,
+            is_today: true,
+            tasks_due: 1,
+            meetings: 2,
+            waiting_expected: 0,
+            one_on_ones: 0,
+        };
+        assert_eq!(day_summary(&day), "1 due · 2 meetings");
+        assert_eq!(
+            day_summary(&WeekDay {
+                tasks_due: 0,
+                meetings: 1,
+                ..day
+            }),
+            "1 meeting"
+        );
+        // A day with only meetings is not a late day.
+        assert_eq!(
+            day_tone(
+                &WeekDay {
+                    tasks_due: 0,
+                    meetings: 3,
+                    ..day
+                },
+                date!(2027 - 03 - 04)
+            ),
+            Tone::Neutral
+        );
+        let mut w = week(Vec::new(), Vec::new(), true);
+        assert_eq!(total_items(&w), 0);
+        w.meetings = vec![task(1, TaskStatus::Todo)];
+        assert_eq!(total_items(&w), 1);
+    }
+
+    #[test]
     fn the_day_strip_summarises_what_is_on() {
         let d = |t, w, o| WeekDay {
             date: date!(2027 - 03 - 03),
             is_today: false,
             tasks_due: t,
+            meetings: 0,
             waiting_expected: w,
             one_on_ones: o,
         };

@@ -76,6 +76,9 @@ mod tests {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: title.into(),
                 description: description.into(),
                 project_id: None,

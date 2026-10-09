@@ -384,6 +384,9 @@ mod tests {
         Task {
             links: Vec::new(),
             task_type: None,
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             id: id(n),
             title: title.into(),
             description: String::new(),

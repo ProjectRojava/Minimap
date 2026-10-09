@@ -8,18 +8,20 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    EdgeLink, EdgeType, LinkRelation, NodeRef, NodeType, TaskFilter, TaskRow, TaskStatus, Uuid,
+    fmt_clock, EdgeLink, EdgeType, LinkRelation, NewEdge, NodeRef, NodeType, Task, TaskFilter,
+    TaskRow, TaskStatus, Uuid,
 };
 
 use crate::{
     api,
     components::{
         detail_pane::{Section, SECTION_ACTION},
+        form::SelectField,
         links_editor::{shown_links, LinksEditor},
         people_panel::error_line,
     },
     labels::{task_status_label, task_status_tone},
-    state::{finish, DataVersion, LinkDialog, Selection, Toasts},
+    state::{finish, DataVersion, LinkDialog, MeetingDialog, Selection, Toasts},
 };
 
 /// The task links of a task sorted for display.
@@ -35,6 +37,10 @@ pub struct TaskGroups<'a> {
     pub parent: Vec<&'a EdgeLink>,
     /// The tasks that are part of this one.
     pub subtasks: Vec<&'a EdgeLink>,
+    /// The meeting this one follows up on (spec 38; at most one).
+    pub follows: Vec<&'a EdgeLink>,
+    /// The meetings that follow up on this one.
+    pub follow_ups: Vec<&'a EdgeLink>,
 }
 
 pub fn group_links(links: &[EdgeLink]) -> TaskGroups<'_> {
@@ -49,6 +55,8 @@ pub fn group_links(links: &[EdgeLink]) -> TaskGroups<'_> {
             // This task is the child of the other.
             (EdgeType::SubtaskOf, true) => groups.parent.push(l),
             (EdgeType::SubtaskOf, false) => groups.subtasks.push(l),
+            (EdgeType::FollowsUp, true) => groups.follows.push(l),
+            (EdgeType::FollowsUp, false) => groups.follow_ups.push(l),
             _ => {}
         }
     }
@@ -71,6 +79,7 @@ pub fn part_buttons(has_parent: bool, has_subtasks: bool) -> (bool, bool) {
 pub fn TaskLinks(task: Uuid) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let dialog = expect_context::<LinkDialog>();
+    let meeting_dialog = expect_context::<MeetingDialog>();
     let links = LocalResource::new(move || {
         version.track();
         api::list_edges_for(task)
@@ -121,6 +130,7 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                     dialog.open_as(task, name, existing, relation)
                 };
                 let part_label = label.clone();
+                let title_for_follow_up = label.clone();
                 let part_buttons_view = move || {
                     let (a, b, c) = (part_label.clone(), part_label.clone(), part_label.clone());
                     view! {
@@ -178,7 +188,55 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                 } else {
                     String::new()
                 };
+                // Meetings (spec 38): the meetings before and after this one.
+                let is_meeting = this.is_some_and(|r| r.task.is_meeting());
+                let follow_section = is_meeting.then(|| {
+                    let others: Vec<(Uuid, String)> = rows
+                        .iter()
+                        .filter(|r| r.task.is_meeting() && r.task.id != task)
+                        .filter(|r| {
+                            !groups
+                                .follows
+                                .iter()
+                                .chain(&groups.follow_ups)
+                                .any(|l| l.other.node.id == r.task.id)
+                        })
+                        .map(|r| (r.task.id, meeting_label(&r.task)))
+                        .collect();
+                    let has_original = !groups.follows.is_empty();
+                    let follow_total = groups.follows.len() + groups.follow_ups.len();
+                    let meta = if follow_total > 0 { format!("· {follow_total}") } else { String::new() };
+                    let schedule_label = title_for_follow_up.clone();
+                    let actions = move || {
+                        let name = schedule_label.clone();
+                        view! {
+                            <button class=SECTION_ACTION
+                                    title="A new meeting, linked to this one, a week later at the same time"
+                                    on:click=move |_| meeting_dialog.follow_up(task, name.clone())>
+                                "Schedule follow-up…"
+                            </button>
+                        }
+                    };
+                    let before = group_meetings("Follows up on", "The meeting this one continues", &groups.follows, &rows);
+                    let after = group_meetings("Follow-ups", "Meetings that continue this one", &groups.follow_ups, &rows);
+                    view! {
+                        <Section title="Follow-ups" meta=move || meta.clone() actions=actions>
+                            {(follow_total == 0).then(|| view! { <p class="text-muted">"None yet."</p> })}
+                            {before}
+                            {after}
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                {(!has_original).then(|| view! {
+                                    <MeetingPicker placeholder="Follows up on…" others=others.clone()
+                                        pick=move |other| follow_edge(task, other) />
+                                })}
+                                <MeetingPicker placeholder="Add a follow-up…" others=others
+                                    pick=move |other| follow_edge(other, task) />
+                            </div>
+                        </Section>
+                    }
+                });
                 view! {
+                    {follow_section}
                     <Section title="Part of" meta=move || part_meta.clone() actions=part_buttons_view>
                         {part_empty.then(|| view! {
                             <p class="text-muted" title="Part of is for organising: it moves no date and holds nothing up.">"None yet."</p>
@@ -200,6 +258,82 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
             (Some(Err(e)), _) | (_, Some(Err(e))) => view! { <Section title="Links">{error_line(e)}</Section> }.into_any(),
             _ => view! { <Section title="Links"><p class="text-muted">"Loading…"</p></Section> }.into_any(),
         }}
+    }
+}
+
+/// "Fri 2027-03-05 10:30 · Weekly sync": a meeting as the follow-up lists and pickers name it.
+pub fn meeting_label(task: &Task) -> String {
+    let when = match (task.due_date, task.start_minute) {
+        (Some(d), Some(m)) => format!("{d} {} · ", fmt_clock(m)),
+        _ => String::new(),
+    };
+    format!("{when}{}", task.title)
+}
+
+/// A group of meetings (before or after this one) with their day and time.
+fn group_meetings(
+    title: &'static str,
+    hint: &'static str,
+    list: &[&EdgeLink],
+    rows: &[TaskRow],
+) -> Option<impl IntoView> {
+    (!list.is_empty()).then(|| {
+        let items = list
+            .iter()
+            .map(|l| {
+                let row = rows.iter().find(|r| r.task.id == l.other.node.id);
+                let status = row.map(|r| r.task.status);
+                let mut shown = (*l).clone();
+                if let Some(r) = row {
+                    shown.other.label = meeting_label(&r.task);
+                }
+                link_row(&shown, status)
+            })
+            .collect_view();
+        view! {
+            <p class="mt-2 mb-1 text-[11px] text-muted" title=hint>{title}</p>
+            <ul class="space-y-1">{items}</ul>
+        }
+    })
+}
+
+/// Adds the link "`follow_up` follows up on `original`"; the refusal (two originals, a loop, not
+/// a meeting) comes back as a message.
+fn follow_edge(follow_up: Uuid, original: Uuid) {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let new = NewEdge {
+        edge_type: EdgeType::FollowsUp,
+        from: NodeRef::new(NodeType::Task, follow_up),
+        to: NodeRef::new(NodeType::Task, original),
+        attrs: serde_json::json!({}),
+    };
+    spawn_local(async move {
+        finish(api::add_edge(new).await, toasts, version);
+    });
+}
+
+/// A drop-down that picks one of the other meetings.
+#[component]
+fn MeetingPicker(
+    placeholder: &'static str,
+    others: Vec<(Uuid, String)>,
+    #[prop(into)] pick: Callback<Uuid>,
+) -> impl IntoView {
+    let options: Vec<(String, String)> = std::iter::once((String::new(), placeholder.to_owned()))
+        .chain(
+            others
+                .into_iter()
+                .map(|(id, label)| (id.to_string(), label)),
+        )
+        .collect();
+    view! {
+        <SelectField options=options current=String::new() action=true
+            on_change=move |v: String| {
+                if let Ok(id) = Uuid::parse_str(&v) {
+                    pick.run(id);
+                }
+            } />
     }
 }
 
@@ -255,6 +389,56 @@ mod tests {
                 archived: false,
             },
         }
+    }
+
+    #[test]
+    fn the_meetings_before_and_after_are_told_apart() {
+        let links = vec![
+            // This meeting follows up on another (outgoing) and has two follow-ups (incoming).
+            link(EdgeType::FollowsUp, true, NodeType::Task, 1),
+            link(EdgeType::FollowsUp, false, NodeType::Task, 2),
+            link(EdgeType::FollowsUp, false, NodeType::Task, 3),
+            link(EdgeType::Blocks, true, NodeType::Task, 4),
+        ];
+        let g = group_links(&links);
+        assert_eq!(g.follows.len(), 1);
+        assert_eq!(g.follow_ups.len(), 2);
+        assert_eq!(g.blocks.len(), 1);
+        // And they stay out of the generic list of other links.
+        assert!(crate::components::detail_pane::kind_edited_elsewhere(
+            NodeType::Task,
+            EdgeType::FollowsUp,
+            true
+        ));
+    }
+
+    #[test]
+    fn a_meeting_is_named_with_its_day_and_time_in_lists() {
+        use time::macros::date;
+        let mut t = Task {
+            links: Vec::new(),
+            task_type: Some("meeting".into()),
+            focus: None,
+            start_minute: Some(10 * 60 + 30),
+            length_minutes: None,
+            id: Uuid::nil(),
+            title: "Weekly sync".into(),
+            description: String::new(),
+            project_id: None,
+            status: TaskStatus::Todo,
+            estimate_days: None,
+            start_date: None,
+            due_date: Some(date!(2027 - 03 - 05)),
+            completed_at: None,
+            priority: 3,
+            recurrence: None,
+            created_at: OffsetDateTime::UNIX_EPOCH,
+            updated_at: OffsetDateTime::UNIX_EPOCH,
+            archived_at: None,
+        };
+        assert_eq!(meeting_label(&t), "2027-03-05 10:30 · Weekly sync");
+        t.start_minute = None;
+        assert_eq!(meeting_label(&t), "Weekly sync");
     }
 
     #[test]

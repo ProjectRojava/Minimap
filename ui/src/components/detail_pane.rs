@@ -269,7 +269,10 @@ pub fn kind_edited_elsewhere(node_type: NodeType, edge_type: EdgeType, outgoing:
         // task's own panel.
         NodeType::Task => {
             (outgoing && edge_type == EdgeType::AssignedTo)
-                || matches!(edge_type, EdgeType::Blocks | EdgeType::SubtaskOf)
+                || matches!(
+                    edge_type,
+                    EdgeType::Blocks | EdgeType::SubtaskOf | EdgeType::FollowsUp
+                )
         }
         // A note's mentions come from its text.
         NodeType::Note => outgoing && edge_type == EdgeType::Mentions,
@@ -307,6 +310,8 @@ pub fn link_heading(edge_type: EdgeType, outgoing: bool) -> &'static str {
         (Supersedes, false) => "Superseded by",
         (SubtaskOf, true) => "Part of",
         (SubtaskOf, false) => "Sub-tasks",
+        (FollowsUp, true) => "Follows up on",
+        (FollowsUp, false) => "Follow-ups",
     }
 }
 

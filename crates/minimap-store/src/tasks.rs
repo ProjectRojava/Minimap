@@ -3,6 +3,7 @@ use minimap_types::{
     Recurrence, Task, TaskStatus, UpdateTask, DEFAULT_PRIORITY,
 };
 use rusqlite::{params, Connection, Row, Transaction};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
@@ -15,12 +16,15 @@ use crate::{
 };
 
 const TABLE: &str = "tasks";
-const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type";
+const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type, focus, start_minute, length_minutes";
 
 fn from_row(r: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
         links: col_links(r, 14)?,
         task_type: r.get(15)?,
+        focus: col_focus(r, 16)?,
+        start_minute: r.get(17)?,
+        length_minutes: r.get(18)?,
         id: col_uuid(r, 0)?,
         title: r.get(1)?,
         description: r.get(2)?,
@@ -50,6 +54,9 @@ fn validate(t: &Task) -> Result<()> {
     if let Some(rule) = &t.recurrence {
         minimap_core::recurrence::validate(rule).map_err(StoreError::Invalid)?;
     }
+    // A meeting needs a day and a time (spec 38).
+    minimap_core::meeting::validate(t.is_meeting(), t.due_date, t.start_minute, t.length_minutes)
+        .map_err(StoreError::Invalid)?;
     Ok(())
 }
 
@@ -59,6 +66,16 @@ pub fn get(conn: &Connection, id: Uuid) -> Result<Task> {
 
 pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Task>> {
     fetch_all(conn, TABLE, COLS, include_archived, from_row)
+}
+
+/// The tasks the plan is made of: everything but meetings (spec 38). A meeting happens at a time
+/// and takes no days of work, so it is left out of the schedule, the critical path, impact
+/// analysis, capacity, health and the dependency graph.
+pub fn list_planned(conn: &Connection) -> Result<Vec<Task>> {
+    Ok(list(conn, false)?
+        .into_iter()
+        .filter(|t| !t.is_meeting())
+        .collect())
 }
 
 pub fn create(conn: &mut Connection, input: CreateTask) -> Result<Task> {
@@ -91,6 +108,9 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
     let t = Task {
         links: minimap_core::links::clean(input.links).map_err(StoreError::Invalid)?,
         task_type: input.task_type,
+        focus: input.focus,
+        start_minute: input.start_minute,
+        length_minutes: input.length_minutes,
         id: Uuid::now_v7(),
         title: input.title,
         description: input.description,
@@ -110,7 +130,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
     check_type(tx, None, t.task_type.as_deref())?;
     tx.execute(
         &format!(
-            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)"
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)"
         ),
         params![
             id_s(t.id),
@@ -129,6 +149,9 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
             recurrence_s(t.recurrence.as_ref()),
             links_s(&t.links),
             t.task_type,
+            focus_s(t.focus.as_ref()),
+            t.start_minute,
+            t.length_minutes,
         ],
     )?;
     activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
@@ -241,6 +264,9 @@ pub fn create_linked(
         CreateTask {
             links: Vec::new(),
             task_type,
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -296,15 +322,31 @@ pub fn update_many(conn: &mut Connection, updates: Vec<(Uuid, UpdateTask)>) -> R
 
 /// [`update`] inside a caller's transaction.
 pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Result<Task> {
+    update_in_tx_at(tx, id, patch, None)
+}
+
+/// [`update_in_tx`] where a task that is finished by this update is finished at `finished_at`
+/// instead of now (a meeting that ended while the app was closed, spec 38).
+pub(crate) fn update_in_tx_at(
+    tx: &Transaction,
+    id: Uuid,
+    patch: UpdateTask,
+    finished_at: Option<OffsetDateTime>,
+) -> Result<Task> {
     let old = get(tx, id)?;
     let mut new = old.clone();
     patch.apply(&mut new);
     new.links = minimap_core::links::clean(new.links).map_err(StoreError::Invalid)?;
+    // The time of a meeting goes when the task stops being one.
+    if !new.is_meeting() {
+        new.start_minute = None;
+        new.length_minutes = None;
+    }
     // completed_at follows status: set on entering `done`, cleared on leaving it.
     let at = now();
     let finishing = old.status != TaskStatus::Done && new.status == TaskStatus::Done;
     if finishing {
-        new.completed_at = Some(at);
+        new.completed_at = Some(finished_at.unwrap_or(at));
     } else if old.status == TaskStatus::Done && new.status != TaskStatus::Done {
         new.completed_at = None;
     }
@@ -324,7 +366,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
     new.updated_at = at;
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, updated_at=?13 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, focus=?15, start_minute=?16, length_minutes=?17, updated_at=?13 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -341,6 +383,9 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
             links_s(&new.links),
             ts_s(new.updated_at),
             new.task_type,
+            focus_s(new.focus.as_ref()),
+            new.start_minute,
+            new.length_minutes,
         ],
     )?;
     activity::record(
@@ -358,7 +403,7 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
 }
 
 /// The task that follows a finished repeating one: the same title, description, project,
-/// estimate, priority, links, assignee and objectives, due on the rule's next date (with the same gap
+/// estimate, priority, links, pin, assignee and objectives, due on the rule's next date (with the same gap
 /// between start and due), and carrying the rule on. Blockers are not copied: they belong to the
 /// instance they blocked.
 fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
@@ -377,6 +422,11 @@ fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
         CreateTask {
             links: done.links.clone(),
             task_type: done.task_type.clone(),
+            // A pin carries on to the next one; a focus with an end belonged to this one.
+            focus: done.focus.filter(|f| f.until.is_none()),
+            // A repeating meeting is at the same time of day, for as long.
+            start_minute: done.start_minute,
+            length_minutes: done.length_minutes,
             title: done.title.clone(),
             assignee: AssigneeChoice::Nobody,
             description: done.description.clone(),
@@ -389,6 +439,18 @@ fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
             recurrence: Some(rule),
         },
     )?;
+    // Each meeting of a series follows up on the one before (spec 38).
+    if done.is_meeting() {
+        edges::add_in_tx(
+            tx,
+            NewEdge {
+                edge_type: EdgeType::FollowsUp,
+                from: NodeRef::new(NodeType::Task, next.id),
+                to: NodeRef::new(NodeType::Task, done.id),
+                attrs: serde_json::json!({}),
+            },
+        )?;
+    }
     for edge in edges::list_for_node(tx, done.id, false)? {
         let copy = edge.from_id == done.id
             && matches!(

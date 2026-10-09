@@ -201,6 +201,12 @@
           "markdownDescription": "Enables the add_edges command without any pre-configured scope."
         },
         {
+          "description": "Enables the advance_meetings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-advance-meetings",
+          "markdownDescription": "Enables the advance_meetings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the apply_slips command without any pre-configured scope.",
           "type": "string",
           "const": "allow-apply-slips",
@@ -295,6 +301,12 @@
           "type": "string",
           "const": "allow-create-linked-task",
           "markdownDescription": "Enables the create_linked_task command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_meeting command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-create-meeting",
+          "markdownDescription": "Enables the create_meeting command without any pre-configured scope."
         },
         {
           "description": "Enables the create_note command without any pre-configured scope.",
@@ -481,6 +493,12 @@
           "type": "string",
           "const": "allow-get-project-detail",
           "markdownDescription": "Enables the get_project_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_recovery_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-recovery-key",
+          "markdownDescription": "Enables the get_recovery_key command without any pre-configured scope."
         },
         {
           "description": "Enables the get_schedule command without any pre-configured scope.",
@@ -765,6 +783,12 @@
           "markdownDescription": "Enables the run_impact_analysis command without any pre-configured scope."
         },
         {
+          "description": "Enables the schedule_follow_up command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-schedule-follow-up",
+          "markdownDescription": "Enables the schedule_follow_up command without any pre-configured scope."
+        },
+        {
           "description": "Enables the search command without any pre-configured scope.",
           "type": "string",
           "const": "allow-search",
@@ -795,6 +819,12 @@
           "markdownDescription": "Enables the set_manager command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_meeting command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-meeting",
+          "markdownDescription": "Enables the set_meeting command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_recurrence command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-recurrence",
@@ -805,6 +835,12 @@
           "type": "string",
           "const": "allow-set-task-estimate",
           "markdownDescription": "Enables the set_task_estimate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_task_focus command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-task-focus",
+          "markdownDescription": "Enables the set_task_focus command without any pre-configured scope."
         },
         {
           "description": "Enables the show_data_folder command without any pre-configured scope.",
@@ -927,6 +963,12 @@
           "markdownDescription": "Denies the add_edges command without any pre-configured scope."
         },
         {
+          "description": "Denies the advance_meetings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-advance-meetings",
+          "markdownDescription": "Denies the advance_meetings command without any pre-configured scope."
+        },
+        {
           "description": "Denies the apply_slips command without any pre-configured scope.",
           "type": "string",
           "const": "deny-apply-slips",
@@ -1021,6 +1063,12 @@
           "type": "string",
           "const": "deny-create-linked-task",
           "markdownDescription": "Denies the create_linked_task command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_meeting command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-create-meeting",
+          "markdownDescription": "Denies the create_meeting command without any pre-configured scope."
         },
         {
           "description": "Denies the create_note command without any pre-configured scope.",
@@ -1207,6 +1255,12 @@
           "type": "string",
           "const": "deny-get-project-detail",
           "markdownDescription": "Denies the get_project_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_recovery_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-recovery-key",
+          "markdownDescription": "Denies the get_recovery_key command without any pre-configured scope."
         },
         {
           "description": "Denies the get_schedule command without any pre-configured scope.",
@@ -1491,6 +1545,12 @@
           "markdownDescription": "Denies the run_impact_analysis command without any pre-configured scope."
         },
         {
+          "description": "Denies the schedule_follow_up command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-schedule-follow-up",
+          "markdownDescription": "Denies the schedule_follow_up command without any pre-configured scope."
+        },
+        {
           "description": "Denies the search command without any pre-configured scope.",
           "type": "string",
           "const": "deny-search",
@@ -1521,6 +1581,12 @@
           "markdownDescription": "Denies the set_manager command without any pre-configured scope."
         },
         {
+          "description": "Denies the set_meeting command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-meeting",
+          "markdownDescription": "Denies the set_meeting command without any pre-configured scope."
+        },
+        {
           "description": "Denies the set_recurrence command without any pre-configured scope.",
           "type": "string",
           "const": "deny-set-recurrence",
@@ -1531,6 +1597,12 @@
           "type": "string",
           "const": "deny-set-task-estimate",
           "markdownDescription": "Denies the set_task_estimate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_task_focus command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-task-focus",
+          "markdownDescription": "Denies the set_task_focus command without any pre-configured scope."
         },
         {
           "description": "Denies the show_data_folder command without any pre-configured scope.",
