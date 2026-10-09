@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn the_version_is_the_apps_own() {
-        // Three numbers separated by dots (0.3.0); the workspace sets it for every crate.
+        // Three numbers separated by dots (0.4.0); the workspace sets it for every crate.
         let parts: Vec<&str> = VERSION.split('.').collect();
         assert_eq!(parts.len(), 3, "{VERSION}");
         assert!(parts.iter().all(|p| p.parse::<u32>().is_ok()), "{VERSION}");
