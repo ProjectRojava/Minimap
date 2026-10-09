@@ -1,0 +1,100 @@
+name: Build installers
+
+# Builds the Linux (AppImage, deb, rpm) and Windows (msi) installers whenever code lands on master,
+# and uploads them as workflow artifacts. Can also be run by hand from the Actions tab.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Baked into the app by src-tauri/build.rs (Google Drive sign-in). Optional: without these
+  # secrets the build still works, and Settings shows the "Advanced" box instead.
+  MINIMAP_GOOGLE_CLIENT_ID: ${{ secrets.MINIMAP_GOOGLE_CLIENT_ID }}
+  MINIMAP_GOOGLE_CLIENT_SECRET: ${{ secrets.MINIMAP_GOOGLE_CLIENT_SECRET }}
+
+jobs:
+  linux:
+    name: Linux (AppImage, deb, rpm)
+    # The oldest runner image keeps the AppImage usable on older distributions.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config build-essential perl make file \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            librsvg2-dev libayatana-appindicator3-dev libssl-dev libdbus-1-dev libxdo-dev
+
+      # rust-toolchain.toml pins "stable" with the wasm32 target, rustfmt and clippy.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Trunk
+        run: command -v trunk || cargo install trunk --locked
+
+      - name: Install the Tauri CLI
+        run: cargo tauri --version || cargo install tauri-cli --version "^2" --locked
+
+      - name: Build
+        run: cargo tauri build --bundles appimage,deb,rpm
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimap-linux
+          path: |
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
+          if-no-files-found: error
+
+  windows:
+    name: Windows (msi)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Strawberry Perl (needed to build the vendored OpenSSL) and the MSVC build tools are
+      # already on the runner image; WebView2 ships with Windows.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Trunk
+        shell: bash
+        run: command -v trunk || cargo install trunk --locked
+
+      - name: Install the Tauri CLI
+        shell: bash
+        run: cargo tauri --version || cargo install tauri-cli --version "^2" --locked
+
+      - name: Build
+        run: cargo tauri build --bundles msi
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimap-windows
+          path: target/release/bundle/msi/*.msi
+          if-no-files-found: error
