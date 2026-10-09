@@ -42,6 +42,7 @@ pub fn default_task_types() -> Vec<TaskType> {
         ("research", "Research", 180),
         ("bug", "Bug", 340),
         ("admin", "Admin", 145),
+        (crate::MEETING_TYPE, "Meeting", 75),
     ]
     .into_iter()
     .map(|(id, name, hue)| TaskType {
@@ -51,6 +52,65 @@ pub fn default_task_types() -> Vec<TaskType> {
         archived: false,
     })
     .collect()
+}
+
+/// How a task card's border is drawn for its type (spec 39): the line style and weight, so the
+/// type can be told without any colour (the border's colour is the objective's). Fixed, not edited: every type id of the default
+/// list has one, any other type (made in Settings) gets a plain solid line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypeBorder {
+    Solid,
+    /// A solid line twice as heavy.
+    Thick,
+    Dashed,
+    Dotted,
+    /// Two lines (it needs 3px to show).
+    Double,
+}
+
+impl TypeBorder {
+    /// The frame of the type `type_id`: decisions are double (weighty), design and bugs dashed,
+    /// research and admin dotted, reviews heavy, build plain.
+    pub fn of(type_id: &str) -> Self {
+        match type_id {
+            "decision" => Self::Double,
+            "design" | "bug" | "meeting" => Self::Dashed,
+            "research" | "admin" => Self::Dotted,
+            "review" => Self::Thick,
+            _ => Self::Solid,
+        }
+    }
+
+    /// The CSS `border-style`.
+    pub fn css(self) -> &'static str {
+        match self {
+            Self::Solid | Self::Thick => "solid",
+            Self::Dashed => "dashed",
+            Self::Dotted => "dotted",
+            Self::Double => "double",
+        }
+    }
+
+    /// The CSS border width in pixels: thick enough to be told at a glance (a double line needs
+    /// at least 3px to show as two).
+    pub fn width_px(self) -> u8 {
+        match self {
+            Self::Solid => 2,
+            Self::Thick | Self::Dashed | Self::Dotted => 3,
+            Self::Double => 4,
+        }
+    }
+
+    /// What the line is called in the Help.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Solid => "solid",
+            Self::Thick => "heavy solid",
+            Self::Dashed => "dashed",
+            Self::Dotted => "dotted",
+            Self::Double => "double",
+        }
+    }
 }
 
 impl TaskType {
@@ -178,9 +238,34 @@ mod tests {
     }
 
     #[test]
+    fn every_default_type_has_a_frame_and_other_types_a_plain_one() {
+        use std::collections::HashMap;
+        let frames: HashMap<String, TypeBorder> = default_task_types()
+            .into_iter()
+            .map(|t| (t.id.clone(), TypeBorder::of(&t.id)))
+            .collect();
+        assert_eq!(frames["decision"], TypeBorder::Double);
+        assert_eq!(frames["design"], TypeBorder::Dashed);
+        assert_eq!(frames["research"], TypeBorder::Dotted);
+        assert_eq!(frames["review"], TypeBorder::Thick);
+        assert_eq!(frames["build"], TypeBorder::Solid);
+        // Each style is one that CSS draws, and a double line is wide enough to show as two.
+        for b in frames.values() {
+            assert!(["solid", "dashed", "dotted", "double"].contains(&b.css()));
+            assert!(b.width_px() >= if b.css() == "double" { 4 } else { 2 });
+        }
+        // Types of your own, and an id nobody has, are plain.
+        assert_eq!(TypeBorder::of("legal-review"), TypeBorder::Solid);
+        assert_eq!(TypeBorder::of(""), TypeBorder::Solid);
+        // Every style is used by at least one default, so the four can all be told apart.
+        let used: std::collections::HashSet<&str> = frames.values().map(|b| b.css()).collect();
+        assert_eq!(used.len(), 4);
+    }
+
+    #[test]
     fn defaults_have_unique_ids_and_names_and_known_hues() {
         let types = default_task_types();
-        assert_eq!(types.len(), 7);
+        assert_eq!(types.len(), 8);
         for (i, a) in types.iter().enumerate() {
             assert!(
                 TASK_TYPE_HUES.contains(&a.hue),
@@ -194,6 +279,7 @@ mod tests {
             }
         }
         assert!(TaskType::find(&types, "decision").is_some());
+        assert!(TaskType::find(&types, crate::MEETING_TYPE).is_some());
         assert!(TaskType::find(&types, "nope").is_none());
     }
 

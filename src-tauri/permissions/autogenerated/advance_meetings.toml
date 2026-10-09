@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-advance-meetings"
+description = "Enables the advance_meetings command without any pre-configured scope."
+commands.allow = ["advance_meetings"]
+
+[[permission]]
+identifier = "deny-advance-meetings"
+description = "Denies the advance_meetings command without any pre-configured scope."
+commands.deny = ["advance_meetings"]

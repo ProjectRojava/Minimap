@@ -32,6 +32,11 @@ pub(crate) fn check_new_edge(conn: &Connection, new: &NewEdge) -> Result<(), App
     if new.edge_type == EdgeType::SubtaskOf {
         minimap_store::tasks::check_subtask(conn, new.from.id, new.to.id).map_err(store_error)?;
     }
+    // A follow-up links two meetings; a meeting follows up on one (spec 38).
+    if new.edge_type == EdgeType::FollowsUp {
+        minimap_store::meetings::check_follow_up(conn, new.from.id, new.to.id)
+            .map_err(store_error)?;
+    }
     if !edge_rules::must_be_acyclic(new.edge_type) {
         return Ok(());
     }
@@ -382,6 +387,9 @@ mod tests {
             minimap_types::CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: title.into(),
                 assignee: minimap_types::AssigneeChoice::Nobody,
                 description: String::new(),

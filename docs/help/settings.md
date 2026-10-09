@@ -12,9 +12,9 @@
 | **Working days** (default Monday–Friday) | Which weekdays count as working days for the [schedule](help:schedule), [capacity](help:capacity), [what-if](help:what-if) and slip counts in the [weekly review](help:weekly-review). At least one must stay on. A Sunday-to-Thursday or four-day week works. Weeks themselves still run Monday to Sunday |
 | **Default weekly capacity** (default 40 hours) | What a new person gets when you don't say. People already added keep their own |
 
-**Task types**: the list of kinds of work a task can be (Design, Build, Decision, Review, Research, Bug and Admin to start with). Type a name and press *Add type* to add one, edit a name to rename it (tasks that have it follow), click one of the eight colours to recolour it, or *Archive* it so it is no longer offered for new tasks (tasks that already have it keep it; *Restore* brings it back). Types can't be deleted. They are saved and synced like your other settings. See [Tasks](help:tasks).
+**Task types**: the list of kinds of work a task can be (Design, Build, Decision, Review, Research, Bug and Admin to start with). Type a name and press *Add type* to add one, edit a name to rename it (tasks that have it follow), click one of the eight colours to recolour it, or *Archive* it so it is no longer offered for new tasks (tasks that already have it keep it; *Restore* brings it back). Types can't be deleted. *Meeting* is built in (see [Meetings](help:meetings)): you can rename or recolour it but not archive it. They are saved and synced like your other settings. See [Tasks](help:tasks).
 
-**Appearance**: choose a colour theme. *System* follows your computer's light or dark setting; there are 17 themes, dark by default. The choice applies at once.
+**Appearance**: choose a colour theme. *System* follows your computer's light or dark setting; there are 17 themes, dark by default. The choice applies at once. *Frame task cards by type* (on by default) draws each card's border on the Tasks board in a line style that goes with its type (double, dashed, dotted, heavy or plain); turn it off for a plain line on every card, so the type is only the label (see [Tasks](help:tasks), *The board*). Both settings are for this computer only.
 
 ## Thresholds
 

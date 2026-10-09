@@ -43,7 +43,13 @@ pub(crate) fn review_at(
     let conn: &Connection = conn;
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     Ok(build(ReviewInput {
-        tasks: minimap_store::views::task_rows(conn).map_err(store_error)?,
+        // Meetings (spec 38) start and end on their own: they are not work that slipped, got
+        // blocked or was done, so the review leaves them out.
+        tasks: minimap_store::views::task_rows(conn)
+            .map_err(store_error)?
+            .into_iter()
+            .filter(|r| !r.task.is_meeting())
+            .collect(),
         blockers: minimap_store::views::open_blockers(conn).map_err(store_error)?,
         activity: minimap_store::activity::list_between(conn, from, to).map_err(store_error)?,
         decisions: minimap_store::views::decision_items(conn).map_err(store_error)?,
@@ -181,6 +187,9 @@ mod tests {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

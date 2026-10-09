@@ -91,6 +91,19 @@ fn follow(ev: &ev::MouseEvent, selection: Selection, toasts: Toasts) {
     }
 }
 
+/// The click landed on a mention, an attached file or a link inside formatted text, which open
+/// something of their own. A row that is itself clickable uses this to leave such clicks alone.
+pub fn clicked_a_link(ev: &ev::MouseEvent) -> bool {
+    ev.target()
+        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+        .is_some_and(|el| {
+            el.closest("a.attachment-link, a.mention, span.link")
+                .ok()
+                .flatten()
+                .is_some()
+        })
+}
+
 /// Formatted text. Mentions show the item's current name and open it; attached pictures show;
 /// links open in the default program. Nothing is rendered for empty text (`empty` is shown).
 #[component]

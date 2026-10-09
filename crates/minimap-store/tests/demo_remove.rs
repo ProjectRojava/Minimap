@@ -21,6 +21,9 @@ fn new_task(title: &str, project: Option<uuid::Uuid>) -> CreateTask {
     CreateTask {
         links: Vec::new(),
         task_type: None,
+        focus: None,
+        start_minute: None,
+        length_minutes: None,
         title: title.into(),
         assignee: AssigneeChoice::Nobody,
         description: String::new(),
@@ -74,19 +77,19 @@ fn seeded_data_is_found_by_its_recorded_ids_and_counted_without_me() {
     assert_eq!(status.source, Some(DemoSource::Recorded));
     assert_eq!(status.items.objectives, 3);
     assert_eq!(status.items.projects, 3);
-    assert_eq!(status.items.tasks, 40);
+    assert_eq!(status.items.tasks, 45);
     assert_eq!(status.items.people, 7, "seven others; me is not demo data");
-    assert_eq!(status.items.links, 106);
+    assert_eq!(status.items.links, 113);
     assert_eq!(status.impact, DemoImpact::default());
     // Looking changes nothing.
-    assert_eq!(count(&conn, "tasks"), 40);
+    assert_eq!(count(&conn, "tasks"), 45);
 }
 
 #[test]
 fn removing_leaves_an_empty_database_that_can_be_seeded_again() {
     let mut conn = seeded();
     let (removed, impact) = demo_remove::remove(&mut conn).unwrap();
-    assert_eq!(removed.tasks, 40);
+    assert_eq!(removed.tasks, 45);
     assert_eq!(impact, DemoImpact::default());
     for table in [
         "objectives",
@@ -115,10 +118,10 @@ fn removing_leaves_an_empty_database_that_can_be_seeded_again() {
     assert!(meta::get(&conn, meta::DEMO_ITEMS).unwrap().is_none());
     assert!(!demo_remove::status(&conn).unwrap().found);
     // The deletions are tombstoned, so they reach other computers.
-    assert!(count(&conn, "tombstones") >= 40);
+    assert!(count(&conn, "tombstones") >= 45);
     // A fresh start: seeding works again and finds everything again.
     demo::seed(&mut conn, TODAY).unwrap();
-    assert_eq!(demo_remove::status(&conn).unwrap().items.tasks, 40);
+    assert_eq!(demo_remove::status(&conn).unwrap().items.tasks, 45);
 }
 
 #[test]
@@ -232,7 +235,7 @@ fn demo_data_from_before_ids_were_recorded_is_recognised_by_its_titles() {
     tasks::create(&mut conn, new_task("Plan the offsite", None)).unwrap();
     let status = demo_remove::status(&conn).unwrap();
     assert_eq!(status.source, Some(DemoSource::Titles));
-    assert_eq!(status.items.tasks, 40);
+    assert_eq!(status.items.tasks, 45);
     assert_eq!(status.items.projects, 3);
 
     demo_remove::remove(&mut conn).unwrap();

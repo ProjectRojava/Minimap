@@ -218,6 +218,9 @@ mod tests {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
@@ -462,7 +465,7 @@ mod tests {
         let m = undo(&mut conn, &stack).message;
         assert_eq!(
             m,
-            "Undone: archived project Platform Cost Reduction and 14 more changes"
+            "Undone: archived project Platform Cost Reduction and 16 more changes"
         );
         assert!(minimap_store::projects::get(&conn, p.id)
             .unwrap()

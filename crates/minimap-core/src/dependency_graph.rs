@@ -60,6 +60,7 @@ struct Draft {
     critical: bool,
     late: bool,
     blocked: bool,
+    held_up: bool,
 }
 
 struct DraftEdge {
@@ -102,6 +103,36 @@ fn team_family(teams: &[Team], root: Uuid) -> HashSet<Uuid> {
             return family;
         }
     }
+}
+
+/// Unfinished tasks that wait, directly or down the chain, on a task whose status is Blocked.
+fn held_up_by_blocked(input: &GraphInput) -> HashSet<Uuid> {
+    let open: HashMap<Uuid, &Task> = input
+        .tasks
+        .iter()
+        .filter(|t| {
+            t.archived_at.is_none() && !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled)
+        })
+        .map(|t| (t.id, t))
+        .collect();
+    let mut next: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for e in input.edges.iter().filter(|e| active(e, EdgeType::Blocks)) {
+        next.entry(e.from_id).or_default().push(e.to_id);
+    }
+    let mut stack: Vec<Uuid> = open
+        .values()
+        .filter(|t| t.status == TaskStatus::Blocked)
+        .map(|t| t.id)
+        .collect();
+    let mut held = HashSet::new();
+    while let Some(id) = stack.pop() {
+        for &to in next.get(&id).into_iter().flatten() {
+            if open.contains_key(&to) && held.insert(to) {
+                stack.push(to);
+            }
+        }
+    }
+    held
 }
 
 fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGraph, GraphError> {
@@ -216,6 +247,7 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
             .cmp(&tb.title.to_lowercase())
             .then(a.cmp(b))
     });
+    let held_up = held_up_by_blocked(input);
     let drafts: Vec<Draft> = ids
         .iter()
         .map(|id| {
@@ -238,6 +270,7 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
                 critical: s.is_some_and(|s| s.critical),
                 late: s.is_some_and(|s| s.slack_days < -EPS),
                 blocked: t.status == TaskStatus::Blocked,
+                held_up: held_up.contains(id),
             }
         })
         .collect();
@@ -375,6 +408,7 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
                 critical: false,
                 late: f.is_some_and(|f| f.late_by_days.is_some()),
                 blocked: p.status == ProjectStatus::Paused,
+                held_up: false,
             }
         })
         .collect();
@@ -436,6 +470,7 @@ fn finish(
             critical: d.critical,
             late: d.late,
             blocked: d.blocked,
+            held_up: d.held_up,
         })
         .collect();
     let critical_nodes = nodes.iter().filter(|n| n.critical).count() as u32;
@@ -479,6 +514,9 @@ mod tests {
         Task {
             links: Vec::new(),
             task_type: None,
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             id: id(n),
             title: title.into(),
             description: String::new(),
@@ -883,6 +921,30 @@ mod tests {
         let g = w.graph(GraphFilter::default()).unwrap();
         assert!(by(&g, "First").late && by(&g, "Stuck").late);
         assert!(by(&g, "Stuck").blocked && !by(&g, "First").blocked);
+    }
+
+    #[test]
+    fn work_downstream_of_a_blocked_task_is_held_up() {
+        // A -> B(blocked) -> C -> D, and C is also needed by a finished task E.
+        let mut b = task(2, "B", 1.0, Some(10));
+        b.status = TaskStatus::Blocked;
+        let mut e = task(5, "E", 1.0, Some(10));
+        e.status = TaskStatus::Done;
+        let w = World {
+            tasks: vec![
+                task(1, "A", 1.0, Some(10)),
+                b,
+                task(3, "C", 1.0, Some(10)),
+                task(4, "D", 1.0, Some(10)),
+                e,
+            ],
+            edges: vec![blocks(1, 2), blocks(2, 3), blocks(3, 4), blocks(2, 5)],
+            projects: vec![project(10, "P", None)],
+            ..Default::default()
+        };
+        let g = w.graph(GraphFilter::default()).unwrap();
+        assert!(by(&g, "C").held_up && by(&g, "D").held_up);
+        assert!(!by(&g, "A").held_up && !by(&g, "B").held_up);
     }
 
     #[test]

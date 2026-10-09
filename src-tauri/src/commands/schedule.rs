@@ -43,7 +43,7 @@ pub(crate) fn schedule_at(
     if let ScheduleScope::Project(id) = scope {
         minimap_store::projects::get(conn, id).map_err(store_error)?;
     }
-    let tasks = minimap_store::tasks::list(conn, false).map_err(store_error)?;
+    let tasks = minimap_store::tasks::list_planned(conn).map_err(store_error)?;
     let edges = minimap_store::edges::list_active_of_type(conn, minimap_types::EdgeType::Blocks)
         .map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
@@ -67,6 +67,9 @@ mod tests {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

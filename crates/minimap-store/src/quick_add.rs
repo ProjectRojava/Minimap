@@ -113,6 +113,9 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
                 CreateTask {
                     links: Vec::new(),
                     task_type,
+                    focus: None,
+                    start_minute: None,
+                    length_minutes: None,
                     title,
                     assignee,
                     description: String::new(),
@@ -303,6 +306,9 @@ fn create_new(tx: &Transaction, node_type: NodeType, name: String) -> Result<Nod
                 CreateTask {
                     links: Vec::new(),
                     task_type: None,
+                    focus: None,
+                    start_minute: None,
+                    length_minutes: None,
                     title: name,
                     assignee: AssigneeChoice::Me,
                     description: String::new(),

@@ -1,7 +1,7 @@
 //! Task types (spec 32): rules for the user's list of task types. Pure; the list itself lives in
 //! Settings (`store::settings`).
 
-use minimap_types::{TaskType, MAX_TASK_TYPES, MAX_TASK_TYPE_NAME};
+use minimap_types::{TaskType, MAX_TASK_TYPES, MAX_TASK_TYPE_NAME, MEETING_TYPE};
 
 use crate::slug;
 
@@ -58,6 +58,10 @@ pub fn normalise(mut wanted: Vec<TaskType>, current: &[TaskType]) -> Result<Vec<
     for t in &mut wanted {
         t.name = t.name.trim().to_owned();
         check_name(&t.name)?;
+        // The meeting type is built in: it can be renamed and recoloured, not retired.
+        if t.id == MEETING_TYPE {
+            t.archived = false;
+        }
     }
     for old in current {
         if !wanted.iter().any(|t| t.id == old.id) {
@@ -87,6 +91,32 @@ pub fn normalise(mut wanted: Vec<TaskType>, current: &[TaskType]) -> Result<Vec<
     }
     validate(&wanted)?;
     Ok(wanted)
+}
+
+/// The list with the built-in meeting type in it (spec 38): added when missing (named "Meeting",
+/// or "Meeting (built-in)" if another type already has that name), and brought back if it was
+/// archived. Its name and colour are the user's to change.
+pub fn ensure_meeting(mut list: Vec<TaskType>) -> Vec<TaskType> {
+    if let Some(t) = list.iter_mut().find(|t| t.id == MEETING_TYPE) {
+        t.archived = false;
+        return list;
+    }
+    let taken = |name: &str| {
+        list.iter()
+            .any(|t| t.name.trim().to_lowercase() == name.to_lowercase())
+    };
+    let name = if taken("Meeting") {
+        "Meeting (built-in)"
+    } else {
+        "Meeting"
+    };
+    list.push(TaskType {
+        id: MEETING_TYPE.to_owned(),
+        name: name.to_owned(),
+        hue: 75,
+        archived: false,
+    });
+    list
 }
 
 /// The active type a typed word means: its id or its name, ignoring case (`type:decision`,
@@ -143,8 +173,54 @@ mod tests {
         wanted.push(new_type("Bug!")); // slug "bug" is taken
         wanted.push(new_type("设计"));
         let out = normalise(wanted, &current).unwrap();
-        assert_eq!(out[7].id, "bug-2");
-        assert_eq!(out[8].id, "type");
+        assert_eq!(out[8].id, "bug-2");
+        assert_eq!(out[9].id, "type");
+    }
+
+    #[test]
+    fn the_meeting_type_is_always_there_and_never_retired() {
+        // Missing: added with its own colour.
+        let without: Vec<TaskType> = default_task_types()
+            .into_iter()
+            .filter(|t| t.id != MEETING_TYPE)
+            .collect();
+        let with = ensure_meeting(without.clone());
+        assert_eq!(with.len(), without.len() + 1);
+        assert_eq!(
+            with.last().map(|t| (t.id.as_str(), t.name.as_str())),
+            Some((MEETING_TYPE, "Meeting"))
+        );
+        assert_eq!(validate(&with), Ok(()));
+        // Present: left alone, but brought back if it was archived.
+        let mut archived = default_task_types();
+        archived
+            .iter_mut()
+            .find(|t| t.id == MEETING_TYPE)
+            .unwrap()
+            .archived = true;
+        let back = ensure_meeting(archived.clone());
+        assert!(back.iter().all(|t| !t.archived));
+        // A name that is taken: the built-in one is told apart.
+        let mut clash = without;
+        clash.push(TaskType {
+            id: "meetings".into(),
+            name: "meeting".into(),
+            hue: 10,
+            archived: false,
+        });
+        let out = ensure_meeting(clash);
+        assert_eq!(out.last().unwrap().name, "Meeting (built-in)");
+        assert_eq!(validate(&out), Ok(()));
+        // Archiving it through an edit does not stick; renaming does.
+        let current = default_task_types();
+        let mut wanted = current.clone();
+        let m = wanted.iter_mut().find(|t| t.id == MEETING_TYPE).unwrap();
+        m.archived = true;
+        m.name = "Call".into();
+        let out = normalise(wanted, &current).unwrap();
+        let m = out.iter().find(|t| t.id == MEETING_TYPE).unwrap();
+        assert!(!m.archived);
+        assert_eq!(m.name, "Call");
     }
 
     #[test]

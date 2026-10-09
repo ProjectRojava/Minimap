@@ -75,11 +75,13 @@ pub fn TaskSummary(id: Uuid) -> impl IntoView {
                 let tone = date_tone(d, today, open);
                 (tone, date_text("due", d, tone, today))
             });
+            let in_focus = open && crate::components::focus::is_on(t.focus.as_ref(), today());
             view! {
                 <div class="mb-3 flex flex-wrap items-center gap-1.5">
                     <Pill tone=task_status_tone(t.status)>{task_status_label(t.status)}</Pill>
                     <Pill tone=priority_tone(t.priority)>{priority_short(t.priority)}</Pill>
                     {due.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    {in_focus.then(|| view! { <Pill tone=Tone::Accent>"★ In focus"</Pill> })}
                     <crate::components::task_type::TypeChip id=t.task_type.clone() />
                     <ServedObjectives project=t.project_id />
                 </div>

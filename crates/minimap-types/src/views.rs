@@ -282,6 +282,9 @@ pub struct Settings {
     pub auto_backup: bool,
     /// The kinds of work a task can be (spec 32); `default_task_types()` until edited.
     pub task_types: Vec<crate::TaskType>,
+    /// Frame a board card in the line style and colour of its task type (spec 39). This device
+    /// only, like the theme.
+    pub type_borders: bool,
 }
 
 impl Default for Settings {
@@ -298,6 +301,7 @@ impl Default for Settings {
             backup_folder: None,
             auto_backup: true,
             task_types: crate::default_task_types(),
+            type_borders: true,
         }
     }
 }
@@ -320,6 +324,7 @@ pub struct UpdateSettings {
     /// The whole new list. An entry with an empty `id` is a new type (it gets one from its name);
     /// a type cannot be removed, only archived.
     pub task_types: Option<Vec<crate::TaskType>>,
+    pub type_borders: Option<bool>,
 }
 
 // ---------------------------------------------------------------- waiting-on

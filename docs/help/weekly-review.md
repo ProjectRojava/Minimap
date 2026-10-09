@@ -17,6 +17,8 @@ Move with the step buttons (each shows how many items it has), the **Back/Next**
 | **7. Ongoing** | Which ongoing objectives are due for a look? | [Ongoing objectives](help:objectives) whose review is overdue or falls this week, with *Mark reviewed* |
 | **8. Report** | What do I tell people? | The status report |
 
+Meetings are not in the review: they start and end on their own, so they are never slipped, blocked or overdue.
+
 ## Fixing things as you go
 
 Rows have quick fixes so you don't have to leave the review: **Tomorrow**, **Next week** or a typed date on slipped and blocked tasks; an **assignee** picker; **Unblock** on blocked tasks; **Resolve** or **Snooze** on stale waiting-ons; **Open Capacity** on overloaded people, and **Mark reviewed** on ongoing objectives.

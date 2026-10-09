@@ -22,6 +22,7 @@ By default **finished** work and items with **no links** are hidden. *Show finis
 | Accent colour on boxes and arrows | On the **critical path** |
 | A late marker | Projected finish is after its due date or target |
 | A blocked marker | The task's status is *blocked* |
+| A red-tinted box | The task is **held up**: it waits, directly or further down the chain, on a task whose status is *blocked* (finished work is never marked) |
 | Dimmed | Context outside your filter |
 
 A *legend* at the bottom repeats these. Each box shows the item's title and a short subtitle.

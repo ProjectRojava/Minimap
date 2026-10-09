@@ -45,6 +45,9 @@ pub fn is_allowed(edge_type: EdgeType, from: NodeType, to: NodeType) -> bool {
         // A sub-task is part of one task (spec 33, ADR-0017). One parent and one level are
         // rules about the other links, in `subtasks`.
         E::SubtaskOf => (from, to) == (N::Task, N::Task),
+        // A meeting follows up on another (spec 38). That both are meetings, that a meeting
+        // follows up on one meeting and that the chain doesn't loop are rules in `meeting`.
+        E::FollowsUp => (from, to) == (N::Task, N::Task),
     }
 }
 
@@ -130,7 +133,8 @@ pub fn attr_schema(edge_type: EdgeType) -> Vec<AttrSpec> {
         | EdgeType::Affects
         | EdgeType::About
         | EdgeType::Supersedes
-        | EdgeType::SubtaskOf => vec![],
+        | EdgeType::SubtaskOf
+        | EdgeType::FollowsUp => vec![],
     }
 }
 
@@ -226,6 +230,7 @@ mod tests {
             (E::About, N::WaitingOn, N::Project),
             (E::Supersedes, N::Decision, N::Decision),
             (E::SubtaskOf, N::Task, N::Task),
+            (E::FollowsUp, N::Task, N::Task),
         ];
         for &(e, f, t) in &allowed {
             assert!(is_allowed(e, f, t), "{e} {f}->{t}");
@@ -312,6 +317,7 @@ mod tests {
             E::About,
             E::Supersedes,
             E::SubtaskOf,
+            E::FollowsUp,
         ] {
             assert!(keys(e).is_empty(), "{e}");
         }

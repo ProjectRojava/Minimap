@@ -8,6 +8,7 @@ pub mod export;
 pub mod graph;
 pub mod impact;
 pub mod links;
+pub mod meetings;
 pub mod nodes;
 pub mod notes;
 pub mod objectives;

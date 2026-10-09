@@ -150,6 +150,9 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: "Write the runbook".into(),
                 assignee: AssigneeChoice::Person(priya),
                 description: String::new(),
@@ -178,6 +181,9 @@ fn creating_many_tasks_is_one_step() {
                 .map(|t| CreateTask {
                     links: Vec::new(),
                     task_type: None,
+                    focus: None,
+                    start_minute: None,
+                    length_minutes: None,
                     title: (*t).into(),
                     assignee: AssigneeChoice::Me,
                     description: String::new(),
@@ -258,6 +264,73 @@ fn changing_and_clearing_a_task_type_is_undone() {
     typed(&mut conn, Patch::Set("review".into()));
     round_trip(&mut conn, |c| typed(c, Patch::Set("bug".into())));
     round_trip(&mut conn, |c| typed(c, Patch::Clear));
+}
+
+#[test]
+fn putting_a_task_in_focus_changing_it_and_taking_it_out_is_undone() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    let focus = |c: &mut Connection, patch: Patch<Focus>| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                focus: patch,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    };
+    let until = |d| Patch::Set(Focus { until: Some(d) });
+    round_trip(&mut conn, |c| focus(c, Patch::Set(Focus::PINNED)));
+    round_trip(&mut conn, |c| focus(c, until(date!(2027 - 04 - 30))));
+    focus(&mut conn, until(date!(2027 - 05 - 31)));
+    round_trip(&mut conn, |c| focus(c, Patch::Set(Focus::PINNED)));
+    round_trip(&mut conn, |c| focus(c, Patch::Clear));
+}
+
+#[test]
+fn making_and_moving_meetings_and_scheduling_a_follow_up_are_undone_as_one_step() {
+    let mut conn = demo();
+    let now = Clock {
+        date: TODAY,
+        minute: 0,
+        utc_offset_minutes: 0,
+    };
+    round_trip(&mut conn, |c| {
+        meetings::create(
+            c,
+            "Planning".into(),
+            TODAY,
+            600,
+            None,
+            None,
+            AssigneeChoice::Me,
+        )
+        .unwrap();
+    });
+    let m = meetings::create(
+        &mut conn,
+        "Planning".into(),
+        TODAY,
+        600,
+        None,
+        None,
+        AssigneeChoice::Me,
+    )
+    .unwrap();
+    round_trip(&mut conn, |c| {
+        meetings::set_time(c, m.id, TODAY, 14 * 60, Some(30), now).unwrap();
+    });
+    // The follow-up is a new meeting, its assignment and its link to the original: one step.
+    round_trip(&mut conn, |c| {
+        meetings::create_follow_up(c, m.id, date!(2027 - 03 - 10), 600, None).unwrap();
+    });
+    // Moving an ordinary task into a meeting and back.
+    let t = task(&conn, "Rotate service credentials");
+    round_trip(&mut conn, |c| {
+        meetings::set_time(c, t.id, TODAY, 600, None, now).unwrap();
+    });
 }
 
 #[test]
@@ -603,6 +676,9 @@ fn undoing_a_creation_never_deletes_anything() {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: "Temp".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

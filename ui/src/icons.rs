@@ -71,6 +71,7 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
         "chevron" => &["M4.5 6.5 8 10l3.5-3.5"],
         "edit" => &["M2.5 13.5l.7-3L10.8 3a1.4 1.4 0 0 1 2 2l-7.6 7.6z", "M9.6 4.2l2.2 2.2"],
         "check" => &["M3 8.5l3.2 3.2L13 4.5"],
+        "star" => &["M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"],
         "attach" => &["M12.6 7.6 7.5 12.7a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8L6.2 11.3a1 1 0 0 1-1.4-1.4l4.9-4.9"],
         "lock" => &[
             "M3.5 7h9v6.5h-9z",
@@ -95,6 +96,11 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z",
             "M6.3 6.3a1.8 1.8 0 1 1 2.6 1.6c-.6.4-.9.8-.9 1.4",
             "M8 11.4v.1",
+        ],
+        "about" => &[
+            "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z",
+            "M8 7.4v3.4",
+            "M8 5.3v.1",
         ],
         "capacity" => &["M3 13V9", "M8 13V3", "M13 13V6", "M1.8 14h12.4"],
         "graph" => &[
@@ -154,6 +160,8 @@ mod tests {
             "edit",
             "check",
             "attach",
+            "star",
+            "about",
         ] {
             for d in paths(name).unwrap() {
                 assert!(d.starts_with('M'), "{name}: {d}");

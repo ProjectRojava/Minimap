@@ -26,6 +26,7 @@ The [Dependencies](help:dependencies) screen draws the same thing as a graph, an
 - **Negative slack** means the target can't be met: the late tasks show *late by N working days* and the project shows how far past its target it will finish.
 - **Unestimated** tasks (no estimate) are scheduled as one day and flagged. The more of a plan is unestimated, the less you can trust the forecast. The project's health says so.
 - A task with a **start date in the future** won't be scheduled before it, even if nothing blocks it.
+- **Meetings** are left out: they happen at a time and take no days of work, so they are not unestimated and are never on the critical path.
 
 ## A loop in the blocks links
 

@@ -45,7 +45,7 @@ task Pick the data store type:decision due:fri
 | `kind:` | `1:1`, `meeting`, `general` | note |
 | `status:` | `proposed` or `decided` | decision |
 | `every:` | repeats: `day`, `mon`, `2w`, `month` (see [Recurring items](help:recurring)) | task, note |
-| `type:` | the task's type, by name or id: `type:decision`, `type:"Legal review"` (see [Tasks](help:tasks)) | task |
+| `type:` | the task's type, by name or id: `type:decision`, `type:"Legal review"` (see [Tasks](help:tasks)). Not `type:meeting`: a meeting needs a time, so use *New meeting* (see [Meetings](help:meetings)) | task |
 | `1:1` | a bare word: makes the note a 1:1 | note |
 
 A marker a kind doesn't use is reported ("`est:` isn't used for a project"), never silently dropped.

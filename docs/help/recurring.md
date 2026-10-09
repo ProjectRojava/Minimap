@@ -30,10 +30,11 @@ Without a due date (for a note: a date) the first one starts on the rule's first
 
 When you mark a repeating task **done**, from anywhere, Minimap creates the next one straight away:
 
-- same title, description, project, estimate, priority, reference links, assignee and objectives;
+- same title, description, project, estimate, priority, reference links, assignee and objectives, and a [focus](help:tasks) that has no end date (a focus with a last day stays with the finished task);
 - status *to do*, due on the rule's **next date after the one it was due**, and never in the past (finish a weekly Monday task on Wednesday and the next is due next Monday; finish it weeks late and it is due the first Monday that is not past);
 - the same gap between start and due dates, if it had a start date;
 - **not** the links that block it: those belong to the one that was blocked.
+- for a **meeting** (see [Meetings](help:meetings)), the same time of day and length, and a link making the new meeting a follow-up of the one that just ended. A repeating meeting finishes by itself when it ends, so a weekly meeting needs no attention: the next one is simply there.
 
 The rule moves to the new task, so the finished one stays as history. It is one step for [Undo](help:undo): `Ctrl/Cmd+Z` takes the new task away and makes the finished one open and repeating again.
 

@@ -36,6 +36,8 @@ pub enum Action {
     /// Start a quick-add line with this keyword.
     Prefill(&'static str),
     ResolveWaiting,
+    /// Open the new-meeting dialog (spec 38).
+    NewMeeting,
     /// Undo or redo the last change (spec 25).
     Undo,
     Redo,
@@ -61,6 +63,7 @@ pub fn commands() -> Vec<Command> {
         action("New waiting-on", "wait @name …", Action::Prefill("wait ")),
         action("New note", "note …", Action::Prefill("note ")),
         action("New decision", "decision …", Action::Prefill("decision ")),
+        action("New meeting…", "a day and a time", Action::NewMeeting),
         action("Resolve waiting-on…", "", Action::ResolveWaiting),
         action("Undo last change", "Ctrl Z", Action::Undo),
         action("Redo", "Ctrl Shift Z", Action::Redo),
@@ -191,6 +194,7 @@ struct Pal {
     selection: Selection,
     toasts: Toasts,
     version: DataVersion,
+    meetings: crate::state::MeetingDialog,
 }
 
 impl Pal {
@@ -215,6 +219,10 @@ impl Pal {
                 Action::Prefill(keyword) => {
                     self.input.set(keyword.to_owned());
                     self.cursor.set(0);
+                }
+                Action::NewMeeting => {
+                    self.close();
+                    self.meetings.new_meeting();
                 }
                 Action::ResolveWaiting => {
                     self.resolving.set(true);
@@ -294,6 +302,7 @@ pub fn PaletteHost() -> impl IntoView {
         selection: expect_context::<Selection>(),
         toasts: expect_context::<Toasts>(),
         version: expect_context::<DataVersion>(),
+        meetings: expect_context::<crate::state::MeetingDialog>(),
     };
     let hits = RwSignal::new(Vec::<SearchHit>::new());
     let preview = RwSignal::new(Option::<QuickPreview>::None);

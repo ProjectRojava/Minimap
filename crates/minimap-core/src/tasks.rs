@@ -66,6 +66,8 @@ pub fn sort(rows: &mut [TaskRow]) {
             (None, Some(_)) => Ordering::Greater,
             (None, None) => Ordering::Equal,
         }
+        // Meetings on one day go by the time they start (spec 38).
+        .then_with(|| a.start_minute.cmp(&b.start_minute))
         .then_with(|| a.priority.cmp(&b.priority))
         .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
         .then_with(|| a.id.cmp(&b.id))
@@ -148,6 +150,9 @@ mod tests {
             task: Task {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 id: Uuid::from_u128(n),
                 title: title.into(),
                 description: String::new(),

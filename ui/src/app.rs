@@ -48,6 +48,8 @@ pub fn App() -> impl IntoView {
     provide_context(Selection(RwSignal::new(None)));
     provide_context(PaletteOpen(RwSignal::new(false)));
     provide_context(LinkDialog(RwSignal::new(None)));
+    provide_context(crate::state::MeetingDialog(RwSignal::new(None)));
+    provide_context(crate::state::NowClock(RwSignal::new(None)));
     provide_context(CardMenuState(RwSignal::new(None)));
     provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
@@ -127,6 +129,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/weekly-review") view=WeeklyReview />
                     <Route path=path!("/settings") view=Settings />
                     <Route path=path!("/help") view=Help />
+                    <Route path=path!("/about") view=crate::pages::about::About />
                     <Route path=path!("/:type/:id") view=DeepLink />
                 </Routes>
             </main>
@@ -135,6 +138,8 @@ fn Shell() -> impl IntoView {
             <StatusBar />
             <PaletteHost />
             <LinkDialogHost />
+            <crate::components::meeting::MeetingDialogHost />
+            <crate::components::meeting::MeetingClock />
             <CardMenuHost />
             <ToastHost />
             <FirstRun />
