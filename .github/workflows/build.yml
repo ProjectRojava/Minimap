@@ -2,9 +2,11 @@ name: Build installers
 
 # Builds the Linux (AppImage, deb, rpm) and Windows (msi) installers whenever code lands on master,
 # and uploads them as workflow artifacts. Can also be run by hand from the Actions tab.
+# Pushing a tag like v0.4.0 also publishes a GitHub Release with the installers attached.
 on:
   push:
     branches: [master]
+    tags: ['v*']
   workflow_dispatch:
 
 concurrency:
@@ -98,3 +100,36 @@ jobs:
           name: minimap-windows
           path: target/release/bundle/msi/*.msi
           if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Each artifact is unpacked into dist/<artifact name>/.
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      # The release text is this version's section of CHANGELOG.md.
+      - name: Write release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v h="## [$version]" 'index($0, h) == 1 { on = 1; next }
+                                    on && (/^---$/ || /^## \[/) { exit }
+                                    on' CHANGELOG.md > notes.md
+          cat notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*/* \
+            --title "Minimap ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md
