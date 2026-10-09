@@ -384,6 +384,15 @@ fn Connected() -> impl IntoView {
     let syncing = RwSignal::new(false);
     let confirm_disconnect = RwSignal::new(false);
     let recover = RwSignal::new(None::<CheckpointInfo>);
+    let shown_key = RwSignal::new(None::<String>);
+    let show_key = move |_| {
+        spawn_local(async move {
+            match api::get_recovery_key().await {
+                Ok(key) => shown_key.set(Some(key.0)),
+                Err(e) => toasts.error(&e),
+            }
+        });
+    };
 
     let status = move || ctx.status.get();
     let initial_name = status().map(|s| s.device_name).unwrap_or_default();
@@ -522,6 +531,36 @@ fn Connected() -> impl IntoView {
             </div>
         </div>
         {move || recover.get().map(|c| view! { <ConfirmRecover checkpoint=c recover=recover /> })}
+
+        <div class="space-y-2 border-t border-line pt-2">
+            <p class="font-medium">"Add another computer"</p>
+            <p class="text-muted">
+                "On the other computer, connect Google Drive with the same Google account (and the same "
+                "client ID under Advanced), then paste this recovery key when asked."
+            </p>
+            {move || match shown_key.get() {
+                Some(key) => view! {
+                    <code class="block select-all break-all rounded-sm border border-line bg-canvas px-2 py-1.5 font-mono text-[13px]">
+                        {key.clone()}
+                    </code>
+                    <div class="flex items-center gap-2">
+                        <button class=BUTTON on:click=move |_| {
+                            let key = key.clone();
+                            spawn_local(async move {
+                                match api::copy_text(&key).await {
+                                    Ok(()) => toasts.info("Recovery key copied"),
+                                    Err(e) => toasts.error(&e),
+                                }
+                            });
+                        }>"Copy"</button>
+                        <button class=BUTTON on:click=move |_| shown_key.set(None)>"Hide"</button>
+                    </div>
+                }.into_any(),
+                None => view! {
+                    <button class=BUTTON on:click=show_key>"Show recovery key"</button>
+                }.into_any(),
+            }}
+        </div>
 
         <div class="border-t border-line pt-2">
             {move || if confirm_disconnect.get() {

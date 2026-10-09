@@ -25,15 +25,15 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
     let summary = demo::seed(&mut conn, TODAY).unwrap();
     assert_eq!(summary.objectives, 3);
     assert_eq!(summary.projects, 3);
-    assert_eq!(summary.tasks, 40);
+    assert_eq!(summary.tasks, 45, "40 tasks and 5 meetings");
     assert_eq!(summary.people, 8, "me and seven others");
     assert_eq!(summary.teams, 2);
     assert_eq!(summary.notes, 3);
     assert_eq!(summary.decisions, 5);
     assert_eq!(summary.waiting_ons, 3);
-    assert_eq!(summary.links, 106);
+    assert_eq!(summary.links, 113);
     // The summary is the truth.
-    assert_eq!(count(&conn, "tasks"), 40);
+    assert_eq!(count(&conn, "tasks"), 45);
     assert_eq!(count(&conn, "people"), 8);
     assert_eq!(summary.links, count(&conn, "edges"));
 }
@@ -166,6 +166,9 @@ fn it_only_fills_an_empty_database_and_a_refusal_changes_nothing() {
         CreateTask {
             links: Vec::new(),
             task_type: None,
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             title: "Mine".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
@@ -289,7 +292,7 @@ fn the_history_reads_like_a_real_week() {
     let done: Vec<_> = tasks::list(&conn, false)
         .unwrap()
         .into_iter()
-        .filter(|t| t.status == TaskStatus::Done)
+        .filter(|t| t.status == TaskStatus::Done && !t.is_meeting())
         .collect();
     assert_eq!(done.len(), 5);
     let this_week = done
@@ -327,6 +330,113 @@ fn one_objective_is_ongoing_with_an_overdue_review_and_served_by_repeating_tasks
 }
 
 #[test]
+fn five_meetings_show_how_they_start_end_and_follow_up() {
+    let conn = seeded(TODAY);
+    let all = tasks::list(&conn, false).unwrap();
+    let meetings: Vec<&Task> = all.iter().filter(|t| t.is_meeting()).collect();
+    assert_eq!(meetings.len(), 5);
+    assert!(meetings
+        .iter()
+        .all(|t| t.due_date.is_some() && t.start_minute.is_some() && t.length_minutes == Some(60)));
+    let by = |title: &str, day: Date| {
+        meetings
+            .iter()
+            .find(|t| t.title == title && t.due_date == Some(day))
+            .copied()
+            .unwrap_or_else(|| panic!("{title} on {day}"))
+    };
+    // Today at four and tomorrow at two (the demo's Wednesday).
+    assert_eq!(
+        by("Security review sync", TODAY).start_minute,
+        Some(16 * 60)
+    );
+    let cutover = by("EU cutover review", date!(2027 - 03 - 04));
+    assert_eq!(cutover.start_minute, Some(14 * 60));
+    // Held on Monday for an hour from ten: done, finished at eleven.
+    let held = by("Platform weekly sync", date!(2027 - 03 - 01));
+    assert_eq!(held.status, TaskStatus::Done);
+    assert_eq!(
+        held.completed_at.map(|c| (c.date(), c.hour())),
+        Some((date!(2027 - 03 - 01), 11))
+    );
+    // Next week's is made, repeats on Mondays and follows up on the one held.
+    let next = by("Platform weekly sync", date!(2027 - 03 - 08));
+    assert!(next.recurrence.is_some());
+    let follows: Vec<(Uuid, Uuid)> = edges::list_active_of_type(&conn, EdgeType::FollowsUp)
+        .unwrap()
+        .into_iter()
+        .map(|e| (e.from_id, e.to_id))
+        .collect();
+    assert_eq!(follows.len(), 2);
+    assert!(follows.contains(&(next.id, held.id)));
+    let follow_up = meetings
+        .iter()
+        .find(|t| t.title.starts_with("Follow-up:"))
+        .unwrap();
+    assert!(follows.contains(&(follow_up.id, cutover.id)));
+    // This week lists today's and tomorrow's, not the one that is over or next week's.
+    let week = minimap_core::this_week::build(minimap_core::this_week::WeekInput {
+        tasks: views::task_rows(&conn).unwrap(),
+        blockers: views::open_blockers(&conn).unwrap(),
+        waiting: views::waiting_on_items(&conn).unwrap(),
+        notes: views::note_items(&conn).unwrap(),
+        objectives: objectives::list(&conn, false).unwrap(),
+        self_id: people::get_self(&conn).unwrap().map(|p| p.id),
+        today: TODAY,
+        week_of: None,
+        stale_days: 7,
+    });
+    let names: Vec<&str> = week
+        .meetings
+        .iter()
+        .map(|m| m.row.task.title.as_str())
+        .collect();
+    assert_eq!(names, ["Security review sync", "EU cutover review"]);
+    // And the plan has none of them.
+    assert_eq!(tasks::list_planned(&conn).unwrap().len(), 40);
+}
+
+#[test]
+fn two_far_off_tasks_are_in_focus_and_so_are_on_this_week() {
+    let conn = seeded(TODAY);
+    let mut focused: Vec<(String, Option<Date>)> = tasks::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .filter_map(|t| t.focus.map(|f| (t.title, f.until)))
+        .collect();
+    focused.sort();
+    assert_eq!(
+        focused,
+        [
+            (
+                "Gateway: migrate the first five services".to_owned(),
+                Some(TODAY + time::Duration::days(14))
+            ),
+            ("Go-live checklist".to_owned(), None),
+        ]
+    );
+    // Both are due weeks away, yet This week keeps them in front of you.
+    let week = minimap_core::this_week::build(minimap_core::this_week::WeekInput {
+        tasks: views::task_rows(&conn).unwrap(),
+        blockers: views::open_blockers(&conn).unwrap(),
+        waiting: views::waiting_on_items(&conn).unwrap(),
+        notes: views::note_items(&conn).unwrap(),
+        objectives: objectives::list(&conn, false).unwrap(),
+        self_id: people::get_self(&conn).unwrap().map(|p| p.id),
+        today: TODAY,
+        week_of: None,
+        stale_days: 7,
+    });
+    let names: Vec<&str> = week
+        .focus
+        .iter()
+        .map(|f| f.task.row.task.title.as_str())
+        .collect();
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert_eq!(week.focus_count, 2);
+}
+
+#[test]
 fn a_few_tasks_carry_reference_links() {
     let conn = seeded(TODAY);
     let with: Vec<(String, usize)> = tasks::list(&conn, false)
@@ -355,6 +465,7 @@ fn some_things_repeat() {
     let rules: Vec<(String, String)> = tasks::list(&conn, false)
         .unwrap()
         .into_iter()
+        .filter(|t| !t.is_meeting())
         .filter_map(|t| t.recurrence.map(|r| (t.title, r.describe())))
         .collect();
     assert_eq!(rules.len(), 2, "{rules:?}");

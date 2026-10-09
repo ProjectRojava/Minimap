@@ -38,6 +38,7 @@ Press `g`, then the letter within a second.
 | `g r` | Weekly review |
 | `g s` | Settings |
 | `g h` | Help |
+| `g u` | About |
 
 Hover over a sidebar entry to see its keys.
 
@@ -49,12 +50,13 @@ Hover over a sidebar entry to see its keys.
 | `Enter` | Open the highlighted row in the detail pane |
 | `n` | New item, on screens that have a "new" box or form (Tasks, Projects, Notes and so on). On the task board it opens the box in the To do column |
 
-### On the highlighted task row or card (Tasks, board and list, and Inbox; `x` also on This week)
+### On the highlighted task row or card (Tasks, board and list, and Inbox; `x` and `f` also on This week)
 
 | Keys | Does |
 |---|---|
 | `x` | Mark done; again to reopen |
 | `s` | Move to the next status |
+| `f` | Put in focus, or take out of focus ([Tasks](help:tasks), *Focus*) |
 | `1`–`5` | Set the priority |
 | `d` | Focus the due date (list only) |
 | `a` | Focus the assignee (list only) |

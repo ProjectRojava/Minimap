@@ -25,6 +25,7 @@ Some relations are edited where they live instead: a task's assignee on the task
 | **affects** | decision → project, task or objective | none | [Decisions](help:decisions) |
 | **about** | waiting-on → task or project | none | [Waiting on](help:waiting-on) |
 | **supersedes** | decision → decision (newer → older) | none | Marks the older decision superseded |
+| **follows up** | meeting → meeting (follow-up → original) | none | [Meetings](help:meetings): a meeting continues an earlier one. A meeting follows up on one meeting and can have many follow-ups; no loops. Moves no date. Made by *Schedule follow-up…*, the *Follow-ups* section, and by repeating meetings |
 | **part of** | task → task (sub-task → parent) | none | [Sub-tasks](help:tasks): organising a task into pieces. A task is part of one task, one level deep. Moves no date and holds nothing up |
 
 Direction matters: *Design blocks Build* means Build waits for Design. The task pane shows the same link from both ends, worded to suit each (*Blocks* on Design, *Blocked by* on Build).

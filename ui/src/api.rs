@@ -1,23 +1,23 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AddAttachment, AppError, ApplyPreview, ApplyResult, AssigneeChoice, Attachment,
-    BackupEntry, BackupStatus, Capacity, CheckpointInfo, ConnectOutcome, CreateDecision,
-    CreateNote, CreateObjective, CreatePerson, CreateProject, CreateTask, CreateTeam,
-    CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow, DemoRemoval, DemoStatus,
-    DemoSummary, DependencyGraph, Edge, EdgeLink, EncryptionResult, ExportAllResult, ExportFormat,
-    ExportResult, FinishConnect, GraphFilter, ImpactReport, LinkOption, LinkRelation, NewEdge,
-    NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
-    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
-    PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
-    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult,
-    RecoverCheckpoint, RecoverResult, Recurrence, ReportKind, ReportParams, RestorePreview,
-    RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret,
-    SecurityStatus, SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition,
-    TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UndoOutcome, UpdateDecision,
-    UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings, UpdateSyncSettings,
-    UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow,
-    WeeklyReview, ATTACHMENT_EXTENSIONS,
+    Activity, AddAttachment, AdvanceResult, AppError, ApplyPreview, ApplyResult, AssigneeChoice,
+    Attachment, BackupEntry, BackupStatus, Capacity, CheckpointInfo, Clock, ConnectOutcome,
+    CreateDecision, CreateMeeting, CreateNote, CreateObjective, CreatePerson, CreateProject,
+    CreateTask, CreateTeam, CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow,
+    DemoRemoval, DemoStatus, DemoSummary, DependencyGraph, Edge, EdgeLink, EncryptionResult,
+    ExportAllResult, ExportFormat, ExportResult, FinishConnect, FocusChoice, GraphFilter,
+    ImpactReport, LinkOption, LinkRelation, MeetingTime, NewEdge, NodeRef, NodeSummary, NodeType,
+    Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup,
+    ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse,
+    PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup,
+    ProjectLayout, QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint, RecoverResult,
+    Recurrence, ReportKind, ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope,
+    ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip,
+    SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow,
+    ThisWeek, UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
+    UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn,
+    Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -316,6 +316,12 @@ struct TaskListArg {
 }
 
 #[derive(Serialize)]
+struct FocusArg {
+    id: Uuid,
+    choice: FocusChoice,
+}
+
+#[derive(Serialize)]
 struct EstimateArg {
     id: Uuid,
     text: String,
@@ -370,6 +376,49 @@ pub async fn update_task(id: Uuid, patch: UpdateTask) -> Result<Task, AppError> 
 
 pub async fn set_task_estimate(id: Uuid, text: String) -> Result<Task, AppError> {
     invoke("set_task_estimate", &EstimateArg { id, text }).await
+}
+
+pub async fn set_task_focus(id: Uuid, choice: FocusChoice) -> Result<Task, AppError> {
+    invoke("set_task_focus", &FocusArg { id, choice }).await
+}
+
+#[derive(Serialize)]
+struct CreateMeetingArg {
+    input: CreateMeeting,
+}
+
+#[derive(Serialize)]
+struct SetMeetingArg {
+    id: Uuid,
+    when: MeetingTime,
+    clock: Clock,
+}
+
+#[derive(Serialize)]
+struct FollowUpArg {
+    source: Uuid,
+    when: Option<MeetingTime>,
+}
+
+#[derive(Serialize)]
+struct ClockArg {
+    clock: Clock,
+}
+
+pub async fn create_meeting(input: CreateMeeting) -> Result<Task, AppError> {
+    invoke("create_meeting", &CreateMeetingArg { input }).await
+}
+
+pub async fn set_meeting(id: Uuid, when: MeetingTime, clock: Clock) -> Result<Task, AppError> {
+    invoke("set_meeting", &SetMeetingArg { id, when, clock }).await
+}
+
+pub async fn schedule_follow_up(source: Uuid, when: Option<MeetingTime>) -> Result<Task, AppError> {
+    invoke("schedule_follow_up", &FollowUpArg { source, when }).await
+}
+
+pub async fn advance_meetings(clock: Clock) -> Result<AdvanceResult, AppError> {
+    invoke("advance_meetings", &ClockArg { clock }).await
 }
 
 pub async fn set_assignee(task_id: Uuid, person_id: Option<Uuid>) -> Result<(), AppError> {
@@ -1048,6 +1097,11 @@ pub async fn connect_drive() -> Result<ConnectOutcome, AppError> {
 
 pub async fn cancel_drive_connect() -> Result<(), AppError> {
     invoke("cancel_drive_connect", &NoArgs {}).await
+}
+
+/// This computer's recovery key (for connecting another computer to the same Drive).
+pub async fn get_recovery_key() -> Result<Secret, AppError> {
+    invoke("get_recovery_key", &NoArgs {}).await
 }
 
 /// The recovery key that opens data already on Drive.

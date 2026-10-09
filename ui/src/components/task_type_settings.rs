@@ -183,6 +183,7 @@ fn TypeRow(
         move || this().is_some_and(|t| t.archived)
     };
     let archived_class = archived.clone();
+    let is_meeting = id == minimap_types::MEETING_TYPE;
     view! {
         <div class=move || format!("flex flex-wrap items-center gap-2 {}", if archived_class() { "opacity-60" } else { "" })>
             <input class=format!("{INPUT} max-w-[14rem]") type="text" autocomplete="off"
@@ -190,9 +191,20 @@ fn TypeRow(
                 prop:value=move || this().map(|t| t.name).unwrap_or_default()
                 on:change=move |ev| rename(event_target_value(&ev)) />
             <span class="flex items-center gap-1">{swatches}</span>
-            <button class=BUTTON on:click=archive>
-                {move || if archived() { "Restore" } else { "Archive" }}
-            </button>
+            {if is_meeting {
+                view! {
+                    <span class="text-[11px] text-muted"
+                          title="Meetings have a day and a time, and start and end on their own">
+                        "Built in: rename or recolour it, it can't be archived"
+                    </span>
+                }.into_any()
+            } else {
+                view! {
+                    <button class=BUTTON on:click=archive>
+                        {move || if archived() { "Restore" } else { "Archive" }}
+                    </button>
+                }.into_any()
+            }}
         </div>
     }
 }
@@ -204,10 +216,12 @@ mod tests {
 
     #[test]
     fn a_new_type_gets_a_colour_nobody_live_has() {
+        // Without the built-in meeting type the defaults use seven of the eight colours; the
+        // eighth is the one left.
         let mut list = default_task_types();
+        list.retain(|t| t.id != minimap_types::MEETING_TYPE);
         let hue = next_hue(&list);
         assert!(TASK_TYPE_HUES.contains(&hue));
-        // The seven defaults use seven of the eight; the eighth is the one left.
         assert!(!list.iter().any(|t| t.hue == hue));
         // An archived type frees its colour.
         list[0].archived = true;

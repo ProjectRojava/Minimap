@@ -54,6 +54,8 @@ pub struct GraphNode {
     /// Projected past its deadline (negative slack for tasks; late against target for projects).
     pub late: bool,
     pub blocked: bool,
+    /// An unfinished task that waits, directly or further down the chain, on a blocked task.
+    pub held_up: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

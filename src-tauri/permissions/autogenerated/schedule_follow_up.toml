@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-schedule-follow-up"
+description = "Enables the schedule_follow_up command without any pre-configured scope."
+commands.allow = ["schedule_follow_up"]
+
+[[permission]]
+identifier = "deny-schedule-follow-up"
+description = "Denies the schedule_follow_up command without any pre-configured scope."
+commands.deny = ["schedule_follow_up"]

@@ -1,8 +1,11 @@
-use minimap_core::tasks::{filter, parse_estimate, parse_lines, sort};
+use minimap_core::{
+    focus,
+    tasks::{filter, parse_estimate, parse_lines, sort},
+};
 use minimap_store::Connection;
 use minimap_types::{
-    AppError, AssigneeChoice, CreateTask, LinkRelation, NodeRef, NodeType, Patch, Task, TaskDetail,
-    TaskFilter, TaskRow, UpdateTask, Uuid,
+    AppError, AssigneeChoice, CreateTask, Date, FocusChoice, LinkRelation, NodeRef, NodeType,
+    Patch, Task, TaskDetail, TaskFilter, TaskRow, UpdateTask, Uuid,
 };
 use tauri::State;
 
@@ -113,6 +116,35 @@ pub(crate) fn set_task_estimate_impl(
     minimap_store::tasks::update(conn, id, patch).map_err(store_error)
 }
 
+/// Puts a task in focus, or takes it out (spec 37): kept on This week every day until taken out,
+/// for today only, or through a date. A day that has passed is refused.
+#[tauri::command]
+pub async fn set_task_focus(
+    state: State<'_, AppState>,
+    id: Uuid,
+    choice: FocusChoice,
+) -> Result<Task, AppError> {
+    state
+        .run(move |conn| set_task_focus_impl(conn, id, choice, minimap_store::today()))
+        .await
+}
+
+pub(crate) fn set_task_focus_impl(
+    conn: &mut Connection,
+    id: Uuid,
+    choice: FocusChoice,
+    today: Date,
+) -> Result<Task, AppError> {
+    let patch = UpdateTask {
+        focus: match focus::resolve(choice, today).map_err(|m| app_error("invalid", m))? {
+            Some(f) => Patch::Set(f),
+            None => Patch::Clear,
+        },
+        ..Default::default()
+    };
+    minimap_store::tasks::update(conn, id, patch).map_err(store_error)
+}
+
 /// Makes `person_id` the only assignee; `None` unassigns.
 #[tauri::command]
 pub async fn set_assignee(
@@ -205,6 +237,9 @@ pub(crate) fn create_tasks_bulk_impl(
         .map(|title| CreateTask {
             links: Vec::new(),
             task_type: None,
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             title,
             assignee,
             description: String::new(),
@@ -223,6 +258,7 @@ pub(crate) fn create_tasks_bulk_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use minimap_types::Focus;
     use minimap_types::{CreateProject, UpdateSettings};
 
     fn conn() -> Connection {
@@ -277,6 +313,47 @@ mod tests {
             None
         )
         .is_err());
+    }
+
+    #[test]
+    fn focus_is_set_for_today_or_a_date_cleared_and_a_past_day_refused() {
+        let mut conn = conn();
+        let t = task(&mut conn, "Keep in sight");
+        let today = minimap_store::today();
+        let set = |conn: &mut Connection, choice| set_task_focus_impl(conn, t.id, choice, today);
+        assert_eq!(t.focus, None);
+        assert_eq!(
+            set(&mut conn, FocusChoice::Pinned).unwrap().focus,
+            Some(Focus::PINNED)
+        );
+        assert_eq!(
+            set(&mut conn, FocusChoice::Today).unwrap().focus,
+            Some(Focus { until: Some(today) })
+        );
+        let later = today + time::Duration::days(30);
+        assert_eq!(
+            set(&mut conn, FocusChoice::Until { date: later })
+                .unwrap()
+                .focus,
+            Some(Focus { until: Some(later) })
+        );
+        // Refused, and the focus stays as it was.
+        let err = set(
+            &mut conn,
+            FocusChoice::Until {
+                date: today - time::Duration::days(1),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "invalid");
+        assert_eq!(
+            minimap_store::tasks::get(&conn, t.id).unwrap().focus,
+            Some(Focus { until: Some(later) })
+        );
+        assert_eq!(set(&mut conn, FocusChoice::Off).unwrap().focus, None);
+        // It is an ordinary logged change: the history and undo see it.
+        let history = minimap_store::activity::list_for_node(&conn, t.id).unwrap();
+        assert!(history.iter().any(|a| a.diff.to_string().contains("focus")));
     }
 
     #[test]

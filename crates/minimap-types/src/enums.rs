@@ -79,6 +79,8 @@ str_enum!(EdgeType {
     About => "about",
     Supersedes => "supersedes",
     SubtaskOf => "subtask_of",
+    // A meeting that follows up on an earlier one (spec 38): follow-up -> original.
+    FollowsUp => "follows_up",
 });
 
 str_enum!(ObjectiveStatus {

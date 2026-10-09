@@ -5,7 +5,7 @@ use leptos::prelude::*;
 use minimap_types::{
     finish_timing, plan_history,
     timefmt::{fmt_ts, parse_date},
-    Date, PlanHistory, Task, TaskStatus, TaskType, Uuid,
+    Date, PlanHistory, Task, TaskStatus, TaskType, TypeBorder, Uuid,
 };
 
 use crate::{api, components::page::Tone, state::DataVersion};
@@ -14,6 +14,8 @@ use crate::{api, components::page::Tone, state::DataVersion};
 #[derive(Clone, Copy)]
 pub struct TaskTypes {
     list: Memo<Vec<TaskType>>,
+    /// Frame board cards by their type (spec 39); a setting of this device.
+    borders: Memo<bool>,
 }
 
 impl TaskTypes {
@@ -28,9 +30,18 @@ impl TaskTypes {
             Some(Ok(s)) => s.task_types,
             _ => last.cloned().unwrap_or_default(),
         });
-        let types = Self { list };
+        let borders = Memo::new(move |last: Option<&bool>| match settings.get() {
+            Some(Ok(s)) => s.type_borders,
+            _ => last.copied().unwrap_or(true),
+        });
+        let types = Self { list, borders };
         provide_context(types);
         types
+    }
+
+    /// Whether board cards are framed by their type (tracks).
+    pub fn borders(&self) -> bool {
+        self.borders.get()
     }
 
     /// Every type, archived ones included (tracks).
@@ -74,9 +85,40 @@ pub fn type_options(list: &[TaskType], current: Option<&str>) -> Vec<(String, St
         .collect()
 }
 
-/// Just the options that can be chosen for a new task (no archived types).
+/// Just the options that can be chosen for a new task (no archived types, and not Meeting: a
+/// meeting needs a day and a time, so it is made with *New meeting*, spec 38).
 pub fn active_options(list: &[TaskType]) -> Vec<(String, String)> {
     type_options(list, None)
+        .into_iter()
+        .filter(|(id, _)| id != minimap_types::MEETING_TYPE)
+        .collect()
+}
+
+/// The type a task made while the type filter says `filter` gets: the filtered type, except that
+/// a meeting can't be made without a time.
+pub fn type_for_new_task(filter: &str) -> Option<String> {
+    Some(filter)
+        .filter(|t| !t.is_empty() && *t != minimap_types::MEETING_TYPE)
+        .map(str::to_owned)
+}
+
+/// The inline style that draws a board card's border for its type: the line style and width of
+/// `TypeBorder::of` (see `article.card-frame` in `input.css`). Nothing when the setting is off or
+/// the task has no type in the list: the card then has a plain line.
+pub fn frame_style(kind: Option<&TaskType>, on: bool) -> Option<String> {
+    let kind = kind.filter(|_| on)?;
+    let border = TypeBorder::of(&kind.id);
+    Some(format!(
+        "--tb-style: {}; --tb-width: {}px;",
+        border.css(),
+        border.width_px()
+    ))
+}
+
+/// The colour of a card's border: the objective's hue (what the card's left edge used to be), if
+/// its project serves one.
+pub fn frame_colour(hue: Option<u16>) -> Option<String> {
+    hue.map(|h| format!("--frame: hsl({h} var(--obj-s) var(--obj-l));"))
 }
 
 /// A task's type as a small coloured chip (nothing for a task without one, or one that is not in
@@ -225,6 +267,9 @@ mod tests {
             recurrence: None,
             links: Vec::new(),
             task_type: Some("decision".into()),
+            focus: None,
+            start_minute: None,
+            length_minutes: None,
             created_at: parse_ts("2027-01-01T00:00:00.000Z").unwrap(),
             updated_at: parse_ts("2027-01-01T00:00:00.000Z").unwrap(),
             archived_at: None,
@@ -237,11 +282,53 @@ mod tests {
         list[1].archived = true; // Build
         let none = active_options(&list);
         assert_eq!(none[0], (String::new(), "No type".to_owned()));
-        assert_eq!(none.len(), 7); // No type + 6 active
+        assert_eq!(none.len(), 7); // No type + 6 active, and not Meeting
         assert!(none.iter().all(|(id, _)| id != "build"));
         let own = type_options(&list, Some("build"));
         assert!(own.contains(&("build".to_owned(), "Build (archived)".to_owned())));
-        assert_eq!(own.len(), 8);
+        assert_eq!(own.len(), 9);
+        // A new task made under the Meeting filter is a plain task.
+        assert_eq!(type_for_new_task(""), None);
+        assert_eq!(type_for_new_task("meeting"), None);
+        assert_eq!(type_for_new_task("bug").as_deref(), Some("bug"));
+        assert!(none.iter().all(|(id, _)| id != "meeting"));
+    }
+
+    #[test]
+    fn a_cards_border_is_the_types_line_in_the_objectives_colour() {
+        let types = default_task_types();
+        let find = |id: &str| TaskType::find(&types, id).cloned();
+        let decision = find("decision").unwrap();
+        assert_eq!(
+            frame_style(Some(&decision), true).as_deref(),
+            Some("--tb-style: double; --tb-width: 4px;")
+        );
+        let design = find("design").unwrap();
+        let style = frame_style(Some(&design), true).unwrap();
+        assert!(style.contains("--tb-style: dashed") && style.contains("--tb-width: 3px"));
+        assert!(frame_style(find("review").as_ref(), true)
+            .unwrap()
+            .contains("--tb-width: 3px"));
+        // Build and a type of your own are a plain 2px line.
+        let own = TaskType {
+            id: "legal-review".into(),
+            name: "Legal review".into(),
+            hue: 285,
+            archived: false,
+        };
+        for kind in [find("build").unwrap(), own] {
+            let style = frame_style(Some(&kind), true).unwrap();
+            assert!(style.contains("--tb-style: solid") && style.contains("--tb-width: 2px"));
+        }
+        // Off, or no type: the card's default (a plain line, set in the CSS).
+        assert_eq!(frame_style(Some(&decision), false), None);
+        assert_eq!(frame_style(None, true), None);
+        // The colour is the objective's, whatever the type; none without an objective.
+        assert_eq!(
+            frame_colour(Some(215)).as_deref(),
+            Some("--frame: hsl(215 var(--obj-s) var(--obj-l));")
+        );
+        assert_eq!(frame_colour(None), None);
     }
 
     #[test]

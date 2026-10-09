@@ -143,6 +143,14 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .obj-chip > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .obj-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--obj); }
 .obj-bar { border-left: 3px solid var(--obj); }
+/* The frame of a board card (spec 39): the colour of the objective its project serves (inline
+   `--frame`, grey when it serves none) in the line style and weight of its task type (inline
+   `--tb-style`, `--tb-width`; a plain 2px line otherwise). The element selector beats the card's
+   `border` utilities. A card's states (open, linked, cursor) are a tint and a ring, not a border. */
+article.card-frame {
+  border-style: var(--tb-style, solid); border-width: var(--tb-width, 2px);
+  border-color: var(--frame, var(--line-strong));
+}
 /* The marks on a Tasks-board card (linked tasks, attached files and web links): a labelled chip
    in a fixed hue, big enough to read. */
 .hue-chip {
@@ -208,6 +216,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 .dep .node.critical .box { stroke: var(--accent); stroke-width: 1.6; }
 .dep .node.late .box { stroke: var(--danger); stroke-width: 1.6; }
 .dep .node.blocked .box { stroke: var(--warning); stroke-width: 1.6; stroke-dasharray: 4 2; }
+.dep .node.held-up .box { fill: color-mix(in srgb, var(--danger) 18%, var(--panel)); stroke: var(--danger); stroke-width: 1.6; }
 .dep .node.done { opacity: 0.6; }
 .dep .node.context { opacity: 0.5; }
 .dep .edge { fill: none; stroke: var(--line-strong); stroke-width: 1.2; }

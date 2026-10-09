@@ -337,7 +337,7 @@ mod tests {
             task_types: read(folder, "task_types"),
         };
         assert_eq!(back, data, "the files do not read back into the same data");
-        assert_eq!(back.tasks.len(), 40);
+        assert_eq!(back.tasks.len(), 45);
         assert_eq!(back.people.len(), 8);
         assert!(back.activity.len() > 100);
     }
@@ -358,7 +358,7 @@ mod tests {
         assert_eq!(manifest.exported_at, AT);
         assert!(manifest.includes_archived && !manifest.markdown);
         assert_eq!(manifest.counts, data.counts());
-        assert_eq!(manifest.counts["tasks"], 40);
+        assert_eq!(manifest.counts["tasks"], 45);
         // The manifest and README are in the folder too, and the result counts every file.
         let all = names_in(&result.folder, "");
         assert!(all.contains(&"README.md".to_owned()));

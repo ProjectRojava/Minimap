@@ -374,6 +374,7 @@ fn Appearance() -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let theme = expect_context::<ThemeCtx>();
+    let types = crate::components::task_type::use_task_types();
 
     // Applies at once; saving to the database follows.
     let choose = move |id: &'static str| {
@@ -401,7 +402,27 @@ fn Appearance() -> impl IntoView {
     };
 
     view! {
-        <Card title="Appearance" description="Colour theme. Dark is the default; System follows your OS.">
+        <Card title="Appearance" description="Colour theme and how task cards look. Dark is the default; System follows your OS.">
+            <label class="flex items-start gap-2">
+                <input type="checkbox" class="mt-0.5"
+                    prop:checked=move || types.borders()
+                    on:change=move |ev| {
+                        let on = event_target_checked(&ev);
+                        spawn_local(async move {
+                            let patch = UpdateSettings {
+                                type_borders: Some(on),
+                                ..Default::default()
+                            };
+                            finish(api::update_settings(patch).await, toasts, version);
+                        });
+                    } />
+                <span>
+                    <span class="block font-medium">"Frame task cards by type"</span>
+                    <span class="block text-[11px] text-muted">
+                        "On the Tasks board a card's border takes its type's colour and line: double for decisions, dashed for design, bugs and meetings, dotted for research and admin, heavy for reviews, plain for build and your own types. Off: the type is only the label. This device only."
+                    </span>
+                </span>
+            </label>
             <button
                 class=move || format!(
                     "flex w-full items-center gap-3 rounded-sm border p-2 text-left hover:bg-hover {}",

@@ -5,15 +5,18 @@ use std::str::FromStr;
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
     NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask, Uuid,
+    MEETING_TYPE,
 };
 
 use crate::{
     api,
     components::{
         detail_pane::{Section, FIELD_GROUP},
+        focus::FocusField,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
         item_notes::ItemNotes,
         markdown_box::{saver, MarkdownField},
+        meeting::{MakeMeeting, MeetingFields},
         people_panel::error_line,
         reference_links::ReferenceLinks,
         repeat_field::RepeatField,
@@ -28,8 +31,28 @@ use crate::{
 
 #[component]
 pub fn TaskPanel(id: Uuid) -> impl IntoView {
-    // Loaded once per opening so typing is never overwritten by a reload.
-    let detail = LocalResource::new(move || api::get_task_detail(id));
+    // Loaded once per opening so typing is never overwritten by a reload; `reload` asks for it
+    // again (a task made a meeting or turned back, a meeting the clock moved on).
+    let reload = RwSignal::new(0u32);
+    let detail = LocalResource::new(move || {
+        reload.get();
+        api::get_task_detail(id)
+    });
+    // A meeting moves itself on with the clock (spec 38): when its status changes under an open
+    // pane, load the pane again so the Status box says so.
+    let version = expect_context::<DataVersion>();
+    let latest = LocalResource::new(move || {
+        version.track();
+        api::get_task(id)
+    });
+    Effect::new(move |_| {
+        let Some(Ok(now)) = latest.get() else { return };
+        if let Some(Ok(shown)) = detail.get_untracked() {
+            if now.is_meeting() && shown.task.status != now.status {
+                reload.update(|n| *n += 1);
+            }
+        }
+    });
     let people = LocalResource::new(api::list_people);
     let projects = LocalResource::new(move || api::list_node_summaries(NodeType::Project));
 
@@ -37,7 +60,7 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
         <Section title="Fields" always_open=true>
             <TaskSummary id=id />
             {move || match (detail.get(), people.get(), projects.get()) {
-                (Some(Ok(d)), Some(Ok(ps)), Some(Ok(pr))) => view! { <TaskFields detail=d people=ps projects=pr /> }.into_any(),
+                (Some(Ok(d)), Some(Ok(ps)), Some(Ok(pr))) => view! { <TaskFields detail=d people=ps projects=pr reload=reload /> }.into_any(),
                 (Some(Err(e)), _, _) | (_, Some(Err(e)), _) | (_, _, Some(Err(e))) => error_line(e),
                 _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
@@ -55,6 +78,7 @@ fn TaskFields(
     detail: TaskDetail,
     people: Vec<PersonRow>,
     projects: Vec<minimap_types::NodeSummary>,
+    reload: RwSignal<u32>,
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
@@ -106,18 +130,39 @@ fn TaskFields(
     // The type dropdown follows the list (it is rebuilt if the list changes) and the value saved.
     let types = use_task_types();
     let type_now = RwSignal::new(task.task_type.clone());
+    // Meetings (spec 38): Meeting needs a day and a time, so picking it on a task that has none
+    // asks first (`making`), and the type box is rebuilt (`type_epoch`) if that is cancelled.
+    let is_meeting = task.is_meeting();
+    let making = RwSignal::new(false);
+    let type_epoch = RwSignal::new(0u32);
     let save_type = move |v: String| {
+        if v == MEETING_TYPE && !is_meeting {
+            making.set(true);
+            return;
+        }
+        making.set(false);
         let task_type = if v.is_empty() {
             Patch::Clear
         } else {
             Patch::Set(v.clone())
         };
         type_now.set((!v.is_empty()).then_some(v));
-        save(UpdateTask {
-            task_type,
-            ..Default::default()
+        // Turning a meeting back into a task drops its time, so the pane is loaded again.
+        spawn_local(async move {
+            let patch = UpdateTask {
+                task_type,
+                ..Default::default()
+            };
+            if finish(api::update_task(id, patch).await, toasts, version).is_some() && is_meeting {
+                reload.update(|n| *n += 1);
+            }
         });
     };
+    let cancel_making = Callback::new(move |()| {
+        making.set(false);
+        type_epoch.update(|n| *n += 1);
+        reload.update(|n| *n += 1);
+    });
     let save_project = move |v: String| {
         let project_id = match Uuid::parse_str(&v) {
             Ok(p) => Patch::Set(p),
@@ -178,6 +223,7 @@ fn TaskFields(
                 current=task.priority.to_string() on_change=save_priority
                 tint=PRIORITY_TINT />
             {move || {
+                type_epoch.track();
                 let current = type_now.get_untracked();
                 view! {
                     <SelectField label="Type" options=types.options(current.as_deref())
@@ -185,6 +231,9 @@ fn TaskFields(
                 }
             }}
         </div>
+        {move || making.get().then(|| view! {
+            <MakeMeeting task=id due=task.due_date on_cancel=cancel_making />
+        })}
         <div class="mt-2 grid grid-cols-2 gap-3">
             <SelectField label="Project" options=project_options
                 current=task.project_id.map(|p| p.to_string()).unwrap_or_default() on_change=save_project />
@@ -194,17 +243,25 @@ fn TaskFields(
         </div>
         </div>
         <div class=FIELD_GROUP>
-        <div class="grid grid-cols-3 gap-3">
-            <TextField label="Estimate (3d, 4h)" placeholder="3d" value=estimate_text(task.estimate_days)
-                on_commit=save_estimate />
-            <TextField label="Start date" kind="date"
-                value=task.start_date.map(|d| d.to_string()).unwrap_or_default()
-                on_commit=move |v: String| save_date(v, false) />
-            <TextField label="Due date" kind="date"
-                value=task.due_date.map(|d| d.to_string()).unwrap_or_default()
-                on_commit=move |v: String| save_date(v, true) />
-        </div>
+        {if is_meeting {
+            // A meeting has a day, a time and a length instead of dates and an estimate.
+            view! { <MeetingFields task=task.clone() /> }.into_any()
+        } else {
+            view! {
+                <div class="grid grid-cols-3 gap-3">
+                    <TextField label="Estimate (3d, 4h)" placeholder="3d" value=estimate_text(task.estimate_days)
+                        on_commit=save_estimate />
+                    <TextField label="Start date" kind="date"
+                        value=task.start_date.map(|d| d.to_string()).unwrap_or_default()
+                        on_commit=move |v: String| save_date(v, false) />
+                    <TextField label="Due date" kind="date"
+                        value=task.due_date.map(|d| d.to_string()).unwrap_or_default()
+                        on_commit=move |v: String| save_date(v, true) />
+                </div>
+            }.into_any()
+        }}
         <RepeatField node=NodeRef::new(NodeType::Task, id) current=task.recurrence.clone() />
+        {(!is_meeting).then(|| view! { <FocusField task=id focus=task.focus /> })}
         <TaskTiming id=id />
         </div>
     }

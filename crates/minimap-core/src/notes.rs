@@ -178,6 +178,41 @@ pub fn snippet(body: &str, max_chars: usize) -> String {
     shorten(&lines.join(" · "), max_chars)
 }
 
+/// The start of a note's Markdown for a place that renders it (This week): the body without the
+/// closing "About @[task](node:…)" line, trimmed, and cut to about `max_chars` at the end of a
+/// line (or else between words, never inside a mention) with a closing "…" line when it was cut.
+pub fn preview_body(body: &str, max_chars: usize) -> String {
+    let kept: Vec<&str> = body
+        .lines()
+        .filter(|l| {
+            let l = l.trim();
+            !(l.starts_with("About @[") && l.ends_with(')'))
+        })
+        .collect();
+    let text = kept.join("\n");
+    let text = text.trim();
+    if text.chars().count() <= max_chars {
+        return text.to_owned();
+    }
+    let cut_at = text
+        .char_indices()
+        .nth(max_chars)
+        .map_or(text.len(), |(i, _)| i);
+    let head = &text[..cut_at];
+    // Back to the last line end if that keeps at least half, else the last space.
+    let mut end = match head.rfind('\n') {
+        Some(i) if i >= head.len() / 2 => i,
+        _ => head.rfind(char::is_whitespace).unwrap_or(head.len()),
+    };
+    // Never leave half a mention (`@[Name](node:…`) at the end.
+    if let Some(open) = head[..end].rfind("@[") {
+        if !head[open..end].contains(')') {
+            end = open;
+        }
+    }
+    format!("{}\n\n…", head[..end].trim_end())
+}
+
 /// Filters notes and orders them newest first (note date, then creation).
 pub fn arrange(items: Vec<NoteItem>, filter: &NoteFilter) -> Vec<NoteRow> {
     let terms: Vec<String> = filter
@@ -533,6 +568,50 @@ mod tests {
         assert!(convert_line(body, 0, "x", id(1)).is_none());
         assert!(convert_line(body, 7, "x", id(1)).is_none());
         assert!(convert_line(&out, 1, "x", id(1)).is_none());
+    }
+
+    #[test]
+    fn a_preview_keeps_the_markdown_and_drops_the_closing_line() {
+        let body = "Reviewed **v2**\n- one\n- two\n\nAbout @[Gateway](node:00000000-0000-0000-0000-000000000001)\n";
+        assert_eq!(preview_body(body, 600), "Reviewed **v2**\n- one\n- two");
+        assert_eq!(preview_body("\n\n", 10), "");
+        // "About" inside a sentence stays.
+        assert_eq!(
+            preview_body("About this: it works", 40),
+            "About this: it works"
+        );
+    }
+
+    #[test]
+    fn a_long_preview_is_cut_between_lines_or_words_and_says_so() {
+        let lines = (1..=30)
+            .map(|n| format!("line number {n}"))
+            .collect::<Vec<_>>();
+        let cut = preview_body(&lines.join("\n"), 100);
+        assert!(cut.ends_with("\n\n…"), "{cut}");
+        assert!(cut.chars().count() <= 106, "{cut}");
+        // Cut at the end of a line: the last kept line is whole.
+        let last = cut.lines().rev().find(|l| l.starts_with("line")).unwrap();
+        assert!(lines.iter().any(|l| l == last), "{last}");
+        // One long line is cut at a space.
+        let words = "word ".repeat(100);
+        let cut = preview_body(&words, 50);
+        assert!(
+            cut.starts_with("word word") && cut.ends_with("word\n\n…"),
+            "{cut}"
+        );
+    }
+
+    #[test]
+    fn a_preview_never_ends_inside_a_mention() {
+        let id = "00000000-0000-0000-0000-000000000002";
+        let body = format!("{} @[Priya Nair](node:{id}) said yes", "x".repeat(30));
+        for max in 31..70 {
+            let cut = preview_body(&body, max);
+            let opens = cut.matches("@[").count();
+            let closes = cut.matches(&format!("](node:{id})")).count();
+            assert_eq!(opens, closes, "max {max}: {cut}");
+        }
     }
 
     #[test]

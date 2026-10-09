@@ -37,6 +37,9 @@ fn task_with(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
     let mut input = CreateTask {
         links: Vec::new(),
         task_type: None,
+        focus: None,
+        start_minute: None,
+        length_minutes: None,
         title: "Board update".into(),
         assignee: AssigneeChoice::Nobody,
         description: "Numbers and risks".into(),

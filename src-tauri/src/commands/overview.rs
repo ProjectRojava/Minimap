@@ -25,7 +25,7 @@ pub(crate) fn overview_at(
 ) -> Result<PortfolioOverview, AppError> {
     let conn: &Connection = conn;
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
-    let tasks = minimap_store::tasks::list(conn, false).map_err(store_error)?;
+    let tasks = minimap_store::tasks::list_planned(conn).map_err(store_error)?;
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let objectives = minimap_store::objectives::list(conn, false).map_err(store_error)?;
@@ -83,6 +83,9 @@ mod tests {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

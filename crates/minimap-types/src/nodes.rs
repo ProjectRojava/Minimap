@@ -6,8 +6,8 @@ use time::{Date, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-    DecisionStatus, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence, RefLink,
-    TaskStatus,
+    DecisionStatus, Focus, NodeType, NoteKind, ObjectiveStatus, Patch, ProjectStatus, Recurrence,
+    RefLink, TaskStatus,
 };
 
 pub const DEFAULT_PRIORITY: u8 = 3;
@@ -222,6 +222,16 @@ pub struct Task {
     /// The kind of work this is: the `id` of an entry in Settings' task types (spec 32).
     #[serde(default)]
     pub task_type: Option<String>,
+    /// In focus: shown on This week every day while it lasts, whatever the due date (spec 37).
+    #[serde(default)]
+    pub focus: Option<Focus>,
+    /// A meeting's start, as a minute of the day on the clock where the user is (spec 38). A
+    /// meeting always has one; it is the time that goes with the due date. None on other tasks.
+    #[serde(default)]
+    pub start_minute: Option<u16>,
+    /// How long the meeting lasts in minutes; none means the default (`DEFAULT_MEETING_MINUTES`).
+    #[serde(default)]
+    pub length_minutes: Option<u32>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -266,6 +276,12 @@ pub struct CreateTask {
     pub links: Vec<RefLink>,
     #[serde(default)]
     pub task_type: Option<String>,
+    #[serde(default)]
+    pub focus: Option<Focus>,
+    #[serde(default)]
+    pub start_minute: Option<u16>,
+    #[serde(default)]
+    pub length_minutes: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -283,6 +299,9 @@ pub struct UpdateTask {
     /// The whole list of reference links, replacing the old one.
     pub links: Option<Vec<RefLink>>,
     pub task_type: Patch<String>,
+    pub focus: Patch<Focus>,
+    pub start_minute: Patch<u16>,
+    pub length_minutes: Patch<u32>,
 }
 
 impl UpdateTask {
@@ -298,6 +317,9 @@ impl UpdateTask {
         self.recurrence.apply(&mut t.recurrence);
         set(&mut t.links, self.links);
         self.task_type.apply(&mut t.task_type);
+        self.focus.apply(&mut t.focus);
+        self.start_minute.apply(&mut t.start_minute);
+        self.length_minutes.apply(&mut t.length_minutes);
     }
 }
 

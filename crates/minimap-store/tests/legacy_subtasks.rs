@@ -12,6 +12,9 @@ fn two_tasks(conn: &mut Connection) -> (Task, Task) {
             CreateTask {
                 links: Vec::new(),
                 task_type: None,
+                focus: None,
+                start_minute: None,
+                length_minutes: None,
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),

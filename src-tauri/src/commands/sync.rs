@@ -325,6 +325,22 @@ pub async fn cancel_drive_connect(state: State<'_, AppState>) -> Result<(), AppE
     Ok(())
 }
 
+/// The recovery key of the Drive this computer is connected to, for setting up another computer.
+/// Only while connected; the key is this computer's own copy of the vault key.
+#[tauri::command]
+pub async fn get_recovery_key(state: State<'_, AppState>) -> Result<Secret, AppError> {
+    let key = state
+        .run(|conn| meta::vault_key(conn).map_err(store_error))
+        .await?;
+    match key {
+        Some(key) => Ok(Secret(key.to_recovery_text().to_string())),
+        None => Err(app_error(
+            "not_connected",
+            "This computer has no Drive key. Connect Google Drive first",
+        )),
+    }
+}
+
 /// The second step of connecting to a Drive that already holds data: the recovery key shown when
 /// it was started. A wrong key is refused (after a short wait) and nothing changes.
 #[tauri::command]

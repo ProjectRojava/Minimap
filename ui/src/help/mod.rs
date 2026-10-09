@@ -56,6 +56,12 @@ pub const PAGES: &[Page] = &[
         "Adding, finding and editing tasks"
     ),
     page!(
+        "meetings",
+        "Daily work",
+        "Meetings",
+        "Meetings that start and end on their own, and follow-ups"
+    ),
+    page!(
         "projects",
         "Daily work",
         "Projects",
@@ -365,7 +371,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 28);
+        assert_eq!(PAGES.len(), 29);
     }
 
     #[test]
@@ -402,6 +408,7 @@ mod tests {
         assert_eq!(neighbours("welcome").1.map(|p| p.id), Some("concepts"));
         assert_eq!(neighbours("faq").1.map(|p| p.id), None);
         assert_eq!(neighbours("tasks").0.map(|p| p.id), Some("this-week"));
+        assert_eq!(neighbours("tasks").1.map(|p| p.id), Some("meetings"));
         let (before, after) = neighbours("zzz");
         assert!(before.is_none() && after.is_none());
     }
