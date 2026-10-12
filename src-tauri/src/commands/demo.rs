@@ -525,4 +525,45 @@ mod tests {
             .filter(|m| m.node.node_type == NodeType::Task)
             .any(|m| m.level == FogLevel::Fog));
     }
+
+    #[test]
+    fn the_safe_zones_of_the_demo_data() {
+        use minimap_types::{ProjectFilter, ProjectLayout, Zone};
+        let conn = demo();
+        let groups = crate::commands::projects::list_at(
+            &conn,
+            &ProjectFilter::default(),
+            ProjectLayout::Board,
+            TODAY,
+        )
+        .unwrap();
+        let mut out = String::new();
+        let mut zones = std::collections::BTreeMap::new();
+        for row in groups.iter().flat_map(|g| g.rows.iter()) {
+            let _ = writeln!(out, "{}: {:?}", row.project.title, row.zone);
+            zones.insert(row.project.title.clone(), row.zone);
+        }
+        // The Overview reads the same zone (the same schedule run).
+        let ov = overview_at(&mut demo(), TODAY).unwrap();
+        for row in ov
+            .objectives
+            .iter()
+            .flat_map(|o| o.projects.iter())
+            .chain(ov.unlinked_projects.iter())
+        {
+            assert_eq!(
+                zones.get(&row.project.label).copied(),
+                Some(row.zone),
+                "{}",
+                row.project.label
+            );
+        }
+        insta::assert_snapshot!(out);
+        // The story: EU Region (amber) is outside its target, the others are inside.
+        assert!(matches!(zones["EU Region"], Zone::Outside { .. }));
+        assert!(matches!(
+            zones["Platform Cost Reduction"],
+            Zone::Inside { .. }
+        ));
+    }
 }

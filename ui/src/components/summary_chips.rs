@@ -13,6 +13,7 @@ use crate::{
         objective_colour::{use_objective_colours, ObjectiveChips},
         page::Tone,
         task_board::today,
+        zone::{zone_text, zone_tone},
     },
     labels::{
         date_tone, objective_status_label, objective_status_tone, priority_short, priority_tone,
@@ -97,10 +98,11 @@ pub fn ProjectSummary(id: Uuid) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let project = LocalResource::new(move || {
         version.track();
-        api::get_project(id)
+        api::get_project_detail(id)
     });
     move || {
-        project.get().and_then(|r| r.ok()).map(|p| {
+        project.get().and_then(|r| r.ok()).map(|detail| {
+            let (p, zone) = (detail.project, detail.zone);
             let open = matches!(
                 p.status,
                 minimap_types::ProjectStatus::Planned
@@ -117,6 +119,7 @@ pub fn ProjectSummary(id: Uuid) -> impl IntoView {
                     <Pill tone=project_status_tone(p.status)>{project_status_label(p.status)}</Pill>
                     <Pill tone=priority_tone(p.priority)>{priority_short(p.priority)}</Pill>
                     {target.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    {zone_text(zone).map(|text| view! { <Pill tone=zone_tone(zone)>{text}</Pill> })}
                     <FogPill node=NodeRef::new(NodeType::Project, id) />
                     <ServedObjectives project=Some(p.id) />
                 </div>

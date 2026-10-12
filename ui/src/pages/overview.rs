@@ -18,6 +18,7 @@ use crate::{
         },
         page::{EmptyState, PageHeader, CHIP},
         waiting_panel::age_text,
+        zone::ZoneBar,
     },
     labels::objective_status_label,
     state::{DataVersion, Selection},
@@ -282,6 +283,7 @@ fn project_row(
             <HealthMark level=p.health.level score=p.health.score />
             <span class="max-w-[18rem] shrink-0 truncate">{p.project.label.clone()}</span>
             <span class="shrink-0 tabular-nums text-[11px] text-muted">{finish_text(p)}</span>
+            <span class="w-32 shrink-0 self-center"><ZoneBar zone=p.zone compact=true /></span>
             <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&p.health, 2)}</span>
             <span class="shrink-0 text-[11px] text-faint">{weight}</span>
             <FogChipFor id=id />

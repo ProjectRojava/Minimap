@@ -14,6 +14,7 @@ use crate::{
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveChips},
         page::{column_head, EmptyState, GroupLabel, PageHeader, FILTER_BAR, FORM_BAR},
+        zone::ZoneBar,
     },
     labels::{priority_short, project_status_label, project_status_tone},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
@@ -23,7 +24,7 @@ use crate::{
 /// 46rem (a container query), e.g. beside the open detail pane, so the title never collapses.
 const COLS: &str = "grid w-full items-center gap-3 \
     grid-cols-[2rem_minmax(8rem,1fr)_10rem_5.5rem_3.5rem] \
-    @[46rem]:grid-cols-[2rem_minmax(8rem,1fr)_13rem_8rem_5.5rem_6.5rem_3.5rem]";
+    @[46rem]:grid-cols-[2rem_minmax(8rem,1fr)_13rem_8rem_5.5rem_6.5rem_7.5rem_3.5rem]";
 /// Cell classes for the columns that only show when there is room.
 const WIDE_ONLY: &str = "hidden @[46rem]:block";
 
@@ -245,7 +246,7 @@ fn ListView(groups: Vec<ProjectGroup>) -> impl IntoView {
         <div class="@container flex min-h-0 flex-1 flex-col">
         <div class=column_head(COLS)>
             <span>"Pri"</span><span>"Project"</span><span>"Objective"</span><span class=WIDE_ONLY>"Owner"</span>
-            <span>"Status"</span><span class=WIDE_ONLY>"Target"</span><span class="text-right">"Tasks"</span>
+            <span>"Status"</span><span class=WIDE_ONLY>"Target"</span><span class=WIDE_ONLY>"Room"</span><span class="text-right">"Tasks"</span>
         </div>
         <div class="flex-1 overflow-y-auto" role="table">{out}</div>
         </div>
@@ -262,6 +263,7 @@ fn project_row(row: ProjectRow, index: usize, edge: Option<Signal<Option<u16>>>)
         Signal::derive(move || colours.first_hue(&objectives))
     });
     let objectives = row.objectives.clone();
+    let zone = row.zone;
     let p = row.project;
     view! {
         <NodeRow node=node index=index hue=edge>
@@ -275,6 +277,7 @@ fn project_row(row: ProjectRow, index: usize, edge: Option<Signal<Option<u16>>>)
                 <span class=format!("{WIDE_ONLY} truncate text-muted")>{row.owner.map(|o| o.label).unwrap_or_default()}</span>
                 <span><span class=project_status_tone(p.status).chip()>{project_status_label(p.status)}</span></span>
                 <span class=format!("{WIDE_ONLY} text-muted tabular-nums")>{p.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
+                <span class=WIDE_ONLY><ZoneBar zone=zone compact=true /></span>
                 <span class="text-right tabular-nums text-muted">{tasks}</span>
             </div>
         </NodeRow>
@@ -398,6 +401,7 @@ fn BoardCard(
                 <span class="text-[11px] tabular-nums text-muted">{priority_short(p.priority)}</span>
             </div>
             <div class="font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</div>
+            <div class="mt-1"><ZoneBar zone=row.zone compact=true /></div>
             {(!objectives.is_empty()).then(|| view! {
                 <div class="mt-1"><ObjectiveChips objectives=objectives /></div>
             })}

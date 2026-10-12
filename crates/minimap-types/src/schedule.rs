@@ -67,6 +67,39 @@ pub struct ProjectForecast {
     pub critical_tasks: u32,
 }
 
+/// How wide the safe zone is (spec 44): room > the narrow setting, 1 to that many days, none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoneLevel {
+    Wide,
+    Narrow,
+    /// No room left: it finishes on the target day.
+    Closing,
+}
+
+/// The room a project has between when it will really finish and when it has to (spec 44): in
+/// working days. A way of looking at the schedule's forecast; it does not feed health.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Zone {
+    /// Nothing to show: done, cancelled or paused, or no tasks at all.
+    #[default]
+    None,
+    /// An active or planned project whose tasks are all done: nothing is left to forecast.
+    /// `finished` is the day its last task was finished.
+    AllDone { finished: Date },
+    /// Open work but no target date. `remaining` = working days of work ahead.
+    NoTarget { remaining: u32 },
+    /// Finishes on or before the target, with `room` working days to spare.
+    Inside {
+        remaining: u32,
+        room: u32,
+        level: ZoneLevel,
+    },
+    /// Finishes `over` working days after the target (never 0).
+    Outside { remaining: u32, over: u32 },
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Schedule {
     pub scope: ScheduleScope,

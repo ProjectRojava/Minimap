@@ -33,6 +33,7 @@ pub mod this_week;
 pub mod undo;
 pub mod waiting_on;
 pub mod weekly_review;
+pub mod zone;
 
 use minimap_types::PingResponse;
 

@@ -13,7 +13,19 @@ Each project shows the **objectives** it contributes to as coloured chips (the l
 
 Filters narrow by status, owner or objective. *New project* opens a short form.
 
-When the list is narrow (for example with the detail pane open) the *Owner* and *Target* columns are hidden so the project title stays readable; widen the window or close the pane to see them. The owner and target date are always in the detail pane.
+When the list is narrow (for example with the detail pane open) the *Owner*, *Target* and *Room* columns are hidden so the project title stays readable; widen the window or close the pane to see them. The owner and target date are always in the detail pane.
+
+## Safe zone: the room before the target
+
+A project's **safe zone** is the **working days between when it should finish and when it has to**: the schedule's projected finish (see [Schedule and critical path](help:schedule)) against the project's target date. Health tells you once a project is late; the safe zone shows how much room you have *before* it runs out. It is a thin bar with words under it, on the board's cards, in the list's *Room* column, on the [Overview](help:overview), and in the project's pane (a pill next to the status, and a bar at the top of the *Schedule* section):
+
+- **N days of room** (green when there is plenty, amber when it is narrow): the work ahead takes most of the bar and the room is the end of it. It is narrow at 3 days of room or fewer (a setting, below), and *No room left* (amber) when it should finish on the target day.
+- **N days past target** (red): the bar is the whole forecast with a tick where the target is, and the part after the tick is the overflow. This is the same number the project's health calls *projected N days late*.
+- **No target**: there is work ahead but no target date to measure it against. Set a target in the pane.
+- **All tasks done** (green, full bar): every task of an active or planned project is finished, so there is nothing left to forecast. Point at it to see when the last one was finished. If the project really is finished, set its status to *Done*, and the bar goes away.
+- **Nothing**: no bar for a project with no tasks yet, or one that is paused, done or cancelled (a paused project's clock is not running). Planned and active projects have one.
+
+Days are working days (Monday to Friday unless you changed your [working days](help:settings)), and weekends in between are not room. It does not change health; it is another way to read the same forecast, so the two always agree about the dates. Change *Safe zone is narrow at* under Settings, Thresholds (0 to 30 days).
 
 ## Fog
 

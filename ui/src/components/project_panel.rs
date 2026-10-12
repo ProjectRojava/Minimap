@@ -63,7 +63,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
                 <Objectives detail=d.clone() candidates=os />
                 <Dependencies detail=d.clone() candidates=ps />
                 <ProjectHealthSection project=id />
-                <SchedulePanel project=id />
+                <SchedulePanel project=id zone=d.zone />
                 <WhatIfButton node=NodeRef::new(NodeType::Project, id) />
                 <Tasks detail=d.clone() />
                 <ItemNotes node=NodeRef::new(NodeType::Project, id) />

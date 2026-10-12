@@ -366,6 +366,8 @@ pub fn project_rows(conn: &Connection) -> Result<Vec<ProjectRow>> {
             let mut objectives = by_project.remove(&project.id).unwrap_or_default();
             objectives.sort_by_key(|o| o.label.to_lowercase());
             ProjectRow {
+                zone: Default::default(),
+
                 owner: project.owner_person_id.and_then(|o| {
                     people
                         .get(&o)
@@ -425,6 +427,8 @@ pub fn project_detail(conn: &Connection, id: Uuid) -> Result<ProjectDetail> {
     depends_on.sort_by_key(|d| d.node.label.to_lowercase());
     needed_by.sort_by_key(|n| n.label.to_lowercase());
     Ok(ProjectDetail {
+        zone: Default::default(),
+
         owner,
         objectives,
         depends_on,

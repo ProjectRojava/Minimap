@@ -41,6 +41,7 @@ pub(crate) fn overview_at(
         work_week: settings.work_week,
         thresholds: settings.health,
         task_limit: settings.capacity_task_limit,
+        zone_narrow_days: settings.zone_narrow_days,
     });
     // Stale waiting-ons follow their own rules (age setting, expected date); oldest first.
     overview.stale_waiting = list_impl(conn, &WaitingOnFilter::default(), today)?

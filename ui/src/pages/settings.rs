@@ -515,7 +515,18 @@ fn HealthSettings() -> impl IntoView {
     view! {
         <Card title="Project health" description="When a project turns amber or red on the Overview.">
             {move || match settings.get() {
-                Some(Ok(s)) => view! { <HealthRows current=s.health on_save=save /> }.into_any(),
+                Some(Ok(s)) => view! {
+                    <HealthRows current=s.health on_save=save />
+                    <NumberSetting label="Safe zone is narrow at (days of room or fewer)"
+                        stored=f64::from(s.zone_narrow_days) whole=true
+                        invalid="The narrow zone is a whole number of days"
+                        patch=|n| UpdateSettings { zone_narrow_days: Some(n as u32), ..Default::default() }
+                        read=|s| f64::from(s.zone_narrow_days) />
+                    <p class="text-[11px] text-muted">
+                        "The safe zone is the working days between when a project should finish and its target. "
+                        "At this many days of room or fewer it turns amber; none left is amber too, past the target is red. 0 to 30."
+                    </p>
+                }.into_any(),
                 Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}

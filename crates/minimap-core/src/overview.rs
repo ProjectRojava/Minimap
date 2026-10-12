@@ -39,6 +39,8 @@ pub struct OverviewWorld<'a> {
     pub thresholds: HealthThresholds,
     /// More open tasks than this flags a person as overloaded.
     pub task_limit: u32,
+    /// A project's safe zone is narrow at this many working days of room or fewer (spec 44).
+    pub zone_narrow_days: u32,
 }
 
 fn is_open(t: &Task) -> bool {
@@ -152,6 +154,9 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
                 blocked_tasks: n_blocked,
                 unestimated_tasks: unestimated,
                 weight: None,
+                zone: f.map_or(minimap_types::Zone::None, |f| {
+                    crate::zone::of(f, p.status, w.today, w.work_week, w.zone_narrow_days)
+                }),
             },
         );
     }
@@ -606,6 +611,8 @@ mod tests {
 
         fn overview_with(&self, thresholds: HealthThresholds) -> PortfolioOverview {
             build(&OverviewWorld {
+                zone_narrow_days: 3,
+
                 tasks: &self.tasks,
                 edges: &self.edges,
                 projects: &self.projects,

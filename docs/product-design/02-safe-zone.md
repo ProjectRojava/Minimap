@@ -1,8 +1,8 @@
 # 02 — Safe zone: the room left before a project's target
 
-Status: Draft · Milestone: — · Priority: Should · Size: S
+Status: Implemented as spec 44 — awaiting manual check · Milestone: — · Priority: Should · Size: S
 Depends on: specs 05, 13, 15 (implemented) · Read first: [README](README.md)
-Expected ADR: none (a new view of existing schedule data)
+ADR: none (a new view of existing schedule data; no ADR is affected, checked against `docs/decisions/`)
 
 ## Goal
 In battle-royale games, a shrinking circle tells you how much room you have left and how fast it's going. For a project, the room is the **working days between when it will really finish (the schedule's projected finish) and when it has to (its target date)**. Today that number appears only as "projected N days late" once it's already negative. Show it **before** it runs out, as a small gauge that reads in half a second, on every place a project appears.
@@ -11,15 +11,17 @@ In battle-royale games, a shrinking circle tells you how much room you have left
 - On the Projects board each card has a thin bar: most of it is the work left, the end is the **safe zone**, "6 days of room".
 - When the room is down to 2 days the bar's zone is amber and says "2 days of room".
 - When the projected finish is past the target, the bar overflows its track in red: "3 days past target".
-- A project with no target date shows "No target", and a project with no open work shows nothing.
+- A project with no target date shows "No target", and a project with no tasks shows nothing. (As built: a planned or active project whose tasks are **all done** says "All tasks done", in green with a full bar, and the hover gives the day the last one finished and suggests marking the project done; a done, cancelled or paused project shows nothing.)
 
 ## Rules (`minimap-core`, pure)
 New module `crates/minimap-core/src/zone.rs`.
 
 ```rust
 pub enum Zone {
-    /// Nothing to show: done/cancelled/paused/planned-without-tasks, or no open tasks.
+    /// Nothing to show: done/cancelled/paused, or no tasks. (As built, below.)
     None,
+    /// As built: planned or active with every task done (`finished` = the last finish date).
+    AllDone { finished: Date },
     /// The project has open work but no target date.
     NoTarget { remaining: u32 },
     /// Finishes on or before the target.
@@ -42,8 +44,8 @@ The zone does **not** feed health: health already judges lateness (spec 15). It 
 
 ## Data
 - No migration.
-- **Setting**: `HealthThresholds` gains nothing; add `zone_narrow_days: u32` (default 3, 0..=30) to `Settings` / `UpdateSettings` (synced). Validate in `store::settings`.
-- **Types** (`crates/minimap-types/src/schedule.rs`): `Zone`, `ZoneLevel` (serde, tagged enum).
+- **Setting**: `HealthThresholds` gains nothing; add `zone_narrow_days: u32` (default `DEFAULT_ZONE_NARROW_DAYS` = 3, 0..=`MAX_ZONE_NARROW_DAYS` = 30) to `Settings` / `UpdateSettings` (synced; a stored value out of range falls back to the default). Validate in `store::settings`.
+- **Types** (`crates/minimap-types/src/schedule.rs`): `Zone` (serde tagged `kind`, `Default` = `None`), `ZoneLevel`. The row types carry it with `#[serde(default)]`.
 - **DTOs**: add `zone: Zone` to `ProjectForecast`? **No**: `ProjectForecast` is built inside `schedule::compute` which knows nothing about settings. Instead add `zone: Zone` to the *rows* the UI already loads for projects:
   - `ProjectHealthRow` (Overview, health sections),
   - the Projects list/board rows (find the row type returned by `list_projects` in `crates/minimap-types/src/views.rs`),
@@ -51,17 +53,18 @@ The zone does **not** feed health: health already judges lateness (spec 15). It 
   Each command that builds those already has (or can cheaply get) the schedule; compute `zone::of` there. If `list_projects` doesn't run the schedule today, run `schedule::compute` once for all projects (the same call `get_portfolio_overview` makes) and look forecasts up by id. Measure: the Projects page must still answer in well under 100 ms on the demo data.
 
 ## Commands
-No new command. Changed: `list_projects`, `get_portfolio_overview`, `get_project_detail` fill `zone`. Keep `*_at(conn, today)` variants for tests.
+No new command. Changed: `list_projects`, `get_portfolio_overview`, `get_project_detail` fill `zone`. As built: `commands::schedule::zones_at(conn, today)` runs the portfolio schedule once and returns each project's zone (a schedule that cannot be worked out leaves them out instead of failing the screen); `projects::list_at` and `projects::detail_at` take `today` for tests; the Overview computes it in `core::overview` from the forecast it already has (`OverviewWorld.zone_narrow_days`).
 
 ## UI
 New component `ui/src/components/zone.rs`:
 - **`ZoneBar { zone, compact: bool }`**: a flat 4px-high track (`bg-hover`), full width of its slot.
+  - (As built: in the compact form the bar sits over its words, so the words are always visible, not only a tooltip; the full form, in the Schedule section, puts the words first.)
   - `Inside`: the first `remaining / (remaining + room)` of the track filled `bg-muted`-ish (use the `fg` token at low opacity via an existing utility; no raw colours); the rest is the zone, filled with `success` (Wide) or `warning` (Narrow/Closing) at the theme's chip tint strength.
   - `Outside`: track filled to 100% `muted`, plus a `danger` segment extending past a 1px `fg` tick that marks the target; the overflow is drawn inside the slot by scaling: track = `remaining`, target tick at `(remaining - over) / remaining`.
   - `NoTarget`: an empty track with a dashed `border-line` end and no colour.
   - `None`: renders nothing.
   - Always followed (or, when `compact`, titled) by text from pure `zone_text(zone)`: "6 days of room", "2 days of room", "No room left", "3 days past target", "No target". The word carries the meaning; colour is second (`docs/design.md`).
-- **Where**: Projects board card (compact, under the title), Projects list (a new narrow *Room* column, `hidden @[46rem]:block` like Owner/Target so the title never collapses), Overview project rows (compact), project panel pill row (a pill with `zone_text`, tone by level) and the Schedule section (full bar above the timeline, with the target tick lined up visually is **not** required).
+- **Where** (the project panel's pill comes from `ProjectSummary`, which now loads the project detail): Projects board card (compact, under the title), Projects list (a new narrow *Room* column, `hidden @[46rem]:block` like Owner/Target so the title never collapses), Overview project rows (compact), project panel pill row (a pill with `zone_text`, tone by level) and the Schedule section (full bar above the timeline, with the target tick lined up visually is **not** required).
 - Pure helpers in the module (`zone_text`, `zone_tone`, `fill_fractions(zone) -> (f64, f64)`) with unit tests.
 - **Settings → Thresholds**: a *Safe zone* line in the project health card: "Call the zone narrow at [3] days of room or fewer" (`NumberSetting`).
 
@@ -72,7 +75,7 @@ New component `ui/src/components/zone.rs`:
 - `overview.md`: the mark on project rows.
 
 ## Demo data
-No schema change, so no seed change is required. Check the story at the fixed date 2027-03-03 and record it in the demo snapshot (`src-tauri/src/commands/demo.rs`, the overview snapshot will now include `zone`): EU Region (amber health) should be `Outside` or `Narrow`; Platform Cost Reduction `Inside` and wide; Security and Compliance whatever it computes. If none of the three shows `Narrow`, adjust nothing in the seed: say so in the PR; the hand-built tests cover each variant.
+No schema change, so no seed change is required. The story at the fixed date 2027-03-03 is recorded in the snapshot `the_safe_zones_of_the_demo_data` (`src-tauri/src/commands/demo.rs`): EU Region (amber health) is `Outside` by 2 working days (the same 2 that health says), Security and Compliance is `Inside` with 14 days (wide) and Platform Cost Reduction `Inside` with 27 (wide). None is `Narrow`, and nothing in the seed was changed for that: the hand-built tests cover each variant.
 
 ## Export, undo, sync
 Nothing stored except the setting (syncs like other settings). Not undoable (settings aren't).
@@ -81,12 +84,12 @@ Nothing stored except the setting (syncs like other settings). Not undoable (set
 History of the zone ("lost 4 days of room in two weeks") — needs stored forecasts; see Open questions. Zones for objectives. Zones on tasks (that's slack, already in the schedule panel).
 
 ## Acceptance criteria
-- [ ] `core::zone` tests and proptest pass.
-- [ ] `list_projects`, `get_portfolio_overview`, `get_project_detail` return `zone`; command tests at a fixed date cover Inside/Outside/NoTarget/None.
-- [ ] `ZoneBar` appears on the board, list, Overview and panel; text is always present; colour never alone (ui unit tests on the pure helpers).
-- [ ] Setting validated and persisted.
-- [ ] Demo snapshot reviewed; story holds.
-- [ ] Help, CHANGELOG, knowledge graph (§4 types, §5 `mod:zone`, §7 changed commands, §8 component), `docs/progress.md` updated; gate passes.
+- [x] `core::zone` tests and proptest pass.
+- [x] `list_projects`, `get_portfolio_overview`, `get_project_detail` return `zone`; command tests at a fixed date cover Inside/Outside/NoTarget/None.
+- [x] `ZoneBar` appears on the board, list, Overview and panel; text is always present; colour never alone (ui unit tests on the pure helpers).
+- [x] Setting validated and persisted.
+- [x] Demo snapshot reviewed; story holds.
+- [x] Help, CHANGELOG, knowledge graph (§4 types, §5 `mod:zone`, §7 changed commands, §8 component), `docs/progress.md` updated; gate passes.
 
 ## Not yet verified by hand
 - Projects board on the demo data: each active project has a bar and words; EU Region's is amber or red.

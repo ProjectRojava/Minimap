@@ -155,6 +155,8 @@ mod tests {
         objectives: Vec<NodeSummary>,
     ) -> ProjectRow {
         ProjectRow {
+            zone: Default::default(),
+
             project: Project {
                 confirmed_on: None,
 

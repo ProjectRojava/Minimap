@@ -129,6 +129,9 @@ pub struct ProjectHealthRow {
     pub unestimated_tasks: u32,
     /// The `contributes_to` weight when nested under an objective.
     pub weight: Option<f64>,
+    /// The room before its target (spec 44).
+    #[serde(default)]
+    pub zone: crate::Zone,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
