@@ -128,6 +128,8 @@ const COMMANDS: &[&str] = &[
     "open_attachment",
     "open_link",
     "create_linked_task",
+    "ensure_task_decision",
+    "finish_decision_task",
 ];
 
 /// Bakes the Google OAuth client into the app so users just click "Sign in with Google": the

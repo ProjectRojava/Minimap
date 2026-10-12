@@ -528,10 +528,12 @@ pub fn task_detail(conn: &Connection, id: Uuid) -> Result<TaskDetail> {
         .find(|e| e.edge_type == EdgeType::AssignedTo && e.from_id == id)
         .map(|e| nodes::summary(conn, e.to()))
         .transpose()?;
+    let decision = decisions::for_task(conn, id)?;
     Ok(TaskDetail {
         task,
         project,
         assignee,
+        decision,
     })
 }
 

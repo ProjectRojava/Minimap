@@ -7,10 +7,16 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- **Decision tasks have a record in the Decisions log**: making a task of type *Decision* creates a linked, proposed decision you write from the task's pane (*Decision record*). Finishing or archiving the task leaves the decision in the log (Spec 41).
 
 ### Changed
+- **A Decision task can't be done until the decision is written**: moving it to Done opens *Finish decision* (what was decided, why); saving finishes the task and marks the record decided with today's date, as one undo step. The status and date Minimap fills in are tagged AUTO, what you set is tagged YOU, and your own values are never overwritten (Spec 42).
+- **Archiving always asks first**: every archive (tasks, notes, objectives, people, teams, projects, decisions, waiting-ons, the card menu) opens an "Are you sure?" dialog with Cancel selected (Spec 42).
+- **Archive decisions from the list**: an *Archive* button appears on a decision's row when you point at it, and the pane's Archive section is now always open. Ctrl/Cmd+Z undoes it.
 
 ### Fixed
+
+- Archiving a task from the "⋯" menu on a Tasks board card now works: the Archive button in the confirmation did nothing.
 
 ---
 

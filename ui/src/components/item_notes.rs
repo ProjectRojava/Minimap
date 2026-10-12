@@ -12,6 +12,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        confirm_archive::{ConfirmArchive, UNDO_HINT},
         detail_pane::Section,
         form::{BUTTON, BUTTON_PRIMARY},
         markdown_box::{MarkdownBox, MarkdownView},
@@ -253,13 +254,20 @@ fn CardBody(note: Note, item: NodeRef) -> impl IntoView {
             cancel();
         }
     };
+    let confirm = expect_context::<ConfirmArchive>();
     let archive = move || {
         menu.set(false);
-        spawn_local(async move {
-            if finish(api::archive_note(id).await, toasts, version).is_some() {
-                toasts.info("Archived the note. Press Ctrl/Cmd+Z to undo.".to_owned());
-            }
-        });
+        confirm.ask(
+            "Archive this note?",
+            format!("Its links are archived with it. {UNDO_HINT}"),
+            move || {
+                spawn_local(async move {
+                    if finish(api::archive_note(id).await, toasts, version).is_some() {
+                        toasts.info("Archived the note. Press Ctrl/Cmd+Z to undo.".to_owned());
+                    }
+                });
+            },
+        );
     };
     let kind_chip = (note.kind != NoteKind::General).then(|| {
         view! { <span class=note_kind_tone(note.kind).chip()>{note.kind.as_str().replace('_', " ")}</span> }

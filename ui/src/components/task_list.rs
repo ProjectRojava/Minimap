@@ -25,7 +25,7 @@ use crate::{
         task_type::{type_for_new_task, use_task_types, TypeChip},
     },
     labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
-    state::{finish, DataVersion, ListNav, Toasts},
+    state::{finish, finish_task, DataVersion, FinishDecision, ListNav, Toasts},
 };
 
 const COLS: &str =
@@ -428,6 +428,7 @@ pub fn TaskList(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let list = expect_context::<ListNav>();
 
     let filters = filters.unwrap_or_default();
@@ -499,7 +500,7 @@ pub fn TaskList(
         };
         if let Some(patch) = patch {
             spawn_local(async move {
-                finish(api::update_task(id, patch).await, toasts, version);
+                finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
             });
         }
     });
@@ -667,11 +668,12 @@ fn TaskRowView(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let id = row.task.id;
     let node = NodeRef::new(NodeType::Task, id);
     let save = move |patch: UpdateTask| {
         spawn_local(async move {
-            finish(api::update_task(id, patch).await, toasts, version);
+            finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
         });
     };
 

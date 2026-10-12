@@ -244,6 +244,9 @@ pub struct TaskDetail {
     pub task: Task,
     pub project: Option<NodeSummary>,
     pub assignee: Option<NodeSummary>,
+    /// The decision record of a task of type Decision (spec 41); it outlives the task.
+    #[serde(default)]
+    pub decision: Option<crate::Decision>,
 }
 
 pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;

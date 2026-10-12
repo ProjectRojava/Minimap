@@ -638,6 +638,8 @@ mod tests {
             rationale: String::new(),
             decided_on: Some(date!(2027 - 02 - 12)),
             status: DecisionStatus::Decided,
+            auto_status: false,
+            auto_decided_on: false,
             created_at: T0,
             updated_at: T0,
             archived_at: None,

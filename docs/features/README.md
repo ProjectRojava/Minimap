@@ -52,5 +52,9 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 38 | [Meetings](38-meetings.md) | — | Should | 06, 27, 31, 32, 33 |
 | 39 | [Card borders by task type](39-type-borders.md) | — | Could | 06, 32 |
 | 40 | [About](40-about.md) | — | Could | — |
+| 41 | [Decision tasks and the decision log](41-decision-tasks.md) | — | Should | 10, 24, 25, 32 |
+| 42 | [Finishing decisions, what is automatic, and confirming every archive](42-decision-gate-and-archive-confirm.md) | — | Should | 10, 25, 32, 41 |
+
+Design docs for the minimap features (fog of war, safe zone, approaching, route, pings, your people, views, save points, zoom, radar, brand) are in [`docs/product-design/`](../product-design/README.md); each becomes a numbered row here when it is set to Ready.
 
 `Must`/`Should`/`Later` follow the MVP brainstorm and are suggestions; change them freely. Where a spec disagrees with `CLAUDE.md`, the spec wins once you mark it Ready, and Claude records the deviation as an ADR.

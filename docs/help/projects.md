@@ -36,7 +36,7 @@ The pane opens with a row of coloured pills: the status, the priority (P1 and P2
 
 ## Archiving a project
 
-Archiving asks what to do with the project's open tasks: **archive them too**, or **move them to the inbox**. Either way it is one step you can undo with `Ctrl/Cmd+Z`.
+Archiving opens a dialog that lists the project's tasks and asks what to do with them: **Archive tasks too**, or **Move tasks to inbox**. Either way it is one step you can undo with `Ctrl/Cmd+Z`.
 
 ## Tips
 

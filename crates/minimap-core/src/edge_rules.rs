@@ -158,6 +158,13 @@ pub fn validate_attrs(edge_type: EdgeType, attrs: &Value) -> Result<(), EdgeRule
     };
     let schema = attr_schema(edge_type);
     for (key, value) in map {
+        // Not offered in the link editor: the store marks the decision record of a task (spec 41).
+        if edge_type == EdgeType::Affects
+            && key == "origin"
+            && value.as_str() == Some(minimap_types::DECISION_ORIGIN_TASK)
+        {
+            continue;
+        }
         let Some(spec) = schema.iter().find(|s| &s.key == key) else {
             return Err(bad(format!("{edge_type} links have no '{key}' attribute")));
         };
@@ -255,6 +262,13 @@ mod tests {
             err.to_string(),
             "a blocks link cannot go from a task to a person"
         );
+    }
+
+    #[test]
+    fn the_task_decision_mark_is_accepted_only_on_affects() {
+        assert!(validate_attrs(E::Affects, &json!({"origin": "task"})).is_ok());
+        assert!(validate_attrs(E::Affects, &json!({"origin": "other"})).is_err());
+        assert!(validate_attrs(E::Blocks, &json!({"origin": "task"})).is_err());
     }
 
     #[test]

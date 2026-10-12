@@ -18,7 +18,7 @@ One person is **you** (marked *you*, created on first launch). You can't archive
 
 - **Organization**: their **manager** (one person; a loop of managers is refused), their **direct reports**, and their **teams**, each with a role of *lead* or *member*.
 - The number of **active tasks** assigned to them (the tasks themselves are listed under *Links → Assigned tasks*), the **waiting-ons** you have open on them, and the **notes** that mention them, with a *New 1:1* button that starts a 1:1 note already mentioning them. A 1:1 appears on [This week](help:this-week) for the week it is dated.
-- **Archive**: asks first and lists the open tasks assigned to them. Their assignment links are archived with them; the tasks themselves stay (unassigned).
+- **Archive**: asks first, in a dialog that lists the open tasks assigned to them. Their assignment links are archived with them; the tasks themselves stay (unassigned).
 
 ## Teams
 

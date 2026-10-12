@@ -54,6 +54,8 @@ pub fn App() -> impl IntoView {
     provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
+    provide_context(crate::state::FinishDecision::new());
+    provide_context(crate::components::confirm_archive::ConfirmArchive::new());
     provide_context(DataVersion::new());
     let theme = ThemeCtx::new();
     provide_context(theme);
@@ -138,6 +140,8 @@ fn Shell() -> impl IntoView {
             <StatusBar />
             <PaletteHost />
             <LinkDialogHost />
+            <crate::components::finish_decision::FinishDecisionHost />
+            <crate::components::confirm_archive::ConfirmArchiveHost />
             <crate::components::meeting::MeetingDialogHost />
             <crate::components::meeting::MeetingClock />
             <CardMenuHost />

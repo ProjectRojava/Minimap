@@ -218,7 +218,7 @@ fn restore(
             projects::update_in_tx(tx, id, patch_from::<UpdateProject>(old, nullable)?)?;
         }
         NodeType::Task => {
-            tasks::update_in_tx(tx, id, patch_from::<UpdateTask>(old, nullable)?)?;
+            tasks::restore_in_tx(tx, id, patch_from::<UpdateTask>(old, nullable)?)?;
         }
         NodeType::Person => {
             people::update_in_tx(tx, id, patch_from::<UpdatePerson>(old, nullable)?)?;

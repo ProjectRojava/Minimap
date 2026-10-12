@@ -29,6 +29,13 @@ pub const TASK_TYPE_HUES: [u16; 8] = [215, 25, 145, 285, 340, 75, 180, 250];
 
 /// At most this many types (archived ones count).
 pub const MAX_TASK_TYPES: usize = 40;
+
+/// The id of the Decision type. A task of this type has a decision record in the log (spec 41).
+pub const DECISION_TYPE: &str = "decision";
+
+/// What an `affects` link carries when the decision is the record of the task it points at
+/// (`attrs.origin`), as opposed to a decision that merely affects the task.
+pub const DECISION_ORIGIN_TASK: &str = "task";
 /// At most this many characters in a type's name.
 pub const MAX_TASK_TYPE_NAME: usize = 30;
 

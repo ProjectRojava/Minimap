@@ -1,6 +1,6 @@
 use minimap_types::{
     ActivityAction, AssigneeChoice, CreateTask, EdgeType, LinkRelation, NewEdge, NodeRef, NodeType,
-    Recurrence, Task, TaskStatus, UpdateTask, DEFAULT_PRIORITY,
+    Recurrence, Task, TaskStatus, UpdateTask, DECISION_TYPE, DEFAULT_PRIORITY,
 };
 use rusqlite::{params, Connection, Row, Transaction};
 use time::OffsetDateTime;
@@ -157,6 +157,10 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
     activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
     if let Some(person) = assignee {
         edges::add_in_tx(tx, assigned_to(t.id, person))?;
+    }
+    // A decision task has its record in the Decisions log from the start (spec 41).
+    if t.task_type.as_deref() == Some(DECISION_TYPE) {
+        crate::decisions::ensure_for_task_in_tx(tx, &t)?;
     }
     Ok(t)
 }
@@ -325,6 +329,13 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
     update_in_tx_at(tx, id, patch, None)
 }
 
+/// [`update_in_tx`] for undo and redo: puts the fields back as they were without making a
+/// decision record for a task that becomes a Decision (undo and redo bring the records back
+/// themselves, so one made here would be a second).
+pub(crate) fn restore_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Result<Task> {
+    update_core(tx, id, patch, None, false)
+}
+
 /// [`update_in_tx`] where a task that is finished by this update is finished at `finished_at`
 /// instead of now (a meeting that ended while the app was closed, spec 38).
 pub(crate) fn update_in_tx_at(
@@ -332,6 +343,16 @@ pub(crate) fn update_in_tx_at(
     id: Uuid,
     patch: UpdateTask,
     finished_at: Option<OffsetDateTime>,
+) -> Result<Task> {
+    update_core(tx, id, patch, finished_at, true)
+}
+
+fn update_core(
+    tx: &Transaction,
+    id: Uuid,
+    patch: UpdateTask,
+    finished_at: Option<OffsetDateTime>,
+    make_record: bool,
 ) -> Result<Task> {
     let old = get(tx, id)?;
     let mut new = old.clone();
@@ -352,6 +373,12 @@ pub(crate) fn update_in_tx_at(
     }
     validate(&new)?;
     check_type(tx, old.task_type.as_deref(), new.task_type.as_deref())?;
+    // A decision is not finished until it says what was decided and why (spec 42). Undo and redo
+    // put things back as they were and are not held up by it.
+    let decides = make_record && finishing && new.task_type.as_deref() == Some(DECISION_TYPE);
+    if decides {
+        crate::decisions::check_can_finish(tx, &new)?;
+    }
     // Finishing a repeating task hands its rule on to the next one (spec 27): this one no
     // longer repeats.
     let handed_on = if finishing {
@@ -396,6 +423,18 @@ pub(crate) fn update_in_tx_at(
         ActivityAction::Updated,
         &diff.into(),
     )?;
+    if decides {
+        crate::decisions::decide_with_task_in_tx(tx, &new)?;
+    }
+    // Becoming a decision task makes its record (spec 41); the record stays if the type is changed
+    // away again.
+    if make_record
+        && new.task_type != old.task_type
+        && new.task_type.as_deref() == Some(DECISION_TYPE)
+        && new.archived_at.is_none()
+    {
+        crate::decisions::ensure_for_task_in_tx(tx, &new)?;
+    }
     if let Some(rule) = handed_on {
         make_next(tx, &new, rule)?;
     }

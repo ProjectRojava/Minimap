@@ -33,7 +33,7 @@ use crate::{
         deadline_heat, estimate_text, heat_strength, priority_short, task_status_label,
         task_status_tone,
     },
-    state::{finish, DataVersion, ListNav, Selection, Toasts},
+    state::{finish, finish_task, DataVersion, FinishDecision, ListNav, Selection, Toasts},
 };
 
 /// Finished tasks shown before "Show older"; a board of everything ever done is no board.
@@ -506,6 +506,7 @@ fn card_key(r: &TaskRow) -> String {
 pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let list = expect_context::<ListNav>();
 
     let rows = LocalResource::new(move || {
@@ -576,7 +577,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 status: Some(status),
                 ..Default::default()
             };
-            finish(api::update_task(id, patch).await, toasts, version);
+            finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
         });
     };
 

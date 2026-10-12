@@ -133,6 +133,8 @@
     "allow-open-attachment",
     "allow-open-link",
     "allow-create-linked-task",
+    "allow-ensure-task-decision",
+    "allow-finish-decision-task",
     "dialog:allow-save",
     "dialog:allow-open",
     "core:window:allow-minimize",

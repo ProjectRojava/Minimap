@@ -453,6 +453,40 @@ pub async fn create_linked_task(
     .await
 }
 
+/// The decision record of a Decision task, made if it has none (spec 41).
+pub async fn ensure_task_decision(task_id: Uuid) -> Result<Decision, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+    }
+    invoke("ensure_task_decision", &Arg { task_id }).await
+}
+
+/// Writes the decision and the reason and finishes a Decision task, in one step (spec 42).
+pub async fn finish_decision_task(
+    task_id: Uuid,
+    decision: String,
+    rationale: String,
+) -> Result<Task, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+        decision: String,
+        rationale: String,
+    }
+    invoke(
+        "finish_decision_task",
+        &Arg {
+            task_id,
+            decision,
+            rationale,
+        },
+    )
+    .await
+}
+
 pub async fn archive_task(id: Uuid) -> Result<(), AppError> {
     invoke("archive_task", &IdArg { id }).await
 }

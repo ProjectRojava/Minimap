@@ -869,6 +869,8 @@ mod tests {
                 rationale: String::new(),
                 decided_on: on,
                 status,
+                auto_status: false,
+                auto_decided_on: false,
                 created_at: at(created, 9),
                 updated_at: at(created, 9),
                 archived_at: None,

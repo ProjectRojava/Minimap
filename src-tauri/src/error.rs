@@ -13,6 +13,7 @@ pub fn store_error(e: StoreError) -> AppError {
     let code = match &e {
         StoreError::NotFound { .. } | StoreError::EdgeNotFound(_) => "not_found",
         StoreError::Invalid(_) => "invalid",
+        StoreError::DecisionIncomplete(_) => "decision_incomplete",
         StoreError::Constraint(_) => "constraint",
         StoreError::DuplicateEdge => "duplicate",
         StoreError::WrongKey => "wrong_key",

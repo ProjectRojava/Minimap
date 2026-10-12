@@ -97,6 +97,8 @@ mod tests {
                 rationale: String::new(),
                 decided_on,
                 status,
+                auto_status: false,
+                auto_decided_on: false,
                 created_at: OffsetDateTime::UNIX_EPOCH + time::Duration::days(n as i64),
                 updated_at: OffsetDateTime::UNIX_EPOCH,
                 archived_at: None,

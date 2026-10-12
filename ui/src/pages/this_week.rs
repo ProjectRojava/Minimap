@@ -25,7 +25,10 @@ use crate::{
         waiting_panel::age_text,
     },
     labels::{note_kind_tone, task_status_label, task_status_tone},
-    state::{finish, DataVersion, ListNav, MeetingDialog, NowClock, Selection, Toasts},
+    state::{
+        finish, finish_task, DataVersion, FinishDecision, ListNav, MeetingDialog, NowClock,
+        Selection, Toasts,
+    },
     timeline::day_text,
 };
 
@@ -293,6 +296,7 @@ fn Body(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let list = expect_context::<ListNav>();
 
     // Rows in display order, so j/k/Enter walk the whole screen.
@@ -342,7 +346,7 @@ fn Body(
     // `x` completes the task (or resolves the waiting-on) under the cursor; `f` puts a task in
     // focus or takes it out.
     list.on_row_key(move |key, node| match (key.as_str(), node.node_type) {
-        ("x", NodeType::Task) => complete(node.id, toasts, version),
+        ("x", NodeType::Task) => complete(node.id, toasts, version, gate),
         ("x", NodeType::WaitingOn) => resolve(node.id, toasts, version),
         ("f", NodeType::Task) => set_focus(
             node.id,
@@ -609,13 +613,13 @@ fn Stat(label: &'static str, value: usize, tone: Tone) -> impl IntoView {
     }
 }
 
-fn complete(id: Uuid, toasts: Toasts, version: DataVersion) {
+fn complete(id: Uuid, toasts: Toasts, version: DataVersion, gate: FinishDecision) {
     spawn_local(async move {
         let patch = UpdateTask {
             status: Some(TaskStatus::Done),
             ..Default::default()
         };
-        finish(api::update_task(id, patch).await, toasts, version);
+        finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
     });
 }
 
@@ -860,6 +864,7 @@ fn FlagRow(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let t = item.task.row.task.clone();
     let id = t.id;
     let node = NodeRef::new(NodeType::Task, id);
@@ -885,7 +890,7 @@ fn FlagRow(
             <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
                            text-[10px] text-transparent hover:border-success hover:text-success"
                     title="Mark done" aria-label="Mark done"
-                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version); }>"✓"</button>
+                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version, gate); }>"✓"</button>
             <span class="flex w-44 shrink-0 items-center gap-1">{pills}</span>
             <span class="min-w-0 truncate">
                 <span class="font-semibold">{t.title.clone()}</span>
@@ -911,6 +916,7 @@ fn MeetingRow(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let dialog = expect_context::<MeetingDialog>();
     let now = expect_context::<NowClock>();
     let t = row.row.task.clone();
@@ -939,7 +945,7 @@ fn MeetingRow(
             <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
                            text-[10px] text-transparent hover:border-success hover:text-success"
                     title="End the meeting now" aria-label="End the meeting now"
-                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version); }>"✓"</button>
+                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version, gate); }>"✓"</button>
             <span class="w-14 shrink-0 text-[12px] font-medium text-muted">{day}</span>
             <span class="w-28 shrink-0 text-[12px] tabular-nums">{range}</span>
             <span class="min-w-0 truncate">
@@ -979,6 +985,7 @@ fn FocusRow(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let t = item.task.row.task.clone();
     let id = t.id;
     let node = NodeRef::new(NodeType::Task, id);
@@ -1002,7 +1009,7 @@ fn FocusRow(
             <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
                            text-[10px] text-transparent hover:border-success hover:text-success"
                     title="Mark done" aria-label="Mark done"
-                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version); }>"✓"</button>
+                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version, gate); }>"✓"</button>
             <span class="min-w-0 truncate">
                 <span class="font-semibold">{t.title.clone()}</span>
                 {project.map(|p| view! { <span class="ml-2 text-muted">{p}</span> })}
@@ -1031,6 +1038,7 @@ fn PlanRow(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let t = row.row.task.clone();
     let id = t.id;
     let node = NodeRef::new(NodeType::Task, id);
@@ -1059,7 +1067,7 @@ fn PlanRow(
             <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
                            text-[10px] text-transparent hover:border-success hover:text-success"
                     title="Mark done" aria-label="Mark done"
-                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version); }>"✓"</button>
+                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version, gate); }>"✓"</button>
             <span class="min-w-0 truncate">
                 <span class=if top { "font-semibold" } else { "font-medium" }>{t.title.clone()}</span>
                 {project.map(|p| view! { <span class="ml-2 text-muted">{p}</span> })}

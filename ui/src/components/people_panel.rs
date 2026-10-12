@@ -9,6 +9,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        confirm_archive::{question, ArchiveChoice, ArchiveRequest, ConfirmArchive, UNDO_HINT},
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER},
         markdown_box::{saver, MarkdownField},
@@ -348,27 +349,9 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
     let id = detail.person.id;
     let name = detail.person.name.clone();
-    // `Some(tasks)` = confirmation showing, listing the tasks that lose their assignee.
-    let confirming = RwSignal::new(None::<Vec<NodeSummary>>);
-
-    let start = move |_| {
-        spawn_local(async move {
-            match api::preview_archive_person(id).await {
-                Ok(p) => confirming.set(Some(p.assigned_tasks)),
-                Err(e) => toasts.error(&e),
-            }
-        });
-    };
-    let confirm = move |_| {
-        spawn_local(async move {
-            if finish(api::archive_person(id).await, toasts, version).is_some() {
-                confirming.set(None);
-                selection.close();
-            }
-        });
-    };
 
     if detail.person.is_self {
         return view! {
@@ -377,29 +360,61 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
         .into_any();
     }
 
+    let archive = Callback::new(move |()| {
+        spawn_local(async move {
+            if finish(api::archive_person(id).await, toasts, version).is_some() {
+                selection.close();
+            }
+        });
+    });
+    // The tasks that lose their assignee are looked up when asked, and shown in the dialog.
+    let start = move |_| {
+        let name = name.clone();
+        spawn_local(async move {
+            match api::preview_archive_person(id).await {
+                Ok(p) => {
+                    let tasks = p.assigned_tasks;
+                    let message = if tasks.is_empty() {
+                        format!("Their links are archived with them. {UNDO_HINT}")
+                    } else {
+                        format!(
+                            "Their links are archived with them, so {} active task{} will become unassigned. {UNDO_HINT}",
+                            tasks.len(),
+                            if tasks.len() == 1 { "" } else { "s" }
+                        )
+                    };
+                    confirm.ask_with(ArchiveRequest {
+                        title: question(&name),
+                        message,
+                        body: (!tasks.is_empty()).then(|| task_lines(tasks)),
+                        choices: vec![ArchiveChoice {
+                            label: "Archive".to_owned(),
+                            run: archive,
+                        }],
+                    });
+                }
+                Err(e) => toasts.error(&e),
+            }
+        });
+    };
+
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            {move || match confirming.get() {
-                None => view! { <button class=BUTTON on:click=start>"Archive person…"</button> }.into_any(),
-                Some(tasks) => view! {
-                    <div class="space-y-2">
-                        <p>
-                            "Archive " <strong>{name.clone()}</strong> "? Their links are archived with them"
-                            {if tasks.is_empty() { ".".to_owned() } else {
-                                format!(", so {} active task{} will become unassigned:", tasks.len(), if tasks.len() == 1 { "" } else { "s" })
-                            }}
-                        </p>
-                        <NodeButtons nodes=tasks />
-                        <div class="flex gap-2">
-                            <button class=BUTTON_DANGER on:click=confirm>"Archive"</button>
-                            <button class=BUTTON on:click=move |_| confirming.set(None)>"Cancel"</button>
-                        </div>
-                    </div>
-                }.into_any(),
-            }}
+            <button class=BUTTON_DANGER on:click=start>"Archive person…"</button>
         </Section>
     }
     .into_any()
+}
+
+/// The tasks an archive touches, as plain lines in the dialog.
+fn task_lines(tasks: Vec<NodeSummary>) -> ViewFn {
+    ViewFn::from(move || {
+        view! {
+            <ul class="max-h-40 space-y-px overflow-y-auto text-[12px]">
+                {tasks.iter().map(|t| view! { <li class="truncate">"· " {t.label.clone()}</li> }).collect_view()}
+            </ul>
+        }
+    })
 }
 
 #[cfg(test)]
