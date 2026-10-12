@@ -1,0 +1,15 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+Tasks: 18 boxes, 20 links (4 cross projects), 16 unlinked (16 listed)
+  Provision EU network and clusters | owner Tomás Alvarez | holds up 9 waits on 0 | finish 2027-03-10 due 2027-03-10 | None health None
+  Gateway: design rate limiting | owner Maya Chen | holds up 8 waits on 0 | finish 2027-03-05 due 2027-03-08 | None health None
+  Gateway: build the routing layer | owner Maya Chen | holds up 7 waits on 1 | finish 2027-03-15 due 2027-03-22 | None health None
+  Regional auth and tenancy | owner Maya Chen | holds up 4 waits on 3 | finish 2027-03-22 due 2027-03-22 | None health None
+  Autoscaling policy | owner Tomás Alvarez | holds up 3 waits on 0 | finish 2027-03-08 due 2027-03-15 | None health None
+  Choose a penetration-test vendor | owner Raj Patel | holds up 3 waits on 0 | finish 2027-03-05 due 2027-03-08 | None health None
+Projects: 2 boxes, 1 links (0 cross projects), 1 unlinked (1 listed)
+  Security and Compliance | owner Raj Patel | holds up 1 waits on 0 | finish 2027-03-30 due 2027-04-19 | Inside { remaining: 20, room: 14, level: Wide } health Some(Green)
+  EU Region | owner Priya Nair | holds up 0 waits on 1 | finish 2027-03-31 due 2027-03-29 | Outside { remaining: 21, over: 2 } health Some(Amber)
+  room between projects: Some(0)

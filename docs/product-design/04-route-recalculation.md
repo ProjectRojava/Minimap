@@ -1,8 +1,8 @@
 # 04 — Route recalculation: a slip shown as the new route to the finish
 
-Status: Draft · Milestone: — · Priority: Should · Size: M
+Status: Implemented as spec 46 — awaiting manual check · Milestone: — · Priority: Should · Size: M
 Depends on: specs 13, 14 (implemented) · Read first: [README](README.md)
-Expected ADR: none
+ADR: none (a new view of the impact analysis; no ADR is affected, checked against `docs/decisions/`)
 
 ## Goal
 Game maps and satnavs draw the **route** to the objective as a line, and when you go off it they say *"recalculating"* and draw the new one. The critical path is the route to a project's finish. Today the what-if screen (spec 14) lists every affected task, project, objective and person as before → after tables; it's accurate but you have to read it all. Add a **Route** view that shows, for each affected project, the old route faded, the new route in the accent colour, the new arrival date, and a short **turn-by-turn list**: where the slip enters, where it is absorbed, where it passes on, and where it arrives.
@@ -35,15 +35,15 @@ pub enum TurnKind { Slips /* a slipped task, the start */, PassesOn /* delay > 0
 pub struct Turn { pub task: NodeSummary, pub kind: TurnKind, pub incoming_days: f64, pub absorbed_days: f64, pub delay_days: f64, pub new_finish: Date }
 ```
 
-- **Chain order**: the critical tasks of a project from the schedule are a set; order them into a chain by following `blocks` links between critical tasks from the earliest ES (ties: lowest `lf`, then title). Where the critical set is not a single chain (parallel critical branches), the chain is the one that ends at the task with the latest EF; the other branches are dropped from `before`/`after` (the timeline still draws all critical tasks; see UI). Put this in a pure `chain_of(schedule, project_id) -> Vec<Uuid>` in `schedule.rs` and reuse it.
-- **Turns**: walk the tasks the slip reaches (`ImpactReport.tasks` for this project) in scenario ES order and emit one turn per task whose kind is not plain "unaffected"; consecutive `PassesOn` turns of the same delay **collapse** into one turn with a count ("*API migration* and 2 more +5"; add `also: u32` to `Turn`). `JoinsRoute`/`LeavesRoute` are added for tasks in `after \ before` and `before \ after`. The last turn is always `Arrives` for an affected project. At most `MAX_TURNS = 8` turns; beyond that, the middle ones collapse into "… N more steps" (`Turn` with kind `More`).
+- **Chain order** (as built): `schedule::chain_of(schedule, project_id)` ends at the critical task with the latest EF (ties: the earlier title) and walks back through each task's `driver` (the predecessor that sets its start, added by spec 45) for as long as that task is also critical in the project. So a parallel critical branch is dropped from `before`/`after`, and a branch whose tasks no `blocks` link joins is not part of the chain. (The doc first said "follow `blocks` links between critical tasks"; the driver is the same thing, already computed.)
+- **Turns** (as built: a single task that is both the slip and the project's last task keeps its `Slips` step and gets `Arrives` after it; the route is also made for a project the slip only reached and that absorbed it (`changed = false`, `delay_days = 0`) so the screen can say "no change"; `Turn` has no slack field, because the slack that absorbs a slip is often on a link, not on the task, so the text says *absorbs 2 of 5 days* and nothing about slack): walk the tasks the slip reaches (`ImpactReport.tasks` for this project) in scenario ES order and emit one turn per task whose kind is not plain "unaffected"; consecutive `PassesOn` turns of the same delay **collapse** into one turn with a count ("*API migration* and 2 more +5"; add `also: u32` to `Turn`). `JoinsRoute`/`LeavesRoute` are added for tasks in `after \ before` and `before \ after`. The last turn is always `Arrives` for an affected project. At most `MAX_TURNS = 8` turns; beyond that, the middle ones collapse into "… N more steps" (`Turn` with kind `More`).
 - Add `routes: Vec<ProjectRoute>` to `ImpactReport` (affected projects only, same order as `projects`).
 
 **Tests**: single chain, slip passes through; partly absorbed; fully absorbed (route unchanged, `changed=false`, no `Arrives` delay); a branch takes over (JoinsRoute/LeavesRoute); parallel critical branches; collapse of PassesOn runs; MAX_TURNS; cross-project slip produces routes for both projects; `depends_on` knock-on project gets a route whose first turn is `Slips` with the held-up first task. Update existing `insta` snapshots of impact deliberately (the report gains a field).
 **proptest**: `after` is a valid chain (each consecutive pair joined by an active `blocks` edge); every turn's `delay_days >= 0`; `Arrives.new_finish == new_finish`.
 
 ## Data
-No migration, no setting. Types: `ProjectRoute`, `Turn`, `TurnKind` in `crates/minimap-types/src/impact.rs`; `ImpactReport.routes`.
+No migration, no setting. Types: `ProjectRoute`, `Turn`, `TurnKind`, `MAX_TURNS` in `crates/minimap-types/src/impact.rs`; `ImpactReport.routes` (`#[serde(default)]`). As built `ProjectRoute` also carries what the timeline needs, so the screen does no date arithmetic: `bars: Vec<RouteBar>` (each task's old and new start and end as working-day offsets, and whether it is on the old / new route), `first_offset`, `days`, `target_offset`, plus `delay_days` and `newly_late`.
 
 ## Commands
 No new command: `run_impact_analysis` returns the richer report. Check `preview_apply_slips`/`apply_slips` are unaffected.
@@ -52,10 +52,10 @@ No new command: `run_impact_analysis` returns the richer report. Check `preview_
 - Tabs under the scenario editor: **Route** (default) | **Details** (today's sections unchanged). Use the existing toggle button styles (`BUTTON_ON`). Remember the tab in the query string `?view=route|details`.
 - **Route** tab: one `RouteCard` per `ProjectRoute`:
   - Header line from pure `route_headline(route)`: "EU Region · recalculated: arrives 2027-04-14 instead of 2027-04-07 (+5 working days), 3 days past target" / "Platform Cost Reduction · no change to the route; finish unchanged" (then the card is collapsed to that line).
-  - **Mini timeline**: reuse `ui/src/timeline.rs::layout` with a new option to draw two bar sets: baseline bars for `before` (outlined, dashed `border-line`, `muted` text) and scenario bars for `after` (filled `accent` at the critical-path style already used by `schedule_panel`); other affected tasks as plain bars. The route line itself is a 2px polyline joining the bar ends of `after` in `accent`, and of `before` dashed in `faint`. Target day line as in the schedule panel. Keep it ≤ 12 rows; if more, show the route tasks only.
+  - **Mini timeline** (as built: its own pure layout, `route::route_layout`, using the row and bar heights of `timeline.rs`; the doc first said to extend `layout`): two bar sets: baseline bars for `before` (outlined, dashed `border-line`, `muted` text) and scenario bars for `after` (filled `accent` at the critical-path style already used by `schedule_panel`); other affected tasks as plain bars. The route line itself is a 2px polyline joining the bar ends of `after` in `accent`, and of `before` dashed in `faint`. Target day line as in the schedule panel. Keep it ≤ 12 rows; if more, show the route tasks only.
   - **Turn list**: an ordered list; each row: a step glyph by kind (start dot, arrow, absorb bracket, join/leave marks, finish flag; new `icons.rs` entries), task name (click opens the pane), and pure `turn_text(turn)`: "slips 5 days", "+5 days", "absorbs 2 of 5 (had 2 days of slack)", "now on the route", "off the route", "arrives +5: 3 days past target". Tone: `danger` only for the arrival when newly late, `success` for full absorption, otherwise neutral.
 - The *Apply to plan…* button stays where it is and works from either tab.
-- Motion: when the scenario changes, the new route fades in over 150 ms; no animation under `prefers-reduced-motion`. Optional; skip if fiddly.
+- Motion: not done (optional in this doc).
 - Pure helpers (`route_headline`, `turn_text`, glyph choice, collapse display) unit-tested in `ui`.
 
 ## Help wiki
@@ -72,10 +72,10 @@ Nothing stored.
 A "recalculating" toast after ordinary edits (needs before/after schedules on every write; see Open questions); routes for objectives; editing the scenario from the timeline.
 
 ## Acceptance criteria
-- [ ] `ImpactReport.routes` computed in core with the listed tests and proptest; impact snapshots updated and reviewed.
-- [ ] What-if has Route and Details tabs; Route shows headline, mini timeline with both routes, turn list; Details unchanged.
-- [ ] Unchanged projects collapse to one line; very long chains collapse to ≤ 8 turns.
-- [ ] Help updated; CHANGELOG; knowledge graph (§5 `mod:impact`, `mod:schedule` `chain_of`, §8 what-if); `docs/progress.md`; gate passes.
+- [x] `ImpactReport.routes` computed in core with the listed tests and proptest; impact snapshots updated and reviewed.
+- [x] What-if has Route and Details tabs; Route shows headline, mini timeline with both routes, turn list; Details unchanged.
+- [x] Unchanged projects collapse to one line; very long chains collapse to ≤ 8 turns.
+- [x] Help updated; CHANGELOG; knowledge graph (§5 `mod:impact`, `mod:schedule` `chain_of`, §8 what-if); `docs/progress.md`; gate passes.
 
 ## Not yet verified by hand
 - Demo: open a critical EU Region task, *What if this slips?* (5 days): Route tab shows EU Region recalculated with a later arrival; the turn list matches the Details tab numbers.

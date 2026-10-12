@@ -362,6 +362,39 @@ fn latest_finish<'a>(tasks: impl Iterator<Item = &'a ScheduledTask>) -> Option<&
     tasks.max_by(|a, b| a.ef.total_cmp(&b.ef))
 }
 
+/// The route to a project's finish (spec 46): its critical tasks ordered into one chain, from the
+/// start to the task that finishes last. The chain ends at the critical task with the latest
+/// finish (ties: the earlier title) and is walked back through each task's `driver`, the
+/// predecessor that sets its start, for as long as that is also critical in the project. Parallel
+/// critical branches are therefore dropped: only the chain that ends the project is returned.
+/// `schedule` must hold the project's tasks (a portfolio schedule, or the project's own).
+pub fn chain_of(schedule: &Schedule, project_id: Uuid) -> Vec<Uuid> {
+    let critical: HashMap<Uuid, &ScheduledTask> = schedule
+        .tasks
+        .iter()
+        .filter(|t| t.critical && !t.done && t.project_id == Some(project_id))
+        .map(|t| (t.id, t))
+        .collect();
+    let Some(last) = critical.values().max_by(|a, b| {
+        a.ef.total_cmp(&b.ef)
+            .then_with(|| b.title.cmp(&a.title))
+            .then_with(|| b.id.cmp(&a.id))
+    }) else {
+        return Vec::new();
+    };
+    let mut chain = vec![last.id];
+    let mut current = *last;
+    while let Some(before) = current.driver.and_then(|d| critical.get(&d).copied()) {
+        if chain.contains(&before.id) {
+            break;
+        }
+        chain.push(before.id);
+        current = before;
+    }
+    chain.reverse();
+    chain
+}
+
 /// The tasks that decide their project's finish, earliest first.
 pub fn critical_path(schedule: &Schedule) -> Vec<ScheduledTask> {
     schedule
@@ -799,6 +832,57 @@ mod tests {
             ScheduleScope::Portfolio,
         );
         assert_eq!(get(&s, "C").driver, None);
+    }
+
+    #[test]
+    fn the_route_is_the_critical_chain_ending_at_the_latest_finish() {
+        // A(2) -> B(3) -> D(1), with a short side branch C(1) -> D: the route is A, B, D.
+        let tasks = [
+            in_project(task(1, "A", Some(2.0)), 10),
+            in_project(task(2, "B", Some(3.0)), 10),
+            in_project(task(3, "C", Some(1.0)), 10),
+            in_project(task(4, "D", Some(1.0)), 10),
+        ];
+        let edges = [blocks(1, 2, None), blocks(2, 4, None), blocks(3, 4, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(chain_of(&s, id(10)), [id(1), id(2), id(4)]);
+        // A project nobody has tasks in has no route.
+        assert!(chain_of(&s, id(99)).is_empty());
+    }
+
+    #[test]
+    fn parallel_critical_branches_give_one_chain_and_finished_work_is_not_on_it() {
+        // A(2) and B(2) both lead to C(1): both are critical, the chain follows the driver (lowest id).
+        let tasks = [
+            in_project(task(1, "A", Some(2.0)), 10),
+            in_project(task(2, "B", Some(2.0)), 10),
+            in_project(task(3, "C", Some(1.0)), 10),
+        ];
+        let edges = [blocks(1, 3, None), blocks(2, 3, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        let chain = chain_of(&s, id(10));
+        assert_eq!(chain, [id(1), id(3)]);
+        // Finished work never counts.
+        let mut done = in_project(task(1, "A", Some(2.0)), 10);
+        done.status = TaskStatus::Done;
+        done.completed_at = Some(OffsetDateTime::UNIX_EPOCH);
+        let s = run(
+            &[done, tasks[1].clone(), tasks[2].clone()],
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert!(!chain_of(&s, id(10)).contains(&id(1)));
     }
 
     #[test]

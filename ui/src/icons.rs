@@ -113,6 +113,15 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
         "search" => &["M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M10.8 10.8 14 14"],
         // An arrow pointing up and to the right: something coming at you from elsewhere (spec 45).
         "approach" => &["M4.5 11.5 11.5 4.5", "M5.5 4.5h6v6"],
+        // The steps of a recalculated route (spec 46): where it starts, goes on, is absorbed, joins or
+        // leaves the route, arrives, and the steps left out.
+        "step-start" => &["M8 5.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z"],
+        "step-arrow" => &["M3 8h9", "M9 5l3 3-3 3"],
+        "step-absorb" => &["M6 3.5H4v9h2", "M8 8h5"],
+        "step-join" => &["M8 3v10", "M3 8h10"],
+        "step-leave" => &["M3 8h10"],
+        "step-flag" => &["M4 14V2", "M4 3h8l-2 3 2 3H4"],
+        "step-more" => &["M3.5 8h.1", "M8 8h.1", "M12.5 8h.1"],
         "command" => &[
             "M5.5 5.5h5v5h-5z",
             "M5.5 5.5V4a1.5 1.5 0 1 0-1.5 1.5z",
@@ -154,6 +163,13 @@ mod tests {
             "settings",
             "command",
             "approach",
+            "step-start",
+            "step-arrow",
+            "step-absorb",
+            "step-join",
+            "step-leave",
+            "step-flag",
+            "step-more",
             "search",
             "capacity",
             "graph",

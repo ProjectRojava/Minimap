@@ -340,13 +340,46 @@ mod tests {
                     .join("; ")
             );
         }
+        let _ = writeln!(out, "\nROUTES");
+        for route in &report.routes {
+            let _ = writeln!(
+                out,
+                "  {} | {} | finish {} -> {} | +{:.1} | late {} | route {} -> {}",
+                route.title,
+                if route.changed {
+                    "recalculated"
+                } else {
+                    "unchanged"
+                },
+                opt(route.old_finish),
+                opt(route.new_finish),
+                route.delay_days,
+                opt(route.late_after),
+                route.before.len(),
+                route.after.len()
+            );
+            for (i, t) in route.turns.iter().enumerate() {
+                let _ = writeln!(
+                    out,
+                    "    {}. {:?} {} (in {:.1}, absorbed {:.1}, delay {:.1}, also {}) finishes {}",
+                    i + 1,
+                    t.kind,
+                    t.task.label,
+                    t.incoming_days,
+                    t.absorbed_days,
+                    t.delay_days,
+                    t.also,
+                    t.new_finish
+                );
+            }
+        }
         insta::assert_snapshot!(out);
     }
 
     #[test]
     fn the_overview_of_the_demo_data() {
-        let mut conn = demo();
-        let ov = overview_at(&mut conn, TODAY).unwrap();
+        let conn = demo();
+        let ov = overview_at(&conn, TODAY).unwrap();
         let mut out = String::new();
         let c = &ov.counts;
         let _ = writeln!(
@@ -544,7 +577,7 @@ mod tests {
             zones.insert(row.project.title.clone(), row.zone);
         }
         // The Overview reads the same zone (the same schedule run).
-        let ov = overview_at(&mut demo(), TODAY).unwrap();
+        let ov = overview_at(&demo(), TODAY).unwrap();
         for row in ov
             .objectives
             .iter()
@@ -628,5 +661,57 @@ mod tests {
             from_eu("Platform Cost Reduction") || from_eu("Security and Compliance"),
             "something approaches from EU Region"
         );
+    }
+
+    #[test]
+    fn the_dependency_graph_of_the_demo_data_says_who_what_and_how_much_room() {
+        use minimap_types::{GraphFilter, GraphLevel};
+        let conn = demo();
+        // Positions depend on the layout, so the snapshot keeps to what the boxes say.
+        let mut out = String::new();
+        for level in [GraphLevel::Tasks, GraphLevel::Projects] {
+            let g = crate::commands::graph::graph_at(
+                &conn,
+                &GraphFilter {
+                    level,
+                    ..Default::default()
+                },
+                TODAY,
+            )
+            .unwrap();
+            let _ = writeln!(
+                out,
+                "{level:?}: {} boxes, {} links ({} cross projects), {} unlinked ({} listed)",
+                g.nodes.len(),
+                g.edges.len(),
+                g.edges.iter().filter(|e| e.cross_project).count(),
+                g.hidden_unlinked,
+                g.unlinked.len()
+            );
+            let mut nodes: Vec<_> = g.nodes.iter().collect();
+            nodes.sort_by(|a, b| {
+                b.downstream
+                    .cmp(&a.downstream)
+                    .then_with(|| a.label.cmp(&b.label))
+            });
+            for n in nodes.iter().take(6) {
+                let _ = writeln!(
+                    out,
+                    "  {} | owner {} | holds up {} waits on {} | finish {} due {} | {:?} health {:?}",
+                    n.label,
+                    n.assignee.as_ref().map_or("-", |a| a.label.as_str()),
+                    n.downstream,
+                    n.upstream,
+                    opt(n.finish),
+                    opt(n.due),
+                    n.zone,
+                    n.health
+                );
+            }
+            for e in g.edges.iter().filter(|e| e.room_days.is_some()) {
+                let _ = writeln!(out, "  room between projects: {:?}", e.room_days);
+            }
+        }
+        insta::assert_snapshot!(out);
     }
 }

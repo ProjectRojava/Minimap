@@ -64,13 +64,14 @@ Avoid: "health" for a person, "score" for a person, "XP", "quest", "level up", "
 | 01 | [Fog of war](01-fog-of-war.md) (implemented as spec 43) | Items in play that nobody has touched in a while fade; a *Visibility* figure; a weekly-review step that clears fog | — | M |
 | 02 | [Safe zone](02-safe-zone.md) (implemented as spec 44) | A gauge per project of the room left before its target | — | S |
 | 03 | [Approaching: off-screen indicators](03-off-screen-indicators.md) (implemented as spec 45) | Marks at the edge of a project / your week naming problems elsewhere that will reach it | — | M |
-| 04 | [Route recalculation](04-route-recalculation.md) | Impact analysis shown as the old and new route, step by step | — | M |
+| 04 | [Route recalculation](04-route-recalculation.md) (implemented as spec 46) | Impact analysis shown as the old and new route, step by step | — | M |
 | 05 | [Pings](05-pings.md) | Drop a marker on any item to come back to it on a day | — | L |
 | 06 | [Your people](06-your-people.md) | Compact frames for you and your reports: load, waiting-ons, 1:1 cadence | — | M |
 | 07 | [Portfolio view and My view](07-orientation.md) | One toggle: the organisation as it is, or as it touches you | 03 (reuses its reach) | M |
 | 08 | [Save points](08-save-points.md) | One timeline of every restorable copy, a "Saved 2 min ago" mark, named saves | — | M |
 | 09 | [Zoom](09-semantic-zoom.md) | Zoom out from a task to its project, objective and the whole portfolio, and back | — | M |
 | 10 | [Radar window](10-radar-window.md) | A small, optionally always-on-top window: you at the centre, rings of time, sectors of objectives | 01, 02, 03, 05, 07 | L |
+| 12 | [Dependencies, richer](12-dependency-graph.md) (implemented as spec 47) | Boxes that say who, what and when; lenses; trace a chain; edit the links on the graph | — | L |
 | 11 | [Brand and voice](11-brand-and-voice.md) | Logo, icon, the words the app uses, empty states | — (any time) | S |
 
 Sizes: S = a day or two of agent work, M = a few days, L = a week or more. The radar window comes last because it is mostly a new way to *show* what 01, 02, 03, 05 and 07 compute.

@@ -11,7 +11,20 @@ A scenario can hold **several slips** at once (for example two things both runni
 
 ## What it shows
 
-A summary first (how many tasks move, how many are newly late, the worst delay), then four lists:
+A summary first (how many tasks move, how many are newly late, the worst delay), then two views, chosen with the **Route** and **Details** buttons under it (the choice is kept in the address, so a link to `?view=details` opens the tables). **Route** is the one you land on.
+
+### Route: the recalculated route to each finish
+
+The critical path is the **route** to a project's finish. When a slip changes it, each affected project gets a card, like a satnav saying *recalculating*:
+
+- **The headline**: *EU Region · recalculated: arrives 2027-04-14 instead of 2027-04-07 (+5 working days), 3 working days past target*. A project the slip reached but did not move says *no change to the route; finish unchanged* and is just that line.
+- **A small timeline** with the old route **dashed and faded** and the new route in **blue**, with today and the target marked. Tasks the slip moved show both their old (dashed outline) and new (solid) position: **blue** when the task is on the new route, **grey** when it moved but is off the route because it has slack. Click a bar or a name to open the task. With more than 12 tasks only the tasks on a route are drawn.
+- **A key** under the timeline says what each mark is: a dashed box is where the task was before the slip, a blue bar is on the route now, a grey bar moved but is not on the route (it has slack), and the two thin lines are today and the target date.
+- **Step by step**: the route in plain sentences, each with an icon (and a key to the icons under the list, showing only the ones used). *Select a Data provider slips 5 days: the delay starts here* is where it enters (○); *moves 5 days later* is a task that passes the delay on (→), and *and 2 more tasks move 5 days later* folds a run of those into one line; *absorbs 2 of the 5 days (it has slack) and moves 3 days later* is slack soaking up part of it (a bracket), and *absorbs all 5 days: the delay stops here* soaking up all of it; *is now on the route* (+) and *is no longer on the route* (−) are tasks the new route starts or stops running through; and the last step (a flag) is always where the project now **finishes**, in red when the slip makes it newly late. A very long route keeps its first four and last three steps and says *… N more steps*.
+
+### Details: the tables
+
+Four lists:
 
 | List | What each row says |
 |---|---|
@@ -20,7 +33,7 @@ A summary first (how many tasks move, how many are newly late, the worst delay),
 | **Objectives** | The objectives those projects contribute to, and whether their targets are now at risk |
 | **People** | Whose assigned work moves, and by how much |
 
-A task that absorbs the slip entirely (it had slack) still appears, with delay 0: that is where the ripple stops.
+A task that absorbs the slip entirely (it had slack) still appears, with delay 0: that is where the ripple stops. **Apply to plan…** works from either view.
 
 ## How it is worked out
 
