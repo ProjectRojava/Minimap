@@ -629,6 +629,8 @@ mod tests {
         WeekTask {
             row: TaskRow {
                 task: Task {
+                    confirmed_on: None,
+
                     links: Vec::new(),
                     task_type: None,
                     focus: None,

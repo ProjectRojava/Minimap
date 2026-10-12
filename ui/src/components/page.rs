@@ -90,11 +90,6 @@ impl Tone {
 pub const CHIP: &str = "inline-block rounded-sm border border-line px-1.5 text-[10px] leading-4 \
                         uppercase tracking-wide text-muted";
 
-/// A pill for what matters most or needs attention: the warning tone.
-pub const CHIP_STRONG: &str =
-    "inline-block rounded-sm border border-warning/40 bg-warning/10 px-1.5 \
-                               text-[10px] leading-4 uppercase tracking-wide text-warning";
-
 /// The bar of filters under a page header.
 pub const FILTER_BAR: &str =
     "flex flex-wrap items-center gap-2 px-4 py-2 shrink-0 border-b border-line";
@@ -244,7 +239,6 @@ mod tests {
     fn chip_and_bars_use_only_theme_tokens() {
         for class in [
             CHIP,
-            CHIP_STRONG,
             Tone::Success.chip(),
             Tone::Warning.chip(),
             FILTER_BAR,

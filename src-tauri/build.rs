@@ -86,6 +86,9 @@ const COMMANDS: &[&str] = &[
     "backup_now",
     "preview_restore",
     "restore_backup",
+    "get_approaching",
+    "get_fog",
+    "confirm_item",
     "get_this_week",
     "reschedule_task",
     "get_portfolio_overview",
@@ -128,6 +131,8 @@ const COMMANDS: &[&str] = &[
     "open_attachment",
     "open_link",
     "create_linked_task",
+    "ensure_task_decision",
+    "finish_decision_task",
 ];
 
 /// Bakes the Google OAuth client into the app so users just click "Sign in with Google": the

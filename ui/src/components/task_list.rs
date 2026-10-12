@@ -13,7 +13,9 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
+        approaching::FilteredApproach,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
+        fog::confirm_row,
         form::{
             date_patch, DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT,
             COMPACT_INPUT, INPUT,
@@ -25,7 +27,7 @@ use crate::{
         task_type::{type_for_new_task, use_task_types, TypeChip},
     },
     labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
-    state::{finish, DataVersion, ListNav, Toasts},
+    state::{finish, finish_task, DataVersion, FinishDecision, ListNav, Toasts},
 };
 
 const COLS: &str =
@@ -428,6 +430,7 @@ pub fn TaskList(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let list = expect_context::<ListNav>();
 
     let filters = filters.unwrap_or_default();
@@ -487,6 +490,10 @@ pub fn TaskList(
                 priority: k.parse().ok(),
                 ..Default::default()
             }),
+            "c" => {
+                confirm_row(node);
+                None
+            }
             "d" => {
                 focus_element(&format!("task-due-{id}"));
                 None
@@ -499,7 +506,7 @@ pub fn TaskList(
         };
         if let Some(patch) = patch {
             spawn_local(async move {
-                finish(api::update_task(id, patch).await, toasts, version);
+                finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
             });
         }
     });
@@ -590,9 +597,10 @@ pub fn TaskList(
                 </button>
                 {layout.map(|_| view! { <crate::components::meeting::NewMeetingButton /> })}
                 {layout.map(|board| view! { <span class="ml-auto"><LayoutToggle board=board /></span> })}
-                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("f", "focus"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
             </PageHeader>
             <FilterControls filters=filters inbox=inbox board=false />
+            {(!inbox).then(|| view! { <FilteredApproach project=filters.project /> })}
             <Show when=move || adding.get()>
                 <div class="px-4 py-2 border-b border-line bg-panel space-y-2">
                     <textarea class=INPUT rows="1" autofocus
@@ -667,11 +675,12 @@ fn TaskRowView(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let id = row.task.id;
     let node = NodeRef::new(NodeType::Task, id);
     let save = move |patch: UpdateTask| {
         spawn_local(async move {
-            finish(api::update_task(id, patch).await, toasts, version);
+            finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
         });
     };
 

@@ -366,6 +366,8 @@ pub fn project_rows(conn: &Connection) -> Result<Vec<ProjectRow>> {
             let mut objectives = by_project.remove(&project.id).unwrap_or_default();
             objectives.sort_by_key(|o| o.label.to_lowercase());
             ProjectRow {
+                zone: Default::default(),
+
                 owner: project.owner_person_id.and_then(|o| {
                     people
                         .get(&o)
@@ -425,6 +427,8 @@ pub fn project_detail(conn: &Connection, id: Uuid) -> Result<ProjectDetail> {
     depends_on.sort_by_key(|d| d.node.label.to_lowercase());
     needed_by.sort_by_key(|n| n.label.to_lowercase());
     Ok(ProjectDetail {
+        zone: Default::default(),
+
         owner,
         objectives,
         depends_on,
@@ -528,10 +532,12 @@ pub fn task_detail(conn: &Connection, id: Uuid) -> Result<TaskDetail> {
         .find(|e| e.edge_type == EdgeType::AssignedTo && e.from_id == id)
         .map(|e| nodes::summary(conn, e.to()))
         .transpose()?;
+    let decision = decisions::for_task(conn, id)?;
     Ok(TaskDetail {
         task,
         project,
         assignee,
+        decision,
     })
 }
 
@@ -663,4 +669,25 @@ pub fn open_blockers(conn: &Connection) -> Result<HashMap<Uuid, Vec<NodeSummary>
         list.sort_by_key(|n| n.label.to_lowercase());
     }
     Ok(out)
+}
+
+/// When each node's links last changed (spec 43): the newest `edge_added` / `edge_removed`
+/// activity row of the node the link starts from, which is where the log attaches edge rows.
+pub fn last_link_changes(conn: &Connection) -> Result<HashMap<Uuid, time::OffsetDateTime>> {
+    let mut stmt = conn.prepare(
+        "SELECT node_id, MAX(at) FROM activity WHERE action IN ('edge_added', 'edge_removed') GROUP BY node_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((col_uuid(r, 0)?, col_ts(r, 1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// The date of the newest active note that mentions each node (spec 43).
+pub fn last_mentions(conn: &Connection) -> Result<HashMap<Uuid, time::Date>> {
+    let mut stmt = conn.prepare(
+        "SELECT e.to_id, MAX(n.note_date) FROM edges e JOIN notes n ON n.id = e.from_id
+         WHERE e.edge_type = 'mentions' AND e.archived_at IS NULL AND n.archived_at IS NULL
+         GROUP BY e.to_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((col_uuid(r, 0)?, col_date(r, 1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
 }

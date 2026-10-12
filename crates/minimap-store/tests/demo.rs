@@ -29,9 +29,12 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
     assert_eq!(summary.people, 8, "me and seven others");
     assert_eq!(summary.teams, 2);
     assert_eq!(summary.notes, 3);
-    assert_eq!(summary.decisions, 5);
+    assert_eq!(
+        summary.decisions, 7,
+        "4 written, 3 made by tasks of type Decision, one of them replaced"
+    );
     assert_eq!(summary.waiting_ons, 3);
-    assert_eq!(summary.links, 113);
+    assert_eq!(summary.links, 118);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 45);
     assert_eq!(count(&conn, "people"), 8);
@@ -376,6 +379,8 @@ fn five_meetings_show_how_they_start_end_and_follow_up() {
     assert!(follows.contains(&(follow_up.id, cutover.id)));
     // This week lists today's and tomorrow's, not the one that is over or next week's.
     let week = minimap_core::this_week::build(minimap_core::this_week::WeekInput {
+        fog: None,
+
         tasks: views::task_rows(&conn).unwrap(),
         blockers: views::open_blockers(&conn).unwrap(),
         waiting: views::waiting_on_items(&conn).unwrap(),
@@ -417,6 +422,8 @@ fn two_far_off_tasks_are_in_focus_and_so_are_on_this_week() {
     );
     // Both are due weeks away, yet This week keeps them in front of you.
     let week = minimap_core::this_week::build(minimap_core::this_week::WeekInput {
+        fog: None,
+
         tasks: views::task_rows(&conn).unwrap(),
         blockers: views::open_blockers(&conn).unwrap(),
         waiting: views::waiting_on_items(&conn).unwrap(),
@@ -551,4 +558,30 @@ fn some_tasks_are_part_of_others_one_level_deep_and_one_is_done() {
     assert!(all
         .iter()
         .any(|t| t.title == "Weekly cost report automation"));
+}
+
+#[test]
+fn some_work_has_gone_quiet_and_one_task_was_only_confirmed() {
+    let conn = seeded(TODAY);
+    let task = |title: &str| {
+        tasks::list(&conn, false)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.title == title)
+            .unwrap_or_else(|| panic!("no task {title}"))
+    };
+    // Confirmed three days ago, although nothing about it changed for twenty.
+    let confirmed = task("Rotate service credentials");
+    assert_eq!(confirmed.confirmed_on, Some(date!(2027 - 02 - 28)));
+    assert!(confirmed.updated_at.date() < date!(2027 - 02 - 20));
+    // Nothing else is confirmed.
+    let others = tasks::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .filter(|t| t.confirmed_on.is_some())
+        .count();
+    assert_eq!(others, 1);
+    // Platform Cost Reduction's work was last touched 22 days ago.
+    let old = task("Autoscaling policy");
+    assert_eq!(old.updated_at.date(), date!(2027 - 02 - 09));
 }

@@ -4,17 +4,20 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    timefmt::parse_date, AppError, Contribution, EdgeType, NewEdge, NodeRef, NodeSummary, NodeType,
-    Objective, ObjectiveDetail, ObjectiveStatus, Patch, UpdateObjective, Uuid, DEFAULT_REVIEW_DAYS,
+    timefmt::parse_date, AppError, ApproachScope, Contribution, EdgeType, NewEdge, NodeRef,
+    NodeSummary, NodeType, Objective, ObjectiveDetail, ObjectiveStatus, Patch, UpdateObjective,
+    Uuid, DEFAULT_REVIEW_DAYS,
 };
 
 use crate::{
     api,
     calendar::format_ymd,
     components::{
+        approaching::ApproachStrip,
+        confirm_archive::{question, ConfirmArchive, UNDO_HINT},
         date_field::today_ymd,
         detail_pane::{Section, FIELD_GROUP},
-        form::{SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_SOFT, INPUT},
+        form::{SelectField, TextField, BUTTON_DANGER, BUTTON_SOFT, INPUT},
         health_panel::ObjectiveHealthSection,
         item_notes::ItemNotes,
         markdown_box::{saver, MarkdownField},
@@ -51,6 +54,7 @@ pub fn ObjectivePanel(id: Uuid) -> impl IntoView {
     view! {
         <Section title="Fields" always_open=true>
             <ObjectiveSummary id=id />
+            <ApproachStrip scope=ApproachScope::Objective(id) class="mb-3" />
             {move || match objective.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
@@ -392,40 +396,31 @@ fn ArchiveObjective(detail: ObjectiveDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
     let id = detail.objective.id;
     let title = detail.objective.title.clone();
     let links = detail.contributions.len();
-    let confirming = RwSignal::new(false);
-
-    let confirm = move |_| {
+    let message = if links == 0 {
+        format!("Nothing contributes to it. {UNDO_HINT}")
+    } else {
+        format!(
+            "Its {links} contribution link{} will be archived with it; the projects and tasks stay. {UNDO_HINT}",
+            if links == 1 { "" } else { "s" }
+        )
+    };
+    let archive = move || {
         spawn_local(async move {
             if finish(api::archive_objective(id).await, toasts, version).is_some() {
-                confirming.set(false);
                 selection.close();
             }
         });
     };
-
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            {move || if confirming.get() {
-                view! {
-                    <div class="space-y-2">
-                        <p>
-                            "Archive " <strong>{title.clone()}</strong> "? "
-                            {if links == 0 { "Nothing contributes to it.".to_owned() } else {
-                                format!("Its {links} contribution link{} will be archived with it; the projects and tasks stay.", if links == 1 { "" } else { "s" })
-                            }}
-                        </p>
-                        <div class="flex gap-2">
-                            <button class=BUTTON_DANGER on:click=confirm>"Archive"</button>
-                            <button class=BUTTON on:click=move |_| confirming.set(false)>"Cancel"</button>
-                        </div>
-                    </div>
-                }.into_any()
-            } else {
-                view! { <button class=BUTTON_DANGER on:click=move |_| confirming.set(true)>"Archive objective…"</button> }.into_any()
-            }}
+            <button class=BUTTON_DANGER
+                on:click=move |_| confirm.ask(question(&title), message.clone(), archive)>
+                "Archive objective…"
+            </button>
         </Section>
     }
 }

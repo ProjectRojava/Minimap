@@ -1,20 +1,23 @@
 //! Weekly review (spec 19): a guided look back at the week, one screen per question (`n` and
 //! `p` move between them): what slipped, what got blocked, who is overloaded, what is stale
 //! in waiting-on, which decisions were made, what got done. Rows allow quick fixes in place
-//! (reschedule, reassign, unblock, resolve, snooze). The last step shows the status report made
+//! (reschedule, reassign, unblock, resolve, snooze). The Fog step lists what is in play but has
+//! gone quiet (spec 43), each with *Still accurate*. The last step shows the status report made
 //! from the template in Settings, to save as a Markdown file or copy.
 
 use leptos::{ev, html, prelude::*, task::spawn_local, web_sys};
 use leptos_router::hooks::use_navigate;
 use minimap_types::{
-    Date, DecisionRow, NodeRef, NodeType, OverloadedPerson, ReviewBlocked, ReviewDone,
-    ReviewFinished, ReviewSlip, SlipKind, TaskStatus, UpdateTask, Uuid, WaitingOnRow, WeeklyReview,
+    Date, DecisionRow, FogLevel, FogMark, NodeRef, NodeType, OverloadedPerson, ReviewBlocked,
+    ReviewDone, ReviewFinished, ReviewSlip, SlipKind, TaskStatus, UpdateTask, Uuid, WaitingOnRow,
+    WeeklyReview,
 };
 use wasm_bindgen::JsCast;
 
 use crate::{
     api,
     components::{
+        fog::{confirm_row, StillAccurate},
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SUCCESS},
         health::load_text,
         node_row::NodeRow,
@@ -32,7 +35,7 @@ use crate::{
 
 // ------------------------------------------------------------------ pure text
 
-pub const STEPS: [&str; 8] = [
+pub const STEPS: [&str; 9] = [
     "Slipped",
     "Blocked",
     "Overloaded",
@@ -40,8 +43,11 @@ pub const STEPS: [&str; 8] = [
     "Decisions",
     "Done",
     "Ongoing",
+    "Fog",
     "Report",
 ];
+/// The Fog step: what is in play but has gone quiet.
+const FOG_STEP: usize = 7;
 const LAST_STEP: usize = STEPS.len() - 1;
 
 /// The step `delta` away from `current`, staying inside the list.
@@ -59,12 +65,13 @@ pub fn step_question(step: usize) -> &'static str {
         4 => "Which decisions were made this week?",
         5 => "What got done this week?",
         6 => "Which ongoing objectives are due for a look? Check how they are doing, then mark them reviewed.",
+        7 => "What is in play but has gone quiet? Look at it, change it, or say it is still accurate.",
         _ => "The status report for a board or executive audience. Save it or copy it.",
     }
 }
 
 /// How many rows each step has (the Report step has none).
-pub fn step_counts(r: &WeeklyReview) -> [usize; 8] {
+pub fn step_counts(r: &WeeklyReview, fog: &[FogMark]) -> [usize; 9] {
     [
         r.slipped.len(),
         r.blocked.len(),
@@ -73,12 +80,13 @@ pub fn step_counts(r: &WeeklyReview) -> [usize; 8] {
         r.decisions.len(),
         r.done.len() + r.finished.len(),
         r.reviews.len(),
+        fog.len(),
         0,
     ]
 }
 
 /// The nodes of a step's rows in display order (for `j`/`k`/`Enter`).
-pub fn step_nodes(r: &WeeklyReview, step: usize) -> Vec<NodeRef> {
+pub fn step_nodes(r: &WeeklyReview, fog: &[FogMark], step: usize) -> Vec<NodeRef> {
     match step {
         0 => r.slipped.iter().map(|s| s.node.node).collect(),
         1 => r
@@ -105,7 +113,18 @@ pub fn step_nodes(r: &WeeklyReview, step: usize) -> Vec<NodeRef> {
             .chain(r.done.iter().map(|d| d.node.node))
             .collect(),
         6 => r.reviews.iter().map(|x| x.objective.node).collect(),
+        FOG_STEP => fog.iter().map(|m| m.node).collect(),
         _ => Vec::new(),
+    }
+}
+
+/// What a fogged item is: "Task", "Project", "Objective" (the row's own chip says how long).
+pub fn fog_row_text(mark: &FogMark) -> &'static str {
+    match mark.node.node_type {
+        NodeType::Task => "Task",
+        NodeType::Project => "Project",
+        NodeType::Objective => "Objective",
+        _ => "Item",
     }
 }
 
@@ -189,6 +208,11 @@ pub fn WeeklyReview() -> impl IntoView {
         api::get_weekly_review(week_start.get())
     });
     let people = LocalResource::new(api::list_people);
+    // What has gone quiet (spec 43), for the Fog step: Fog first, then Haze, oldest first.
+    let fog = LocalResource::new(move || {
+        version.track();
+        api::get_fog()
+    });
     view! {
         <div class="flex h-full flex-col">
             {move || {
@@ -202,9 +226,15 @@ pub fn WeeklyReview() -> impl IntoView {
                 match review.get() {
                     None => view! { <p class="p-6 text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(e)) => view! { <p class="p-6 text-danger">{e.message}</p> }.into_any(),
-                    Some(Ok(r)) => view! {
-                        <Body review=r people=options week_start=week_start step=step />
-                    }.into_any(),
+                    Some(Ok(r)) => {
+                        let marks = match fog.get() {
+                            Some(Ok(f)) => f.marks,
+                            _ => Vec::new(),
+                        };
+                        view! {
+                            <Body review=r fog=marks people=options week_start=week_start step=step />
+                        }.into_any()
+                    }
                 }
             }}
         </div>
@@ -214,18 +244,27 @@ pub fn WeeklyReview() -> impl IntoView {
 #[component]
 fn Body(
     review: WeeklyReview,
+    fog: Vec<FogMark>,
     people: Vec<(String, String)>,
     week_start: RwSignal<Option<Date>>,
     step: RwSignal<usize>,
 ) -> impl IntoView {
     let list = expect_context::<ListNav>();
     let review = StoredValue::new(review);
+    let fog = StoredValue::new(fog);
     let people = StoredValue::new(people);
 
     // j/k/Enter walk the rows of the step being shown.
     Effect::new(move |_| {
         let s = step.get();
-        list.set_items(review.with_value(|r| step_nodes(r, s)));
+        let nodes = review.with_value(|r| fog.with_value(|f| step_nodes(r, f, s)));
+        list.set_items(nodes);
+    });
+    // `c`: the item under the cursor is still accurate (clears its fog).
+    list.on_row_key(move |key, node| {
+        if key == "c" {
+            confirm_row(node);
+        }
     });
     // n / p move between the steps (not while typing).
     let handle = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
@@ -251,7 +290,7 @@ fn Body(
     let (week_start_day, week_end_day) = review.with_value(|r| (r.week_start, r.week_end));
     let (prev_start, next_start) = review.with_value(|r| (r.prev_week_start, r.next_week_start));
     let current = review.with_value(|r| r.is_current_week);
-    let counts = review.with_value(step_counts);
+    let counts = review.with_value(|r| fog.with_value(|f| step_counts(r, f)));
     let prev = move |_| week_start.set(Some(prev_start));
     let next = move |_| week_start.set(Some(next_start));
     let reset = move |_| week_start.set(None);
@@ -274,6 +313,9 @@ fn Body(
                     {(count > 0).then(|| view! {
                         <span class="rounded-sm border border-line px-1 text-[10px] leading-4 text-muted">{count}</span>
                     })}
+                    {(i == FOG_STEP && count == 0).then(|| view! {
+                        <span class="text-[10px] text-success">"All clear"</span>
+                    })}
                 </button>
             }
         })
@@ -291,6 +333,7 @@ fn Body(
             4 => decisions_step(r).into_any(),
             5 => done_step(r).into_any(),
             6 => ongoing_step(r).into_any(),
+            FOG_STEP => fog_step(&fog.get_value()).into_any(),
             _ => view! { <ReportStep week_start=r.week_start /> }.into_any(),
         })
     };
@@ -302,7 +345,7 @@ fn Body(
             <span class="tabular-nums text-muted">{range_text(week_start_day, week_end_day)}</span>
             <button class=BUTTON aria-label="Next week" on:click=next>"›"</button>
             <button class=BUTTON disabled=current on:click=reset>"This week"</button>
-            <Hints keys=&[("n/p", "next/previous step"), ("j/k", "move"), ("Enter", "open")] />
+            <Hints keys=&[("n/p", "next/previous step"), ("j/k", "move"), ("Enter", "open"), ("c", "still accurate")] />
         </PageHeader>
         <nav class="flex shrink-0 flex-wrap items-center gap-1 border-b border-line px-4 py-2"
              aria-label="Review steps">{tabs}</nav>
@@ -464,7 +507,50 @@ fn ongoing_step(r: &WeeklyReview) -> impl IntoView {
     view! { <GroupLabel label="Due for review" count=r.reviews.len() /> {rows} }.into_any()
 }
 
+/// What is in play but has gone quiet (spec 43), Fog first and then Haze, oldest first.
+fn fog_step(marks: &[FogMark]) -> impl IntoView {
+    if marks.is_empty() {
+        return view! {
+            <EmptyState icon="review" title="All clear"
+                hint="Nothing in play has gone quiet." />
+        }
+        .into_any();
+    }
+    let fogged = marks.iter().filter(|m| m.level == FogLevel::Fog).count();
+    let rows = marks
+        .iter()
+        .enumerate()
+        .map(|(i, m)| view! { <FogRow mark=m.clone() index=i /> })
+        .collect_view();
+    view! {
+        <GroupLabel label="Gone quiet" count=marks.len() />
+        <p class="px-4 py-1 text-[11px] text-muted">
+            {format!("{fogged} in fog, {} in haze.", marks.len() - fogged)}
+        </p>
+        {rows}
+    }
+    .into_any()
+}
+
 // ------------------------------------------------------------------ rows
+
+/// An item that has gone quiet: what it is, how long, *Still accurate*, and for a task the usual
+/// reschedule buttons. The chip comes from `NodeRow`.
+#[component]
+fn FogRow(mark: FogMark, index: usize) -> impl IntoView {
+    let node = mark.node;
+    let is_task = node.node_type == NodeType::Task;
+    view! {
+        <NodeRow node=node index=index>
+            <span class=Tone::Neutral.chip()>{fog_row_text(&mark)}</span>
+            <span class="min-w-0 truncate font-medium">{mark.label.clone()}</span>
+            <span class="ml-auto flex shrink-0 items-center gap-2" on:click=|ev| ev.stop_propagation()>
+                <StillAccurate node=node />
+                {is_task.then(|| view! { <TaskActions id=node.id /> })}
+            </span>
+        </NodeRow>
+    }
+}
 
 /// Reassign a task from a row.
 #[component]
@@ -816,13 +902,16 @@ mod tests {
 
     #[test]
     fn steps_stay_inside_the_list() {
-        assert_eq!(STEPS.len(), 8);
+        assert_eq!(STEPS.len(), 9);
         assert_eq!(STEPS[LAST_STEP], "Report");
+        // Fog comes just before the report.
+        assert_eq!(STEPS[FOG_STEP], "Fog");
+        assert_eq!(FOG_STEP + 1, LAST_STEP);
         assert_eq!(move_step(0, -1), 0);
         assert_eq!(move_step(0, 1), 1);
-        assert_eq!(move_step(7, 1), 7);
-        assert_eq!(move_step(7, -1), 6);
-        assert_eq!(move_step(3, 100), 7);
+        assert_eq!(move_step(8, 1), 8);
+        assert_eq!(move_step(8, -1), 7);
+        assert_eq!(move_step(3, 100), 8);
         for i in 0..STEPS.len() {
             assert!(!step_question(i).is_empty());
         }
@@ -855,7 +944,7 @@ mod tests {
     #[test]
     fn row_nodes_follow_what_each_step_shows() {
         let mut r = review();
-        assert!(step_nodes(&r, 0).is_empty());
+        assert!(step_nodes(&r, &[], 0).is_empty());
         r.slipped = vec![slip(SlipKind::DueMoved, NodeType::Task)];
         r.decisions = vec![DecisionRow {
             id: Uuid::from_u128(9),
@@ -888,16 +977,26 @@ mod tests {
         };
         r.waiting = vec![wait(30)];
         r.waiting_resolved = vec![wait(31)];
-        assert_eq!(step_nodes(&r, 0).len(), 1);
-        let waiting: Vec<Uuid> = step_nodes(&r, 3).iter().map(|n| n.id).collect();
+        let fog = vec![FogMark {
+            node: NodeRef::new(NodeType::Project, Uuid::from_u128(40)),
+            label: "Platform".into(),
+            level: FogLevel::Fog,
+            age_days: 22,
+            last_seen: date!(2027 - 02 - 09),
+            reason: minimap_types::FogReason::NoChange,
+        }];
+        assert_eq!(step_nodes(&r, &fog, 0).len(), 1);
+        let waiting: Vec<Uuid> = step_nodes(&r, &fog, 3).iter().map(|n| n.id).collect();
         assert_eq!(waiting, vec![Uuid::from_u128(30), Uuid::from_u128(31)]);
-        assert_eq!(step_nodes(&r, 4)[0].node_type, NodeType::Decision);
-        assert!(step_nodes(&r, LAST_STEP).is_empty());
-        let counts = step_counts(&r);
-        assert_eq!(counts, [1, 0, 0, 2, 1, 0, 0, 0]);
+        assert_eq!(step_nodes(&r, &fog, 4)[0].node_type, NodeType::Decision);
+        assert_eq!(step_nodes(&r, &fog, FOG_STEP)[0].id, Uuid::from_u128(40));
+        assert!(step_nodes(&r, &fog, LAST_STEP).is_empty());
+        let counts = step_counts(&r, &fog);
+        assert_eq!(counts, [1, 0, 0, 2, 1, 0, 0, 1, 0]);
         for (step, count) in counts.iter().enumerate() {
-            assert_eq!(step_nodes(&r, step).len(), *count, "step {step}");
+            assert_eq!(step_nodes(&r, &fog, step).len(), *count, "step {step}");
         }
+        assert_eq!(fog_row_text(&fog[0]), "Project");
     }
 
     #[test]

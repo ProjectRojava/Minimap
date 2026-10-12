@@ -279,6 +279,12 @@
           "markdownDescription": "Enables the commit_quick_add command without any pre-configured scope."
         },
         {
+          "description": "Enables the confirm_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-confirm-item",
+          "markdownDescription": "Enables the confirm_item command without any pre-configured scope."
+        },
+        {
           "description": "Enables the connect_drive command without any pre-configured scope.",
           "type": "string",
           "const": "allow-connect-drive",
@@ -375,6 +381,12 @@
           "markdownDescription": "Enables the disconnect_drive command without any pre-configured scope."
         },
         {
+          "description": "Enables the ensure_task_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ensure-task-decision",
+          "markdownDescription": "Enables the ensure_task_decision command without any pre-configured scope."
+        },
+        {
           "description": "Enables the export_all command without any pre-configured scope.",
           "type": "string",
           "const": "allow-export-all",
@@ -387,10 +399,22 @@
           "markdownDescription": "Enables the export_markdown command without any pre-configured scope."
         },
         {
+          "description": "Enables the finish_decision_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-finish-decision-task",
+          "markdownDescription": "Enables the finish_decision_task command without any pre-configured scope."
+        },
+        {
           "description": "Enables the finish_drive_connect command without any pre-configured scope.",
           "type": "string",
           "const": "allow-finish-drive-connect",
           "markdownDescription": "Enables the finish_drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_approaching command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-approaching",
+          "markdownDescription": "Enables the get_approaching command without any pre-configured scope."
         },
         {
           "description": "Enables the get_backup_status command without any pre-configured scope.",
@@ -433,6 +457,12 @@
           "type": "string",
           "const": "allow-get-dependency-graph",
           "markdownDescription": "Enables the get_dependency_graph command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_fog command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-fog",
+          "markdownDescription": "Enables the get_fog command without any pre-configured scope."
         },
         {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
@@ -1041,6 +1071,12 @@
           "markdownDescription": "Denies the commit_quick_add command without any pre-configured scope."
         },
         {
+          "description": "Denies the confirm_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-confirm-item",
+          "markdownDescription": "Denies the confirm_item command without any pre-configured scope."
+        },
+        {
           "description": "Denies the connect_drive command without any pre-configured scope.",
           "type": "string",
           "const": "deny-connect-drive",
@@ -1137,6 +1173,12 @@
           "markdownDescription": "Denies the disconnect_drive command without any pre-configured scope."
         },
         {
+          "description": "Denies the ensure_task_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ensure-task-decision",
+          "markdownDescription": "Denies the ensure_task_decision command without any pre-configured scope."
+        },
+        {
           "description": "Denies the export_all command without any pre-configured scope.",
           "type": "string",
           "const": "deny-export-all",
@@ -1149,10 +1191,22 @@
           "markdownDescription": "Denies the export_markdown command without any pre-configured scope."
         },
         {
+          "description": "Denies the finish_decision_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-finish-decision-task",
+          "markdownDescription": "Denies the finish_decision_task command without any pre-configured scope."
+        },
+        {
           "description": "Denies the finish_drive_connect command without any pre-configured scope.",
           "type": "string",
           "const": "deny-finish-drive-connect",
           "markdownDescription": "Denies the finish_drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_approaching command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-approaching",
+          "markdownDescription": "Denies the get_approaching command without any pre-configured scope."
         },
         {
           "description": "Denies the get_backup_status command without any pre-configured scope.",
@@ -1195,6 +1249,12 @@
           "type": "string",
           "const": "deny-get-dependency-graph",
           "markdownDescription": "Denies the get_dependency_graph command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_fog command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-fog",
+          "markdownDescription": "Denies the get_fog command without any pre-configured scope."
         },
         {
           "description": "Denies the get_node_summary command without any pre-configured scope.",

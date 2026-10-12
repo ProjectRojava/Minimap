@@ -331,6 +331,54 @@ pub fn finish<T>(result: Result<T, AppError>, toasts: Toasts, version: DataVersi
     }
 }
 
+/// The *Finish decision* dialog (spec 42): the Decision task that was being finished, if the
+/// dialog is open.
+#[derive(Clone, Copy)]
+pub struct FinishDecision(pub RwSignal<Option<Uuid>>);
+
+impl FinishDecision {
+    pub fn new() -> Self {
+        Self(RwSignal::new(None))
+    }
+
+    pub fn open(&self, task: Uuid) {
+        self.0.set(Some(task));
+    }
+
+    pub fn close(&self) {
+        self.0.set(None);
+    }
+}
+
+impl Default for FinishDecision {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The error code of a Decision task that can't be finished yet.
+pub const DECISION_INCOMPLETE: &str = "decision_incomplete";
+
+/// [`finish`] for a change to a task. If it was refused because the task is a Decision with no
+/// decision and reason written yet, the *Finish decision* dialog opens instead of an error toast
+/// (views still reload, so a dragged card goes back to its column).
+pub fn finish_task<T>(
+    result: Result<T, AppError>,
+    task: Uuid,
+    toasts: Toasts,
+    version: DataVersion,
+    gate: FinishDecision,
+) -> Option<T> {
+    if let Err(e) = &result {
+        if e.code == DECISION_INCOMPLETE {
+            version.bump();
+            gate.open(task);
+            return None;
+        }
+    }
+    finish(result, toasts, version)
+}
+
 /// Undo (or redo) the last change, as the keyboard shortcut and the palette do: the answer is a
 /// toast ("Undone: archived task X", or why nothing was), and views reload when something changed.
 pub fn undo_or_redo(redo: bool, toasts: Toasts, version: DataVersion) {

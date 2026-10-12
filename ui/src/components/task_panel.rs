@@ -11,9 +11,10 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        confirm_archive::{ConfirmArchive, UNDO_HINT},
         detail_pane::{Section, FIELD_GROUP},
         focus::FocusField,
-        form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
+        form::{date_patch, SelectField, TextField, BUTTON_DANGER},
         item_notes::ItemNotes,
         markdown_box::{saver, MarkdownField},
         meeting::{MakeMeeting, MeetingFields},
@@ -21,12 +22,13 @@ use crate::{
         reference_links::ReferenceLinks,
         repeat_field::RepeatField,
         summary_chips::TaskSummary,
+        task_decision::TaskDecision,
         task_links::TaskLinks,
         task_type::{use_task_types, TaskTiming},
         what_if_button::WhatIfButton,
     },
     labels::{estimate_text, priority_option, task_status_label, PRIORITY_TINT, TASK_STATUS_TINT},
-    state::{finish, DataVersion, Selection, Toasts},
+    state::{finish, finish_task, DataVersion, FinishDecision, Selection, Toasts},
 };
 
 #[component]
@@ -65,6 +67,7 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
                 _ => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Section>
+        <TaskDecision task=id />
         <TaskLinks task=id />
         <ReferenceLinks task=id />
         <ItemNotes node=NodeRef::new(NodeType::Task, id) />
@@ -82,11 +85,12 @@ fn TaskFields(
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
     let task: Task = detail.task;
     let id = task.id;
     let save = move |patch: UpdateTask| {
         spawn_local(async move {
-            finish(api::update_task(id, patch).await, toasts, version);
+            finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
         });
     };
     let save_date = move |v: String, which: bool| match date_patch(&v) {
@@ -272,32 +276,21 @@ fn ArchiveTask(id: Uuid) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
-    let confirming = RwSignal::new(false);
+    let confirm = expect_context::<ConfirmArchive>();
 
-    let confirm = move |_| {
+    let archive = move || {
         spawn_local(async move {
             if finish(api::archive_task(id).await, toasts, version).is_some() {
-                confirming.set(false);
                 selection.close();
             }
         });
     };
-
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            {move || if confirming.get() {
-                view! {
-                    <div class="space-y-2">
-                        <p>"Archive this task? Its links (assignee, blocks) are archived with it."</p>
-                        <div class="flex gap-2">
-                            <button class=BUTTON_DANGER on:click=confirm>"Archive"</button>
-                            <button class=BUTTON on:click=move |_| confirming.set(false)>"Cancel"</button>
-                        </div>
-                    </div>
-                }.into_any()
-            } else {
-                view! { <button class=BUTTON_DANGER on:click=move |_| confirming.set(true)>"Archive task…"</button> }.into_any()
-            }}
+            <button class=BUTTON_DANGER
+                on:click=move |_| confirm.ask("Archive this task?", format!("Its links (assignee, blocks) are archived with it. {UNDO_HINT}"), archive)>
+                "Archive task…"
+            </button>
         </Section>
     }
 }

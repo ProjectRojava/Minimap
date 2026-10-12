@@ -8,6 +8,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        confirm_archive::{ConfirmArchive, UNDO_HINT},
         detail_pane::Section,
         form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER, BUTTON_PRIMARY},
         people_panel::error_line,
@@ -210,30 +211,21 @@ fn ArchiveWaiting(id: Uuid) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
-    let confirming = RwSignal::new(false);
-    let confirm = move |_| {
+    let confirm = expect_context::<ConfirmArchive>();
+
+    let archive = move || {
         spawn_local(async move {
             if finish(api::archive_waiting_on(id).await, toasts, version).is_some() {
-                confirming.set(false);
                 selection.close();
             }
         });
     };
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            {move || if confirming.get() {
-                view! {
-                    <div class="space-y-2">
-                        <p>"Archive this waiting-on? Its links are archived with it."</p>
-                        <div class="flex gap-2">
-                            <button class=BUTTON_DANGER on:click=confirm>"Archive"</button>
-                            <button class=BUTTON on:click=move |_| confirming.set(false)>"Cancel"</button>
-                        </div>
-                    </div>
-                }.into_any()
-            } else {
-                view! { <button class=BUTTON on:click=move |_| confirming.set(true)>"Archive…"</button> }.into_any()
-            }}
+            <button class=BUTTON_DANGER
+                on:click=move |_| confirm.ask("Archive this waiting-on?", format!("Its links are archived with it. {UNDO_HINT}"), archive)>
+                "Archive…"
+            </button>
         </Section>
     }
 }

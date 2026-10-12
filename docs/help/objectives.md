@@ -23,6 +23,10 @@ The pane opens with a row of coloured pills: your assessment (green on track, am
 - **Health**: the computed health and why.
 - **Notes and findings**: write a note about the objective (progress, reviews, decisions) and open the ones that mention it. They are ordinary [notes](help:notes).
 
+## Fog
+
+A goal that is not done and that nobody has touched for a while, and whose projects and tasks have not moved, is faded with a `≋ 22d` chip; **Still accurate** (or `c`) clears it. Ongoing objectives are not fogged: their review rhythm does that job. See [Fog](help:fog).
+
 ## Ongoing objectives
 
 Some outcomes never finish: keeping the systems patched, access reviewed, costs in check. Mark such an objective **Ongoing** (the *Ongoing* box when you add one, or *Kind* in its pane).

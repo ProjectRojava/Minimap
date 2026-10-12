@@ -1,13 +1,14 @@
 //! Detail-pane body for a team: fields, parent, sub-teams, members, archive.
 
 use leptos::{prelude::*, task::spawn_local};
-use minimap_types::{NodeSummary, Patch, Team, TeamDetail, TeamRow, UpdateTeam, Uuid};
+use minimap_types::{Patch, Team, TeamDetail, TeamRow, UpdateTeam, Uuid};
 
 use crate::{
     api,
     components::{
+        confirm_archive::{question, ConfirmArchive, UNDO_HINT},
         detail_pane::Section,
-        form::{SelectField, TextField, BUTTON, BUTTON_DANGER},
+        form::{SelectField, TextField, BUTTON_DANGER},
         markdown_box::{saver, MarkdownField},
         people_panel::{error_line, team_options, NodeButtons},
     },
@@ -143,41 +144,31 @@ fn ArchiveTeam(detail: TeamDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
     let id = detail.team.id;
     let name = detail.team.name.clone();
-    let members: Vec<NodeSummary> = detail.members.iter().map(|m| m.node.clone()).collect();
-    let confirming = RwSignal::new(false);
-
-    let confirm = move |_| {
+    let members = detail.members.len();
+    let message = if members == 0 {
+        format!("It has no members. {UNDO_HINT}")
+    } else {
+        format!(
+            "Its {members} membership{} will be archived with it. {UNDO_HINT}",
+            if members == 1 { "" } else { "s" }
+        )
+    };
+    let archive = move || {
         spawn_local(async move {
-            // Refused (with a toast) while the team still has active sub-teams.
             if finish(api::archive_team(id).await, toasts, version).is_some() {
-                confirming.set(false);
                 selection.close();
             }
         });
     };
-
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            {move || if confirming.get() {
-                view! {
-                    <div class="space-y-2">
-                        <p>
-                            "Archive " <strong>{name.clone()}</strong> "? "
-                            {if members.is_empty() { "It has no members.".to_owned() } else {
-                                format!("Its {} membership{} will be archived with it.", members.len(), if members.len() == 1 { "" } else { "s" })
-                            }}
-                        </p>
-                        <div class="flex gap-2">
-                            <button class=BUTTON_DANGER on:click=confirm>"Archive"</button>
-                            <button class=BUTTON on:click=move |_| confirming.set(false)>"Cancel"</button>
-                        </div>
-                    </div>
-                }.into_any()
-            } else {
-                view! { <button class=BUTTON on:click=move |_| confirming.set(true)>"Archive team…"</button> }.into_any()
-            }}
+            <button class=BUTTON_DANGER
+                on:click=move |_| confirm.ask(question(&name), message.clone(), archive)>
+                "Archive team…"
+            </button>
         </Section>
     }
 }

@@ -150,6 +150,9 @@ pub struct ProjectRow {
     /// Active tasks in the project, and how many of them are done.
     pub task_count: u32,
     pub done_task_count: u32,
+    /// The room before its target (spec 44), filled by the command; `None` from the store.
+    #[serde(default)]
+    pub zone: crate::Zone,
 }
 
 /// A list section (one objective, or "No objective") or a board column (one status).
@@ -179,6 +182,9 @@ pub struct ProjectDetail {
     /// Projects that depend on this one.
     pub needed_by: Vec<NodeSummary>,
     pub tasks: Vec<ProjectTask>,
+    /// The room before its target (spec 44), filled by the command; `None` from the store.
+    #[serde(default)]
+    pub zone: crate::Zone,
 }
 
 /// What to do with a project's tasks when it is archived.
@@ -244,6 +250,9 @@ pub struct TaskDetail {
     pub task: Task,
     pub project: Option<NodeSummary>,
     pub assignee: Option<NodeSummary>,
+    /// The decision record of a task of type Decision (spec 41); it outlives the task.
+    #[serde(default)]
+    pub decision: Option<crate::Decision>,
 }
 
 pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
@@ -251,6 +260,10 @@ pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
 pub const DEFAULT_STALE_WAITING_DAYS: u32 = 7;
 /// More open tasks than this flags a person as overloaded (the simple, estimate-free signal).
 pub const DEFAULT_CAPACITY_TASK_LIMIT: u32 = 10;
+/// The safe zone is narrow at this many working days of room or fewer.
+pub const DEFAULT_ZONE_NARROW_DAYS: u32 = 3;
+/// The most days of room the narrow setting can be.
+pub const MAX_ZONE_NARROW_DAYS: u32 = 30;
 /// Dark is the default look. The UI owns the list of themes; the backend only stores the id.
 pub const DEFAULT_THEME: &str = "minimap-dark";
 
@@ -270,9 +283,13 @@ pub struct Settings {
     pub stale_waiting_days: u32,
     /// A person with more open tasks than this is flagged on Capacity and the Overview.
     pub capacity_task_limit: u32,
+    /// A project's safe zone is *narrow* at this many working days of room or fewer (spec 44).
+    pub zone_narrow_days: u32,
     /// When a project's lateness, blocked/overdue share or unestimated share turns its health
     /// amber or red.
     pub health: crate::HealthThresholds,
+    /// When an item in play counts as hazy or fogged for lack of a change (spec 43).
+    pub fog: crate::FogThresholds,
     /// The Markdown template of the weekly status report (`{{placeholders}}`, see
     /// `REPORT_PLACEHOLDERS`); the built-in default until edited.
     pub report_template: String,
@@ -296,7 +313,9 @@ impl Default for Settings {
             theme: DEFAULT_THEME.to_owned(),
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
+            zone_narrow_days: DEFAULT_ZONE_NARROW_DAYS,
             health: crate::HealthThresholds::default(),
+            fog: crate::FogThresholds::default(),
             report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
             backup_folder: None,
             auto_backup: true,
@@ -315,7 +334,9 @@ pub struct UpdateSettings {
     pub theme: Option<String>,
     pub stale_waiting_days: Option<u32>,
     pub capacity_task_limit: Option<u32>,
+    pub zone_narrow_days: Option<u32>,
     pub health: Option<crate::HealthThresholds>,
+    pub fog: Option<crate::FogThresholds>,
     /// A new report template; an empty text restores the built-in one.
     pub report_template: Option<String>,
     /// A new backup folder (an absolute path); an empty text goes back to the default.

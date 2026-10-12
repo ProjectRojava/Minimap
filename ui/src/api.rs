@@ -453,6 +453,40 @@ pub async fn create_linked_task(
     .await
 }
 
+/// The decision record of a Decision task, made if it has none (spec 41).
+pub async fn ensure_task_decision(task_id: Uuid) -> Result<Decision, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+    }
+    invoke("ensure_task_decision", &Arg { task_id }).await
+}
+
+/// Writes the decision and the reason and finishes a Decision task, in one step (spec 42).
+pub async fn finish_decision_task(
+    task_id: Uuid,
+    decision: String,
+    rationale: String,
+) -> Result<Task, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+        decision: String,
+        rationale: String,
+    }
+    invoke(
+        "finish_decision_task",
+        &Arg {
+            task_id,
+            decision,
+            rationale,
+        },
+    )
+    .await
+}
+
 pub async fn archive_task(id: Uuid) -> Result<(), AppError> {
     invoke("archive_task", &IdArg { id }).await
 }
@@ -669,6 +703,33 @@ pub async fn get_this_week(
     as_of: Option<minimap_types::Date>,
 ) -> Result<ThisWeek, AppError> {
     invoke("get_this_week", &ThisWeekArg { week_start, as_of }).await
+}
+
+#[derive(Serialize)]
+struct ApproachArg {
+    scope: minimap_types::ApproachScope,
+}
+
+/// Trouble elsewhere that will reach what is being looked at (spec 45).
+pub async fn get_approaching(
+    scope: minimap_types::ApproachScope,
+) -> Result<minimap_types::ApproachReport, AppError> {
+    invoke("get_approaching", &ApproachArg { scope }).await
+}
+
+/// The items in play that have gone quiet, and the share of what is in play that is clear.
+pub async fn get_fog() -> Result<minimap_types::FogReport, AppError> {
+    invoke("get_fog", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct ConfirmArg {
+    node: NodeRef,
+}
+
+/// Says an item is still accurate: it clears its fog without changing anything.
+pub async fn confirm_item(node: NodeRef) -> Result<(), AppError> {
+    invoke("confirm_item", &ConfirmArg { node }).await
 }
 
 #[derive(Serialize)]

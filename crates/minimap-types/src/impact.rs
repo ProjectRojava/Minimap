@@ -105,6 +105,95 @@ pub struct ImpactSummary {
     pub worst_delay_days: f64,
 }
 
+/// What a step of a recalculated route does (spec 46). The words are in the UI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnKind {
+    /// A slipped task: where the delay enters.
+    Slips,
+    /// The delay arrives and goes on whole.
+    PassesOn,
+    /// Slack soaks all of it up: it stops here.
+    Absorbs,
+    /// Slack soaks up some of it and the rest goes on.
+    PartlyAbsorbs,
+    /// Now on the route, and wasn't.
+    JoinsRoute,
+    /// Was on the route, and isn't.
+    LeavesRoute,
+    /// The project's last task: where it ends up.
+    Arrives,
+    /// "... N more steps": a run of steps left out of a long route.
+    More,
+}
+
+/// One step of the turn-by-turn list of a project's recalculated route.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Turn {
+    pub task: NodeSummary,
+    pub kind: TurnKind,
+    /// What reached the task, soaked up and passed on (working days); `incoming = absorbed + delay`.
+    pub incoming_days: f64,
+    pub absorbed_days: f64,
+    pub delay_days: f64,
+    /// Where the task finishes after the slip (the project's finish for `Arrives`).
+    pub new_finish: Date,
+    /// For `PassesOn`, the other steps of the same delay folded into this one ("and 2 more");
+    /// for `More`, how many steps were left out.
+    pub also: u32,
+}
+
+/// A task drawn on a route timeline: where it was and where it is now, as working-day offsets from
+/// today, and whether it is on the old or the new route.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RouteBar {
+    pub id: Uuid,
+    pub title: String,
+    pub old_es: f64,
+    pub old_ef: f64,
+    pub new_es: f64,
+    pub new_ef: f64,
+    pub on_old_route: bool,
+    pub on_new_route: bool,
+}
+
+/// The route to a project's finish before and after the scenario (spec 46): the critical chain, the
+/// new finish, and a turn-by-turn list of where the slip enters, is absorbed, passes on and arrives.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectRoute {
+    pub project_id: Uuid,
+    pub title: String,
+    /// The baseline critical chain, in order from start to finish.
+    pub before: Vec<Uuid>,
+    /// The scenario's critical chain.
+    pub after: Vec<Uuid>,
+    /// `before != after` as sequences.
+    pub changed: bool,
+    pub old_finish: Option<Date>,
+    pub new_finish: Option<Date>,
+    pub target_date: Option<Date>,
+    /// Working days the finish moves.
+    pub delay_days: f64,
+    /// Working days past the target after the slip.
+    pub late_after: Option<u32>,
+    /// On time before, late after.
+    #[serde(default)]
+    pub newly_late: bool,
+    /// At most `MAX_TURNS`; the last is always `Arrives`.
+    pub turns: Vec<Turn>,
+    /// The tasks to draw: both routes and everything the slip reached in the project.
+    pub bars: Vec<RouteBar>,
+    /// Offset of `days[0]`, and the working days the timeline covers (today, every bar and the
+    /// target), so the screen can label its axis without date arithmetic.
+    pub first_offset: i64,
+    pub days: Vec<Date>,
+    /// End of the target day, as an offset.
+    pub target_offset: Option<f64>,
+}
+
+/// The most steps a turn-by-turn list shows; a longer route folds its middle into a `More` step.
+pub const MAX_TURNS: usize = 8;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImpactReport {
     /// The scenario, named.
@@ -116,6 +205,10 @@ pub struct ImpactReport {
     pub projects: Vec<ImpactProject>,
     pub objectives: Vec<ImpactObjective>,
     pub people: Vec<ImpactPerson>,
+    /// The route to the finish of each affected project, before and after (spec 46), in the order
+    /// of `projects`.
+    #[serde(default)]
+    pub routes: Vec<ProjectRoute>,
 }
 
 /// One date change "apply" would make: the task starts on `start_date` (pinned) and its due

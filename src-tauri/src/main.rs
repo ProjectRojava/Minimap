@@ -175,6 +175,9 @@ fn main() {
             commands::backup::backup_now,
             commands::backup::preview_restore,
             commands::backup::restore_backup,
+            commands::approach::get_approaching,
+            commands::fog::get_fog,
+            commands::fog::confirm_item,
             commands::this_week::get_this_week,
             commands::this_week::reschedule_task,
             commands::overview::get_portfolio_overview,
@@ -217,6 +220,8 @@ fn main() {
             commands::attachments::open_attachment,
             commands::links::open_link,
             commands::tasks::create_linked_task,
+            commands::tasks::ensure_task_decision,
+            commands::tasks::finish_decision_task,
         ])
         .build(tauri::generate_context!());
     let app = match result {

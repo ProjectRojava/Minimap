@@ -15,17 +15,19 @@
 //! At every task, `incoming = absorbed + delay`: what arrived is either soaked up by slack or
 //! passed on as a later finish. Nothing ever moves earlier.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use minimap_types::{
     ApplyPreview, DateChange, Edge, EdgeType, ImpactObjective, ImpactPerson, ImpactPersonTask,
     ImpactProject, ImpactReport, ImpactSummary, ImpactTask, NodeRef, NodeSummary, NodeType,
-    Objective, Person, Project, Schedule, ScheduleScope, ScheduledTask, Slip, Task, TaskStatus,
-    Uuid, WorkWeek,
+    Objective, Person, Project, ProjectRoute, RouteBar, Schedule, ScheduleScope, ScheduledTask,
+    Slip, Task, TaskStatus, Turn, TurnKind, Uuid, WorkWeek, MAX_TURNS,
 };
 use time::Date;
 
-use crate::schedule::{compute, compute_with, date_of, end_index, working_index, ScheduleError};
+use crate::schedule::{
+    chain_of, compute, compute_with, date_of, end_index, working_index, ScheduleError,
+};
 
 const EPS: f64 = 1e-9;
 /// More rounds than any plan needs (project dependencies are acyclic); a safety stop.
@@ -529,6 +531,17 @@ pub fn analyze(world: &World, slips: &[Slip]) -> Result<ImpactReport, ImpactErro
         people: people.len() as u32,
         worst_delay_days: tasks.iter().fold(0.0_f64, |a, t| a.max(t.delay_days)),
     };
+    let routes = project_routes(
+        world,
+        &sc,
+        &Reached {
+            tasks: &tasks,
+            delay: &delay,
+            preds: &preds,
+        },
+        &projects,
+        &base_forecast,
+    );
     Ok(ImpactReport {
         slips: slip_labels,
         summary,
@@ -536,7 +549,285 @@ pub fn analyze(world: &World, slips: &[Slip]) -> Result<ImpactReport, ImpactErro
         projects,
         objectives,
         people,
+        routes,
     })
+}
+
+/// A project a route is drawn for: what the report says about its finish.
+struct Head {
+    id: Uuid,
+    title: String,
+    old_finish: Option<Date>,
+    new_finish: Option<Date>,
+    target_date: Option<Date>,
+    delay_days: f64,
+    late_after: Option<u32>,
+    newly_late: bool,
+}
+
+/// What the report knows about how the slip travelled, for the routes.
+struct Reached<'a> {
+    tasks: &'a [ImpactTask],
+    /// Each open task's own finish delay.
+    delay: &'a HashMap<Uuid, f64>,
+    /// Open tasks' blocking predecessors.
+    preds: &'a HashMap<Uuid, Vec<Uuid>>,
+}
+
+/// The route to the finish of every affected project, before and after (spec 46): the critical
+/// chain each time, and a turn-by-turn list of where the slip enters, is absorbed, passes on and
+/// arrives.
+fn project_routes(
+    world: &World,
+    sc: &Scenario,
+    reached: &Reached,
+    projects: &[ImpactProject],
+    base_forecast: &HashMap<Uuid, &minimap_types::ProjectForecast>,
+) -> Vec<ProjectRoute> {
+    let base = by_id(&sc.base);
+    let scen = by_id(&sc.scen);
+    let week = world.work_week;
+    let t0 = working_index(week, world.today);
+    let summary = |id: Uuid, title: &str| NodeSummary {
+        node: NodeRef::new(NodeType::Task, id),
+        label: title.to_owned(),
+        archived: false,
+    };
+    // The projects the slip changes, as the report lists them, then those it only reached and
+    // that absorbed it (their route is unchanged, and that is worth saying).
+    let mut heads: Vec<Head> = projects
+        .iter()
+        .map(|p| Head {
+            id: p.id,
+            title: p.title.clone(),
+            old_finish: p.old_finish,
+            new_finish: p.new_finish,
+            target_date: p.target_date,
+            delay_days: p.delay_days,
+            late_after: p.late_after,
+            newly_late: p.newly_late,
+        })
+        .collect();
+    let listed: HashSet<Uuid> = heads.iter().map(|h| h.id).collect();
+    let after_forecast: HashMap<Uuid, &minimap_types::ProjectForecast> =
+        sc.scen.projects.iter().map(|f| (f.project_id, f)).collect();
+    let mut absorbed: Vec<Head> = reached
+        .tasks
+        .iter()
+        .filter_map(|t| t.project_id)
+        .collect::<HashSet<Uuid>>()
+        .into_iter()
+        .filter(|id| !listed.contains(id))
+        .filter_map(|id| {
+            let (b, a) = (base_forecast.get(&id)?, after_forecast.get(&id)?);
+            Some(Head {
+                id,
+                title: a.title.clone(),
+                old_finish: b.projected_finish,
+                new_finish: a.projected_finish,
+                target_date: a.target_date,
+                delay_days: 0.0,
+                late_after: a.late_by_days,
+                newly_late: false,
+            })
+        })
+        .collect();
+    absorbed.sort_by(|a, b| a.title.cmp(&b.title).then_with(|| a.id.cmp(&b.id)));
+    heads.extend(absorbed);
+    heads
+        .iter()
+        .map(|p| {
+            let before = chain_of(&sc.base, p.id);
+            let after = chain_of(&sc.scen, p.id);
+            let on_before: HashSet<Uuid> = before.iter().copied().collect();
+            let on_after: HashSet<Uuid> = after.iter().copied().collect();
+            let mine: HashMap<Uuid, &ImpactTask> = reached
+                .tasks
+                .iter()
+                .filter(|t| t.project_id == Some(p.id))
+                .map(|t| (t.id, t))
+                .collect();
+            let shift = sc.shift.get(&p.id).copied().unwrap_or(0.0);
+            let delayed_pred = |id: &Uuid| {
+                reached.preds.get(id).is_some_and(|ps| {
+                    ps.iter()
+                        .any(|q| reached.delay.get(q).is_some_and(|d| *d > EPS))
+                })
+            };
+
+            // The tasks that matter to the route: what the slip reached, and what joined or left it.
+            let mut ids: Vec<Uuid> = mine.keys().copied().collect();
+            ids.extend(on_before.symmetric_difference(&on_after).copied());
+            ids.sort();
+            ids.dedup();
+            let mut steps: Vec<(f64, Turn)> = Vec::new();
+            for id in &ids {
+                let (Some(b), Some(s)) = (base.get(id), scen.get(id)) else {
+                    continue;
+                };
+                let hit = mine.get(id).copied();
+                let (incoming, absorbed, delay) = hit.map_or((0.0, 0.0, 0.0), |t| {
+                    (t.incoming_days, t.absorbed_days, t.delay_days)
+                });
+                let starts = hit.is_some_and(|t| t.direct || (shift > EPS && !delayed_pred(id)));
+                let kind = if starts {
+                    TurnKind::Slips
+                } else if on_after.contains(id) && !on_before.contains(id) {
+                    TurnKind::JoinsRoute
+                } else if on_before.contains(id) && !on_after.contains(id) {
+                    TurnKind::LeavesRoute
+                } else if hit.is_none() {
+                    continue;
+                } else if delay > EPS && absorbed <= EPS {
+                    TurnKind::PassesOn
+                } else if absorbed > EPS && delay <= EPS {
+                    TurnKind::Absorbs
+                } else {
+                    TurnKind::PartlyAbsorbs
+                };
+                steps.push((
+                    s.es,
+                    Turn {
+                        task: summary(*id, &b.title),
+                        kind,
+                        incoming_days: incoming,
+                        absorbed_days: absorbed,
+                        delay_days: delay,
+                        new_finish: s.finish,
+                        also: 0,
+                    },
+                ));
+            }
+            steps.sort_by(|a, b| {
+                a.0.total_cmp(&b.0)
+                    .then_with(|| a.1.task.label.cmp(&b.1.task.label))
+                    .then_with(|| a.1.task.node.id.cmp(&b.1.task.node.id))
+            });
+            let mut turns: Vec<Turn> = steps.into_iter().map(|(_, t)| t).collect();
+
+            // The last step is always where the project ends up.
+            let last = sc
+                .scen
+                .tasks
+                .iter()
+                .filter(|t| !t.done && t.project_id == Some(p.id))
+                .max_by(|a, b| {
+                    a.ef.total_cmp(&b.ef)
+                        .then_with(|| b.title.cmp(&a.title))
+                        .then_with(|| b.id.cmp(&a.id))
+                });
+            if let Some(last) = last {
+                // A task that is both where the slip starts and where the project ends keeps its
+                // first step and gets the arrival after it; any other last task just arrives.
+                turns.retain(|t| t.task.node.id != last.id || t.kind == TurnKind::Slips);
+                turns.push(Turn {
+                    task: summary(last.id, &last.title),
+                    kind: TurnKind::Arrives,
+                    incoming_days: p.delay_days,
+                    absorbed_days: 0.0,
+                    delay_days: p.delay_days,
+                    new_finish: p.new_finish.unwrap_or(last.finish),
+                    also: 0,
+                });
+            }
+
+            // A run of steps that only pass the same delay on is one step ("and 2 more").
+            let mut folded: Vec<Turn> = Vec::new();
+            for turn in turns {
+                match folded.last_mut() {
+                    Some(prev)
+                        if prev.kind == TurnKind::PassesOn
+                            && turn.kind == TurnKind::PassesOn
+                            && (prev.delay_days - turn.delay_days).abs() <= EPS =>
+                    {
+                        prev.also += 1;
+                        prev.new_finish = turn.new_finish;
+                    }
+                    _ => folded.push(turn),
+                }
+            }
+            // A long route keeps its first and last steps and says how many it left out.
+            if folded.len() > MAX_TURNS {
+                let keep_end = 3;
+                let keep_start = MAX_TURNS - keep_end - 1;
+                let hidden = folded.len() - keep_start - keep_end;
+                let anchor = folded[keep_start].clone();
+                let tail = folded.split_off(folded.len() - keep_end);
+                folded.truncate(keep_start);
+                folded.push(Turn {
+                    kind: TurnKind::More,
+                    incoming_days: 0.0,
+                    absorbed_days: 0.0,
+                    delay_days: 0.0,
+                    also: hidden as u32,
+                    ..anchor
+                });
+                folded.extend(tail);
+            }
+
+            // What to draw: both routes and everything the slip reached in the project.
+            let mut drawn: Vec<Uuid> = before
+                .iter()
+                .chain(after.iter())
+                .copied()
+                .chain(mine.keys().copied())
+                .collect();
+            drawn.sort();
+            drawn.dedup();
+            let mut bars: Vec<RouteBar> = drawn
+                .iter()
+                .filter_map(|id| {
+                    let (b, s) = (base.get(id)?, scen.get(id)?);
+                    Some(RouteBar {
+                        id: *id,
+                        title: b.title.clone(),
+                        old_es: b.es,
+                        old_ef: b.ef,
+                        new_es: s.es,
+                        new_ef: s.ef,
+                        on_old_route: on_before.contains(id),
+                        on_new_route: on_after.contains(id),
+                    })
+                })
+                .collect();
+            bars.sort_by(|a, b| {
+                a.new_es
+                    .total_cmp(&b.new_es)
+                    .then_with(|| a.title.cmp(&b.title))
+                    .then_with(|| a.id.cmp(&b.id))
+            });
+            let target_offset = base_forecast.get(&p.id).and_then(|f| f.target_offset);
+            let mut lo: i64 = 0;
+            let mut hi: i64 = 1;
+            for b in &bars {
+                lo = lo.min(b.old_es.min(b.new_es).floor() as i64);
+                hi = hi.max(b.old_ef.max(b.new_ef).ceil() as i64);
+            }
+            if let Some(t) = target_offset {
+                lo = lo.min(t.floor() as i64 - 1);
+                hi = hi.max(t.ceil() as i64);
+            }
+            let days = (lo..hi).map(|k| date_of(week, t0 + k)).collect();
+            ProjectRoute {
+                project_id: p.id,
+                title: p.title.clone(),
+                changed: before != after,
+                before,
+                after,
+                old_finish: p.old_finish,
+                new_finish: p.new_finish,
+                target_date: p.target_date,
+                delay_days: p.delay_days,
+                late_after: p.late_after,
+                newly_late: p.newly_late,
+                turns: folded,
+                bars,
+                first_offset: lo,
+                days,
+                target_offset,
+            }
+        })
+        .collect()
 }
 
 /// What recording the scenario in the plan would change: the tasks the slips hold back (and
@@ -607,6 +898,8 @@ mod tests {
 
     fn task(n: u128, title: &str, days: f64) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -654,6 +947,8 @@ mod tests {
 
     fn project(n: u128, title: &str, target: Option<Date>) -> Project {
         Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: title.to_lowercase(),
@@ -671,6 +966,8 @@ mod tests {
 
     fn objective(n: u128, title: &str, target: Option<Date>) -> Objective {
         Objective {
+            confirmed_on: None,
+
             ongoing: false,
             review_every_days: None,
             last_reviewed_on: None,
@@ -1312,6 +1609,317 @@ mod tests {
             let after = finishes(&f, &applied(&f.tasks, &plan));
             for t in &sc.scen.tasks {
                 prop_assert!((after[&t.id] - t.ef).abs() < 1e-9, "{}: {} vs {}", t.title, after[&t.id], t.ef);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ routes (spec 46)
+
+    fn route_of<'a>(r: &'a ImpactReport, project: &str) -> &'a ProjectRoute {
+        r.routes
+            .iter()
+            .find(|x| x.title == project)
+            .unwrap_or_else(|| panic!("no route for {project}"))
+    }
+
+    fn kinds(route: &ProjectRoute) -> Vec<(&str, TurnKind)> {
+        route
+            .turns
+            .iter()
+            .map(|t| (t.task.label.as_str(), t.kind))
+            .collect()
+    }
+
+    /// Tasks 1..=n in project 10, each blocking the next, `days` each.
+    fn line(n: u128, days: f64) -> Fixture {
+        let names = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+        let tasks = (1..=n)
+            .map(|k| in_project(task(k, names[k as usize - 1], days), 10))
+            .collect();
+        let edges = (1..n).map(|k| blocks(k, k + 1)).collect();
+        let mut f = Fixture::new(tasks, edges);
+        f.projects = vec![project(10, "P", None)];
+        f
+    }
+
+    #[test]
+    fn a_slip_on_a_single_chain_passes_through_and_arrives_later() {
+        let r = line(3, 2.0).report(&[slip_task(1, 2)]);
+        let route = route_of(&r, "P");
+        assert_eq!(route.before, route.after);
+        assert_eq!(route.before, [id(1), id(2), id(3)]);
+        assert!(!route.changed);
+        assert_eq!(
+            kinds(route),
+            [
+                ("A", TurnKind::Slips),
+                ("B", TurnKind::PassesOn),
+                ("C", TurnKind::Arrives)
+            ]
+        );
+        let arrives = route.turns.last().unwrap();
+        assert_eq!(arrives.delay_days, 2.0);
+        assert_eq!(Some(arrives.new_finish), route.new_finish);
+        assert_ne!(route.old_finish, route.new_finish);
+        assert_eq!(route.delay_days, 2.0);
+        // The first turn is the slip itself.
+        assert_eq!(route.turns[0].incoming_days, 2.0);
+    }
+
+    #[test]
+    fn runs_of_steps_that_only_pass_the_same_delay_on_fold_into_one() {
+        let r = line(5, 1.0).report(&[slip_task(1, 3)]);
+        let route = route_of(&r, "P");
+        assert_eq!(
+            kinds(route),
+            [
+                ("A", TurnKind::Slips),
+                ("B", TurnKind::PassesOn),
+                ("E", TurnKind::Arrives)
+            ]
+        );
+        // B stands for B, C and D.
+        assert_eq!(route.turns[1].also, 2);
+    }
+
+    #[test]
+    fn slack_that_soaks_up_part_of_a_slip_is_said_and_a_branch_can_take_over() {
+        // A(3) -> B(2) and A -> C(4), both -> D(1): the route is A, C, D and B has 2 days of slack.
+        let mut f = Fixture::new(
+            vec![
+                in_project(task(1, "A", 3.0), 10),
+                in_project(task(2, "B", 2.0), 10),
+                in_project(task(3, "C", 4.0), 10),
+                in_project(task(4, "D", 1.0), 10),
+            ],
+            vec![blocks(1, 2), blocks(1, 3), blocks(2, 4), blocks(3, 4)],
+        );
+        f.projects = vec![project(10, "P", None)];
+        // Slipping B by 3 puts B on the route and takes A and C off it.
+        let r = f.report(&[slip_task(2, 3)]);
+        let route = route_of(&r, "P");
+        assert!(route.changed);
+        assert_eq!(route.before, [id(1), id(3), id(4)]);
+        assert_eq!(route.after, [id(2), id(4)]);
+        let k = kinds(route);
+        assert!(k.contains(&("A", TurnKind::LeavesRoute)), "{k:?}");
+        assert!(k.contains(&("C", TurnKind::LeavesRoute)), "{k:?}");
+        assert!(k.contains(&("B", TurnKind::Slips)), "{k:?}");
+        assert_eq!(k.last(), Some(&("D", TurnKind::Arrives)));
+        // D received 3 days and soaked up 2 of them (its own arrival is 1 day later).
+        let d = route.turns.last().unwrap();
+        assert_eq!(d.delay_days, 1.0);
+        // Slipping B by 1 is absorbed by D: the route is unchanged and the finish too.
+        let r = f.report(&[slip_task(2, 1)]);
+        let route = route_of(&r, "P");
+        assert!(!route.changed);
+        assert_eq!(route.delay_days, 0.0);
+        assert_eq!(route.old_finish, route.new_finish);
+        let k = kinds(route);
+        assert_eq!(k[0], ("B", TurnKind::Slips));
+        assert_eq!(k.last(), Some(&("D", TurnKind::Arrives)));
+        assert_eq!(route.turns.last().unwrap().delay_days, 0.0);
+    }
+
+    #[test]
+    fn a_task_that_absorbs_some_and_passes_on_the_rest_says_how_much_each() {
+        // A(3) -> B(2) -> D(1), A -> C(4) -> D, and D -> E(1): D is in the middle of the route.
+        let mut f = Fixture::new(
+            vec![
+                in_project(task(1, "A", 3.0), 10),
+                in_project(task(2, "B", 2.0), 10),
+                in_project(task(3, "C", 4.0), 10),
+                in_project(task(4, "D", 1.0), 10),
+                in_project(task(5, "E", 1.0), 10),
+            ],
+            vec![
+                blocks(1, 2),
+                blocks(1, 3),
+                blocks(2, 4),
+                blocks(3, 4),
+                blocks(4, 5),
+            ],
+        );
+        f.projects = vec![project(10, "P", None)];
+        let r = f.report(&[slip_task(2, 3)]);
+        let d = route_of(&r, "P")
+            .turns
+            .iter()
+            .find(|t| t.task.label == "D")
+            .unwrap();
+        // D is not the last step, so it keeps its own kind: 2 of the 3 days absorbed, 1 passed on.
+        assert_eq!(d.kind, TurnKind::PartlyAbsorbs);
+        assert_eq!(
+            (d.incoming_days, d.absorbed_days, d.delay_days),
+            (3.0, 2.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn parallel_critical_branches_keep_only_the_chain_that_ends_the_project() {
+        // Two equally long branches into the same last task.
+        let mut f = Fixture::new(
+            vec![
+                in_project(task(1, "A", 2.0), 10),
+                in_project(task(2, "B", 2.0), 10),
+                in_project(task(3, "C", 1.0), 10),
+            ],
+            vec![blocks(1, 3), blocks(2, 3)],
+        );
+        f.projects = vec![project(10, "P", None)];
+        let r = f.report(&[slip_task(3, 1)]);
+        let route = route_of(&r, "P");
+        assert_eq!(route.before.len(), 2);
+        assert_eq!(*route.before.last().unwrap(), id(3));
+        // Everything critical is still drawn.
+        assert!(route.bars.iter().filter(|b| b.on_old_route).count() >= 2);
+    }
+
+    #[test]
+    fn a_long_route_folds_its_middle_into_a_more_step() {
+        // Slipping the project slips every task, so every task is a start.
+        let r = line(12, 1.0).report(&[slip_project(10, 2)]);
+        let route = route_of(&r, "P");
+        assert_eq!(route.turns.len(), MAX_TURNS);
+        assert_eq!(route.turns[MAX_TURNS - 4].kind, TurnKind::More);
+        // 12 slips and the arrival are 13 steps; the first 4 and the last 3 are kept: 6 left out.
+        assert_eq!(route.turns[MAX_TURNS - 4].also, 6);
+        assert_eq!(route.turns.last().unwrap().kind, TurnKind::Arrives);
+        assert_eq!(route.turns[0].kind, TurnKind::Slips);
+    }
+
+    #[test]
+    fn a_slip_in_one_project_gives_the_other_project_a_route_too() {
+        // P's A blocks Q's B.
+        let mut f = Fixture::new(
+            vec![
+                in_project(task(1, "A", 2.0), 10),
+                in_project(task(2, "B", 2.0), 11),
+            ],
+            vec![blocks(1, 2)],
+        );
+        f.projects = vec![project(10, "P", None), project(11, "Q", None)];
+        let r = f.report(&[slip_task(1, 3)]);
+        assert_eq!(r.routes.len(), r.projects.len());
+        let q = route_of(&r, "Q");
+        assert_eq!(q.delay_days, 3.0);
+        assert_eq!(q.turns.last().unwrap().kind, TurnKind::Arrives);
+        assert_eq!(route_of(&r, "P").turns[0].kind, TurnKind::Slips);
+        // The routes follow the order of the projects.
+        let order: Vec<&str> = r.projects.iter().map(|p| p.title.as_str()).collect();
+        let routed: Vec<&str> = r.routes.iter().map(|x| x.title.as_str()).collect();
+        assert_eq!(order, routed);
+    }
+
+    #[test]
+    fn a_dependent_project_starts_its_route_with_the_work_that_was_held_up() {
+        let mut q = in_project(task(2, "Q work", 1.0), 11);
+        q.start_date = Some(date!(2027 - 03 - 08));
+        let mut f = Fixture::new(
+            vec![in_project(task(1, "P work", 3.0), 10), q],
+            vec![edge(
+                EdgeType::DependsOn,
+                NodeType::Project,
+                11,
+                NodeType::Project,
+                10,
+            )],
+        );
+        f.projects = vec![project(10, "P", None), project(11, "Q", None)];
+        let r = f.report(&[slip_task(1, 5)]);
+        let q = route_of(&r, "Q");
+        assert_eq!(q.turns[0].task.label, "Q work");
+        // A single task is both where it starts and where it ends: it slips, then the project arrives.
+        assert_eq!(q.turns.len(), 2);
+        assert_eq!(q.turns[0].kind, TurnKind::Slips);
+        assert_eq!(q.turns.last().unwrap().kind, TurnKind::Arrives);
+        assert_eq!(q.delay_days, 3.0);
+    }
+
+    #[test]
+    fn a_project_that_only_absorbs_the_slip_still_has_a_route_that_says_no_change() {
+        // A(1) -> C(1) and B(5) -> C: slipping A by 2 is absorbed by C (B drives it).
+        let mut f = Fixture::new(
+            vec![
+                in_project(task(1, "A", 1.0), 10),
+                in_project(task(2, "B", 5.0), 10),
+                in_project(task(3, "C", 1.0), 10),
+            ],
+            vec![blocks(1, 3), blocks(2, 3)],
+        );
+        f.projects = vec![project(10, "P", None)];
+        let r = f.report(&[slip_task(1, 2)]);
+        // The report lists no moved project, but the route says the route held.
+        assert!(r.projects.is_empty());
+        let route = route_of(&r, "P");
+        assert!(!route.changed);
+        assert_eq!(route.delay_days, 0.0);
+        assert_eq!(route.old_finish, route.new_finish);
+    }
+
+    #[test]
+    fn the_timeline_data_covers_today_every_bar_and_the_target() {
+        let mut f = line(3, 2.0);
+        f.projects = vec![project(10, "P", Some(date!(2027 - 03 - 12)))];
+        let r = f.report(&[slip_task(1, 2)]);
+        let route = route_of(&r, "P");
+        assert_eq!(route.first_offset, 0);
+        let last_end = route
+            .bars
+            .iter()
+            .map(|b| b.new_ef.max(b.old_ef))
+            .fold(0.0, f64::max);
+        assert!(route.days.len() as f64 >= last_end);
+        assert_eq!(route.target_offset, Some(10.0));
+        assert!(route.days.len() >= 10);
+        // Each bar moved later, never earlier.
+        for b in &route.bars {
+            assert!(b.new_es >= b.old_es - 1e-9 && b.new_ef >= b.old_ef - 1e-9);
+        }
+    }
+
+    proptest! {
+        // However the work is linked and slipped, each route's chain is made of real links, every
+        // step's delay is never negative, and the project's last step ends where the project does.
+        #[test]
+        fn routes_are_chains_of_real_links_and_arrive_where_the_project_ends(
+            n in 2usize..8,
+            links in proptest::collection::vec((0usize..7, 0usize..7), 0..12),
+            days in proptest::collection::vec(1.0f64..4.0, 8),
+            slip_at in 0usize..7,
+            slip_days in 1u32..6,
+        ) {
+            let tasks: Vec<Task> = (0..n)
+                .map(|i| in_project(task(i as u128 + 1, &format!("t{i}"), days[i]), 10))
+                .collect();
+            let mut seen = std::collections::HashSet::new();
+            let edges: Vec<Edge> = links
+                .iter()
+                .filter(|(a, b)| a < b && *b < n && seen.insert((*a, *b)))
+                .map(|(a, b)| blocks(*a as u128 + 1, *b as u128 + 1))
+                .collect();
+            let mut f = Fixture::new(tasks, edges.clone());
+            f.projects = vec![project(10, "P", None)];
+            let r = f.report(&[slip_task((slip_at % n) as u128 + 1, slip_days)]);
+            let real: std::collections::HashSet<(Uuid, Uuid)> =
+                edges.iter().map(|e| (e.from_id, e.to_id)).collect();
+            for route in &r.routes {
+                for chain in [&route.before, &route.after] {
+                    for pair in chain.windows(2) {
+                        prop_assert!(real.contains(&(pair[0], pair[1])), "{chain:?}");
+                    }
+                }
+                prop_assert!(route.turns.len() <= MAX_TURNS);
+                for t in &route.turns {
+                    prop_assert!(t.delay_days >= 0.0);
+                }
+                if let Some(last) = route.turns.last() {
+                    prop_assert_eq!(last.kind, TurnKind::Arrives);
+                    if let Some(finish) = route.new_finish {
+                        prop_assert_eq!(last.new_finish, finish);
+                    }
+                }
+                prop_assert_eq!(route.changed, route.before != route.after);
             }
         }
     }

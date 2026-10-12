@@ -340,13 +340,46 @@ mod tests {
                     .join("; ")
             );
         }
+        let _ = writeln!(out, "\nROUTES");
+        for route in &report.routes {
+            let _ = writeln!(
+                out,
+                "  {} | {} | finish {} -> {} | +{:.1} | late {} | route {} -> {}",
+                route.title,
+                if route.changed {
+                    "recalculated"
+                } else {
+                    "unchanged"
+                },
+                opt(route.old_finish),
+                opt(route.new_finish),
+                route.delay_days,
+                opt(route.late_after),
+                route.before.len(),
+                route.after.len()
+            );
+            for (i, t) in route.turns.iter().enumerate() {
+                let _ = writeln!(
+                    out,
+                    "    {}. {:?} {} (in {:.1}, absorbed {:.1}, delay {:.1}, also {}) finishes {}",
+                    i + 1,
+                    t.kind,
+                    t.task.label,
+                    t.incoming_days,
+                    t.absorbed_days,
+                    t.delay_days,
+                    t.also,
+                    t.new_finish
+                );
+            }
+        }
         insta::assert_snapshot!(out);
     }
 
     #[test]
     fn the_overview_of_the_demo_data() {
-        let mut conn = demo();
-        let ov = overview_at(&mut conn, TODAY).unwrap();
+        let conn = demo();
+        let ov = overview_at(&conn, TODAY).unwrap();
         let mut out = String::new();
         let c = &ov.counts;
         let _ = writeln!(
@@ -479,5 +512,206 @@ mod tests {
         )
         .unwrap();
         insta::assert_snapshot!(text);
+    }
+
+    #[test]
+    fn the_fog_of_the_demo_data() {
+        use minimap_types::{FogLevel, NodeType};
+        let conn = demo();
+        let fog = crate::commands::fog::fog_at(&conn, TODAY).unwrap();
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "VISIBILITY: {} ({} in play, {} clear)",
+            opt(fog.visibility),
+            fog.in_play,
+            fog.clear
+        );
+        for m in &fog.marks {
+            let _ = writeln!(
+                out,
+                "{:?} {:?} {} - {}d, last seen {} ({:?})",
+                m.level, m.node.node_type, m.label, m.age_days, m.last_seen, m.reason
+            );
+        }
+        insta::assert_snapshot!(out);
+        // The story the data tells.
+        let level = |title: &str| {
+            fog.marks
+                .iter()
+                .find(|m| m.label == title)
+                .map_or(FogLevel::Clear, |m| m.level)
+        };
+        assert_eq!(level("Platform Cost Reduction"), FogLevel::Fog);
+        assert_eq!(
+            level("EU Region"),
+            FogLevel::Clear,
+            "the busy project stays clear"
+        );
+        assert_eq!(level("Choose a penetration-test vendor"), FogLevel::Haze);
+        assert_eq!(level("Monthly access review"), FogLevel::Haze);
+        // Old, but confirmed three days ago.
+        assert_eq!(level("Rotate service credentials"), FogLevel::Clear);
+        assert!(fog
+            .marks
+            .iter()
+            .filter(|m| m.node.node_type == NodeType::Task)
+            .any(|m| m.level == FogLevel::Fog));
+    }
+
+    #[test]
+    fn the_safe_zones_of_the_demo_data() {
+        use minimap_types::{ProjectFilter, ProjectLayout, Zone};
+        let conn = demo();
+        let groups = crate::commands::projects::list_at(
+            &conn,
+            &ProjectFilter::default(),
+            ProjectLayout::Board,
+            TODAY,
+        )
+        .unwrap();
+        let mut out = String::new();
+        let mut zones = std::collections::BTreeMap::new();
+        for row in groups.iter().flat_map(|g| g.rows.iter()) {
+            let _ = writeln!(out, "{}: {:?}", row.project.title, row.zone);
+            zones.insert(row.project.title.clone(), row.zone);
+        }
+        // The Overview reads the same zone (the same schedule run).
+        let ov = overview_at(&demo(), TODAY).unwrap();
+        for row in ov
+            .objectives
+            .iter()
+            .flat_map(|o| o.projects.iter())
+            .chain(ov.unlinked_projects.iter())
+        {
+            assert_eq!(
+                zones.get(&row.project.label).copied(),
+                Some(row.zone),
+                "{}",
+                row.project.label
+            );
+        }
+        insta::assert_snapshot!(out);
+        // The story: EU Region (amber) is outside its target, the others are inside.
+        assert!(matches!(zones["EU Region"], Zone::Outside { .. }));
+        assert!(matches!(
+            zones["Platform Cost Reduction"],
+            Zone::Inside { .. }
+        ));
+    }
+
+    #[test]
+    fn what_is_approaching_in_the_demo_data() {
+        use minimap_types::ApproachScope;
+        let mut conn = demo();
+        let mut out = String::new();
+        let mut scopes = vec![("Me".to_owned(), ApproachScope::Me)];
+        for title in [
+            "EU Region",
+            "Platform Cost Reduction",
+            "Security and Compliance",
+        ] {
+            scopes.push((
+                title.to_owned(),
+                ApproachScope::Project(project_id(&conn, title)),
+            ));
+        }
+        let mut found = std::collections::BTreeMap::new();
+        for (name, scope) in scopes {
+            let r = crate::commands::approach::approaching_at(&mut conn, scope, TODAY).unwrap();
+            let _ = writeln!(
+                out,
+                "{name}: {}",
+                r.headline.map_or("nothing".to_owned(), |h| format!(
+                    "{} approaching, first in {} days, worst {:?}",
+                    h.count, h.first_in_days, h.worst
+                ))
+            );
+            for group in &r.groups {
+                let from = group
+                    .source_project
+                    .as_ref()
+                    .map_or("(inbox)", |p| p.label.as_str());
+                for a in &group.items {
+                    let path: Vec<&str> = a.path.iter().map(|n| n.label.as_str()).collect();
+                    let _ = writeln!(
+                        out,
+                        "  from {from}: {} [{:?}] arrives in {}, slack {:?}, {:?}",
+                        path.join(" -> "),
+                        a.reasons,
+                        a.arrives_in,
+                        a.target_slack,
+                        a.severity
+                    );
+                }
+            }
+            found.insert(name, r);
+        }
+        insta::assert_snapshot!(out);
+        // The story: trouble in EU Region reaches the other projects through the cross-project
+        // links, and EU Region itself hears about nothing from them.
+        let from_eu = |name: &str| {
+            found[name].groups.iter().any(|g| {
+                g.source_project
+                    .as_ref()
+                    .is_some_and(|p| p.label == "EU Region")
+            })
+        };
+        assert!(
+            from_eu("Platform Cost Reduction") || from_eu("Security and Compliance"),
+            "something approaches from EU Region"
+        );
+    }
+
+    #[test]
+    fn the_dependency_graph_of_the_demo_data_says_who_what_and_how_much_room() {
+        use minimap_types::{GraphFilter, GraphLevel};
+        let conn = demo();
+        // Positions depend on the layout, so the snapshot keeps to what the boxes say.
+        let mut out = String::new();
+        for level in [GraphLevel::Tasks, GraphLevel::Projects] {
+            let g = crate::commands::graph::graph_at(
+                &conn,
+                &GraphFilter {
+                    level,
+                    ..Default::default()
+                },
+                TODAY,
+            )
+            .unwrap();
+            let _ = writeln!(
+                out,
+                "{level:?}: {} boxes, {} links ({} cross projects), {} unlinked ({} listed)",
+                g.nodes.len(),
+                g.edges.len(),
+                g.edges.iter().filter(|e| e.cross_project).count(),
+                g.hidden_unlinked,
+                g.unlinked.len()
+            );
+            let mut nodes: Vec<_> = g.nodes.iter().collect();
+            nodes.sort_by(|a, b| {
+                b.downstream
+                    .cmp(&a.downstream)
+                    .then_with(|| a.label.cmp(&b.label))
+            });
+            for n in nodes.iter().take(6) {
+                let _ = writeln!(
+                    out,
+                    "  {} | owner {} | holds up {} waits on {} | finish {} due {} | {:?} health {:?}",
+                    n.label,
+                    n.assignee.as_ref().map_or("-", |a| a.label.as_str()),
+                    n.downstream,
+                    n.upstream,
+                    opt(n.finish),
+                    opt(n.due),
+                    n.zone,
+                    n.health
+                );
+            }
+            for e in g.edges.iter().filter(|e| e.room_days.is_some()) {
+                let _ = writeln!(out, "  room between projects: {:?}", e.room_days);
+            }
+        }
+        insta::assert_snapshot!(out);
     }
 }

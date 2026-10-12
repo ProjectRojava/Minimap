@@ -8,13 +8,18 @@ From the top:
 
 - **The headline and the numbers.** Today's date and one line that says how the week stands ("3 tasks need your attention"), next to six counts: *Overdue*, *Due today*, *Blocked*, *In focus* (see below), *Planned* (the rest of the week's work) and *Waiting on*. A count is coloured when there is something in it and grey at zero.
 - **The seven days**, Monday to Sunday, each with the tasks due, meetings, waiting-ons expected and 1:1s that day. Today is outlined in the accent colour; a past day that still has open work due on it is **red** and says how many are late; past days are dimmed.
-- **Meetings**: the meetings from now to Sunday, by day and then start time, each with its time (`10:30–11:30`), *NOW* while it is under way, and how soon it starts (*in 25 min*) when it is close. Tick one to end it early; *Follow-up…* (shown when you point at the row) schedules a follow-up. It sits right under the strip of days and is not red: a meeting is never late (it closes itself when it ends). See [Meetings](help:meetings).
+- **Meetings**: an **agenda** of the meetings from now to Sunday, with a heading for each day (*Today · Mon 12 Oct*) and the meetings of that day by start time. Each row has its time (`10:30–11:30`) in a column of its own, *NOW* while it is under way, and how soon it starts (*in 25 min*) when it is close. The tick at the right end ends one early; *Follow-up…* (shown when you point at the row) schedules a follow-up. It sits right under the strip of days and is not red: a meeting is never late (it closes itself when it ends). See [Meetings](help:meetings).
 - **Needs attention** (red): every task that is **overdue**, **due today** or **blocked**, each once, with a pill that says why: *3 days late* (solid red), *Due today* (solid amber), *Blocked* (amber). A task can carry two (late and blocked). Late work comes first, the latest first, then today's, then blocked; a blocked task says what it is waiting for, and every row shows who it is assigned to. When there is nothing here, a green line says so.
-- **Focus**: the tasks you chose to keep in front of you **every day**, whatever their due date (see *Focus* below). It sits under *Needs attention* and above the plan. A focused task that is late, due today or blocked is shown under *Needs attention* instead, with its star lit, so nothing is listed twice.
-- **Priorities this week**: the rest of the week's work, each task once (a task in focus is under *Focus*, not here): open tasks due later this week and your tasks in progress, **most important first** (priority 1 first, then the earliest due date; undated last). They are numbered, and the top three stand out, so you can see at a glance what to do next.
+- **Focus**: the tasks you chose to **pin** and keep in front of you **every day**, whatever their due date (see *Focus* below). It has a blue edge and a star in its heading, and its rows are taller than the rest of the page: the title large, and under it the project, how far off the date is and when the focus ends. It sits under *Needs attention* and above the plan. A focused task that is late, due today or blocked is shown under *Needs attention* instead, with its star lit, so nothing is listed twice.
+- **Priorities this week**: the rest of the week's work, each task once (a task in focus is under *Focus*, not here): open tasks due later this week and your tasks in progress, **most important first** (priority 1 first, then the earliest due date; undated last). It is a **ranked list**: the rank is a column of its own (the first three in heavier type), and the priority, status and day line up in columns from row to row, so you can see at a glance what to do next. Urgent tasks carry a priority pill on every row of this screen: **P1** is solid amber and **P2** a lighter amber tint, as on the cards of the [Tasks](help:tasks) board (P3 to P5 show no pill here).
+- **Gone quiet**: tasks that are in play but that nobody has touched for a while and that are not already on this page, with a `≋ 19d` chip and *Still accurate* (see [Fog](help:fog)). It lists up to 8, fog first, and says how many more the weekly review has. It is not shown when you look back at a past day.
 - **Waiting on**: open waiting-ons that are stale, overdue, or expected this week (snoozed ones stay hidden).
 - **Ongoing objectives to review**: [ongoing objectives](help:objectives) whose review is overdue or falls by Sunday, with *Mark reviewed* on each.
 - **1:1s this week**: 1:1 notes dated this week.
+
+**Approaching.** Under the headline, a strip appears when trouble in another project will reach a task **assigned to you** or a project you own (*2 approaching from EU Region · first in 4 days*); click it to see the chains. It is hidden when nothing is hitting or threatening, and when you look back at a past day. See [Approaching](help:approaching).
+
+**Fog.** A task that is in play but that nobody has touched for a while is faded and carries a `≋ 9d` chip (how long since it was last changed, written about or confirmed), wherever it is on this page. Press `c` on the highlighted row, or *Still accurate*, to say it is fine as it is. A late task keeps its red pill: fog never hides a flag. The numbers at the top and the headline do not count fog. See [Fog](help:fog).
 
 **Latest notes under each task.** Every task in *Meetings*, *Needs attention*, *Focus* and *Priorities this week* shows, under its line, the **three newest notes** that mention it (the notes you write under *Notes and findings* on the task, and any note that mentions it with `@`): the note's date and the start of its text **as it reads in the note** (formatted: links are underlined and clickable, bold, lists and mentions show as they should), about four lines at most, with a small *1:1* or *meeting* tag where that applies. Clicking a link or a mention opens that; clicking anything else in the note opens the note in the pane. Clicking the task's own line opens the task. When a task has more than three, the last line says how many more (*+2 earlier*). Tasks with no notes show nothing extra.
 
@@ -31,7 +36,7 @@ A task whose deadline is months away, or that has none, never shows up on this s
 - **Too many?** When more than 5 tasks are in focus, a line above the section says so: past that, nothing stands out.
 - **Gone quiet?** A task in focus whose fields and notes have not changed for 14 days says *No change for 16 days. Still the one?* in amber. Write a note on it, or take it out of focus.
 
-When you look back at a past day (see *Looking back to a past day* below), the tasks that were in focus then are shown, judged by their settings as they are now.
+When you look back at a past day (see *Looking back to a past day* below), the tasks that were in focus then are shown, judged by their settings as they are now. There is no fog when looking back.
 
 ## Doing things from here
 
@@ -40,7 +45,7 @@ Every row can be dealt with in place:
 - The round **check** marks a task done. (If it repeats, the next one is created: see [Recurring items](help:recurring).)
 - **Tomorrow** and **Next week** move the due date, and you can type any date in words (`fri`, `+3d`, `next-wed`, `2027-03-31`).
 - **Resolve** closes a waiting-on, and **Snooze** hides it for three days.
-- On the keyboard, `j` and `k` move between rows, `Enter` opens the item, `x` marks the highlighted task done and `f` puts it in focus or takes it out.
+- On the keyboard, `j` and `k` move between rows, `Enter` opens the item, `x` marks the highlighted task done and `f` puts it in focus or takes it out, and `c` says a faded task is still accurate.
 
 ## Looking at another week
 

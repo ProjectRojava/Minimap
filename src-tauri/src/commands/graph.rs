@@ -1,6 +1,6 @@
 use minimap_core::dependency_graph::{build, GraphError, GraphInput};
 use minimap_store::Connection;
-use minimap_types::{AppError, DependencyGraph, GraphFilter};
+use minimap_types::{AppError, DependencyGraph, GraphFilter, GraphLevel};
 use tauri::State;
 
 use crate::{
@@ -23,21 +23,45 @@ pub(crate) fn graph_impl(
     conn: &Connection,
     filter: &GraphFilter,
 ) -> Result<DependencyGraph, AppError> {
+    graph_at(conn, filter, minimap_store::today())
+}
+
+/// [`graph_impl`] as of `today` (the demo-data snapshot tests fix it).
+pub(crate) fn graph_at(
+    conn: &Connection,
+    filter: &GraphFilter,
+    today: minimap_types::Date,
+) -> Result<DependencyGraph, AppError> {
     let tasks = minimap_store::tasks::list_planned(conn).map_err(store_error)?;
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let teams = minimap_store::teams::list(conn, false).map_err(store_error)?;
-    let work_week = minimap_store::settings::get(conn)
-        .map_err(store_error)?
-        .work_week;
+    let people = minimap_store::people::list(conn, false).map_err(store_error)?;
+    let settings = minimap_store::settings::get(conn).map_err(store_error)?;
+    // The projects' health is the Overview's; only the Projects level shows it.
+    let project_health: std::collections::HashMap<_, _> = if filter.level == GraphLevel::Projects {
+        let overview = crate::commands::overview::overview_at(conn, today)?;
+        overview
+            .objectives
+            .iter()
+            .flat_map(|o| o.projects.iter())
+            .chain(overview.unlinked_projects.iter())
+            .map(|p| (p.project.node.id, p.health.level))
+            .collect()
+    } else {
+        Default::default()
+    };
     build(
         &GraphInput {
             tasks: &tasks,
             edges: &edges,
             projects: &projects,
             teams: &teams,
-            today: minimap_store::today(),
-            work_week,
+            people: &people,
+            project_health: &project_health,
+            zone_narrow_days: settings.zone_narrow_days,
+            today,
+            work_week: settings.work_week,
         },
         filter,
     )

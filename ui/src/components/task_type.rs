@@ -250,6 +250,8 @@ mod tests {
 
     fn task(due: Option<&str>, done: Option<&str>) -> Task {
         Task {
+            confirmed_on: None,
+
             id: Uuid::nil(),
             title: "Pick the store".into(),
             description: String::new(),

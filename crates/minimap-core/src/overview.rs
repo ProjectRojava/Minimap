@@ -39,6 +39,8 @@ pub struct OverviewWorld<'a> {
     pub thresholds: HealthThresholds,
     /// More open tasks than this flags a person as overloaded.
     pub task_limit: u32,
+    /// A project's safe zone is narrow at this many working days of room or fewer (spec 44).
+    pub zone_narrow_days: u32,
 }
 
 fn is_open(t: &Task) -> bool {
@@ -152,6 +154,9 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
                 blocked_tasks: n_blocked,
                 unestimated_tasks: unestimated,
                 weight: None,
+                zone: f.map_or(minimap_types::Zone::None, |f| {
+                    crate::zone::of(f, p.status, w.today, w.work_week, w.zone_narrow_days)
+                }),
             },
         );
     }
@@ -453,6 +458,8 @@ mod tests {
 
     fn task(n: u128, title: &str, days: Option<f64>, project: Option<u128>) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -477,6 +484,8 @@ mod tests {
 
     fn project(n: u128, title: &str, target: Option<Date>, priority: u8) -> Project {
         Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: title.to_lowercase(),
@@ -494,6 +503,8 @@ mod tests {
 
     fn objective(n: u128, title: &str, target: Option<Date>, priority: u8) -> Objective {
         Objective {
+            confirmed_on: None,
+
             ongoing: false,
             review_every_days: None,
             last_reviewed_on: None,
@@ -600,6 +611,8 @@ mod tests {
 
         fn overview_with(&self, thresholds: HealthThresholds) -> PortfolioOverview {
             build(&OverviewWorld {
+                zone_narrow_days: 3,
+
                 tasks: &self.tasks,
                 edges: &self.edges,
                 projects: &self.projects,

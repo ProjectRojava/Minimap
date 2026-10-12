@@ -8,6 +8,8 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        card_menu::archived_message,
+        confirm_archive::{question, ConfirmArchive, UNDO_HINT},
         decision_panel::status_options,
         form::{SelectField, BUTTON_SOFT, COMPACT_INPUT},
         node_row::NodeRow,
@@ -122,6 +124,32 @@ fn DecisionRowView(row: DecisionRow, index: usize) -> impl IntoView {
     let node = NodeRef::new(NodeType::Decision, row.id);
     let links = links_text(&row);
     let dim = row.status == DecisionStatus::Superseded;
+    let id = row.id;
+    let title = row.title.clone();
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
+    // Asks first, in the shared dialog; Ctrl/Cmd+Z brings it back, and the toast says so.
+    let archive = move |ev: leptos::ev::MouseEvent| {
+        ev.stop_propagation();
+        let title = title.clone();
+        confirm.ask(
+            question(&title.clone()),
+            format!("It leaves the Decisions log and its links are archived with it. {UNDO_HINT}"),
+            move || {
+                let title = title.clone();
+                spawn_local(async move {
+                    if finish(api::archive_decision(id).await, toasts, version).is_some() {
+                        if selection.0.get_untracked() == Some(node) {
+                            selection.close();
+                        }
+                        toasts.info(archived_message(&title));
+                    }
+                });
+            },
+        );
+    };
     let when = row
         .decided_on
         .map(|d| d.to_string())
@@ -137,6 +165,10 @@ fn DecisionRowView(row: DecisionRow, index: usize) -> impl IntoView {
                 </span>
                 <span class="truncate text-muted">{links}</span>
             </div>
+            <button class="absolute right-3 top-1.5 hidden rounded bg-hover px-2 text-[11px] text-muted hover:text-danger group-hover:block"
+                    title="Archive this decision (Ctrl/Cmd+Z undoes)" on:click=archive>
+                "Archive"
+            </button>
         </NodeRow>
     }
 }

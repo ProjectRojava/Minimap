@@ -5,18 +5,20 @@
 use leptos::prelude::*;
 use minimap_types::{
     HealthLevel, NodeRef, NodeType, ObjectiveHealthRow, OverloadedPerson, PortfolioOverview,
-    ProjectHealthRow, RiskItem, WaitingOnRow,
+    ProjectHealthRow, RiskItem, Uuid, WaitingOnRow,
 };
 
 use crate::{
     api,
     components::{
+        fog::{fog_class, mark_for, visibility_text, visibility_tone, FogChipFor, FogCtx},
         health::{
             counts_text, finish_text, load_text, reasons_text, risk_kind_label, risk_priority_text,
             HealthMark,
         },
         page::{EmptyState, PageHeader, CHIP},
         waiting_panel::age_text,
+        zone::ZoneBar,
     },
     labels::objective_status_label,
     state::{DataVersion, Selection},
@@ -70,6 +72,35 @@ fn Block(title: String, children: Children) -> impl IntoView {
 }
 
 const ROW: &str = "flex items-baseline gap-2 px-4 min-h-8 py-1 cursor-default hover:bg-hover";
+
+/// A row's classes, faded when what it is about has gone quiet (spec 43).
+fn faded(base: &'static str, id: Uuid) -> impl Fn() -> String {
+    move || {
+        format!(
+            "{base} fog-content {}",
+            fog_class(mark_for(id).map(|m| m.level))
+        )
+    }
+}
+
+/// The share of what is in play that is clear (spec 43): under half is amber, never red, because
+/// fog is a nudge and not an error.
+#[component]
+fn VisibilityTile() -> impl IntoView {
+    let fog = use_context::<FogCtx>();
+    let value = move || fog.and_then(|f| f.visibility());
+    view! {
+        <div class="rounded-sm border border-line bg-panel px-3 py-2"
+             title="Share of active work touched or confirmed recently">
+            <div class="text-[10px] font-semibold uppercase tracking-wider text-muted">"Visibility"</div>
+            <div class=move || format!(
+                "text-[22px] font-semibold leading-7 tabular-nums {}",
+                if value().is_none() { "text-muted" } else { visibility_tone(value()).text() })>
+                {move || visibility_text(value())}
+            </div>
+        </div>
+    }
+}
 
 #[component]
 fn Body(overview: PortfolioOverview) -> impl IntoView {
@@ -143,11 +174,12 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
             <span class="text-muted">{counts_line}</span>
             <span class=format!("{CHIP} ml-auto")>{format!("as of {today}")}</span>
         </PageHeader>
-        <div class="grid grid-cols-2 gap-2 border-b border-line px-4 py-3 sm:grid-cols-4">
+        <div class="grid grid-cols-2 gap-2 border-b border-line px-4 py-3 sm:grid-cols-5">
             <StatTile label="Red" value=red level=HealthLevel::Red />
             <StatTile label="Amber" value=amber level=HealthLevel::Amber />
             <StatTile label="Green" value=green level=HealthLevel::Green />
             <StatTile label="Not scored" value=idle level=HealthLevel::Idle />
+            <VisibilityTile />
         </div>
         {warning_rows}
         {nothing.then(|| view! {
@@ -177,13 +209,15 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
 }
 
 fn risk_row(r: &RiskItem, on_click: impl Fn(leptos::ev::MouseEvent) + 'static) -> impl IntoView {
+    let id = r.node.node.id;
     view! {
-        <div class=ROW on:click=on_click>
+        <div class=faded(ROW, id) on:click=on_click>
             <HealthMark level=r.health.level score=r.health.score />
             <span class="w-14 shrink-0 text-[10px] uppercase tracking-wide text-muted">{risk_kind_label(r.kind)}</span>
             <span class="max-w-[18rem] shrink-0 truncate font-medium">{r.node.label.clone()}</span>
             <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&r.health, 2)}</span>
             <span class="shrink-0 text-[11px] text-muted">{risk_priority_text(r)}</span>
+            <FogChipFor id=id />
         </div>
     }
 }
@@ -217,7 +251,7 @@ fn objective_block(o: &ObjectiveHealthRow, selection: Selection) -> impl IntoVie
         .collect_view();
     view! {
         <div>
-            <div class=ROW on:click=move |_| selection.open(node)>
+            <div class=faded(ROW, node.id) on:click=move |_| selection.open(node)>
                 <HealthMark level=o.health.level score=o.health.score />
                 <span class="max-w-[18rem] shrink-0 truncate font-medium">{o.objective.label.clone()}</span>
                 <span class="shrink-0 text-[11px] text-muted">
@@ -225,6 +259,7 @@ fn objective_block(o: &ObjectiveHealthRow, selection: Selection) -> impl IntoVie
                 </span>
                 <span class="shrink-0 text-[11px] text-muted">{target}</span>
                 <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&o.health, 2)}</span>
+                <FogChipFor id=node.id />
             </div>
             {projects}
         </div>
@@ -236,19 +271,22 @@ fn project_row(
     nested: bool,
     on_click: impl Fn(leptos::ev::MouseEvent) + 'static,
 ) -> impl IntoView {
-    let class = if nested {
+    let base = if nested {
         "flex items-baseline gap-2 pl-9 pr-4 min-h-8 py-1 cursor-default hover:bg-hover"
     } else {
         ROW
     };
+    let id = p.project.node.id;
     let weight = p.weight.map(|w| format!("weight {w}")).unwrap_or_default();
     view! {
-        <div class=class on:click=on_click>
+        <div class=faded(base, id) on:click=on_click>
             <HealthMark level=p.health.level score=p.health.score />
             <span class="max-w-[18rem] shrink-0 truncate">{p.project.label.clone()}</span>
             <span class="shrink-0 tabular-nums text-[11px] text-muted">{finish_text(p)}</span>
+            <span class="w-32 shrink-0 self-center"><ZoneBar zone=p.zone compact=true /></span>
             <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&p.health, 2)}</span>
             <span class="shrink-0 text-[11px] text-faint">{weight}</span>
+            <FogChipFor id=id />
         </div>
     }
 }

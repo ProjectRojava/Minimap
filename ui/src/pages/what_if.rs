@@ -3,6 +3,7 @@
 //! optionally record it in the plan. Nothing is saved until "Apply to plan" is confirmed.
 
 use leptos::{prelude::*, task::spawn_local};
+use leptos_router::{hooks::query_signal_with_options, NavigateOptions};
 use minimap_types::{
     ApplyPreview, DateChange, ImpactObjective, ImpactPerson, ImpactProject, ImpactReport,
     ImpactSummary, ImpactTask, NodeRef, NodeType, SearchFilter, SearchHit, Slip,
@@ -11,8 +12,9 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        form::{BUTTON, BUTTON_PRIMARY, COMPACT_INPUT},
+        form::{BUTTON, BUTTON_ON, BUTTON_PRIMARY, COMPACT_INPUT},
         page::{EmptyState, PageHeader, CHIP},
+        route::RouteList,
         what_if_button::DEFAULT_SLIP_DAYS,
     },
     nav::type_label,
@@ -101,6 +103,38 @@ pub fn change_text(c: &DateChange) -> String {
         _ => String::new(),
     };
     format!("{start}{due}")
+}
+
+/// Which view of the report is shown: the recalculated routes (the default) or today's tables.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReportView {
+    Route,
+    Details,
+}
+
+impl ReportView {
+    /// From `?view=`: anything but `details` is the route.
+    pub fn from_param(text: Option<&str>) -> Self {
+        match text {
+            Some("details") => ReportView::Details,
+            _ => ReportView::Route,
+        }
+    }
+
+    /// What goes in the address; the default view needs nothing.
+    pub fn param(self) -> Option<&'static str> {
+        match self {
+            ReportView::Route => None,
+            ReportView::Details => Some("details"),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ReportView::Route => "Route",
+            ReportView::Details => "Details",
+        }
+    }
 }
 
 // ------------------------------------------------------------------ the screen
@@ -276,8 +310,35 @@ fn Report(report: ImpactReport) -> impl IntoView {
         projects,
         objectives,
         people,
+        routes,
         ..
     } = report;
+    // The view lives in the address (`?view=details`), like Settings' tab.
+    let (view_param, set_view_param) = query_signal_with_options::<String>(
+        "view",
+        NavigateOptions {
+            replace: true,
+            ..Default::default()
+        },
+    );
+    let current = Signal::derive(move || ReportView::from_param(view_param.get().as_deref()));
+    let tabs = [ReportView::Route, ReportView::Details]
+        .into_iter()
+        .map(|v| {
+            let class = move || {
+                format!(
+                    "{BUTTON} {}",
+                    if current.get() == v { BUTTON_ON } else { "" }
+                )
+            };
+            view! {
+                <button class=class role="tab" aria-selected=move || (current.get() == v).to_string()
+                        on:click=move |_| set_view_param.set(v.param().map(str::to_owned))>
+                    {v.label()}
+                </button>
+            }
+        })
+        .collect_view();
     let open = move |node: NodeRef| move |_| selection.open(node);
 
     let task_rows = tasks
@@ -304,11 +365,7 @@ fn Report(report: ImpactReport) -> impl IntoView {
     let (n_tasks, n_projects, n_objectives, n_people) =
         (tasks.len(), projects.len(), objectives.len(), people.len());
 
-    view! {
-        <section class="px-4 py-3 border-b border-line">
-            <p class="font-medium">{summary}</p>
-            <ApplyBar />
-        </section>
+    let details = view! {
         {(!nothing).then(|| view! {
             <Group title=format!("Tasks ({n_tasks})")>{task_rows}</Group>
         })}
@@ -324,6 +381,16 @@ fn Report(report: ImpactReport) -> impl IntoView {
         <p class="px-4 py-3 text-[11px] text-muted">
             "Working days only. A task that absorbs the slip uses up slack and stops it there. \u{201c}Newly late\u{201d} means on time now, late after the slip."
         </p>
+    };
+    let route_view = view! { <RouteList routes=routes /> };
+    view! {
+        <section class="px-4 py-3 border-b border-line">
+            <p class="font-medium">{summary}</p>
+            <ApplyBar />
+            <div class="mt-2 flex items-center gap-1" role="tablist" aria-label="View">{tabs}</div>
+        </section>
+        <div class:hidden=move || current.get() != ReportView::Route>{route_view}</div>
+        <div class:hidden=move || current.get() != ReportView::Details>{details}</div>
     }
 }
 
@@ -534,6 +601,21 @@ fn ApplyBar() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_route_is_the_default_view_and_the_address_remembers_details() {
+        assert_eq!(ReportView::from_param(None), ReportView::Route);
+        assert_eq!(ReportView::from_param(Some("route")), ReportView::Route);
+        assert_eq!(ReportView::from_param(Some("nonsense")), ReportView::Route);
+        assert_eq!(ReportView::from_param(Some("details")), ReportView::Details);
+        assert_eq!(ReportView::Route.param(), None);
+        assert_eq!(ReportView::Details.param(), Some("details"));
+        for v in [ReportView::Route, ReportView::Details] {
+            assert_eq!(ReportView::from_param(v.param()), v);
+        }
+        assert_eq!(ReportView::Route.label(), "Route");
+        assert_eq!(ReportView::Details.label(), "Details");
+    }
     use time::macros::date;
 
     fn summary() -> ImpactSummary {

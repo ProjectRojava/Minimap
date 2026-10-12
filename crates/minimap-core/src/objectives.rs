@@ -121,6 +121,8 @@ mod tests {
     fn row(n: u128, title: &str, priority: u8, target: Option<Date>) -> ObjectiveRow {
         ObjectiveRow {
             objective: Objective {
+                confirmed_on: None,
+
                 ongoing: false,
                 review_every_days: None,
                 last_reviewed_on: None,

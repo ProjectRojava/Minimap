@@ -267,6 +267,59 @@ fn changing_and_clearing_a_task_type_is_undone() {
 }
 
 #[test]
+fn making_a_task_a_decision_and_its_record_are_one_undo_step() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    round_trip(&mut conn, |c| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                task_type: Patch::Set("decision".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    // Redo must bring the same record back, not make a second one.
+    let before = decisions::list(&conn, false).unwrap().len();
+    let rows = wrote(&mut conn, |c| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                task_type: Patch::Set("decision".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    assert_eq!(decisions::list(&conn, false).unwrap().len(), before + 1);
+    let undone = undo(&mut conn, &rows);
+    assert_eq!(decisions::list(&conn, false).unwrap().len(), before);
+    undo(&mut conn, &undone);
+    assert_eq!(decisions::list(&conn, false).unwrap().len(), before + 1);
+}
+
+#[test]
+fn finishing_a_decision_task_with_the_dialog_is_one_undo_step() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    tasks::update(
+        &mut conn,
+        t.id,
+        UpdateTask {
+            task_type: Patch::Set("decision".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    round_trip(&mut conn, |c| {
+        decisions::finish_task(c, t.id, "Rotate monthly".into(), "Audit finding".into()).unwrap();
+    });
+}
+
+#[test]
 fn putting_a_task_in_focus_changing_it_and_taking_it_out_is_undone() {
     let mut conn = demo();
     let t = task(&conn, "Rotate service credentials");

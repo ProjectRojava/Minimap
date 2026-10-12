@@ -11,7 +11,9 @@ const DEFAULT_WEEKLY_CAPACITY: &str = "default_weekly_capacity_hours";
 const THEME: &str = "theme";
 const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 const HEALTH: &str = "health";
+const FOG: &str = "fog";
 const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
+const ZONE_NARROW_DAYS: &str = "zone_narrow_days";
 const REPORT_TEMPLATE: &str = "report_template";
 const BACKUP_FOLDER: &str = "backup_folder";
 const AUTO_BACKUP: &str = "auto_backup";
@@ -107,12 +109,28 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.capacity_task_limit = n;
         }
     }
+    if let Some(n) = read(conn, ZONE_NARROW_DAYS)?
+        .and_then(|v| v.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
+    {
+        if n <= minimap_types::MAX_ZONE_NARROW_DAYS {
+            s.zone_narrow_days = n;
+        }
+    }
     if let Some(h) = read(conn, HEALTH)?
         .and_then(|v| serde_json::from_value::<minimap_types::HealthThresholds>(v).ok())
     {
         // A stored value that is no longer valid falls back to the defaults.
         if h.validate().is_ok() {
             s.health = h;
+        }
+    }
+    if let Some(f) = read(conn, FOG)?
+        .and_then(|v| serde_json::from_value::<minimap_types::FogThresholds>(v).ok())
+    {
+        // A stored value that is no longer valid falls back to the defaults.
+        if f.validate().is_ok() {
+            s.fog = f;
         }
     }
     if let Some(t) = read(conn, REPORT_TEMPLATE)?.and_then(|v| v.as_str().map(str::to_owned)) {
@@ -174,6 +192,17 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     if let Some(h) = &patch.health {
         h.validate().map_err(StoreError::Invalid)?;
     }
+    if let Some(f) = &patch.fog {
+        f.validate().map_err(StoreError::Invalid)?;
+    }
+    if let Some(n) = patch.zone_narrow_days {
+        if n > minimap_types::MAX_ZONE_NARROW_DAYS {
+            return Err(StoreError::Invalid(format!(
+                "the safe zone is narrow at 0 to {} days of room",
+                minimap_types::MAX_ZONE_NARROW_DAYS
+            )));
+        }
+    }
     if let Some(n) = patch.capacity_task_limit {
         if !(1..=500).contains(&n) {
             return Err(StoreError::Invalid(
@@ -233,6 +262,12 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(h) = patch.health {
         write(&tx, HEALTH, &serde_json::to_value(h)?)?;
+    }
+    if let Some(f) = patch.fog {
+        write(&tx, FOG, &serde_json::to_value(f)?)?;
+    }
+    if let Some(n) = patch.zone_narrow_days {
+        write(&tx, ZONE_NARROW_DAYS, &serde_json::json!(n))?;
     }
     if let Some(n) = patch.capacity_task_limit {
         write(&tx, CAPACITY_TASK_LIMIT, &serde_json::json!(n))?;

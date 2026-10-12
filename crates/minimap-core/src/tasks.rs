@@ -148,6 +148,8 @@ mod tests {
     fn row(n: u128, title: &str, status: TaskStatus, priority: u8, due: Option<Date>) -> TaskRow {
         TaskRow {
             task: Task {
+                confirmed_on: None,
+
                 links: Vec::new(),
                 task_type: None,
                 focus: None,

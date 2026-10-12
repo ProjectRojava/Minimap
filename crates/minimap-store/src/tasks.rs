@@ -1,6 +1,6 @@
 use minimap_types::{
     ActivityAction, AssigneeChoice, CreateTask, EdgeType, LinkRelation, NewEdge, NodeRef, NodeType,
-    Recurrence, Task, TaskStatus, UpdateTask, DEFAULT_PRIORITY,
+    Recurrence, Task, TaskStatus, UpdateTask, DECISION_TYPE, DEFAULT_PRIORITY,
 };
 use rusqlite::{params, Connection, Row, Transaction};
 use time::OffsetDateTime;
@@ -16,7 +16,7 @@ use crate::{
 };
 
 const TABLE: &str = "tasks";
-const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type, focus, start_minute, length_minutes";
+const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type, focus, start_minute, length_minutes, confirmed_on";
 
 fn from_row(r: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
@@ -25,6 +25,7 @@ fn from_row(r: &Row) -> rusqlite::Result<Task> {
         focus: col_focus(r, 16)?,
         start_minute: r.get(17)?,
         length_minutes: r.get(18)?,
+        confirmed_on: col_date_opt(r, 19)?,
         id: col_uuid(r, 0)?,
         title: r.get(1)?,
         description: r.get(2)?,
@@ -111,6 +112,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
         focus: input.focus,
         start_minute: input.start_minute,
         length_minutes: input.length_minutes,
+        confirmed_on: None,
         id: Uuid::now_v7(),
         title: input.title,
         description: input.description,
@@ -130,7 +132,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
     check_type(tx, None, t.task_type.as_deref())?;
     tx.execute(
         &format!(
-            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)"
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)"
         ),
         params![
             id_s(t.id),
@@ -152,11 +154,16 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> 
             focus_s(t.focus.as_ref()),
             t.start_minute,
             t.length_minutes,
+            date_s(t.confirmed_on),
         ],
     )?;
     activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
     if let Some(person) = assignee {
         edges::add_in_tx(tx, assigned_to(t.id, person))?;
+    }
+    // A decision task has its record in the Decisions log from the start (spec 41).
+    if t.task_type.as_deref() == Some(DECISION_TYPE) {
+        crate::decisions::ensure_for_task_in_tx(tx, &t)?;
     }
     Ok(t)
 }
@@ -325,6 +332,13 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Res
     update_in_tx_at(tx, id, patch, None)
 }
 
+/// [`update_in_tx`] for undo and redo: puts the fields back as they were without making a
+/// decision record for a task that becomes a Decision (undo and redo bring the records back
+/// themselves, so one made here would be a second).
+pub(crate) fn restore_in_tx(tx: &Transaction, id: Uuid, patch: UpdateTask) -> Result<Task> {
+    update_core(tx, id, patch, None, false)
+}
+
 /// [`update_in_tx`] where a task that is finished by this update is finished at `finished_at`
 /// instead of now (a meeting that ended while the app was closed, spec 38).
 pub(crate) fn update_in_tx_at(
@@ -332,6 +346,16 @@ pub(crate) fn update_in_tx_at(
     id: Uuid,
     patch: UpdateTask,
     finished_at: Option<OffsetDateTime>,
+) -> Result<Task> {
+    update_core(tx, id, patch, finished_at, true)
+}
+
+fn update_core(
+    tx: &Transaction,
+    id: Uuid,
+    patch: UpdateTask,
+    finished_at: Option<OffsetDateTime>,
+    make_record: bool,
 ) -> Result<Task> {
     let old = get(tx, id)?;
     let mut new = old.clone();
@@ -352,6 +376,12 @@ pub(crate) fn update_in_tx_at(
     }
     validate(&new)?;
     check_type(tx, old.task_type.as_deref(), new.task_type.as_deref())?;
+    // A decision is not finished until it says what was decided and why (spec 42). Undo and redo
+    // put things back as they were and are not held up by it.
+    let decides = make_record && finishing && new.task_type.as_deref() == Some(DECISION_TYPE);
+    if decides {
+        crate::decisions::check_can_finish(tx, &new)?;
+    }
     // Finishing a repeating task hands its rule on to the next one (spec 27): this one no
     // longer repeats.
     let handed_on = if finishing {
@@ -363,10 +393,12 @@ pub(crate) fn update_in_tx_at(
     if diff.is_empty() {
         return Ok(old);
     }
-    new.updated_at = at;
+    if !activity::only_confirmation(&diff) {
+        new.updated_at = at;
+    }
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, focus=?15, start_minute=?16, length_minutes=?17, updated_at=?13 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, focus=?15, start_minute=?16, length_minutes=?17, confirmed_on=?18, updated_at=?13 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -386,6 +418,7 @@ pub(crate) fn update_in_tx_at(
             focus_s(new.focus.as_ref()),
             new.start_minute,
             new.length_minutes,
+            date_s(new.confirmed_on),
         ],
     )?;
     activity::record(
@@ -396,6 +429,18 @@ pub(crate) fn update_in_tx_at(
         ActivityAction::Updated,
         &diff.into(),
     )?;
+    if decides {
+        crate::decisions::decide_with_task_in_tx(tx, &new)?;
+    }
+    // Becoming a decision task makes its record (spec 41); the record stays if the type is changed
+    // away again.
+    if make_record
+        && new.task_type != old.task_type
+        && new.task_type.as_deref() == Some(DECISION_TYPE)
+        && new.archived_at.is_none()
+    {
+        crate::decisions::ensure_for_task_in_tx(tx, &new)?;
+    }
     if let Some(rule) = handed_on {
         make_next(tx, &new, rule)?;
     }

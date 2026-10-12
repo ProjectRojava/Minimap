@@ -500,6 +500,8 @@ mod tests {
 
     fn project(n: u128, title: &str) -> Project {
         Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: slugify(title),
@@ -517,6 +519,8 @@ mod tests {
 
     fn task(n: u128, title: &str, project: Option<u128>, status: TaskStatus) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -617,6 +621,8 @@ mod tests {
         due.task_type = Some("decision".into());
         let blocked = task(13, "Go live", Some(1), TaskStatus::Todo);
         let objective = Objective {
+            confirmed_on: None,
+
             ongoing: false,
             review_every_days: None,
             last_reviewed_on: None,
@@ -638,6 +644,8 @@ mod tests {
             rationale: String::new(),
             decided_on: Some(date!(2027 - 02 - 12)),
             status: DecisionStatus::Decided,
+            auto_status: false,
+            auto_decided_on: false,
             created_at: T0,
             updated_at: T0,
             archived_at: None,

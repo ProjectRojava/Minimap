@@ -416,6 +416,8 @@ mod tests {
     fn a_meeting_is_named_with_its_day_and_time_in_lists() {
         use time::macros::date;
         let mut t = Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: Some("meeting".into()),
             focus: None,

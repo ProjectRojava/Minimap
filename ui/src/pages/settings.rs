@@ -1,7 +1,7 @@
 use leptos::{ev, prelude::*, task::spawn_local};
 use leptos_router::{hooks::query_signal_with_options, NavigateOptions};
 use minimap_types::{
-    AppError, HealthThresholds, Settings as AppSettings, UpdateSettings, WorkWeek,
+    AppError, FogThresholds, HealthThresholds, Settings as AppSettings, UpdateSettings, WorkWeek,
     REPORT_PLACEHOLDERS, WEEKDAY_NAMES,
 };
 use wasm_bindgen::JsCast;
@@ -151,6 +151,7 @@ pub fn Settings() -> impl IntoView {
                     <WaitingSettings settings=settings />
                     <CapacitySettings settings=settings />
                     <HealthSettings />
+                    <FogSettings />
                 }.into_any())}
                 {panel(Tab::Reports, view! { <ReportSettings /> }.into_any())}
                 {panel(Tab::Data, view! {
@@ -514,11 +515,110 @@ fn HealthSettings() -> impl IntoView {
     view! {
         <Card title="Project health" description="When a project turns amber or red on the Overview.">
             {move || match settings.get() {
-                Some(Ok(s)) => view! { <HealthRows current=s.health on_save=save /> }.into_any(),
+                Some(Ok(s)) => view! {
+                    <HealthRows current=s.health on_save=save />
+                    <NumberSetting label="Safe zone is narrow at (days of room or fewer)"
+                        stored=f64::from(s.zone_narrow_days) whole=true
+                        invalid="The narrow zone is a whole number of days"
+                        patch=|n| UpdateSettings { zone_narrow_days: Some(n as u32), ..Default::default() }
+                        read=|s| f64::from(s.zone_narrow_days) />
+                    <p class="text-[11px] text-muted">
+                        "The safe zone is the working days between when a project should finish and its target. "
+                        "At this many days of room or fewer it turns amber; none left is amber too, past the target is red. 0 to 30."
+                    </p>
+                }.into_any(),
                 Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Card>
+    }
+}
+
+/// When something in play that nobody has touched starts to fade (spec 43).
+#[component]
+fn FogSettings() -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let settings = LocalResource::new(move || {
+        version.track();
+        api::get_settings()
+    });
+    let save = move |new: FogThresholds| {
+        spawn_local(async move {
+            finish(
+                api::update_settings(UpdateSettings {
+                    fog: Some(new),
+                    ..Default::default()
+                })
+                .await,
+                toasts,
+                version,
+            );
+        });
+    };
+    view! {
+        <Card title="Fog"
+              description="Items in play fade after this many days without a change. Confirming clears them.">
+            {move || match settings.get() {
+                Some(Ok(s)) => view! { <FogRows current=s.fog on_save=save /> }.into_any(),
+                Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+            }}
+        </Card>
+    }
+}
+
+#[component]
+fn FogRows(
+    current: FogThresholds,
+    #[prop(into)] on_save: Callback<FogThresholds>,
+) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    // One edited number: save it, or say it isn't a number and put the stored value back.
+    let edit = move |apply: fn(&mut FogThresholds, u32)| {
+        move |v: String| match v.trim().parse::<u32>() {
+            Ok(n) => {
+                let mut t = current;
+                apply(&mut t, n);
+                on_save.run(t);
+            }
+            Err(_) => {
+                toasts.error(&AppError {
+                    code: "invalid".into(),
+                    message: "Thresholds are whole numbers".into(),
+                });
+                version.bump();
+            }
+        }
+    };
+    let task_haze = edit(|t, n| t.task_haze = n);
+    let task_fog = edit(|t, n| t.task_fog = n);
+    let project_haze = edit(|t, n| t.project_haze = n);
+    let project_fog = edit(|t, n| t.project_fog = n);
+    let objective_haze = edit(|t, n| t.objective_haze = n);
+    let objective_fog = edit(|t, n| t.objective_fog = n);
+    let reset = move |_| on_save.run(FogThresholds::default());
+    view! {
+        <div class="grid max-w-xl grid-cols-[1fr_5rem_5rem] items-center gap-x-3 gap-y-1">
+            <span></span>
+            <span class="text-[11px] text-muted">"Haze after"</span>
+            <span class="text-[11px] text-muted">"Fog after"</span>
+            <span>"Tasks (days without a change)"</span>
+            <NumberCell value=current.task_haze on_commit=task_haze />
+            <NumberCell value=current.task_fog on_commit=task_fog />
+            <span>"Projects (days without a change)"</span>
+            <NumberCell value=current.project_haze on_commit=project_haze />
+            <NumberCell value=current.project_fog on_commit=project_fog />
+            <span>"Objectives (days without a change)"</span>
+            <NumberCell value=current.objective_haze on_commit=objective_haze />
+            <NumberCell value=current.objective_fog on_commit=objective_fog />
+        </div>
+        <p class="text-[11px] text-muted">
+            "Haze must come before fog, and both are 1 to 365 days. Only work that is in play fades: "
+            "active projects, and tasks that are in progress, blocked, due within 14 days or in focus."
+        </p>
+        <button class=BUTTON on:click=reset>"Reset to defaults"</button>
     }
 }
 

@@ -54,6 +54,8 @@ pub fn App() -> impl IntoView {
     provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
+    provide_context(crate::state::FinishDecision::new());
+    provide_context(crate::components::confirm_archive::ConfirmArchive::new());
     provide_context(DataVersion::new());
     let theme = ThemeCtx::new();
     provide_context(theme);
@@ -97,6 +99,8 @@ fn Shell() -> impl IntoView {
     crate::components::objective_colour::ObjectiveColours::provide();
     // The user's task types (spec 32), for chips, dropdowns and filters.
     crate::components::task_type::TaskTypes::provide();
+    // How stale what is in play has become (spec 43), for the chips and fading on rows and cards.
+    crate::components::fog::FogCtx::provide();
     let list = expect_context::<ListNav>();
     // Rows belong to the screen that registered them; clear them on route change.
     let location = leptos_router::hooks::use_location();
@@ -138,6 +142,8 @@ fn Shell() -> impl IntoView {
             <StatusBar />
             <PaletteHost />
             <LinkDialogHost />
+            <crate::components::finish_decision::FinishDecisionHost />
+            <crate::components::confirm_archive::ConfirmArchiveHost />
             <crate::components::meeting::MeetingDialogHost />
             <crate::components::meeting::MeetingClock />
             <CardMenuHost />

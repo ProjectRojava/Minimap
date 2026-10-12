@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 mod activity;
+mod approach;
 mod backup;
 mod capacity;
 mod demo;
@@ -10,6 +11,7 @@ mod edges;
 mod enums;
 mod export;
 mod focus;
+mod fog;
 mod graph;
 mod health;
 mod impact;
@@ -32,6 +34,7 @@ mod week;
 mod work_week;
 
 pub use activity::*;
+pub use approach::*;
 pub use backup::*;
 pub use capacity::*;
 pub use demo::*;
@@ -39,6 +42,7 @@ pub use edges::*;
 pub use enums::*;
 pub use export::*;
 pub use focus::*;
+pub use fog::*;
 pub use graph::*;
 pub use health::*;
 pub use impact::*;

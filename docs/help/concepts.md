@@ -43,10 +43,11 @@ Dates are written `YYYY-MM-DD` (for example `2027-03-31`) everywhere. The schedu
 | Assignments and weekly hours | Each person's load per week ([Capacity](help:capacity)) |
 | Tasks, targets and links | The health of each project and objective, with reasons ([Overview](help:overview)) |
 | What happened this week | The weekly review and its status report ([Weekly review](help:weekly-review)) |
+| When something was last touched | Fog: work in play that nobody has changed or confirmed for a while fades ([Fog](help:fog)) |
 
 ## Archiving, deleting and undo
 
-- **Archiving** hides an item (and its links) without deleting it. Use [Undo](help:undo) to bring it straight back; archived items stay in the database, can be found with the *Archived* switch in [Search](help:search), and are included in your [export](help:export).
+- **Archiving** always asks first, in a small dialog that says what will happen (Cancel is selected, so pressing Enter by mistake archives nothing). It hides an item (and its links) without deleting it. Use [Undo](help:undo) to bring it straight back; archived items stay in the database, can be found with the *Archived* switch in [Search](help:search), and are included in your [export](help:export).
 - **Deleting for good** is only possible for something already archived, and asks you first. It can't be undone.
 - **Undo** (`Ctrl/Cmd+Z`) takes back your last change. See [Undo and redo](help:undo).
 - Every change is also written to the item's **activity** history, shown at the bottom of its detail pane.
