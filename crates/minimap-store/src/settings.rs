@@ -11,6 +11,7 @@ const DEFAULT_WEEKLY_CAPACITY: &str = "default_weekly_capacity_hours";
 const THEME: &str = "theme";
 const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 const HEALTH: &str = "health";
+const FOG: &str = "fog";
 const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
 const REPORT_TEMPLATE: &str = "report_template";
 const BACKUP_FOLDER: &str = "backup_folder";
@@ -115,6 +116,14 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.health = h;
         }
     }
+    if let Some(f) = read(conn, FOG)?
+        .and_then(|v| serde_json::from_value::<minimap_types::FogThresholds>(v).ok())
+    {
+        // A stored value that is no longer valid falls back to the defaults.
+        if f.validate().is_ok() {
+            s.fog = f;
+        }
+    }
     if let Some(t) = read(conn, REPORT_TEMPLATE)?.and_then(|v| v.as_str().map(str::to_owned)) {
         // A stored template that is no longer valid falls back to the built-in one.
         if minimap_core::report::validate_template(&t).is_ok() {
@@ -173,6 +182,9 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(h) = &patch.health {
         h.validate().map_err(StoreError::Invalid)?;
+    }
+    if let Some(f) = &patch.fog {
+        f.validate().map_err(StoreError::Invalid)?;
     }
     if let Some(n) = patch.capacity_task_limit {
         if !(1..=500).contains(&n) {
@@ -233,6 +245,9 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(h) = patch.health {
         write(&tx, HEALTH, &serde_json::to_value(h)?)?;
+    }
+    if let Some(f) = patch.fog {
+        write(&tx, FOG, &serde_json::to_value(f)?)?;
     }
     if let Some(n) = patch.capacity_task_limit {
         write(&tx, CAPACITY_TASK_LIMIT, &serde_json::json!(n))?;

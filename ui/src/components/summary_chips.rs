@@ -4,11 +4,12 @@
 //! without going through the fields.
 
 use leptos::prelude::*;
-use minimap_types::{Date, Uuid};
+use minimap_types::{Date, NodeRef, NodeType, Uuid};
 
 use crate::{
     api,
     components::{
+        fog::FogPill,
         objective_colour::{use_objective_colours, ObjectiveChips},
         page::Tone,
         task_board::today,
@@ -82,6 +83,7 @@ pub fn TaskSummary(id: Uuid) -> impl IntoView {
                     <Pill tone=priority_tone(t.priority)>{priority_short(t.priority)}</Pill>
                     {due.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
                     {in_focus.then(|| view! { <Pill tone=Tone::Accent>"★ In focus"</Pill> })}
+                    <FogPill node=NodeRef::new(NodeType::Task, id) />
                     <crate::components::task_type::TypeChip id=t.task_type.clone() />
                     <ServedObjectives project=t.project_id />
                 </div>
@@ -115,6 +117,7 @@ pub fn ProjectSummary(id: Uuid) -> impl IntoView {
                     <Pill tone=project_status_tone(p.status)>{project_status_label(p.status)}</Pill>
                     <Pill tone=priority_tone(p.priority)>{priority_short(p.priority)}</Pill>
                     {target.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    <FogPill node=NodeRef::new(NodeType::Project, id) />
                     <ServedObjectives project=Some(p.id) />
                 </div>
             }
@@ -150,6 +153,7 @@ pub fn ObjectiveSummary(id: Uuid) -> impl IntoView {
                     {ongoing.then(|| view! { <Pill tone=Tone::Accent>"ongoing"</Pill> })}
                     {target.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
                     {review.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    <FogPill node=NodeRef::new(NodeType::Objective, id) />
                 </div>
             }
         })

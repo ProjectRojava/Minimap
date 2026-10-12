@@ -64,6 +64,10 @@ Every row has its own controls (status, priority, project, assignee, due date), 
 | `d` | Focus the due date |
 | `a` | Focus the assignee |
 
+## Fog
+
+A task that is in play (in progress, blocked, due within 14 days or in focus) but that nobody has touched for a while is faded and carries a `≋ 9d` chip, in the list and on the board, and the pane shows a *Fog* or *Haze* pill with **Still accurate**. Press `c` on a highlighted task to say it is fine as it is. See [Fog](help:fog).
+
 ## Focus
 
 Normally a task reaches [This week](help:this-week) by its date: late, due, blocked or in progress. **Focus** is the other way in: you pick tasks to see **every day**, however far off (or missing) their due date is. They get their own *Focus* section on This week.

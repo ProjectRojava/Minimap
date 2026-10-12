@@ -9,6 +9,7 @@ The **Overview** (`g o`) is the state of everything on one screen. It is compute
 - **Objectives**, each with its computed health and the projects under it (with their weights), and **projects with no objective** listed separately. A goal shows its target date; an *ongoing* objective shows *ongoing* and when its review is due (or how overdue).
 - **Overloaded people**: over 100% of capacity in the next five working days, or with too many open tasks. See [Capacity](help:capacity).
 - **Stale waiting-ons**: things you are waiting on for too long. See [Waiting on](help:waiting-on).
+- **Visibility**: a tile with the share of what is in play that has been touched or confirmed lately (a dash when nothing is in play, amber under 50%), and a faded `≋ 19d` chip on objectives, projects and risks that have gone quiet. See [Fog](help:fog).
 - A line recalling the **thresholds** in force.
 
 Click any row to open the item and see why.

@@ -666,3 +666,24 @@ pub fn open_blockers(conn: &Connection) -> Result<HashMap<Uuid, Vec<NodeSummary>
     }
     Ok(out)
 }
+
+/// When each node's links last changed (spec 43): the newest `edge_added` / `edge_removed`
+/// activity row of the node the link starts from, which is where the log attaches edge rows.
+pub fn last_link_changes(conn: &Connection) -> Result<HashMap<Uuid, time::OffsetDateTime>> {
+    let mut stmt = conn.prepare(
+        "SELECT node_id, MAX(at) FROM activity WHERE action IN ('edge_added', 'edge_removed') GROUP BY node_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((col_uuid(r, 0)?, col_ts(r, 1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// The date of the newest active note that mentions each node (spec 43).
+pub fn last_mentions(conn: &Connection) -> Result<HashMap<Uuid, time::Date>> {
+    let mut stmt = conn.prepare(
+        "SELECT e.to_id, MAX(n.note_date) FROM edges e JOIN notes n ON n.id = e.from_id
+         WHERE e.edge_type = 'mentions' AND e.archived_at IS NULL AND n.archived_at IS NULL
+         GROUP BY e.to_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((col_uuid(r, 0)?, col_date(r, 1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}

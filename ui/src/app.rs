@@ -99,6 +99,8 @@ fn Shell() -> impl IntoView {
     crate::components::objective_colour::ObjectiveColours::provide();
     // The user's task types (spec 32), for chips, dropdowns and filters.
     crate::components::task_type::TaskTypes::provide();
+    // How stale what is in play has become (spec 43), for the chips and fading on rows and cards.
+    crate::components::fog::FogCtx::provide();
     let list = expect_context::<ListNav>();
     // Rows belong to the screen that registered them; clear them on route change.
     let location = leptos_router::hooks::use_location();

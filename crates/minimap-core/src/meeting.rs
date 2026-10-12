@@ -150,6 +150,8 @@ mod tests {
 
     fn meeting(status: TaskStatus, due: Date, start: u16, length: Option<u32>) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: Some(MEETING_TYPE.into()),
             focus: None,

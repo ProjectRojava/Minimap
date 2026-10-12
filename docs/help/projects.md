@@ -15,6 +15,10 @@ Filters narrow by status, owner or objective. *New project* opens a short form.
 
 When the list is narrow (for example with the detail pane open) the *Owner* and *Target* columns are hidden so the project title stays readable; widen the window or close the pane to see them. The owner and target date are always in the detail pane.
 
+## Fog
+
+An active project that nobody has touched for a while, and whose tasks have not moved, is faded and carries a `≋ 22d` chip in the list, on the board and on the [Overview](help:overview). Open it and press **Still accurate** (or `c` on the row) if it is fine as it is. See [Fog](help:fog).
+
 ## The handle
 
 Every project has a **handle**, a short unique name such as `api-launch`, made from its title when you create it. You use it in quick-add (`#api-launch`) to put a task in the project. Handles must be unique among active projects; archiving a project frees its handle. You can change the handle in the detail pane.

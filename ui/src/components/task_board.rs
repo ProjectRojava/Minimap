@@ -21,6 +21,7 @@ use crate::{
         card_menu::CardMenu,
         date_field::today_ymd,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
+        fog::{confirm_row, fog_class, mark_for, FogLine},
         form::BUTTON_SOFT,
         objective_colour::{assign, use_objective_colours, ObjectiveChips},
         page::{Hints, Icon, PageHeader, Tone, CHIP},
@@ -601,6 +602,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 },
             ),
             "s" => move_to(id, next_status(current)),
+            "c" => confirm_row(node),
             "f" => {
                 let on = is_on(row.task.focus.as_ref(), today());
                 set_focus(id, toggle_choice(on), toasts, version);
@@ -748,7 +750,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                     </span>
                 </Show>
                 <span class="ml-auto"><LayoutToggle board=layout /></span>
-                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("f", "focus"), ("1-5", "priority")] />
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority")] />
             </PageHeader>
             <FilterControls filters=filters inbox=false board=true />
             {move || if data.with(Option::is_some) {
@@ -1118,7 +1120,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 style
             }
             class=move || format!(
-                "group relative cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {} {}",
+                "group relative cursor-grab select-none rounded-sm border p-2.5 transition-colors active:cursor-grabbing {} {} {} {} {}",
                 "card-frame",
                 // The border is the card's own, so its states are a tint and a ring.
                 if is_open() { "bg-active ring-1 ring-accent/60" }
@@ -1126,7 +1128,9 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 else if on_cursor() { "bg-hover ring-1 ring-line-strong" }
                 else { "bg-canvas hover:bg-hover" },
                 if heat.is_some() && !is_open() && !on_cursor() { "heat" } else { "" },
-                if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else { "" })
+                if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else { "" },
+                // Gone quiet (spec 43): faded, with the chip at the top.
+                fog_class(mark_for(id).map(|m| m.level)))
             on:click=move |_| {
                 if let Some(i) = index() {
                     list.cursor.set(Some(i));
@@ -1149,6 +1153,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             }
         >
             <CardMenu task=id label=title_label />
+            {(!closed).then(|| view! { <FogLine id=id /> })}
             {(!closed && !is_meeting).then(|| view! {
                 <FocusStar task=id focus=focus place="absolute right-6 top-1" />
             })}
@@ -1251,6 +1256,8 @@ mod tests {
         let at = OffsetDateTime::UNIX_EPOCH;
         TaskRow {
             task: minimap_types::Task {
+                confirmed_on: None,
+
                 links: Vec::new(),
                 task_type: None,
                 focus: None,

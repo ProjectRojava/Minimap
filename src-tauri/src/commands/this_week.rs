@@ -38,7 +38,15 @@ pub(crate) fn this_week_impl(
     let self_id = minimap_store::people::get_self(conn)
         .map_err(store_error)?
         .map(|p| p.id);
+    // Fog is how stale things are now, so a look back at a past day has none.
+    let fog = if as_of.is_some_and(|d| d < real_today) {
+        None
+    } else {
+        Some(crate::commands::fog::fog_at(conn, real_today)?)
+    };
     let mut input = WeekInput {
+        fog,
+
         tasks: minimap_store::views::task_rows(conn).map_err(store_error)?,
         blockers: minimap_store::views::open_blockers(conn).map_err(store_error)?,
         waiting: minimap_store::views::waiting_on_items(conn).map_err(store_error)?,
@@ -344,5 +352,51 @@ mod tests {
                 .code,
             "not_found"
         );
+    }
+
+    #[test]
+    fn work_nobody_has_touched_is_listed_as_gone_quiet_but_not_when_looking_back() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let me = person(&mut conn, "Me", true);
+        let sam = person(&mut conn, "Sam", false);
+        let today = minimap_store::today();
+        // Sam's task, under way, due next month: on no other part of the page.
+        let theirs = task(
+            &mut conn,
+            "Sam's migration",
+            Some(today + Duration::days(40)),
+            TaskStatus::InProgress,
+            AssigneeChoice::Person(sam),
+        );
+        // Mine, under way: in the plan (its fog shows as a chip on its row, not here).
+        let mine = task(
+            &mut conn,
+            "My review",
+            None,
+            TaskStatus::InProgress,
+            AssigneeChoice::Person(me),
+        );
+        // Both were last touched 20 days ago (their assignee links are part of their history).
+        let at = format!("{}T09:00:00.000Z", today - Duration::days(20));
+        for id in [theirs, mine] {
+            conn.execute(
+                "UPDATE tasks SET updated_at = ?2 WHERE id = ?1",
+                [id.to_string(), at.clone()],
+            )
+            .unwrap();
+        }
+        conn.execute("UPDATE activity SET at = ?1", [at]).unwrap();
+        let w = this_week_impl(&conn, None, None).unwrap();
+        let quiet: Vec<&str> = w
+            .quiet
+            .iter()
+            .map(|q| q.task.row.task.title.as_str())
+            .collect();
+        assert_eq!(quiet, ["Sam's migration"]);
+        assert_eq!(w.quiet[0].mark.age_days, 20);
+        assert!(w.priorities.iter().any(|t| t.id() == mine));
+
+        let back = this_week_impl(&conn, None, Some(today - Duration::days(1))).unwrap();
+        assert!(back.quiet.is_empty());
     }
 }

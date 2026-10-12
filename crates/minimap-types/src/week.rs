@@ -97,6 +97,13 @@ pub const FOCUS_SOFT_LIMIT: usize = 5;
 /// A task in focus that has not changed, and has had no note, for this many days is asked about.
 pub const FOCUS_QUIET_DAYS: u32 = 14;
 
+/// A task that has gone quiet (spec 43) and is on This week for no other reason.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct QuietTask {
+    pub task: WeekTask,
+    pub mark: crate::FogMark,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThisWeek {
     /// The Monday and Sunday of the week shown.
@@ -157,6 +164,14 @@ pub struct ThisWeek {
     /// never overdue or "due today" flags; the clock closes them when they end.
     #[serde(default)]
     pub meetings: Vec<WeekTask>,
+    /// Fogged tasks (spec 43) that are in none of `meetings`, `attention`, `focus` and
+    /// `priorities`, Fog first and then oldest first, at most `QUIET_LIMIT`. Empty when looking
+    /// back at a past day.
+    #[serde(default)]
+    pub quiet: Vec<QuietTask>,
+    /// How many fogged tasks are not listed in `quiet` for lack of room.
+    #[serde(default)]
+    pub quiet_more: u32,
 }
 
 /// Where a task id was last seen is irrelevant; kept so the UI can key rows.

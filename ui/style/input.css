@@ -185,6 +185,15 @@ article.card-frame {
   }
 }
 
+/* Fog of war (spec 43, ADR-0019): items in play that nobody has touched lately look their age.
+   Haze mutes the text; fog also fades what is read on the row or card. Buttons, inputs and the
+   chip (`.fog-keep`) keep full contrast so they stay usable, and a chip always says it in words,
+   so fog is never colour alone. Theme tokens only. */
+.fog-haze, .fog-fog { color: var(--muted); }
+.fog-fog.fog-content > :not(button):not(input):not(.fog-keep),
+.fog-fog .fog-content > :not(button):not(input):not(.fog-keep),
+article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
+
 /* Schedule timeline (components/schedule_panel.rs). Theme tokens only. */
 .gantt { display: block; }
 .gantt text { fill: var(--muted); font-size: 10px; font-family: inherit; }

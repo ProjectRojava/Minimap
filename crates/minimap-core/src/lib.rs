@@ -9,6 +9,7 @@ pub mod dependency_graph;
 pub mod edge_rules;
 pub mod export_md;
 pub mod focus;
+pub mod fog;
 pub mod health;
 pub mod impact;
 pub mod layout;

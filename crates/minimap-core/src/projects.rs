@@ -156,6 +156,8 @@ mod tests {
     ) -> ProjectRow {
         ProjectRow {
             project: Project {
+                confirmed_on: None,
+
                 id: Uuid::from_u128(n),
                 title: title.into(),
                 slug: title.to_lowercase(),

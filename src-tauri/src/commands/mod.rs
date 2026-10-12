@@ -5,6 +5,7 @@ pub mod decisions;
 pub mod demo;
 pub mod edges;
 pub mod export;
+pub mod fog;
 pub mod graph;
 pub mod impact;
 pub mod links;

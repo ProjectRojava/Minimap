@@ -28,7 +28,10 @@ pub struct ArchiveRequest {
 
 /// The request being asked, if any. Provided once by the app.
 #[derive(Clone, Copy)]
-pub struct ConfirmArchive(pub RwSignal<Option<ArchiveRequest>>, StoredValue<Option<Owner>>);
+pub struct ConfirmArchive(
+    pub RwSignal<Option<ArchiveRequest>>,
+    StoredValue<Option<Owner>>,
+);
 
 /// What every archive says about getting it back.
 pub const UNDO_HINT: &str = "Ctrl/Cmd+Z brings it back.";

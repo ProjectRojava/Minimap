@@ -54,6 +54,7 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 40 | [About](40-about.md) | — | Could | — |
 | 41 | [Decision tasks and the decision log](41-decision-tasks.md) | — | Should | 10, 24, 25, 32 |
 | 42 | [Finishing decisions, what is automatic, and confirming every archive](42-decision-gate-and-archive-confirm.md) | — | Should | 10, 25, 32, 41 |
+| 43 | [Fog of war: show how old what you know is](../product-design/01-fog-of-war.md) | — | Should | 13, 15, 16, 19, 30, 36, 37 |
 
 Design docs for the minimap features (fog of war, safe zone, approaching, route, pings, your people, views, save points, zoom, radar, brand) are in [`docs/product-design/`](../product-design/README.md); each becomes a numbered row here when it is set to Ready.
 

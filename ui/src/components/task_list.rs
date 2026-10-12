@@ -14,6 +14,7 @@ use crate::{
     api,
     components::{
         focus::{is_on, set_focus, toggle_choice, FocusStar},
+        fog::confirm_row,
         form::{
             date_patch, DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT,
             COMPACT_INPUT, INPUT,
@@ -488,6 +489,10 @@ pub fn TaskList(
                 priority: k.parse().ok(),
                 ..Default::default()
             }),
+            "c" => {
+                confirm_row(node);
+                None
+            }
             "d" => {
                 focus_element(&format!("task-due-{id}"));
                 None
@@ -591,7 +596,7 @@ pub fn TaskList(
                 </button>
                 {layout.map(|_| view! { <crate::components::meeting::NewMeetingButton /> })}
                 {layout.map(|board| view! { <span class="ml-auto"><LayoutToggle board=board /></span> })}
-                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("f", "focus"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
             </PageHeader>
             <FilterControls filters=filters inbox=inbox board=false />
             <Show when=move || adding.get()>

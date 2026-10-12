@@ -9,6 +9,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        fog::{confirm_row, fog_class, mark_for, FogLine},
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveChips},
@@ -83,6 +84,12 @@ pub fn Projects() -> impl IntoView {
 
     let adding = RwSignal::new(false);
     list.on_new(move || adding.set(true));
+    // `c`: the project under the cursor is still accurate (clears its fog, spec 43).
+    list.on_row_key(move |key, node| {
+        if key == "c" {
+            confirm_row(node);
+        }
+    });
     let title = RwSignal::new(String::new());
     let new_owner = RwSignal::new(String::new());
     let new_objective = RwSignal::new(String::new());
@@ -362,7 +369,8 @@ fn BoardCard(
             draggable="true"
             style=move || hue.get().map(|h| format!("--obj-h: {h}")).unwrap_or_default()
             class=move || format!(
-                "cursor-default select-none rounded-sm border border-line p-2 {} {} {}",
+                "cursor-default select-none rounded-sm border border-line p-2 {} {} {} {}",
+                fog_class(mark_for(id).map(|m| m.level)),
                 if hue.get().is_some() { "obj-bar" } else { "" },
                 if is_open() { "bg-active" }
                 else if on_cursor() { "bg-hover shadow-[inset_2px_0_0_var(--color-muted)]" }
@@ -384,6 +392,7 @@ fn BoardCard(
                 over.set(None);
             }
         >
+            <FogLine id=id />
             <div class="flex items-start gap-2">
                 <span class="flex-1 break-words font-medium">{p.title}</span>
                 <span class="text-[11px] tabular-nums text-muted">{priority_short(p.priority)}</span>

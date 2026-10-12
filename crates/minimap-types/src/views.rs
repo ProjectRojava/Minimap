@@ -276,6 +276,8 @@ pub struct Settings {
     /// When a project's lateness, blocked/overdue share or unestimated share turns its health
     /// amber or red.
     pub health: crate::HealthThresholds,
+    /// When an item in play counts as hazy or fogged for lack of a change (spec 43).
+    pub fog: crate::FogThresholds,
     /// The Markdown template of the weekly status report (`{{placeholders}}`, see
     /// `REPORT_PLACEHOLDERS`); the built-in default until edited.
     pub report_template: String,
@@ -300,6 +302,7 @@ impl Default for Settings {
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
             health: crate::HealthThresholds::default(),
+            fog: crate::FogThresholds::default(),
             report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
             backup_folder: None,
             auto_backup: true,
@@ -319,6 +322,7 @@ pub struct UpdateSettings {
     pub stale_waiting_days: Option<u32>,
     pub capacity_task_limit: Option<u32>,
     pub health: Option<crate::HealthThresholds>,
+    pub fog: Option<crate::FogThresholds>,
     /// A new report template; an empty text restores the built-in one.
     pub report_template: Option<String>,
     /// A new backup folder (an absolute path); an empty text goes back to the default.

@@ -279,6 +279,12 @@
           "markdownDescription": "Enables the commit_quick_add command without any pre-configured scope."
         },
         {
+          "description": "Enables the confirm_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-confirm-item",
+          "markdownDescription": "Enables the confirm_item command without any pre-configured scope."
+        },
+        {
           "description": "Enables the connect_drive command without any pre-configured scope.",
           "type": "string",
           "const": "allow-connect-drive",
@@ -445,6 +451,12 @@
           "type": "string",
           "const": "allow-get-dependency-graph",
           "markdownDescription": "Enables the get_dependency_graph command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_fog command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-fog",
+          "markdownDescription": "Enables the get_fog command without any pre-configured scope."
         },
         {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
@@ -1053,6 +1065,12 @@
           "markdownDescription": "Denies the commit_quick_add command without any pre-configured scope."
         },
         {
+          "description": "Denies the confirm_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-confirm-item",
+          "markdownDescription": "Denies the confirm_item command without any pre-configured scope."
+        },
+        {
           "description": "Denies the connect_drive command without any pre-configured scope.",
           "type": "string",
           "const": "deny-connect-drive",
@@ -1219,6 +1237,12 @@
           "type": "string",
           "const": "deny-get-dependency-graph",
           "markdownDescription": "Denies the get_dependency_graph command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_fog command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-fog",
+          "markdownDescription": "Denies the get_fog command without any pre-configured scope."
         },
         {
           "description": "Denies the get_node_summary command without any pre-configured scope.",

@@ -512,6 +512,8 @@ mod tests {
 
     fn task(n: u128, title: &str, days: f64, project: Option<u128>) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -536,6 +538,8 @@ mod tests {
 
     fn project(n: u128, title: &str, target: Option<Date>) -> Project {
         Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: title.to_lowercase(),

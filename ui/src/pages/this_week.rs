@@ -5,7 +5,7 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    Date, Flag, FlaggedTask, FocusTask, NodeRef, NodeType, NoteKind, NoteRow, TaskNotes,
+    Date, Flag, FlaggedTask, FocusTask, NodeRef, NodeType, NoteKind, NoteRow, QuietTask, TaskNotes,
     TaskStatus, ThisWeek as Week, UpdateTask, Uuid, WaitingOnRow, WeekDay, WeekTask,
     FOCUS_QUIET_DAYS, FOCUS_SOFT_LIMIT,
 };
@@ -14,6 +14,7 @@ use crate::{
     api,
     components::{
         focus::{is_on, set_focus, toggle_choice, FocusStar},
+        fog::{confirm_row, FogHidden, StillAccurate},
         form::{BUTTON, BUTTON_SUCCESS, COMPACT_INPUT},
         markdown_box::{clicked_a_link, MarkdownView},
         meeting::starts_in_text,
@@ -85,12 +86,18 @@ pub fn total_items(w: &Week) -> usize {
     w.overdue.len()
         + w.meetings.len()
         + w.focus.len()
+        + w.quiet.len()
         + w.due_this_week.len()
         + w.blocked.len()
         + w.in_progress.len()
         + w.waiting.len()
         + w.one_on_ones.len()
         + w.reviews.len()
+}
+
+/// The line under *Gone quiet* when more tasks have gone quiet than it lists.
+pub fn quiet_more_text(more: u32) -> Option<String> {
+    (more > 0).then(|| format!("and {more} more in the weekly review's Fog step"))
 }
 
 /// How many red flags of each kind, and the rest of the week, for the tiles at the top.
@@ -322,6 +329,11 @@ fn Body(
             .map(|t| NodeRef::new(NodeType::Task, t.id())),
     );
     nodes.extend(
+        week.quiet
+            .iter()
+            .map(|q| NodeRef::new(NodeType::Task, q.task.id())),
+    );
+    nodes.extend(
         week.waiting
             .iter()
             .map(|w| NodeRef::new(NodeType::WaitingOn, w.waiting.id)),
@@ -344,8 +356,11 @@ fn Body(
         .collect();
 
     // `x` completes the task (or resolves the waiting-on) under the cursor; `f` puts a task in
-    // focus or takes it out.
+    // focus or takes it out; `c` says a task that has gone quiet is still accurate (not when
+    // looking back: there is no fog then).
+    let looking_back_now = week.as_of.is_some();
     list.on_row_key(move |key, node| match (key.as_str(), node.node_type) {
+        ("c", NodeType::Task) if !looking_back_now => confirm_row(node),
         ("x", NodeType::Task) => complete(node.id, toasts, version, gate),
         ("x", NodeType::WaitingOn) => resolve(node.id, toasts, version),
         ("f", NodeType::Task) => set_focus(
@@ -362,6 +377,10 @@ fn Body(
     let current = week.is_current_week;
     // Looking back, the arrows move the chosen day a week at a time (reaching today ends it).
     let looking_back = week.as_of;
+    // Fog is how stale things are now: looking back at a past day there is none to show.
+    if looking_back.is_some() {
+        provide_context(FogHidden);
+    }
     let real_today = week.real_today;
     let prev = move |_| match looking_back {
         Some(day) => as_of.set(Some(shift_days(day, -7))),
@@ -485,6 +504,25 @@ fn Body(
             </section>
         }
     });
+    let quiet = (!week.quiet.is_empty()).then(|| {
+        let first = index;
+        index += week.quiet.len();
+        let more = quiet_more_text(week.quiet_more);
+        let rows = week
+            .quiet
+            .iter()
+            .enumerate()
+            .map(|(i, q)| view! { <QuietRow item=q.clone() index=first + i notes=notes_of.get(&q.task.id()).cloned() /> })
+            .collect_view();
+        view! {
+            <section class=CARD aria-label="Gone quiet">
+                <CardHead title="Gone quiet" count=week.quiet.len()
+                    hint="In play, but nobody has touched them lately. Check them, or say they are still accurate" />
+                {rows}
+                {more.map(|text| view! { <p class="border-t border-line px-4 py-1.5 text-[12px] text-muted">{text}</p> })}
+            </section>
+        }
+    });
     let waiting = (!week.waiting.is_empty()).then(|| {
         let first = index;
         index += week.waiting.len();
@@ -545,7 +583,7 @@ fn Body(
             <span class="tabular-nums text-muted">{range_text(week.week_start, week.week_end)}</span>
             <button class=BUTTON aria-label="Next week" on:click=next>"›"</button>
             <button class=BUTTON disabled=current && !back_to_today on:click=reset>"This week"</button>
-            <Hints keys=&[("j/k", "move"), ("Enter", "open"), ("x", "done"), ("f", "focus")] />
+            <Hints keys=&[("j/k", "move"), ("Enter", "open"), ("x", "done"), ("f", "focus"), ("c", "still accurate")] />
         </PageHeader>
         <div class="min-h-0 flex-1 overflow-y-auto pb-6">
             <SyncBanner />
@@ -576,6 +614,7 @@ fn Body(
             {attention}
             {focus_section}
             {priorities}
+            {quiet}
             {waiting}
             {reviews}
             {ones}
@@ -1083,6 +1122,47 @@ fn PlanRow(
     }
 }
 
+/// A task that has gone quiet and is on This week for no other reason (spec 43). The row's chip
+/// (`≋ 19d`) comes from `NodeRow`; *Still accurate* clears it without a change.
+#[component]
+fn QuietRow(
+    item: QuietTask,
+    index: usize,
+    #[prop(default = None)] notes: Option<TaskNotes>,
+) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let gate = expect_context::<FinishDecision>();
+    let t = item.task.row.task.clone();
+    let id = t.id;
+    let node = NodeRef::new(NodeType::Task, id);
+    let project = item.task.row.project.as_ref().map(|p| p.label.clone());
+    let who = item.task.row.assignee.as_ref().map(|a| a.label.clone());
+    let status = (t.status != TaskStatus::Todo)
+        .then(|| (task_status_tone(t.status), task_status_label(t.status)));
+    let below = move || {
+        notes
+            .clone()
+            .map(|n| view! { <RecentNotes notes=n indent="pl-[2.75rem]" /> })
+    };
+    view! {
+        <NodeRow node=node index=index below=below>
+            <button class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-strong \
+                           text-[10px] text-transparent hover:border-success hover:text-success"
+                    title="Mark done" aria-label="Mark done"
+                    on:click=move |ev| { ev.stop_propagation(); complete(id, toasts, version, gate); }>"✓"</button>
+            <span class="min-w-0 truncate">
+                <span class="font-medium">{t.title.clone()}</span>
+                {project.map(|p| view! { <span class="ml-2 text-muted">{p}</span> })}
+                {who.map(|w| view! { <span class="ml-2 text-muted">{format!("· {w}")}</span> })}
+            </span>
+            {(t.priority <= 2).then(|| view! { <span class=CHIP_STRONG>{format!("P{}", t.priority)}</span> })}
+            {status.map(|(tone, s)| view! { <span class=tone.chip()>{s}</span> })}
+            <span class="ml-auto"><StillAccurate node=node /></span>
+        </NodeRow>
+    }
+}
+
 #[component]
 fn WaitingRowView(row: WaitingOnRow, index: usize) -> impl IntoView {
     let version = expect_context::<DataVersion>();
@@ -1175,6 +1255,8 @@ mod tests {
         WeekTask {
             row: minimap_types::TaskRow {
                 task: minimap_types::Task {
+                    confirmed_on: None,
+
                     id: Uuid::from_u128(n),
                     title: format!("T{n}"),
                     description: String::new(),
@@ -1233,6 +1315,8 @@ mod tests {
             focus: Vec::new(),
             focus_count: 0,
             meetings: Vec::new(),
+            quiet: Vec::new(),
+            quiet_more: 0,
         }
     }
 
@@ -1279,6 +1363,31 @@ mod tests {
         assert_eq!(
             headline(&week(Vec::new(), Vec::new(), true)),
             "Nothing needs you this week"
+        );
+    }
+
+    #[test]
+    fn the_quiet_section_counts_as_something_on_the_page_and_says_what_it_leaves_out() {
+        let mut w = week(vec![], vec![], true);
+        assert_eq!(total_items(&w), 0);
+        w.quiet.push(QuietTask {
+            task: task(7, TaskStatus::InProgress),
+            mark: minimap_types::FogMark {
+                node: NodeRef::new(NodeType::Task, Uuid::from_u128(7)),
+                label: "t".into(),
+                level: minimap_types::FogLevel::Haze,
+                age_days: 9,
+                last_seen: date!(2027 - 02 - 23),
+                reason: minimap_types::FogReason::NoChange,
+            },
+        });
+        assert_eq!(total_items(&w), 1);
+        // Fog is a nudge: the tiles and the headline are about red flags and the plan.
+        assert_eq!(headline(&w), "Nothing needs you this week");
+        assert_eq!(quiet_more_text(0), None);
+        assert_eq!(
+            quiet_more_text(3).as_deref(),
+            Some("and 3 more in the weekly review's Fog step")
         );
     }
 

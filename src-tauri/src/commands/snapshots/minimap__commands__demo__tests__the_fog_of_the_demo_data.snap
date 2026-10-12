@@ -1,0 +1,14 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+VISIBILITY: 66 (21 in play, 12 clear)
+Fog Task Autoscaling policy - 22d, last seen 2027-02-09 (NoChange)
+Fog Task Gateway: design rate limiting - 22d, last seen 2027-02-09 (NoChange)
+Fog Task Gateway: migrate the first five services - 22d, last seen 2027-02-09 (NoChange)
+Fog Project Platform Cost Reduction - 22d, last seen 2027-02-09 (NoChange)
+Fog Task Remove unused load balancers - 22d, last seen 2027-02-09 (NoChange)
+Fog Task Right-size the compute fleet - 22d, last seen 2027-02-09 (NoChange)
+Haze Objective Cut platform costs by 20% - 22d, last seen 2027-02-09 (NoChange)
+Haze Task Choose a penetration-test vendor - 9d, last seen 2027-02-22 (NoChange)
+Haze Task Monthly access review - 9d, last seen 2027-02-22 (NoChange)

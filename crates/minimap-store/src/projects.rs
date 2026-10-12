@@ -18,7 +18,7 @@ use crate::{
 };
 
 const TABLE: &str = "projects";
-const COLS: &str = "id, title, slug, description, owner_person_id, start_date, target_date, status, priority, created_at, updated_at, archived_at";
+const COLS: &str = "id, title, slug, description, owner_person_id, start_date, target_date, status, priority, created_at, updated_at, archived_at, confirmed_on";
 
 fn from_row(r: &Row) -> rusqlite::Result<Project> {
     Ok(Project {
@@ -34,6 +34,7 @@ fn from_row(r: &Row) -> rusqlite::Result<Project> {
         created_at: col_ts(r, 9)?,
         updated_at: col_ts(r, 10)?,
         archived_at: col_ts_opt(r, 11)?,
+        confirmed_on: col_date_opt(r, 12)?,
     })
 }
 
@@ -110,13 +111,16 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateProject) -> Result<Pro
         target_date: input.target_date,
         status: input.status.unwrap_or(ProjectStatus::Planned),
         priority: input.priority.unwrap_or(DEFAULT_PRIORITY),
+        confirmed_on: None,
         created_at: at,
         updated_at: at,
         archived_at: None,
     };
     validate(&p)?;
     tx.execute(
-        &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)"),
+        &format!(
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)"
+        ),
         params![
             id_s(p.id),
             p.title,
@@ -130,6 +134,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateProject) -> Result<Pro
             ts_s(p.created_at),
             ts_s(p.updated_at),
             ts_opt_s(p.archived_at),
+            date_s(p.confirmed_on),
         ],
     )?;
     activity::record_created(tx, at, NodeType::Project, p.id, &p)?;
@@ -157,10 +162,13 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateProject) -> 
     if diff.is_empty() {
         return Ok(old);
     }
-    new.updated_at = now();
+    let at = now();
+    if !activity::only_confirmation(&diff) {
+        new.updated_at = at;
+    }
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, slug=?3, description=?4, owner_person_id=?5, start_date=?6, target_date=?7, status=?8, priority=?9, updated_at=?10 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, slug=?3, description=?4, owner_person_id=?5, start_date=?6, target_date=?7, status=?8, priority=?9, updated_at=?10, confirmed_on=?11 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -173,11 +181,12 @@ pub(crate) fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateProject) -> 
             new.status.as_str(),
             new.priority,
             ts_s(new.updated_at),
+            date_s(new.confirmed_on),
         ],
     )?;
     activity::record(
         tx,
-        new.updated_at,
+        at,
         NodeType::Project,
         id,
         ActivityAction::Updated,

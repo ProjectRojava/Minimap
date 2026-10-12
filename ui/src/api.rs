@@ -705,6 +705,21 @@ pub async fn get_this_week(
     invoke("get_this_week", &ThisWeekArg { week_start, as_of }).await
 }
 
+/// The items in play that have gone quiet, and the share of what is in play that is clear.
+pub async fn get_fog() -> Result<minimap_types::FogReport, AppError> {
+    invoke("get_fog", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct ConfirmArg {
+    node: NodeRef,
+}
+
+/// Says an item is still accurate: it clears its fog without changing anything.
+pub async fn confirm_item(node: NodeRef) -> Result<(), AppError> {
+    invoke("confirm_item", &ConfirmArg { node }).await
+}
+
 #[derive(Serialize)]
 struct RescheduleArg {
     id: Uuid,

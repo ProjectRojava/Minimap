@@ -7,6 +7,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        fog::confirm_row,
         form::{DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveDot},
@@ -51,6 +52,12 @@ pub fn Objectives() -> impl IntoView {
 
     let adding = RwSignal::new(false);
     list.on_new(move || adding.set(true));
+    // `c`: the objective under the cursor is still accurate (clears its fog, spec 43).
+    list.on_row_key(move |key, node| {
+        if key == "c" {
+            confirm_row(node);
+        }
+    });
     let title = RwSignal::new(String::new());
     let target = RwSignal::new(String::new());
     let priority = RwSignal::new("3".to_owned());

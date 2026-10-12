@@ -243,6 +243,8 @@ mod tests {
 
     fn task(n: u128, title: &str, days: Option<f64>) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -693,6 +695,8 @@ mod tests {
             people: vec![person(30, "Priya", 40.0)],
             edges: vec![assigned(1, 30, None)],
             projects: vec![Project {
+                confirmed_on: None,
+
                 id: id(10),
                 title: "API".into(),
                 slug: "api".into(),

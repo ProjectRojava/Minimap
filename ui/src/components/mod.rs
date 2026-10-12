@@ -13,6 +13,7 @@ pub mod export_settings;
 pub mod finish_decision;
 pub mod first_run;
 pub mod focus;
+pub mod fog;
 pub mod form;
 pub mod health;
 pub mod health_panel;

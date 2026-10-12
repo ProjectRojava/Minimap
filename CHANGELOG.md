@@ -7,6 +7,7 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+- **Fog of war: see how old what you know is**: work that is in play but that nobody has changed, written about or confirmed for a while fades and shows a `≋ 19d` chip on lists, cards, the Overview, This week and the detail pane. *Still accurate* (or `c`) clears it without changing anything and `Ctrl/Cmd+Z` brings it back. The Overview gets a *Visibility* tile, This week a *Gone quiet* section for fogged tasks that are nowhere else on the page, the weekly review a *Fog* step, and Settings → Thresholds the six numbers (Spec 43, ADR-0019).
 - **Decision tasks have a record in the Decisions log**: making a task of type *Decision* creates a linked, proposed decision you write from the task's pane (*Decision record*). Finishing or archiving the task leaves the decision in the log (Spec 41).
 
 ### Changed

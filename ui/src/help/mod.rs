@@ -140,6 +140,12 @@ pub const PAGES: &[Page] = &[
         "Health, risks, and how they are decided"
     ),
     page!(
+        "fog",
+        "Planning and insight",
+        "Fog: how fresh your information is",
+        "Work that has gone quiet fades, until you confirm it"
+    ),
+    page!(
         "weekly-review",
         "Planning and insight",
         "Weekly review",
@@ -371,7 +377,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 29);
+        assert_eq!(PAGES.len(), 30);
     }
 
     #[test]
@@ -580,6 +586,27 @@ mod tests {
         assert!(overview.contains(&format!(
             "{}% | {}%",
             t.unestimated_amber_pct, t.unestimated_red_pct
+        )));
+    }
+
+    #[test]
+    fn the_fog_defaults_quoted_are_the_real_ones() {
+        let t = minimap_types::FogThresholds::default();
+        let fog = page("fog").body;
+        for (kind, haze, fog_after) in [
+            ("Tasks", t.task_haze, t.task_fog),
+            ("Projects", t.project_haze, t.project_fog),
+            ("Objectives", t.objective_haze, t.objective_fog),
+        ] {
+            assert!(
+                fog.contains(&format!("| {kind} | {haze} days | {fog_after} days |")),
+                "the fog page lacks the {kind} thresholds"
+            );
+        }
+        // The confirmation stays clear for the haze number of days.
+        assert!(fog.contains(&format!(
+            "({} days for a task, {} for a project, {} for an objective",
+            t.task_haze, t.project_haze, t.objective_haze
         )));
     }
 

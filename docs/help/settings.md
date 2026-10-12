@@ -21,6 +21,7 @@
 - **Waiting on, stale after (days)** (default 7): when an open [waiting-on](help:waiting-on) counts as stale.
 - **Capacity, too many open tasks above** (default 10): flags a person on [Capacity](help:capacity) and the Overview whatever the estimates.
 - **Project health**: when a project turns amber or red, for lateness, overdue-or-blocked share and unestimated share. Amber can't be above red. *Reset to defaults* restores them. See [Overview and health](help:overview).
+- **Fog**: after how many days without a change a task, a project or an objective in play fades (*haze*) and then counts as *fog*. Haze must come before fog, and both are 1 to 365 days. *Reset to defaults* restores them. See [Fog](help:fog).
 
 ## Reports
 

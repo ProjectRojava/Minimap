@@ -12,7 +12,7 @@ use crate::{
 };
 
 const TABLE: &str = "objectives";
-const COLS: &str = "id, title, description, target_date, status, priority, created_at, updated_at, archived_at, ongoing, review_every_days, last_reviewed_on";
+const COLS: &str = "id, title, description, target_date, status, priority, created_at, updated_at, archived_at, ongoing, review_every_days, last_reviewed_on, confirmed_on";
 
 /// Longest review rhythm, in days (a year).
 const MAX_REVIEW_DAYS: u32 = 365;
@@ -31,6 +31,7 @@ fn from_row(r: &Row) -> rusqlite::Result<Objective> {
         ongoing: r.get::<_, i64>(9)? != 0,
         review_every_days: r.get::<_, Option<u32>>(10)?,
         last_reviewed_on: col_date_opt(r, 11)?,
+        confirmed_on: col_date_opt(r, 12)?,
     })
 }
 
@@ -85,13 +86,16 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateObjective) -> Result<O
         ongoing: input.ongoing,
         review_every_days: input.review_every_days,
         last_reviewed_on: None,
+        confirmed_on: None,
         created_at: at,
         updated_at: at,
         archived_at: None,
     };
     validate(&o)?;
     tx.execute(
-        &format!("INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)"),
+        &format!(
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)"
+        ),
         params![
             id_s(o.id),
             o.title,
@@ -105,6 +109,7 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreateObjective) -> Result<O
             i64::from(o.ongoing),
             o.review_every_days,
             date_s(o.last_reviewed_on),
+            date_s(o.confirmed_on),
         ],
     )?;
     activity::record_created(tx, at, NodeType::Objective, o.id, &o)?;
@@ -141,10 +146,13 @@ pub(crate) fn update_in_tx(
     if diff.is_empty() {
         return Ok(old);
     }
-    new.updated_at = now();
+    let at = now();
+    if !activity::only_confirmation(&diff) {
+        new.updated_at = at;
+    }
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, target_date=?4, status=?5, priority=?6, ongoing=?7, review_every_days=?8, last_reviewed_on=?9, updated_at=?10 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, target_date=?4, status=?5, priority=?6, ongoing=?7, review_every_days=?8, last_reviewed_on=?9, updated_at=?10, confirmed_on=?11 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -157,11 +165,12 @@ pub(crate) fn update_in_tx(
             new.review_every_days,
             date_s(new.last_reviewed_on),
             ts_s(new.updated_at),
+            date_s(new.confirmed_on),
         ],
     )?;
     activity::record(
         tx,
-        new.updated_at,
+        at,
         NodeType::Objective,
         id,
         minimap_types::ActivityAction::Updated,

@@ -1296,6 +1296,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     this_week(&s, monday, managed.id, assets.id)?;
 
     backdate(&tx, today, monday, split)?;
+    fog_story(&tx, &s, today)?;
     for (key, when) in FINISHED {
         let finished = match when {
             Some(n) => at(d(*n), 17),
@@ -1408,6 +1409,43 @@ fn this_week(s: &Seeder, monday: Date, managed_postgres: Uuid, assets: Uuid) -> 
             ..Default::default()
         },
     )?;
+    Ok(())
+}
+
+/// How long ago the demo's items were last touched (spec 43), so the fog has a story: the
+/// Platform Cost Reduction project and everything in play under it were last touched 22 days ago
+/// (fog), two Security tasks 9 days ago (haze), one Security task a long time ago but confirmed
+/// 3 days ago (clear), and everything else in play in the last few days (clear; EU Region is the
+/// busy one).
+fn fog_story(tx: &Transaction, s: &Seeder, today: Date) -> Result<()> {
+    let touch = |id: Uuid, days_ago: i64| -> Result<()> {
+        tx.execute(
+            "UPDATE tasks SET updated_at = ?2 WHERE id = ?1",
+            params![id_s(id), ts_s(at(today - Duration::days(days_ago), 9))],
+        )?;
+        Ok(())
+    };
+    let hazy = [s.tasks["s2"], s.tasks["s7"]];
+    let confirmed = s.tasks["s8"];
+    for (i, task) in tasks::list(tx, false)?.iter().enumerate() {
+        if !minimap_core::fog::task_in_play(task, today) {
+            continue;
+        }
+        if task.project_id == Some(s.projects[PF]) {
+            touch(task.id, 22)?;
+        } else if hazy.contains(&task.id) {
+            touch(task.id, 9)?;
+        } else if task.id == confirmed {
+            touch(task.id, 20)?;
+            tx.execute(
+                "UPDATE tasks SET confirmed_on = ?2 WHERE id = ?1",
+                params![id_s(task.id), (today - Duration::days(3)).to_string()],
+            )?;
+        } else {
+            // A few days ago, varied.
+            touch(task.id, 1 + (i as i64 % 4))?;
+        }
+    }
     Ok(())
 }
 

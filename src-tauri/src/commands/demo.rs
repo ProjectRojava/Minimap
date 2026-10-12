@@ -480,4 +480,49 @@ mod tests {
         .unwrap();
         insta::assert_snapshot!(text);
     }
+
+    #[test]
+    fn the_fog_of_the_demo_data() {
+        use minimap_types::{FogLevel, NodeType};
+        let conn = demo();
+        let fog = crate::commands::fog::fog_at(&conn, TODAY).unwrap();
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "VISIBILITY: {} ({} in play, {} clear)",
+            opt(fog.visibility),
+            fog.in_play,
+            fog.clear
+        );
+        for m in &fog.marks {
+            let _ = writeln!(
+                out,
+                "{:?} {:?} {} - {}d, last seen {} ({:?})",
+                m.level, m.node.node_type, m.label, m.age_days, m.last_seen, m.reason
+            );
+        }
+        insta::assert_snapshot!(out);
+        // The story the data tells.
+        let level = |title: &str| {
+            fog.marks
+                .iter()
+                .find(|m| m.label == title)
+                .map_or(FogLevel::Clear, |m| m.level)
+        };
+        assert_eq!(level("Platform Cost Reduction"), FogLevel::Fog);
+        assert_eq!(
+            level("EU Region"),
+            FogLevel::Clear,
+            "the busy project stays clear"
+        );
+        assert_eq!(level("Choose a penetration-test vendor"), FogLevel::Haze);
+        assert_eq!(level("Monthly access review"), FogLevel::Haze);
+        // Old, but confirmed three days ago.
+        assert_eq!(level("Rotate service credentials"), FogLevel::Clear);
+        assert!(fog
+            .marks
+            .iter()
+            .filter(|m| m.node.node_type == NodeType::Task)
+            .any(|m| m.level == FogLevel::Fog));
+    }
 }

@@ -374,6 +374,8 @@ mod tests {
     fn task(n: u128, title: &str, status: TaskStatus, due: Option<Date>) -> TaskRow {
         TaskRow {
             task: Task {
+                confirmed_on: None,
+
                 links: Vec::new(),
                 task_type: None,
                 focus: None,
@@ -668,6 +670,8 @@ mod tests {
     fn project_and_objective_targets_moved_later_are_slips() {
         use minimap_types::{Objective, Project};
         let project = Project {
+            confirmed_on: None,
+
             id: id(50),
             title: "EU region".into(),
             slug: "eu".into(),
@@ -682,6 +686,8 @@ mod tests {
             archived_at: None,
         };
         let objective = Objective {
+            confirmed_on: None,
+
             ongoing: false,
             review_every_days: None,
             last_reviewed_on: None,
@@ -775,6 +781,8 @@ mod tests {
     #[test]
     fn the_review_lists_ongoing_objectives_that_are_overdue_or_due_this_week() {
         let obj = |n: u128, title: &str, last: Date| Objective {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             description: String::new(),
@@ -808,6 +816,8 @@ mod tests {
     fn projects_marked_done_this_week_are_finished() {
         use minimap_types::Project;
         let project = |n: u128, title: &str, status| Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: title.to_lowercase(),

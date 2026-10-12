@@ -90,6 +90,7 @@ Afterwards the database is empty again, apart from you.
 | **Capacity** | A person's weekly hours; load is scheduled work ÷ capacity |
 | **Checkpoint** | An hourly or daily copy kept on Google Drive |
 | **Critical path** | The chain of tasks that decides a project's finish date |
+| **Fog**, **haze** | Work in play that nobody has changed, written about or confirmed for a while: *haze* first, then *fog* ([Fog](help:fog)) |
 | **Handle** | A project's short unique name, such as `api-launch` |
 | **Item** | Anything you record: objective, project, task, person, team, note, decision, waiting-on |
 | **Lag** | Extra waiting working days on a *blocks* link |
@@ -97,6 +98,8 @@ Afterwards the database is empty again, apart from you.
 | **Slack** | Working days a task can slip without moving the finish |
 | **Snooze** | Hide a waiting-on until a date |
 | **Stale** | An open waiting-on that is old or past its expected date |
+| **Still accurate** | Saying an item is fine as it is, which clears its fog without changing it |
 | **Superseded** | A decision replaced by a newer one |
 | **Unestimated** | A task with no estimate, scheduled as one day |
+| **Visibility** | The share of what is in play that is clear of fog, shown on the Overview |
 | **Working day** | A day counted by the schedule (Monday–Friday by default) |
