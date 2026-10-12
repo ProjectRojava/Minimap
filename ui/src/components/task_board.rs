@@ -18,6 +18,7 @@ use crate::{
     api,
     calendar::format_ymd,
     components::{
+        approaching::FilteredApproach,
         card_menu::CardMenu,
         date_field::today_ymd,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
@@ -198,7 +199,7 @@ fn due_pill(due: Date, today: Option<Date>, status: TaskStatus) -> DuePill {
 
 /// The priority pill of a card: P1 solid amber, P2 tinted amber, the rest quiet. Closed tasks
 /// are always quiet.
-fn priority_pill(priority: u8, closed: bool) -> &'static str {
+pub(crate) fn priority_pill(priority: u8, closed: bool) -> &'static str {
     match priority {
         _ if closed => CHIP,
         1 => "inline-block rounded-sm border border-warning bg-warning px-1.5 text-[11px] font-bold leading-4 text-canvas",
@@ -753,6 +754,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority")] />
             </PageHeader>
             <FilterControls filters=filters inbox=false board=true />
+            <FilteredApproach project=filters.project />
             {move || if data.with(Option::is_some) {
                 view! {
                     <div class="flex min-h-0 flex-1 overflow-x-auto p-3">

@@ -411,6 +411,12 @@
           "markdownDescription": "Enables the finish_drive_connect command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_approaching command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-approaching",
+          "markdownDescription": "Enables the get_approaching command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_backup_status command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-backup-status",
@@ -1195,6 +1201,12 @@
           "type": "string",
           "const": "deny-finish-drive-connect",
           "markdownDescription": "Denies the finish_drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_approaching command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-approaching",
+          "markdownDescription": "Denies the get_approaching command without any pre-configured scope."
         },
         {
           "description": "Denies the get_backup_status command without any pre-configured scope.",

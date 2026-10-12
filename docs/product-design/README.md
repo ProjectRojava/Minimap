@@ -63,7 +63,7 @@ Avoid: "health" for a person, "score" for a person, "XP", "quest", "level up", "
 |---|---|---|---|---|
 | 01 | [Fog of war](01-fog-of-war.md) (implemented as spec 43) | Items in play that nobody has touched in a while fade; a *Visibility* figure; a weekly-review step that clears fog | — | M |
 | 02 | [Safe zone](02-safe-zone.md) (implemented as spec 44) | A gauge per project of the room left before its target | — | S |
-| 03 | [Approaching: off-screen indicators](03-off-screen-indicators.md) | Marks at the edge of a project / your week naming problems elsewhere that will reach it | — | M |
+| 03 | [Approaching: off-screen indicators](03-off-screen-indicators.md) (implemented as spec 45) | Marks at the edge of a project / your week naming problems elsewhere that will reach it | — | M |
 | 04 | [Route recalculation](04-route-recalculation.md) | Impact analysis shown as the old and new route, step by step | — | M |
 | 05 | [Pings](05-pings.md) | Drop a marker on any item to come back to it on a day | — | L |
 | 06 | [Your people](06-your-people.md) | Compact frames for you and your reports: load, waiting-ons, 1:1 cadence | — | M |

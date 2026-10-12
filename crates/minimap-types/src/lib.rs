@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 mod activity;
+mod approach;
 mod backup;
 mod capacity;
 mod demo;
@@ -33,6 +34,7 @@ mod week;
 mod work_week;
 
 pub use activity::*;
+pub use approach::*;
 pub use backup::*;
 pub use capacity::*;
 pub use demo::*;

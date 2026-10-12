@@ -175,6 +175,7 @@ fn main() {
             commands::backup::backup_now,
             commands::backup::preview_restore,
             commands::backup::restore_backup,
+            commands::approach::get_approaching,
             commands::fog::get_fog,
             commands::fog::confirm_item,
             commands::this_week::get_this_week,

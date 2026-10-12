@@ -111,6 +111,8 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 8l2.5 3",
         ],
         "search" => &["M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M10.8 10.8 14 14"],
+        // An arrow pointing up and to the right: something coming at you from elsewhere (spec 45).
+        "approach" => &["M4.5 11.5 11.5 4.5", "M5.5 4.5h6v6"],
         "command" => &[
             "M5.5 5.5h5v5h-5z",
             "M5.5 5.5V4a1.5 1.5 0 1 0-1.5 1.5z",
@@ -151,6 +153,7 @@ mod tests {
             "review",
             "settings",
             "command",
+            "approach",
             "search",
             "capacity",
             "graph",

@@ -280,6 +280,8 @@ mod tests {
         done: bool,
     ) -> ScheduledTask {
         ScheduledTask {
+            driver: None,
+
             id: Uuid::from_u128(n),
             title: title.into(),
             project_id: None,

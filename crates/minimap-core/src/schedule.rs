@@ -74,6 +74,8 @@ struct Node<'a> {
     ls: f64,
     lf: f64,
     in_scope: bool,
+    /// The open predecessor that sets the start (see `ScheduledTask::driver`).
+    driver: Option<Uuid>,
 }
 
 fn lag_of(e: &Edge) -> f64 {
@@ -140,6 +142,7 @@ pub fn compute_with(
             ef: 0.0,
             ls: 0.0,
             lf: 0.0,
+            driver: None,
             in_scope: match scope {
                 ScheduleScope::Portfolio => true,
                 ScheduleScope::Project(p) => t.project_id == Some(p),
@@ -169,9 +172,31 @@ pub fn compute_with(
         if let Some(nb) = not_before.get(&nodes[i].task.id) {
             es = es.max(*nb);
         }
+        // The open predecessor with the latest finish sets the start when it is at least as late
+        // as every other constraint (ties go to the lowest id, so the answer never wobbles).
+        let others = es;
+        let mut driver: Option<(f64, Uuid)> = None;
         for e in graph.edges_directed(n, Direction::Incoming) {
-            es = es.max(nodes[e.source().index()].ef + *e.weight());
+            let pred = &nodes[e.source().index()];
+            let reach = pred.ef + *e.weight();
+            es = es.max(reach);
+            if !pred.done && reach + EPS >= others {
+                let id = pred.task.id;
+                let better = match driver {
+                    None => true,
+                    Some((best, best_id)) => {
+                        reach > best + EPS || ((reach - best).abs() <= EPS && id < best_id)
+                    }
+                };
+                if better {
+                    driver = Some((reach, id));
+                }
+            }
         }
+        // Only a predecessor that really decides the start is the driver.
+        nodes[i].driver = driver
+            .filter(|(reach, _)| *reach + EPS >= es)
+            .map(|(_, id)| id);
         nodes[i].es = es;
         nodes[i].ef = es + nodes[i].duration;
     }
@@ -255,6 +280,7 @@ pub fn compute_with(
                 slack_days: slack,
                 critical: is_critical(n),
                 late_by_days: (slack < -EPS).then(|| (-slack - EPS).ceil().max(1.0) as u32),
+                driver: n.driver,
             }
         })
         .collect();
@@ -714,6 +740,65 @@ mod tests {
         let all = run(&tasks, &edges, &projects, ScheduleScope::Portfolio);
         assert_eq!(numbers(&all, "Design").3, 2.0);
         assert_eq!(numbers(&all, "Build"), (2.0, 5.0, 2.0, 5.0, true));
+    }
+
+    #[test]
+    fn a_task_names_the_predecessor_that_sets_its_start() {
+        // A(2) and B(5) both block C; B finishes later, so B drives C. D has no predecessor.
+        let tasks = [
+            in_project(task(1, "A", Some(2.0)), 10),
+            in_project(task(2, "B", Some(5.0)), 10),
+            in_project(task(3, "C", Some(1.0)), 10),
+            in_project(task(4, "D", Some(1.0)), 10),
+        ];
+        let edges = [blocks(1, 3, None), blocks(2, 3, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, Some(id(2)));
+        assert_eq!(get(&s, "A").driver, None);
+        assert_eq!(get(&s, "D").driver, None);
+        // A lag counts: A + 4 days of lag outlasts B.
+        let edges = [blocks(1, 3, Some(4)), blocks(2, 3, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, Some(id(1)));
+    }
+
+    #[test]
+    fn a_start_date_later_than_every_predecessor_means_nobody_drives_it() {
+        let mut c = in_project(task(3, "C", Some(1.0)), 10);
+        c.start_date = Some(date!(2027 - 03 - 12));
+        let tasks = [in_project(task(1, "A", Some(2.0)), 10), c];
+        let s = run(
+            &tasks,
+            &[blocks(1, 3, None)],
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, None);
+    }
+
+    #[test]
+    fn a_finished_predecessor_never_drives() {
+        let mut a = in_project(task(1, "A", Some(2.0)), 10);
+        a.status = TaskStatus::Done;
+        a.completed_at = Some(OffsetDateTime::UNIX_EPOCH);
+        let tasks = [a, in_project(task(3, "C", Some(1.0)), 10)];
+        let s = run(
+            &tasks,
+            &[blocks(1, 3, None)],
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, None);
     }
 
     #[test]

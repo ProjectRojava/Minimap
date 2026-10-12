@@ -86,6 +86,7 @@ const COMMANDS: &[&str] = &[
     "backup_now",
     "preview_restore",
     "restore_backup",
+    "get_approaching",
     "get_fog",
     "confirm_item",
     "get_this_week",

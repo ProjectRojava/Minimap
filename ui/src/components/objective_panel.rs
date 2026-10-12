@@ -4,14 +4,16 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    timefmt::parse_date, AppError, Contribution, EdgeType, NewEdge, NodeRef, NodeSummary, NodeType,
-    Objective, ObjectiveDetail, ObjectiveStatus, Patch, UpdateObjective, Uuid, DEFAULT_REVIEW_DAYS,
+    timefmt::parse_date, AppError, ApproachScope, Contribution, EdgeType, NewEdge, NodeRef,
+    NodeSummary, NodeType, Objective, ObjectiveDetail, ObjectiveStatus, Patch, UpdateObjective,
+    Uuid, DEFAULT_REVIEW_DAYS,
 };
 
 use crate::{
     api,
     calendar::format_ymd,
     components::{
+        approaching::ApproachStrip,
         confirm_archive::{question, ConfirmArchive, UNDO_HINT},
         date_field::today_ymd,
         detail_pane::{Section, FIELD_GROUP},
@@ -52,6 +54,7 @@ pub fn ObjectivePanel(id: Uuid) -> impl IntoView {
     view! {
         <Section title="Fields" always_open=true>
             <ObjectiveSummary id=id />
+            <ApproachStrip scope=ApproachScope::Objective(id) class="mb-3" />
             {move || match objective.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),

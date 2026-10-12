@@ -27,6 +27,10 @@ pub fn NodeRow(
     /// Something shown under the row's own line (This week's latest notes), part of the row.
     #[prop(optional, into)]
     below: ViewFn,
+    /// A taller row for what deserves two lines (This week's Focus): at least 48px, content from
+    /// the top, instead of the 32px single line.
+    #[prop(optional)]
+    tall: bool,
     children: Children,
 ) -> impl IntoView {
     let selection = expect_context::<Selection>();
@@ -54,7 +58,9 @@ pub fn NodeRow(
             {hue.map(|hue| move || hue.get().map(|h| view! {
                 <span class="obj-edge" style=format!("--obj-h: {h}") />
             }))}
-            <div class="fog-content flex h-8 items-center gap-3 px-4">
+            <div class=format!(
+                "fog-content flex gap-3 px-4 {}",
+                if tall { "min-h-12 items-start py-2" } else { "h-8 items-center" })>
                 {children()}
                 {move || fog().map(|mark| view! { <FogChip mark=mark /> })}
             </div>

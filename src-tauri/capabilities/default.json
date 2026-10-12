@@ -91,6 +91,7 @@
     "allow-backup-now",
     "allow-preview-restore",
     "allow-restore-backup",
+    "allow-get-approaching",
     "allow-get-fog",
     "allow-confirm-item",
     "allow-get-this-week",

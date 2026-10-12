@@ -36,4 +36,4 @@ A *legend* at the bottom repeats these. Each box shows the item's title and a sh
 
 *Blocks* and *depends on* links can't form a loop; if old data somehow does, the screen shows a message naming the problem rather than a picture. See [Links between items](help:links).
 
-Related: [Schedule and critical path](help:schedule), [What if](help:what-if).
+Related: [Schedule and critical path](help:schedule), [What if](help:what-if), [Approaching](help:approaching) (the same links, as a warning where you already are).

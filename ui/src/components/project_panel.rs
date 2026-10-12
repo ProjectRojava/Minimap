@@ -4,13 +4,14 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    EdgeType, NewEdge, NodeRef, NodeSummary, NodeType, Patch, PersonRow, Project, ProjectDetail,
-    ProjectStatus, TaskDisposition, UpdateProject, Uuid,
+    ApproachScope, EdgeType, NewEdge, NodeRef, NodeSummary, NodeType, Patch, PersonRow, Project,
+    ProjectDetail, ProjectStatus, TaskDisposition, UpdateProject, Uuid,
 };
 
 use crate::{
     api,
     components::{
+        approaching::ApproachStrip,
         confirm_archive::{question, ArchiveChoice, ArchiveRequest, ConfirmArchive, UNDO_HINT},
         detail_pane::{Section, FIELD_GROUP},
         form::{date_patch, SelectField, TextField, BUTTON_DANGER},
@@ -52,6 +53,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
     view! {
         <Section title="Fields" always_open=true>
             <ProjectSummary id=id />
+            <ApproachStrip scope=ApproachScope::Project(id) class="mb-3" />
             {move || match (project.get(), people.get()) {
                 (Some(Ok(p)), Some(Ok(ps))) => view! { <ProjectFields project=p people=ps /> }.into_any(),
                 (Some(Err(e)), _) | (_, Some(Err(e))) => error_line(e),

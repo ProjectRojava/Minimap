@@ -13,6 +13,7 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
+        approaching::FilteredApproach,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
         fog::confirm_row,
         form::{
@@ -599,6 +600,7 @@ pub fn TaskList(
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
             </PageHeader>
             <FilterControls filters=filters inbox=inbox board=false />
+            {(!inbox).then(|| view! { <FilteredApproach project=filters.project /> })}
             <Show when=move || adding.get()>
                 <div class="px-4 py-2 border-b border-line bg-panel space-y-2">
                     <textarea class=INPUT rows="1" autofocus

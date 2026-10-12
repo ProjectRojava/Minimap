@@ -128,6 +128,12 @@ pub const PAGES: &[Page] = &[
         "See what a delay would push back, then apply it"
     ),
     page!(
+        "approaching",
+        "Planning and insight",
+        "Approaching: trouble elsewhere that reaches you",
+        "A strip that warns when blocked or late work elsewhere will hit yours"
+    ),
+    page!(
         "capacity",
         "Planning and insight",
         "Capacity",
@@ -377,7 +383,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 30);
+        assert_eq!(PAGES.len(), 31);
     }
 
     #[test]
@@ -592,6 +598,16 @@ mod tests {
         assert!(overview.contains(&format!(
             "{}% | {}%",
             t.unestimated_amber_pct, t.unestimated_red_pct
+        )));
+    }
+
+    #[test]
+    fn the_approaching_limits_quoted_are_the_real_ones() {
+        let page = page("approaching").body;
+        assert!(page.contains(&format!("up to {} links", minimap_types::MAX_HOPS)));
+        assert!(page.contains(&format!(
+            "has {} working days of slack or less",
+            minimap_types::THREAT_SLACK
         )));
     }
 

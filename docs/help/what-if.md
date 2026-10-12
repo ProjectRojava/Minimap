@@ -40,3 +40,4 @@ You confirm, and it is **all or nothing**. It is one step you can take back with
 
 - Try a slip on a *critical* task to see the whole chain; try one on a task with slack to see it get absorbed.
 - Put several slips in one scenario to test a bad week, not just one bad task.
+- The *What if it slips?* button on an [Approaching](help:approaching) strip starts a scenario with the late or blocked task already in it.

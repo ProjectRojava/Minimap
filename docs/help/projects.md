@@ -15,6 +15,10 @@ Filters narrow by status, owner or objective. *New project* opens a short form.
 
 When the list is narrow (for example with the detail pane open) the *Owner*, *Target* and *Room* columns are hidden so the project title stays readable; widen the window or close the pane to see them. The owner and target date are always in the detail pane.
 
+## Trouble approaching from other projects
+
+When blocked, overdue or late work in **another** project will reach this one through a `blocks` or `depends on` link, a strip at the top of the project's pane says so (*2 approaching from EU Region · first in 4 days*), and one click shows the chains. It is also on the Tasks board and list when you filter to one project. See [Approaching](help:approaching).
+
 ## Safe zone: the room before the target
 
 A project's **safe zone** is the **working days between when it should finish and when it has to**: the schedule's projected finish (see [Schedule and critical path](help:schedule)) against the project's target date. Health tells you once a project is late; the safe zone shows how much room you have *before* it runs out. It is a thin bar with words under it, on the board's cards, in the list's *Room* column, on the [Overview](help:overview), and in the project's pane (a pill next to the status, and a bar at the top of the *Schedule* section):

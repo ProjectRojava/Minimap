@@ -705,6 +705,18 @@ pub async fn get_this_week(
     invoke("get_this_week", &ThisWeekArg { week_start, as_of }).await
 }
 
+#[derive(Serialize)]
+struct ApproachArg {
+    scope: minimap_types::ApproachScope,
+}
+
+/// Trouble elsewhere that will reach what is being looked at (spec 45).
+pub async fn get_approaching(
+    scope: minimap_types::ApproachScope,
+) -> Result<minimap_types::ApproachReport, AppError> {
+    invoke("get_approaching", &ApproachArg { scope }).await
+}
+
 /// The items in play that have gone quiet, and the share of what is in play that is clear.
 pub async fn get_fog() -> Result<minimap_types::FogReport, AppError> {
     invoke("get_fog", &NoArgs {}).await

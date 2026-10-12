@@ -48,6 +48,10 @@ pub struct ScheduledTask {
     pub critical: bool,
     /// Working days late, when slack is negative.
     pub late_by_days: Option<u32>,
+    /// The open task whose finish (plus lag) sets this task's start: the one that holds it up. None
+    /// when the task starts on its own date, today, or after a finished task only (spec 45).
+    #[serde(default)]
+    pub driver: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
