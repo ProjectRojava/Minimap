@@ -515,6 +515,47 @@ mod tests {
     }
 
     #[test]
+    fn the_people_frames_of_the_demo_data() {
+        use minimap_types::FrameFlag;
+        let conn = demo();
+        let frames = crate::commands::people_frames::frames_at(&conn, TODAY)
+            .unwrap()
+            .unwrap();
+        let mut out = String::new();
+        for f in std::iter::once(&frames.me).chain(frames.reports.iter()) {
+            let _ = writeln!(
+                out,
+                "{} ({}) load {} open {} blocked {} overdue {} waiting {} stale {} last 1:1 {} due {} flags {:?}",
+                f.person.label,
+                if f.is_self { "you" } else { "report" },
+                opt(f.load_pct),
+                f.open_tasks,
+                f.blocked_tasks,
+                f.overdue_tasks,
+                f.waiting_on_them,
+                f.waiting_stale,
+                f.last_one_on_one.map_or("-".to_owned(), |d| d.to_string()),
+                opt(f.one_on_one_due),
+                f.flags
+            );
+        }
+        insta::assert_snapshot!(out);
+        // The story the data tells: the overloaded person is over capacity, someone is due a
+        // 1:1, and Priya (1:1 today) is not.
+        let report = |name: &str| {
+            frames
+                .reports
+                .iter()
+                .find(|f| f.person.label == name)
+                .unwrap()
+        };
+        assert!(report("Tomás Alvarez").flags.contains(&FrameFlag::Over));
+        assert!(frames.reports.iter().any(|f| f.one_on_one_due.is_some()));
+        assert_eq!(report("Priya Nair").one_on_one_due, None);
+        assert!(frames.hint.is_none());
+    }
+
+    #[test]
     fn the_pings_of_the_demo_data() {
         let conn = demo();
         let view = crate::commands::pings::list_pings_at(&conn, TODAY).unwrap();

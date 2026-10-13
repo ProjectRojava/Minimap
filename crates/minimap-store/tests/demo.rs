@@ -35,7 +35,7 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
     );
     assert_eq!(summary.waiting_ons, 3);
     assert_eq!(summary.pings, 3);
-    assert_eq!(summary.links, 118);
+    assert_eq!(summary.links, 119);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 45);
     assert_eq!(count(&conn, "people"), 8);

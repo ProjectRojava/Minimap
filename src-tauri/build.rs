@@ -78,6 +78,7 @@ const COMMANDS: &[&str] = &[
     "commit_quick_add",
     "get_dependency_graph",
     "get_capacity",
+    "get_people_frames",
     "get_security_status",
     "unlock_database",
     "set_encryption",

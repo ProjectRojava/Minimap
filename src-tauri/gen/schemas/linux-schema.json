@@ -507,6 +507,12 @@
           "markdownDescription": "Enables the get_objective_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_people_frames command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-people-frames",
+          "markdownDescription": "Enables the get_people_frames command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_person command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-person",
@@ -1339,6 +1345,12 @@
           "type": "string",
           "const": "deny-get-objective-detail",
           "markdownDescription": "Denies the get_objective_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_people_frames command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-people-frames",
+          "markdownDescription": "Denies the get_people_frames command without any pre-configured scope."
         },
         {
           "description": "Denies the get_person command without any pre-configured scope.",

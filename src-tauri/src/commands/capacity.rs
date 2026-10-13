@@ -27,6 +27,18 @@ pub(crate) fn capacity_impl(
     to: Option<Date>,
     weeks: Option<u32>,
 ) -> Result<Capacity, AppError> {
+    capacity_at(conn, minimap_store::today(), from, to, weeks)
+}
+
+/// [`capacity_impl`] as of `today`. *Your people* (spec 49) asks for the same numbers the
+/// heatmap shows through this, so the two cannot drift apart.
+pub(crate) fn capacity_at(
+    conn: &Connection,
+    today: Date,
+    from: Option<Date>,
+    to: Option<Date>,
+    weeks: Option<u32>,
+) -> Result<Capacity, AppError> {
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     let tasks = minimap_store::tasks::list_planned(conn).map_err(store_error)?;
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
@@ -37,7 +49,7 @@ pub(crate) fn capacity_impl(
         edges: &edges,
         projects: &projects,
         people: &people,
-        today: minimap_store::today(),
+        today,
         hours_per_day: settings.hours_per_day,
         work_week: settings.work_week,
         from,

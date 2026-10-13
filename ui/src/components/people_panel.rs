@@ -252,6 +252,29 @@ pub fn NodeButtons(nodes: Vec<NodeSummary>) -> impl IntoView {
 
 /// Notes that mention this person (their 1:1s first among equals: newest first), and a
 /// shortcut to start a new 1:1 that already mentions them.
+/// Makes a 1:1 note with this person (titled "1:1 with Name", mentioning them) and opens it.
+/// The *New 1:1* button here and on a *Your people* frame both do this.
+pub fn new_one_on_one(
+    id: minimap_types::Uuid,
+    name: String,
+    toasts: Toasts,
+    version: DataVersion,
+    selection: Selection,
+) {
+    let input = CreateNote {
+        title: format!("1:1 with {name}"),
+        body: format!("{}\n\n", mention_token(&name, id)),
+        note_date: None,
+        kind: Some(NoteKind::OneOnOne),
+        recurrence: None,
+    };
+    spawn_local(async move {
+        if let Some(n) = finish(api::create_note(input).await, toasts, version) {
+            selection.open(NodeRef::new(NodeType::Note, n.id));
+        }
+    });
+}
+
 #[component]
 fn PersonNotes(detail: PersonDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
@@ -268,20 +291,7 @@ fn PersonNotes(detail: PersonDetail) -> impl IntoView {
             ..Default::default()
         })
     });
-    let new_one_on_one = move |_| {
-        let input = CreateNote {
-            title: format!("1:1 with {name}"),
-            body: format!("{}\n\n", mention_token(&name, id)),
-            note_date: None,
-            kind: Some(NoteKind::OneOnOne),
-            recurrence: None,
-        };
-        spawn_local(async move {
-            if let Some(n) = finish(api::create_note(input).await, toasts, version) {
-                selection.open(NodeRef::new(NodeType::Note, n.id));
-            }
-        });
-    };
+    let new_one_on_one = move |_| new_one_on_one(id, name.clone(), toasts, version, selection);
 
     view! {
         <Section title="Notes">

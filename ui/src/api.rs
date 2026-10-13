@@ -705,6 +705,11 @@ pub async fn get_this_week(
     invoke("get_this_week", &ThisWeekArg { week_start, as_of }).await
 }
 
+/// You and your direct reports at a glance (spec 49); `None` before first run.
+pub async fn get_people_frames() -> Result<Option<minimap_types::PeopleFrames>, AppError> {
+    invoke("get_people_frames", &NoArgs {}).await
+}
+
 #[derive(Serialize)]
 struct ApproachArg {
     scope: minimap_types::ApproachScope,

@@ -21,6 +21,7 @@ use crate::{
         meeting::starts_in_text,
         node_row::NodeRow,
         page::{EmptyState, Hints, Icon, PageHeader, Tone},
+        people_frames::{nodes_of, use_frames, FramesStrip},
         ping::{ping_age_text, PingBoxState},
         review_row::ReviewRow,
         sync_status::SyncBanner,
@@ -693,6 +694,9 @@ fn Body(
             {waiting}
             {reviews}
             {ones}
+            // Your people (spec 49): you and your direct reports at a glance. It is how things
+            // stand now, so it is not shown when looking back at a past day.
+            {looking_back.is_none().then(|| view! { <YourPeopleCard /> })}
             {empty.then(|| view! {
                 <EmptyState icon="week" title="Nothing needs attention"
                     hint="No overdue work, nothing due, nothing blocked or stale. A clear week." />
@@ -1312,6 +1316,25 @@ fn RowPing(ping: Ping, today: Date) -> impl IntoView {
                     title="Clear this ping" aria-label="Clear this ping"
                     on:click=move |_| clear_ping(id, toasts, version)>"✕"</button>
         </span>
+    }
+}
+
+/// *Your people*: a frame for you and each of your direct reports (spec 49). Load, what you wait
+/// on them for, their blocked and overdue work, and how long since your last 1:1; never a ranking.
+#[component]
+fn YourPeopleCard() -> impl IntoView {
+    let frames = use_frames();
+    view! {
+        {move || frames.get().map(|f| {
+            let count = nodes_of(&f).len();
+            view! {
+                <section class=CARD aria-label="Your people">
+                    <CardHead title="Your people" count=count icon="people"
+                        hint="You and the people who report to you: load this week, what you wait on them for, 1:1s" />
+                    <FramesStrip frames=f />
+                </section>
+            }
+        })}
     }
 }
 

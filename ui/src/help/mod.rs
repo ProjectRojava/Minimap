@@ -589,6 +589,7 @@ mod tests {
         assert!(settings.contains(&format!("(default {})", defaults.stale_waiting_days)));
         assert!(settings.contains(&format!("(default {})", defaults.capacity_task_limit)));
         assert!(settings.contains(&format!("(default {})", defaults.zone_narrow_days)));
+        assert!(settings.contains(&format!("(default {})", defaults.one_on_one_every_days)));
         // The projects page says where it turns narrow.
         assert!(page("projects").body.contains(&format!(
             "narrow at {} days of room or fewer",

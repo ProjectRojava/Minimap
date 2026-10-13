@@ -268,7 +268,7 @@ fn link_label(links: u32) -> String {
 }
 
 /// "AB" for "Ada Byron", "P" for "priya": the avatar's letters.
-fn initials(name: &str) -> String {
+pub(crate) fn initials(name: &str) -> String {
     name.split_whitespace()
         .filter_map(|w| w.chars().next())
         .take(2)

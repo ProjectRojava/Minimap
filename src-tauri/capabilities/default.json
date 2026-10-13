@@ -83,6 +83,7 @@
     "allow-commit-quick-add",
     "allow-get-dependency-graph",
     "allow-get-capacity",
+    "allow-get-people-frames",
     "allow-get-security-status",
     "allow-unlock-database",
     "allow-set-encryption",

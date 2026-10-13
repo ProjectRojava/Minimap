@@ -81,6 +81,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - export: export_markdown(report_kind, params, path)
 - settings: get_settings, update_settings, get_data_info, show_data_folder, set_db_passphrase, backup_now(path)
 - fog (spec 43, ADR-0019): get_fog (items in play that have gone quiet + visibility), confirm_item(node) ("still accurate"; task, project or objective; one undo step)
+- people frames (spec 49): get_people_frames() (you and your direct reports at a glance: load this week, waiting-ons, blocked/overdue, 1:1 due)
 - pings (spec 48, ADR-0020): list_pings, ping_item(target, note, on), update_ping, clear_ping, reopen_ping, archive_ping, get_ping_for
 - undo: undo_last, redo_last (spec 25: Ctrl/Cmd+Z; built from the activity log, session only)
 - recurring: set_recurrence(node, text, template?) (spec 27: tasks make the next one when finished; notes on their date; quick-add `every:`)

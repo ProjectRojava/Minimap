@@ -3,6 +3,7 @@
 //! see what makes it up. Separately flags people with more open tasks than the limit in Settings.
 
 use leptos::prelude::*;
+use leptos_router::{hooks::query_signal_with_options, NavigateOptions};
 use minimap_types::{Capacity as Data, Date, NodeRef, NodeType, PersonCapacity, Uuid, WeekLoad};
 
 use crate::{
@@ -138,6 +139,12 @@ pub fn Capacity() -> impl IntoView {
     let from = RwSignal::new(Option::<Date>::None);
     let weeks = RwSignal::new(8u32);
     let selected = RwSignal::new(Option::<(Uuid, Date)>::None);
+    // `?person=<id>` opens the screen on that person's row with this week's cell chosen (a *Your
+    // people* frame's *Capacity* button).
+    let (person, _) = query_signal_with_options::<String>("person", NavigateOptions::default());
+    let focus = person
+        .get_untracked()
+        .and_then(|p| Uuid::parse_str(&p).ok());
     let data = LocalResource::new(move || {
         version.track();
         api::get_capacity(from.get(), None, Some(weeks.get()))
@@ -147,7 +154,7 @@ pub fn Capacity() -> impl IntoView {
             {move || match data.get() {
                 None => view! { <p class="p-6 text-muted">"Working it out…"</p> }.into_any(),
                 Some(Err(e)) => view! { <p class="p-6 text-danger">{e.message}</p> }.into_any(),
-                Some(Ok(c)) => view! { <Body data=c from=from weeks=weeks selected=selected /> }.into_any(),
+                Some(Ok(c)) => view! { <Body data=c from=from weeks=weeks selected=selected focus=focus /> }.into_any(),
             }}
         </div>
     }
@@ -159,10 +166,25 @@ fn Body(
     from: RwSignal<Option<Date>>,
     weeks: RwSignal<u32>,
     selected: RwSignal<Option<(Uuid, Date)>>,
+    /// The person to land on (from `?person=`), if they are in the table.
+    focus: Option<Uuid>,
 ) -> impl IntoView {
     let selection = expect_context::<Selection>();
     let (prev, next) = (data.prev_from, data.next_from);
     let current_week = data.current_week_start;
+    if let Some(pid) = focus.filter(|p| data.people.iter().any(|c| c.person.node.id == *p)) {
+        if selected.get_untracked().is_none() {
+            selected.set(Some((pid, current_week)));
+        }
+        Effect::new(move |_| {
+            if let Some(el) = leptos::web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.get_element_by_id(&format!("capacity-row-{pid}")))
+            {
+                el.scroll_into_view();
+            }
+        });
+    }
     let limit = data.task_limit;
     let template = format!(
         "grid-template-columns: 13rem repeat({}, minmax(3.75rem, 1fr))",
@@ -216,7 +238,8 @@ fn Body(
                 .collect_view();
             view! {
                 <div class="contents">
-                    <button class="flex min-w-0 flex-col justify-center border-b border-line px-4 py-1 text-left hover:bg-hover"
+                    <button id=format!("capacity-row-{person_id}")
+                            class="flex min-w-0 flex-col justify-center border-b border-line px-4 py-1 text-left hover:bg-hover"
                             on:click=move |_| selection.open(node)>
                         <span class="flex items-center gap-2">
                             <span class="truncate font-medium">{p.person.label.clone()}</span>

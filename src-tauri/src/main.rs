@@ -167,6 +167,7 @@ fn main() {
             commands::quick_add::commit_quick_add,
             commands::graph::get_dependency_graph,
             commands::capacity::get_capacity,
+            commands::people_frames::get_people_frames,
             commands::security::get_security_status,
             commands::security::unlock_database,
             commands::security::set_encryption,

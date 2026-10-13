@@ -7,6 +7,7 @@ use crate::{
         form::{BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         page::{column_head, EmptyState, PageHeader, FORM_BAR},
+        people_frames::{nodes_of, use_frames, FramesStrip},
     },
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
@@ -24,12 +25,18 @@ pub fn People() -> impl IntoView {
         version.track();
         api::list_people()
     });
+    // The frames come first in the `j`/`k` list, then the people (spec 49).
+    let frames = use_frames();
+    let frame_nodes = move || frames.get().map(|f| nodes_of(&f)).unwrap_or_default();
     Effect::new(move |_| match rows.get() {
-        Some(Ok(r)) => list.set_items(
-            r.iter()
-                .map(|p| NodeRef::new(NodeType::Person, p.person.id))
-                .collect(),
-        ),
+        Some(Ok(r)) => {
+            let mut items = frame_nodes();
+            items.extend(
+                r.iter()
+                    .map(|p| NodeRef::new(NodeType::Person, p.person.id)),
+            );
+            list.set_items(items);
+        }
         Some(Err(e)) => toasts.error(&e),
         None => {}
     });
@@ -77,6 +84,11 @@ pub fn People() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
+            {move || frames.get().map(|f| view! {
+                <div class="border-b border-line">
+                    <FramesStrip frames=f first_index=Some(0) />
+                </div>
+            })}
             <div class=column_head(COLS)>
                 <span>"Name"</span><span>"Role"</span><span>"Teams"</span>
                 <span class="text-right">"Tasks"</span><span class="text-right">"Waiting"</span>
@@ -89,7 +101,10 @@ pub fn People() -> impl IntoView {
                         <EmptyState icon="people" title="No people yet"
                             hint="Add the people you work with; assign them tasks and track what you wait on." />
                     }.into_any(),
-                    Some(Ok(r)) => r.into_iter().enumerate().map(|(i, p)| {
+                    Some(Ok(r)) => {
+                        let offset = frame_nodes().len();
+                        r.into_iter().enumerate().map(|(i, p)| {
+                        let i = i + offset;
                         let node = NodeRef::new(NodeType::Person, p.person.id);
                         let teams = p.teams.iter().map(|t| t.label.clone()).collect::<Vec<_>>().join(", ");
                         view! {
@@ -106,7 +121,8 @@ pub fn People() -> impl IntoView {
                                 </div>
                             </NodeRow>
                         }
-                    }).collect_view().into_any(),
+                    }).collect_view().into_any()
+                    }
                 }}
             </div>
         </div>

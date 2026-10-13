@@ -830,8 +830,9 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
         ("priya", "me"),
         ("raj", "me"),
         ("sam", "me"),
+        // Tomás carries the most work, so he reports to you directly: his frame is on your card.
+        ("tomas", "me"),
         ("maya", "priya"),
-        ("tomas", "priya"),
         ("elena", "priya"),
         ("jin", "maya"),
     ] {
@@ -1121,7 +1122,8 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     let eu = s.project_ref(EU);
     let sec = s.project_ref(SEC);
     let one_on_one = format!(
-        "## Agenda\n\n- {eu} is about two days behind: the data pipeline waits on the clusters.\n- {tomas} has too much on; move the CDN and DNS work to {elena}?\n- Go-live date: hold or move?\n\n## Next\n\n- [ ] Rebalance {tomas}'s tasks\n- [ ] Ask {raj} for a sign-off date\n- [x] Share the cost baseline with finance\n",
+        "With {priya}\n\n## Agenda\n\n- {eu} is about two days behind: the data pipeline waits on the clusters.\n- {tomas} has too much on; move the CDN and DNS work to {elena}?\n- Go-live date: hold or move?\n\n## Next\n\n- [ ] Rebalance {tomas}'s tasks\n- [ ] Ask {raj} for a sign-off date\n- [x] Share the cost baseline with finance\n",
+        priya = s.mention("Priya Nair", priya),
         eu = s.mention("EU Region", eu),
         tomas = s.mention("Tomás Alvarez", tomas),
         elena = s.mention("Elena Rossi", elena),

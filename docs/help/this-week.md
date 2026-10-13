@@ -17,6 +17,7 @@ From the top:
 - **Waiting on**: open waiting-ons that are stale, overdue, or expected this week (snoozed ones stay hidden).
 - **Ongoing objectives to review**: [ongoing objectives](help:objectives) whose review is overdue or falls by Sunday, with *Mark reviewed* on each.
 - **1:1s this week**: 1:1 notes dated this week.
+- **Your people**: a small frame for you and each of your direct reports, by name: their load this week, what you wait on them for, their blocked and overdue work, and how long since your last 1:1 (see [People and teams](help:people-teams)). It is how things stand now, so it is not shown when you look back at a past day.
 
 **Approaching.** Under the headline, a strip appears when trouble in another project will reach a task **assigned to you** or a project you own (*2 approaching from EU Region · first in 4 days*); click it to see the chains. It is hidden when nothing is hitting or threatening, and when you look back at a past day. See [Approaching](help:approaching).
 

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-people-frames"
+description = "Enables the get_people_frames command without any pre-configured scope."
+commands.allow = ["get_people_frames"]
+
+[[permission]]
+identifier = "deny-get-people-frames"
+description = "Denies the get_people_frames command without any pre-configured scope."
+commands.deny = ["get_people_frames"]
