@@ -71,6 +71,20 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
         "chevron" => &["M4.5 6.5 8 10l3.5-3.5"],
         "edit" => &["M2.5 13.5l.7-3L10.8 3a1.4 1.4 0 0 1 2 2l-7.6 7.6z", "M9.6 4.2l2.2 2.2"],
         "check" => &["M3 8.5l3.2 3.2L13 4.5"],
+        // The two views (spec 50): north-up is an arrow with its N, player-up the marker that
+        // points where you are going.
+        "north" => &["M6 13.5V3", "M3 6l3-3 3 3", "M11 14V9l3 5V9"],
+        "me" => &["M8 2.5l4.5 10.5L8 10.5 3.5 13z"],
+        // A save point: a floppy disk, the old sign for "kept".
+        "save" => &[
+            "M3 2.5h8.5L13.5 4.5v9h-10.5z",
+            "M5.5 2.5v3.5h5v-3.5",
+            "M5.5 13.5v-4h5v4",
+        ],
+        "ping" => &[
+            "M8 14.2S3.5 10 3.5 6.6a4.5 4.5 0 0 1 9 0C12.5 10 8 14.2 8 14.2z",
+            "M8 5.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z",
+        ],
         "star" => &["M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"],
         "attach" => &["M12.6 7.6 7.5 12.7a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8L6.2 11.3a1 1 0 0 1-1.4-1.4l4.9-4.9"],
         "lock" => &[
@@ -180,6 +194,10 @@ mod tests {
             "check",
             "attach",
             "star",
+            "ping",
+            "save",
+            "north",
+            "me",
             "about",
         ] {
             for d in paths(name).unwrap() {

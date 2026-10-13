@@ -1,6 +1,6 @@
 # 08 — Save points: every restorable copy on one timeline
 
-Status: Draft · Milestone: — · Priority: Could · Size: M
+Status: Implemented as spec 51 — awaiting manual check (open questions answered as recommended) · Milestone: — · Priority: Could · Size: M
 Depends on: specs 20, 21, 22, 23 (implemented) · Read first: [README](README.md)
 Expected ADR: none (extends the backup file-name scheme; note it in spec 20's text and `core::backup` docs)
 
@@ -59,11 +59,18 @@ Backups are files, not rows: no export/undo/merge change. Label text is in the f
 Labels on Drive checkpoints; renaming or deleting save points from the timeline (deleting plain backups of an encrypted DB already exists in Security); diffing two save points.
 
 ## Acceptance criteria
-- [ ] Core naming, parsing (old names unchanged), merge, prune flags, stale reasons with tests and proptest.
-- [ ] `backup_now` with a label; `list_save_points` with and without Drive (offline returns local points and a note; command test with the mock remote).
-- [ ] `Ctrl/Cmd+S` SaveBox works from any screen and inside text boxes; the browser default is prevented.
-- [ ] Save points card, status-bar line, palette action.
-- [ ] Help pages; CHANGELOG; knowledge graph (§5 `mod:backup`, `mod:save_points`, §7, §8); `docs/progress.md`; gate passes.
+- [x] Core naming, parsing (old names unchanged), merge, prune flags, stale reasons with tests and proptest.
+- [x] `backup_now` with a label; `list_save_points` with and without Drive (offline returns local points and a note; command test with the mock remote).
+- [x] `Ctrl/Cmd+S` SaveBox works from any screen and inside text boxes; the browser default is prevented.
+- [x] Save points card, status-bar line, palette action.
+- [x] Help pages; CHANGELOG; knowledge graph (§5 `mod:backup`, `mod:save_points`, §7, §8); `docs/progress.md`; gate passes.
+
+## Implementation notes (spec 51)
+- **Names**: `core::backup` gained `label_slug`, `label_text`, `file_name_with_label` and `parse_name_full` (returning a `ParsedName {kind, at, label}`); `file_name` and `parse_name` are unchanged wrappers, so no caller moved. A name is at most 80 characters as typed (the slug is cut at a word to 40) and a blank one is refused by `label_slug` (the command treats a blank label as none). The label is only a slug in the file name, never recoverable as typed (open question 1).
+- **Timeline**: `core::save_points::merge(&TimelineInput{...})` takes the listings, this computer's Drive device id (to mark its own checkpoints), the user's UTC offset in minutes, `keep_auto`, whether automatic backups are on and Drive connected. `SavePoint.will_be_pruned` replaces the spec's `keeps_until` (the spec itself ends with `None` for everything). Drive cadence is *hourly* for a device's newest 24 checkpoints and *daily* beyond. Stale reasons: `AutoFailing` when automatic backups are on, else `DriveOffline` when Drive is connected, else `AutoOff`.
+- **Commands**: `list_save_points(utc_offset_minutes)` asks Drive on a worker thread with a 5 s wait; on timeout or error it answers this computer's save points and `drive_note`. `get_last_save_point` uses the sync engine's cached checkpoints (`SyncStatus.checkpoints`, filled whenever one is written or listed) and the backup folder, with no network, so it can say a Drive-only user is stale until the first checkpoint of a session; no new `SyncStatus` field was needed. `timeline_at` / `summary_at` are pure and tested with an offline and an online `DriveListing`; the engine itself is not started in these tests.
+- **UI**: `SaveBox` (state `SaveBoxState` from `App`, host in `Shell`), `Ctrl/Cmd+S` handled in `keyboard.rs` before everything else (so also inside text boxes), the *Save points* card above Google Drive (`#save-points`), `SaveStatus` in the status bar (outside the Drive status closure, which redraws every poll). *Back up now* now opens the same box. The backup card's list was removed (the timeline replaces it); local rows restore through the existing `check` / `ConfirmRestore` flow and Drive rows through `ConfirmRecover`.
+- **Demo data**: none (the demo seeds no backups).
 
 ## Not yet verified by hand
 - `Ctrl/Cmd+S`, name it, Enter: it appears at the top of the timeline with its name; the file in the backup folder has the slug in its name.

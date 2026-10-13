@@ -508,6 +508,7 @@ fn Connected() -> impl IntoView {
             <div class="flex items-center gap-2">
                 <span class="text-[11px] text-muted">"Checkpoints on Drive (hourly and daily copies you can bring items back from)"</span>
                 <button class=BUTTON on:click=refresh_checkpoints>"Refresh"</button>
+                <a href="/settings?tab=data#save-points" class="text-[11px] text-accent hover:underline">"See all save points"</a>
             </div>
             <div class="max-h-56 overflow-y-auto rounded-sm border border-line">
                 {move || {
@@ -585,7 +586,7 @@ fn Connected() -> impl IntoView {
 }
 
 #[component]
-fn ConfirmRecover(
+pub(crate) fn ConfirmRecover(
     checkpoint: CheckpointInfo,
     recover: RwSignal<Option<CheckpointInfo>>,
 ) -> impl IntoView {

@@ -68,6 +68,7 @@ pub fn TitleBar() -> impl IntoView {
                 <img src=logo alt="" class="pointer-events-none h-4 w-4" />
                 <span class="pointer-events-none text-[12px] text-muted">"Minimap"</span>
             </div>
+            <crate::components::orientation::ViewToggle />
             <Show when=move || platform.draws_window_controls()>
                 <button class=CAPTION aria-label="Minimize" title="Minimize" on:click=minimize>
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1">

@@ -1,6 +1,6 @@
 # 07 — Portfolio view and My view: north-up or player-up
 
-Status: Draft · Milestone: — · Priority: Should · Size: M
+Status: Implemented as spec 50 — awaiting manual check (open questions answered as recommended) · Milestone: — · Priority: Should · Size: M
 Depends on: specs 15, 17, 18 (implemented); doc 03 (reuses its reach walk) · Read first: [README](README.md)
 Expected ADR: none
 
@@ -86,11 +86,21 @@ Nothing stored in the database.
 A third view (a team's view); saving named views; This week in Portfolio view.
 
 ## Acceptance criteria
-- [ ] `core::orientation` tests and proptest; shared upstream walk with doc 03 (one implementation).
-- [ ] Overview, graph and capacity compute in My view; Portfolio output unchanged (existing snapshots unchanged).
-- [ ] List screens filter by `get_my_scope` and show why chips.
-- [ ] Title-bar toggle, `v`, banner, localStorage memory; disabled without a self person.
-- [ ] Help page and links; CHANGELOG; knowledge graph (§5, §7, §8 incl. the new key); `docs/progress.md`; gate passes.
+- [x] `core::orientation` tests and proptest; shared upstream walk with doc 03 (one implementation).
+- [x] Overview, graph and capacity compute in My view; Portfolio output unchanged (existing snapshots unchanged).
+- [x] List screens filter by `get_my_scope` and show why chips.
+- [x] Title-bar toggle, `v`, banner, localStorage memory; disabled without a self person.
+- [x] Help page and links; CHANGELOG; knowledge graph (§5, §7, §8 incl. the new key); `docs/progress.md`; gate passes.
+
+## Implementation notes (spec 50)
+- **One walk**: `approach::walk_back(start, preds, max_hops, visit)` is the breadth-first walk both *Approaching* (tasks and projects) and `my_scope` use; the Approaching code was refactored onto it (its tests and snapshots are unchanged).
+- **Reach walks through your own tasks**: the walk from each of your open tasks continues past another task of yours and gives reach reasons only to tasks that are not yours. That keeps `my_scope` monotone (assigning one more task to you never removes anything from any set; the proptest checks membership, since a task that was in because your work blocked it is, once it is yours, in for being assigned instead).
+- **Projects that hold downstream work** (`Blocks`) are in My view too, like projects that reach you, so the Overview can say "blocked by your work" on them. A project that is only here for your tasks has an empty reason list and `MyScope.project_tasks` gives its count ("3 of your tasks", "one of your tasks").
+- **Computed, not filtered**: the Overview, graph and Capacity take the view; the Overview lists only in-scope objectives and projects and recomputes the top five risks (and the counts, the overloaded list) among them, while each objective's health is still judged by all its work. Portfolio view calls the same code with no scope and is byte-for-byte the old output (a test compares them; no snapshot changed).
+- **List screens** (Objectives, Projects, Tasks board and list) filter what the backend returned by the scope (`Orientation::shows`); the Projects board keeps all five columns; the Inbox is not filtered. `get_portfolio_overview()` for the panes' health sections still sends no view.
+- **The view lives in `Orientation`** (provided by `App`, `components/orientation.rs`) rather than a bare `ViewCtx` signal in `state.rs`, because the scope and the "no me" rule travel with it. If there is no "me" the stored choice stays but Portfolio view is in effect and the button is disabled.
+- **Capacity** gets `Capacity.mine` and `PersonCapacity.on_my_projects`; `capacity::in_my_view` keeps you, your reports and the people on your projects, in that order, and the screen heads the last group *On your projects*. "Anyone with tasks in my projects" are the people assigned to tasks in projects you own.
+- **Demo data**: nothing in the demo reaches your work from outside (every cross-project link runs out of the Platform Cost Reduction project, which you now own, so it blocks EU Region work). The My-view snapshots show owned, assigned and blocked-by-your-work items; reach has hand-built tests. No other snapshot changed.
 
 ## Not yet verified by hand
 - Press `v` on Overview with demo data: fewer objectives/projects, each with a reason chip; top risks recomputed.

@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 use minimap_types::{
-    Capacity, CapacityTask, Date, Edge, EdgeType, NodeRef, NodeSummary, NodeType, Person,
+    Capacity, CapacityTask, Date, Edge, EdgeType, MyScope, NodeRef, NodeSummary, NodeType, Person,
     PersonCapacity, Project, ScheduleScope, ScheduledTask, Task, TaskStatus, Uuid, WeekLoad,
     WorkWeek,
 };
@@ -201,6 +201,7 @@ pub fn compute(input: &CapacityInput) -> Capacity {
                 .iter()
                 .filter(|(t, _)| t.estimate_days.is_none())
                 .count() as u32,
+            on_my_projects: false,
             weeks,
         });
     }
@@ -224,7 +225,34 @@ pub fn compute(input: &CapacityInput) -> Capacity {
         task_limit: input.task_limit,
         hours_per_day: input.hours_per_day,
         warnings,
+        mine: false,
     }
+}
+
+/// My view (spec 50): keeps you, your direct reports and the people on your projects, in that
+/// order (each group in the order it already had, overloaded first), and marks the last group so
+/// the screen can give it a heading. Each person's numbers are their own, so nothing is
+/// recomputed.
+pub fn in_my_view(capacity: &mut Capacity, scope: &MyScope) {
+    use minimap_types::Why;
+    let group = |p: &PersonCapacity| -> Option<u8> {
+        let why = scope.people.get(&p.person.node.id)?;
+        if why.contains(&Why::Me) {
+            Some(0)
+        } else if why.contains(&Why::Report) {
+            Some(1)
+        } else if why.contains(&Why::OnMyProjects) {
+            Some(2)
+        } else {
+            None
+        }
+    };
+    capacity.people.retain(|p| group(p).is_some());
+    capacity.people.sort_by_key(|p| group(p));
+    for p in &mut capacity.people {
+        p.on_my_projects = group(p) == Some(2);
+    }
+    capacity.mine = true;
 }
 
 #[cfg(test)]
@@ -761,5 +789,49 @@ mod tests {
                 prop_assert!((p.peak_pct - max).abs() < 1e-9);
             }
         }
+    }
+    #[test]
+    fn my_view_keeps_me_my_reports_and_those_on_my_projects_in_that_order() {
+        use minimap_types::Why;
+        let people: Vec<Person> = (1..=5u128)
+            .map(|n| person(n, &format!("P{n}"), 40.0))
+            .collect();
+        let mut cap = compute(&CapacityInput {
+            tasks: &[],
+            edges: &[],
+            projects: &[],
+            people: &people,
+            today: date!(2027 - 03 - 03),
+            hours_per_day: 8.0,
+            work_week: WorkWeek::MON_FRI,
+            from: None,
+            to: None,
+            weeks: Some(2),
+            task_limit: 10,
+        });
+        let all: Vec<u128> = cap
+            .people
+            .iter()
+            .map(|p| p.person.node.id.as_u128())
+            .collect();
+        assert_eq!(all.len(), 5);
+        let scope = MyScope {
+            people: [
+                (Uuid::from_u128(5), vec![Why::OnMyProjects]),
+                (Uuid::from_u128(3), vec![Why::Report]),
+                (Uuid::from_u128(4), vec![Why::Me]),
+            ]
+            .into_iter()
+            .collect(),
+            ..Default::default()
+        };
+        in_my_view(&mut cap, &scope);
+        let kept: Vec<(u128, bool)> = cap
+            .people
+            .iter()
+            .map(|p| (p.person.node.id.as_u128(), p.on_my_projects))
+            .collect();
+        assert_eq!(kept, [(4, false), (3, false), (5, true)]);
+        assert!(cap.mine);
     }
 }

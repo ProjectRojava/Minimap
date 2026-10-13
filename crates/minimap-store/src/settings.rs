@@ -14,6 +14,8 @@ const HEALTH: &str = "health";
 const FOG: &str = "fog";
 const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
 const ZONE_NARROW_DAYS: &str = "zone_narrow_days";
+const ONE_ON_ONE_EVERY_DAYS: &str = "one_on_one_every_days";
+const FRAMES_ALL_LEVELS: &str = "frames_all_levels";
 const REPORT_TEMPLATE: &str = "report_template";
 const BACKUP_FOLDER: &str = "backup_folder";
 const AUTO_BACKUP: &str = "auto_backup";
@@ -117,6 +119,17 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.zone_narrow_days = n;
         }
     }
+    if let Some(n) = read(conn, ONE_ON_ONE_EVERY_DAYS)?
+        .and_then(|v| v.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
+    {
+        if (1..=minimap_types::MAX_ONE_ON_ONE_EVERY_DAYS).contains(&n) {
+            s.one_on_one_every_days = n;
+        }
+    }
+    if let Some(b) = read(conn, FRAMES_ALL_LEVELS)?.and_then(|v| v.as_bool()) {
+        s.frames_all_levels = b;
+    }
     if let Some(h) = read(conn, HEALTH)?
         .and_then(|v| serde_json::from_value::<minimap_types::HealthThresholds>(v).ok())
     {
@@ -203,6 +216,14 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             )));
         }
     }
+    if let Some(n) = patch.one_on_one_every_days {
+        if !(1..=minimap_types::MAX_ONE_ON_ONE_EVERY_DAYS).contains(&n) {
+            return Err(StoreError::Invalid(format!(
+                "the 1:1 rhythm must be between 1 and {} days",
+                minimap_types::MAX_ONE_ON_ONE_EVERY_DAYS
+            )));
+        }
+    }
     if let Some(n) = patch.capacity_task_limit {
         if !(1..=500).contains(&n) {
             return Err(StoreError::Invalid(
@@ -268,6 +289,12 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(n) = patch.zone_narrow_days {
         write(&tx, ZONE_NARROW_DAYS, &serde_json::json!(n))?;
+    }
+    if let Some(n) = patch.one_on_one_every_days {
+        write(&tx, ONE_ON_ONE_EVERY_DAYS, &serde_json::json!(n))?;
+    }
+    if let Some(b) = patch.frames_all_levels {
+        write(&tx, FRAMES_ALL_LEVELS, &serde_json::json!(b))?;
     }
     if let Some(n) = patch.capacity_task_limit {
         write(&tx, CAPACITY_TASK_LIMIT, &serde_json::json!(n))?;

@@ -22,6 +22,7 @@ use crate::{
         },
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveDot},
+        orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
         task_board::today,
         task_type::{type_for_new_task, use_task_types, TypeChip},
@@ -448,8 +449,21 @@ pub fn TaskList(
         version.track();
         api::list_node_summaries(NodeType::Project)
     });
+    // In My view (spec 50) only your tasks and what reaches them (not the inbox: those tasks have
+    // no project, and assignment already filters them).
+    let orientation = expect_context::<Orientation>();
+    let shown = move || {
+        rows.get().map(|r| {
+            r.map(|mut v| {
+                if !inbox {
+                    v.retain(|t| orientation.shows(Kind::Task, t.task.id));
+                }
+                v
+            })
+        })
+    };
 
-    Effect::new(move |_| match rows.get() {
+    Effect::new(move |_| match shown() {
         Some(Ok(r)) => list.set_items(
             r.iter()
                 .map(|t| NodeRef::new(NodeType::Task, t.task.id))
@@ -599,6 +613,7 @@ pub fn TaskList(
                 {layout.map(|board| view! { <span class="ml-auto"><LayoutToggle board=board /></span> })}
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority"), ("d", "due"), ("a", "assignee")] />
             </PageHeader>
+            {(!inbox).then(|| view! { <MineBanner /> })}
             <FilterControls filters=filters inbox=inbox board=false />
             {(!inbox).then(|| view! { <FilteredApproach project=filters.project /> })}
             <Show when=move || adding.get()>
@@ -636,7 +651,7 @@ pub fn TaskList(
                 <span>"Assignee"</span><span>"Due"</span>
             </div>
             <div class="flex-1 overflow-y-auto" role="table">
-                {move || match (rows.get(), people.get(), projects.get()) {
+                {move || match (shown(), people.get(), projects.get()) {
                     (Some(Ok(r)), Some(Ok(ps)), Some(Ok(pr))) => {
                         if r.is_empty() {
                             return if inbox {
@@ -790,6 +805,7 @@ fn TaskRowView(
                         <ObjectiveDot objective=o />
                     })}
                     <span class=title_class>{t.title}</span>
+                    <WhyChip kind=Kind::Task id=id />
                     <TypeChip id=t.task_type.clone() />
                     {repeats.map(|text| view! {
                         <span class=Tone::Neutral.chip() title=text>"↻"</span>

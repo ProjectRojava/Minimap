@@ -9,16 +9,17 @@ use crate::{
 };
 
 /// What the demo data holds, for the card.
-pub const CONTENTS: [&str; 9] = [
-    "3 objectives (one ongoing, with a review overdue) and 3 projects; \"EU Region\" is at risk (projected two working days late, one task overdue, one blocked)",
+pub const CONTENTS: [&str; 10] = [
+    "3 objectives (one ongoing, with a review overdue) and 3 projects (you own Platform Cost Reduction, so My view has one of its own); \"EU Region\" is at risk (projected two working days late, one task overdue, one blocked)",
     "40 tasks across the projects and the inbox, with blocks links between projects",
-    "8 people (you and 7 others) in 2 nested teams, with reporting lines; one person is overloaded",
+    "8 people (you and 7 others) in 2 nested teams, with reporting lines (four report to you); one person, who reports to you, is overloaded",
     "3 notes (a 1:1 with mentions and a checklist), 7 decisions (three are the records of Decision tasks; one replaced by another)",
     "3 waiting-ons: one stale, one resolved this week",
     "This week's events: a task finished, two due dates moved later, one task newly blocked",
     "Repeating work: a monthly task, a task every 12 weeks, and a weekly 1:1 note",
     "Reference links on three tasks: a Google Doc and Sheet, a Drive folder, and web pages",
     "Sub-tasks: five tasks that are part of another (for example the status page and runbook under \"Go-live checklist\"), one of them done",
+    "3 pings (pins to come back to things): one due today on \"Platform Cost Reduction\", one on Raj Patel due yesterday, one on a decision coming up in four days",
 ];
 
 #[component]

@@ -1,8 +1,8 @@
 # 05 — Pings: drop a marker on anything to come back to it
 
-Status: Draft · Milestone: — · Priority: Should · Size: L
+Status: Implemented as spec 48 — awaiting manual check (open questions answered as recommended) · Milestone: — · Priority: Should · Size: L
 Depends on: specs 01, 12, 16, 22, 24, 25, 26 (implemented) · Read first: [README](README.md)
-Expected ADR: ADR-0020 *Pings: a light marker table, not a node type*
+ADR: [ADR-0020](../decisions/ADR-0020-pings-as-a-light-table.md) *Pings: a light marker table, not a node type*
 
 ## Goal
 In co-op games a **ping** marks a spot on the map in one click: "look here". An exec's version is "come back to this on Friday": the vendor contract inside a project, a person you need to talk to about something, a decision you want to revisit. Today the closest tools are focus (tasks only, every day, spec 37), waiting-ons (about someone owing you something) and creating a task (too heavy: it enters the schedule, capacity and health).
@@ -93,13 +93,24 @@ Seed three pings (relative to `today`): one due today on *Platform Cost Reductio
 Recurring pings; pinging a person "about" another item (one target only); pings in the Markdown report; reminders/notifications outside the app.
 
 ## Acceptance criteria
-- [ ] Migration, repo, commands and quick-add work; one live ping per target holds even with two quick creates (store test).
-- [ ] Undo/redo exact for create, update, clear (store `undo` tests); `nullable_fields` test passes.
-- [ ] Merge: pings sync; the double-live repair works (store `merge` test with two snapshots).
-- [ ] Export includes `pings.json`; round-trip test of the demo export includes pings.
-- [ ] This week Pings card, marks on rows/cards, `m` box, pane pill and button, palette actions.
-- [ ] Demo data, snapshots, `demo_remove` updated; story holds.
-- [ ] ADR-0020, Help page and links, grammar doc, CHANGELOG, knowledge graph (§3 table, §4, §5, §6, §7, §8, §10 invariants: one live ping per target), `docs/progress.md`; gate passes.
+- [x] Migration, repo, commands and quick-add work; one live ping per target holds even with two quick creates (store test).
+- [x] Undo/redo exact for create, update, clear (store `undo` tests); `nullable_fields` test passes.
+- [x] Merge: pings sync; the double-live repair works (store `merge` test with two snapshots).
+- [x] Export includes `pings.json`; round-trip test of the demo export includes pings.
+- [x] This week Pings card, marks on rows/cards, `m` box, pane pill and button, palette actions.
+- [x] Demo data, snapshots, `demo_remove` updated; story holds.
+- [x] ADR-0020, Help page and links, grammar doc, CHANGELOG, knowledge graph (§3 table, §4, §5, §6, §7, §8, §10 invariants: one live ping per target), `docs/progress.md`; gate passes.
+
+## Implementation notes (spec 48)
+- **Activity and undo** use the fallback the spec allowed: an `updated` row on the *target* with a single `ping` diff key (attachments precedent), not a `NodeType::Ping` variant (33 node matches and the `NodeType::ALL` loops would have needed it). Undo reads the key as undoable (`Inverse::Ping`). See ADR-0020.
+- **`nullable_fields`**: a ping is not a node, so `store::undo::ping_nullable_fields` (test-only) lists `UpdatePing`'s `Patch` fields (`cleared_on`) and a test keeps it equal to the type.
+- **The Ping box** is a small centred dialog (like *Finish decision*), not a popover anchored to the row: the keyboard path (`m` on the cursor row) has no element to anchor to on every screen.
+- **The pane pill** is a strip under the pane header (*Ping due* / *Ping*, the day and note, *Clear*, *Change…*) plus a *Ping…* button in the header, for every node type.
+- **This week** loads `list_pings` together with the week (no pings when looking back at a past day) so the cursor rows are known; the due pings' targets are in `ListNav` after Focus and `x` on one clears the ping. The pins elsewhere come from `PingsCtx`.
+- **No duplicates with Focus**: a due ping on a task that is already a row under *Needs attention* or *Focus* shows on that row (`RowPing`) and not in the Pings card (`split_pings`). Focus stays as it is: it is for tasks seen every day, a ping for anything seen on a day.
+- **Quick-add**: the keys `task:`, `objective:` and `decision:` are read only on a `ping` line; the directory now lists decisions; the target is never created.
+- **Commands** return plain sentences for refusals ("Pick today or later") and `ping_item` takes `on` as natural-day text.
+- **Demo data**: three pings (Platform Cost Reduction due today, Raj Patel due yesterday, "Run EU data on managed Postgres" in four days); `DemoSummary.pings`; a `the_pings_of_the_demo_data` snapshot; `demo_remove` counts the pings that go with demo items.
 
 ## Not yet verified by hand
 - Press `m` on a project card, pick Friday, type a note: the pin appears; This week shows it on Friday (or set the date to today to see it now).

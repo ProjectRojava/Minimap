@@ -16,6 +16,7 @@ use crate::{
             counts_text, finish_text, load_text, reasons_text, risk_kind_label, risk_priority_text,
             HealthMark,
         },
+        orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{EmptyState, PageHeader, CHIP},
         waiting_panel::age_text,
         zone::ZoneBar,
@@ -27,9 +28,11 @@ use crate::{
 #[component]
 pub fn Overview() -> impl IntoView {
     let version = expect_context::<DataVersion>();
+    let orientation = expect_context::<Orientation>();
+    // In My view (spec 50) the overview is worked out for what touches you, not filtered after.
     let overview = LocalResource::new(move || {
         version.track();
-        api::get_portfolio_overview()
+        api::get_portfolio_overview_in(orientation.view())
     });
     view! {
         <div class="h-full overflow-y-auto">
@@ -174,6 +177,7 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
             <span class="text-muted">{counts_line}</span>
             <span class=format!("{CHIP} ml-auto")>{format!("as of {today}")}</span>
         </PageHeader>
+        <MineBanner />
         <div class="grid grid-cols-2 gap-2 border-b border-line px-4 py-3 sm:grid-cols-5">
             <StatTile label="Red" value=red level=HealthLevel::Red />
             <StatTile label="Amber" value=amber level=HealthLevel::Amber />
@@ -208,6 +212,14 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
     }
 }
 
+/// A risk is a project or a task.
+fn risk_kind(r: &RiskItem) -> Kind {
+    match r.kind {
+        minimap_types::RiskKind::Project => Kind::Project,
+        _ => Kind::Task,
+    }
+}
+
 fn risk_row(r: &RiskItem, on_click: impl Fn(leptos::ev::MouseEvent) + 'static) -> impl IntoView {
     let id = r.node.node.id;
     view! {
@@ -217,6 +229,8 @@ fn risk_row(r: &RiskItem, on_click: impl Fn(leptos::ev::MouseEvent) + 'static) -
             <span class="max-w-[18rem] shrink-0 truncate font-medium">{r.node.label.clone()}</span>
             <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&r.health, 2)}</span>
             <span class="shrink-0 text-[11px] text-muted">{risk_priority_text(r)}</span>
+            <WhyChip kind=risk_kind(r) id=id />
+            <crate::components::ping::PingMarkFor id=id />
             <FogChipFor id=id />
         </div>
     }
@@ -259,6 +273,8 @@ fn objective_block(o: &ObjectiveHealthRow, selection: Selection) -> impl IntoVie
                 </span>
                 <span class="shrink-0 text-[11px] text-muted">{target}</span>
                 <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&o.health, 2)}</span>
+                <WhyChip kind=Kind::Objective id=node.id />
+                <crate::components::ping::PingMarkFor id=node.id />
                 <FogChipFor id=node.id />
             </div>
             {projects}
@@ -286,6 +302,8 @@ fn project_row(
             <span class="w-32 shrink-0 self-center"><ZoneBar zone=p.zone compact=true /></span>
             <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&p.health, 2)}</span>
             <span class="shrink-0 text-[11px] text-faint">{weight}</span>
+            <WhyChip kind=Kind::Project id=id />
+            <crate::components::ping::PingMarkFor id=id />
             <FogChipFor id=id />
         </div>
     }
@@ -300,6 +318,8 @@ fn person_row(
             <span class="w-4 shrink-0 text-center text-danger" title="Over capacity">"●"</span>
             <span class="max-w-[18rem] shrink-0 truncate font-medium">{p.person.label.clone()}</span>
             <span class="text-muted">{load_text(p)}</span>
+            <WhyChip kind=Kind::Person id=p.person.node.id />
+            <crate::components::ping::PingMarkFor id=p.person.node.id />
         </div>
     }
 }

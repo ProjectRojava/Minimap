@@ -674,14 +674,26 @@ struct CapacityArg {
     from: Option<minimap_types::Date>,
     to: Option<minimap_types::Date>,
     weeks: Option<u32>,
+    view: Option<minimap_types::View>,
 }
 
+/// Capacity; in My view (spec 50) only you, your reports and the people on your projects.
 pub async fn get_capacity(
     from: Option<minimap_types::Date>,
     to: Option<minimap_types::Date>,
     weeks: Option<u32>,
+    view: minimap_types::View,
 ) -> Result<Capacity, AppError> {
-    invoke("get_capacity", &CapacityArg { from, to, weeks }).await
+    invoke(
+        "get_capacity",
+        &CapacityArg {
+            from,
+            to,
+            weeks,
+            view: Some(view),
+        },
+    )
+    .await
 }
 
 #[derive(Serialize)]
@@ -703,6 +715,11 @@ pub async fn get_this_week(
     as_of: Option<minimap_types::Date>,
 ) -> Result<ThisWeek, AppError> {
     invoke("get_this_week", &ThisWeekArg { week_start, as_of }).await
+}
+
+/// You and your direct reports at a glance (spec 49); `None` before first run.
+pub async fn get_people_frames() -> Result<Option<minimap_types::PeopleFrames>, AppError> {
+    invoke("get_people_frames", &NoArgs {}).await
 }
 
 #[derive(Serialize)]
@@ -730,6 +747,74 @@ struct ConfirmArg {
 /// Says an item is still accurate: it clears its fog without changing anything.
 pub async fn confirm_item(node: NodeRef) -> Result<(), AppError> {
     invoke("confirm_item", &ConfirmArg { node }).await
+}
+
+// ------------------------------------------------------------------ pings (ADR-0020)
+
+/// The live pings of items that are not archived: due ones and coming-up ones.
+pub async fn list_pings() -> Result<minimap_types::PingsView, AppError> {
+    invoke("list_pings", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct PingItemArg {
+    target: NodeRef,
+    note: String,
+    on: String,
+}
+
+/// Pings an item on a day (`today`, `tomorrow`, `fri`, `next-week`, an ISO date...). An item that
+/// has a live ping gets that one changed.
+pub async fn ping_item(
+    target: NodeRef,
+    note: String,
+    on: String,
+) -> Result<minimap_types::PingRow, AppError> {
+    invoke("ping_item", &PingItemArg { target, note, on }).await
+}
+
+#[derive(Serialize)]
+struct UpdatePingArg {
+    id: Uuid,
+    note: Option<String>,
+    on: Option<String>,
+}
+
+/// Changes a ping's note and/or day.
+pub async fn update_ping(
+    id: Uuid,
+    note: Option<String>,
+    on: Option<String>,
+) -> Result<minimap_types::PingRow, AppError> {
+    invoke("update_ping", &UpdatePingArg { id, note, on }).await
+}
+
+/// Clears a ping (it drops off This week).
+pub async fn clear_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("clear_ping", &IdArg { id }).await
+}
+
+/// Brings a cleared ping back.
+#[allow(dead_code)] // no screen needs it yet: undo brings a cleared ping back
+pub async fn reopen_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("reopen_ping", &IdArg { id }).await
+}
+
+/// Removes a ping.
+#[allow(dead_code)] // pings are cleared, not removed, on screen
+pub async fn archive_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_ping", &IdArg { id }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PingForArg {
+    target_id: Uuid,
+}
+
+/// The live ping on an item, for its pane.
+pub async fn get_ping_for(target_id: Uuid) -> Result<Option<minimap_types::Ping>, AppError> {
+    invoke("get_ping_for", &PingForArg { target_id }).await
 }
 
 #[derive(Serialize)]
@@ -796,13 +881,44 @@ pub async fn get_backup_status() -> Result<BackupStatus, AppError> {
 }
 
 #[derive(Serialize)]
-struct OptionalPathArg {
+struct BackupNowArg {
     path: Option<String>,
+    label: Option<String>,
 }
 
-/// Backs up into `folder` (the configured folder when `None`).
-pub async fn backup_now(folder: Option<String>) -> Result<BackupEntry, AppError> {
-    invoke("backup_now", &OptionalPathArg { path: folder }).await
+/// Backs up into `folder` (the configured folder when `None`). With a `label` it is a named
+/// save point (spec 51); a blank one means none.
+pub async fn backup_now(
+    folder: Option<String>,
+    label: Option<String>,
+) -> Result<BackupEntry, AppError> {
+    invoke(
+        "backup_now",
+        &BackupNowArg {
+            path: folder,
+            label,
+        },
+    )
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavePointsArg {
+    utc_offset_minutes: i32,
+}
+
+/// Every restorable copy on one timeline: the backups on this computer and, when connected,
+/// Google Drive's checkpoints. `utc_offset_minutes` is the offset of the person's clock.
+pub async fn list_save_points(
+    utc_offset_minutes: i32,
+) -> Result<minimap_types::SaveTimeline, AppError> {
+    invoke("list_save_points", &SavePointsArg { utc_offset_minutes }).await
+}
+
+/// The newest save point and whether it is too old, for the status bar (no network).
+pub async fn get_last_save_point() -> Result<minimap_types::SaveSummary, AppError> {
+    invoke("get_last_save_point", &NoArgs {}).await
 }
 
 #[derive(Serialize)]
@@ -953,7 +1069,25 @@ pub async fn copy_text(text: &str) -> Result<(), AppError> {
 }
 
 pub async fn get_portfolio_overview() -> Result<PortfolioOverview, AppError> {
-    invoke("get_portfolio_overview", &NoArgs {}).await
+    invoke("get_portfolio_overview", &OverviewArg { view: None }).await
+}
+
+#[derive(Serialize)]
+struct OverviewArg {
+    view: Option<minimap_types::View>,
+}
+
+/// The overview in a view (spec 50): in My view only what touches you, with the top risks chosen
+/// among it. The health sections of the panes use [`get_portfolio_overview`].
+pub async fn get_portfolio_overview_in(
+    view: minimap_types::View,
+) -> Result<PortfolioOverview, AppError> {
+    invoke("get_portfolio_overview", &OverviewArg { view: Some(view) }).await
+}
+
+/// Everything that touches you, and why (spec 50).
+pub async fn get_my_scope() -> Result<minimap_types::MyScope, AppError> {
+    invoke("get_my_scope", &NoArgs {}).await
 }
 
 #[derive(Serialize)]

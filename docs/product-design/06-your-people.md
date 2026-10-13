@@ -1,6 +1,6 @@
 # 06 — Your people: compact frames for you and the people who report to you
 
-Status: Draft · Milestone: — · Priority: Should · Size: M
+Status: Implemented as spec 49 — awaiting manual check (open questions answered as recommended) · Milestone: — · Priority: Should · Size: M
 Depends on: specs 03, 08, 09, 16, 17 (implemented) · Read first: [README](README.md)
 Expected ADR: none
 
@@ -70,11 +70,24 @@ Settings only (synced, not undoable). Nothing else stored.
 Next shared meeting per person (needs attendees; meetings have one assignee); teams' frames; frames for people outside your reporting line (use the People screen); any trend over time.
 
 ## Acceptance criteria
-- [ ] `core::people_frames` tests and proptest pass; load matches the capacity module exactly (test compares both on the same input).
-- [ ] `get_people_frames` command test at a fixed date; demo snapshot reviewed.
-- [ ] Frames on This week and People; actions work; ordered by name; no wording from the banned list (a ui test greps the module's strings for the banned words).
-- [ ] Settings validated and persisted.
-- [ ] Help, CHANGELOG, knowledge graph (§4, §5, §7, §8), `docs/progress.md`; gate passes.
+- [x] `core::people_frames` tests and proptest pass; load matches the capacity module exactly (test compares both on the same input).
+- [x] `get_people_frames` command test at a fixed date; demo snapshot reviewed.
+- [x] Frames on This week and People; actions work; ordered by name; no wording from the banned list (a ui test greps the module's strings for the banned words).
+- [x] Settings validated and persisted.
+- [x] Help, CHANGELOG, knowledge graph (§4, §5, §7, §8), `docs/progress.md`; gate passes.
+
+## Implementation notes (spec 49)
+- **`one_on_one_due` is days since the last 1:1** (or since the person was added, when there has never been one), not days past the rhythm: the pill reads "1:1 due · 18 days" as in the user story.
+- **Which 1:1 is "with" someone** is refined from "mentions them": a 1:1 note often mentions people it only talks about (the demo's 1:1 with Priya mentions Tomás, Elena and Raj). A 1:1 that mentions one person is with them; one that mentions several is with those whose name is in its title; with no name in the title it is with everyone mentioned. A 1:1 dated in the future has not happened yet and does not count.
+- **Waiting-ons** are counted open and not snoozed (the same ones the Waiting on screen lists), and are always 0 for you.
+- **Pills**: besides the flags, a plain grey "Waiting on them · N" when you wait on them but nothing is stale, so a count is never hidden.
+- **`build` returns `None` without a "me"** (before first run); the command answers `Option<PeopleFrames>`. `Flag` is `FrameFlag` (`week::Flag` exists), and `Frame` also carries `role_title`.
+- **Where the card sits**: This week is a single column, so it is the card after *1:1s this week*. It is not shown when looking back at a past day. On People the frames sit under the header and the cursor (`j`/`k`) reaches them first; on This week they are reachable with Tab.
+- **The actions**: *New 1:1* is the same function as the pane's button (`people_panel::new_one_on_one`); *Tasks* opens `/tasks?person=<id>` (the Tasks screen reads it into its assignee filter) and *Capacity* opens `/capacity?person=<id>` (that row, this week's cell chosen, scrolled into view).
+- **Capacity** has a shared `capacity_at(conn, today, …)` that `get_capacity` and `get_people_frames` both call, so the figure is the heatmap's own.
+- **Demo data**: no schema change, but Tomás Alvarez (the overloaded person) now reports to you directly, so his frame is on your card with *Over capacity*; the 1:1 with Priya now mentions Priya (it did not), which is one more `mentions` link (119 links). Raj, Sam and Tomás have never had a 1:1, so their frames say *1:1 due*; Priya's is clear.
+
+- **Later change (everyone below)**: the second-level setting became `frames_all_levels` (default **on**): the card shows the whole reporting tree below you, depth first, each manager's people in a group right under them (`PeopleFrames.below: Vec<ReportGroup{manager, depth, frames}>`), because someone with people of their own should not hide them. My view's *Report* reasons follow the same tree (spec 50). The *no reports* hint now says what to do on the People screen itself instead of linking to it.
 
 ## Not yet verified by hand
 - Demo: This week shows you and your reports; the overloaded person's bar has the amber end.

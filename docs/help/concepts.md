@@ -43,6 +43,7 @@ Dates are written `YYYY-MM-DD` (for example `2027-03-31`) everywhere. The schedu
 | Assignments and weekly hours | Each person's load per week ([Capacity](help:capacity)) |
 | Tasks, targets and links | The health of each project and objective, with reasons ([Overview](help:overview)) |
 | What happened this week | The weekly review and its status report ([Weekly review](help:weekly-review)) |
+| A day you chose to come back to something | Pings: a pin on the item, and a card on This week when the day comes ([Pings](help:pings)); they never affect the schedule or health |
 | When something was last touched | Fog: work in play that nobody has changed or confirmed for a while fades ([Fog](help:fog)) |
 
 ## Archiving, deleting and undo

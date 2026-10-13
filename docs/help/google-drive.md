@@ -41,7 +41,7 @@ Status and *last saved*; **Sync now**; the list of **computers** using this Driv
 
 ## Checkpoints and recovery
 
-Besides each computer's latest snapshot, Minimap keeps **hourly checkpoints** (the last 24) and **daily ones** (the last 30 days). **Recover…** on a checkpoint brings back whatever differs from that old copy **as new edits** (after saving a backup first); newer work stays. Use it if something went badly wrong on every computer.
+Besides each computer's latest snapshot, Minimap keeps **hourly checkpoints** (the last 24) and **daily ones** (the last 30 days). **Recover…** on a checkpoint brings back whatever differs from that old copy **as new edits** (after saving a backup first); newer work stays. Use it if something went badly wrong on every computer. Checkpoints also appear, mixed with the backups on this computer, on the **Save points** timeline under *Settings → Data & backup* ([Backup and restore](help:backup-restore)).
 
 ## Attachments
 

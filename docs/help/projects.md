@@ -4,6 +4,8 @@ A **project** is work with a purpose: an owner, a start and target date, a statu
 
 ## The list and the board
 
+In **My view** (`v`) the list and the board show only projects you own, projects that hold your tasks, and projects that reach you, each with a chip that says why. See [Portfolio view and My view](help:views).
+
 The **Projects** screen has two layouts, switched at the top right:
 
 - **List**: projects grouped under the objective they contribute to (a project under several objectives appears under each; ones under none are listed last), then by status and priority.

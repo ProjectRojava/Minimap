@@ -16,6 +16,8 @@ pub enum QuickKind {
     Wait,
     Note,
     Decision,
+    /// A ping on an item (ADR-0020).
+    Ping,
 }
 
 /// A node the parser may match a name against.
@@ -180,6 +182,12 @@ pub enum QuickMain {
         status: Option<DecisionStatus>,
         decided_on: Option<Date>,
         affects: Vec<Ref>,
+    },
+    /// A ping on one existing item (`target` is never a new node).
+    Ping {
+        target: Ref,
+        note: String,
+        on_date: Date,
     },
 }
 

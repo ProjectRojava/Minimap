@@ -237,6 +237,12 @@
           "markdownDescription": "Enables the archive_person command without any pre-configured scope."
         },
         {
+          "description": "Enables the archive_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-ping",
+          "markdownDescription": "Enables the archive_ping command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_project command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-project",
@@ -271,6 +277,12 @@
           "type": "string",
           "const": "allow-cancel-drive-connect",
           "markdownDescription": "Enables the cancel_drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the clear_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-clear-ping",
+          "markdownDescription": "Enables the clear_ping command without any pre-configured scope."
         },
         {
           "description": "Enables the commit_quick_add command without any pre-configured scope.",
@@ -465,6 +477,18 @@
           "markdownDescription": "Enables the get_fog command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_last_save_point command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-last-save-point",
+          "markdownDescription": "Enables the get_last_save_point command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_my_scope command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-my-scope",
+          "markdownDescription": "Enables the get_my_scope command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-node-summary",
@@ -495,6 +519,12 @@
           "markdownDescription": "Enables the get_objective_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_people_frames command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-people-frames",
+          "markdownDescription": "Enables the get_people_frames command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_person command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-person",
@@ -505,6 +535,12 @@
           "type": "string",
           "const": "allow-get-person-detail",
           "markdownDescription": "Enables the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_ping_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-ping-for",
+          "markdownDescription": "Enables the get_ping_for command without any pre-configured scope."
         },
         {
           "description": "Enables the get_portfolio_overview command without any pre-configured scope.",
@@ -669,10 +705,22 @@
           "markdownDescription": "Enables the list_people command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_pings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-pings",
+          "markdownDescription": "Enables the list_pings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_projects command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-projects",
           "markdownDescription": "Enables the list_projects command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_save_points command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-save-points",
+          "markdownDescription": "Enables the list_save_points command without any pre-configured scope."
         },
         {
           "description": "Enables the list_tasks command without any pre-configured scope.",
@@ -715,6 +763,12 @@
           "type": "string",
           "const": "allow-ping",
           "markdownDescription": "Enables the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ping_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ping-item",
+          "markdownDescription": "Enables the ping_item command without any pre-configured scope."
         },
         {
           "description": "Enables the preview_apply_slips command without any pre-configured scope.",
@@ -781,6 +835,12 @@
           "type": "string",
           "const": "allow-render-report",
           "markdownDescription": "Enables the render_report command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the reopen_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-reopen-ping",
+          "markdownDescription": "Enables the reopen_ping command without any pre-configured scope."
         },
         {
           "description": "Enables the reopen_waiting_on command without any pre-configured scope.",
@@ -933,6 +993,12 @@
           "markdownDescription": "Enables the update_person command without any pre-configured scope."
         },
         {
+          "description": "Enables the update_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-ping",
+          "markdownDescription": "Enables the update_ping command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_project command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-project",
@@ -1029,6 +1095,12 @@
           "markdownDescription": "Denies the archive_person command without any pre-configured scope."
         },
         {
+          "description": "Denies the archive_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-ping",
+          "markdownDescription": "Denies the archive_ping command without any pre-configured scope."
+        },
+        {
           "description": "Denies the archive_project command without any pre-configured scope.",
           "type": "string",
           "const": "deny-archive-project",
@@ -1063,6 +1135,12 @@
           "type": "string",
           "const": "deny-cancel-drive-connect",
           "markdownDescription": "Denies the cancel_drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the clear_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-clear-ping",
+          "markdownDescription": "Denies the clear_ping command without any pre-configured scope."
         },
         {
           "description": "Denies the commit_quick_add command without any pre-configured scope.",
@@ -1257,6 +1335,18 @@
           "markdownDescription": "Denies the get_fog command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_last_save_point command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-last-save-point",
+          "markdownDescription": "Denies the get_last_save_point command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_my_scope command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-my-scope",
+          "markdownDescription": "Denies the get_my_scope command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_node_summary command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-node-summary",
@@ -1287,6 +1377,12 @@
           "markdownDescription": "Denies the get_objective_detail command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_people_frames command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-people-frames",
+          "markdownDescription": "Denies the get_people_frames command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_person command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-person",
@@ -1297,6 +1393,12 @@
           "type": "string",
           "const": "deny-get-person-detail",
           "markdownDescription": "Denies the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_ping_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-ping-for",
+          "markdownDescription": "Denies the get_ping_for command without any pre-configured scope."
         },
         {
           "description": "Denies the get_portfolio_overview command without any pre-configured scope.",
@@ -1461,10 +1563,22 @@
           "markdownDescription": "Denies the list_people command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_pings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-pings",
+          "markdownDescription": "Denies the list_pings command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_projects command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-projects",
           "markdownDescription": "Denies the list_projects command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_save_points command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-save-points",
+          "markdownDescription": "Denies the list_save_points command without any pre-configured scope."
         },
         {
           "description": "Denies the list_tasks command without any pre-configured scope.",
@@ -1507,6 +1621,12 @@
           "type": "string",
           "const": "deny-ping",
           "markdownDescription": "Denies the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ping_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ping-item",
+          "markdownDescription": "Denies the ping_item command without any pre-configured scope."
         },
         {
           "description": "Denies the preview_apply_slips command without any pre-configured scope.",
@@ -1573,6 +1693,12 @@
           "type": "string",
           "const": "deny-render-report",
           "markdownDescription": "Denies the render_report command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the reopen_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-reopen-ping",
+          "markdownDescription": "Denies the reopen_ping command without any pre-configured scope."
         },
         {
           "description": "Denies the reopen_waiting_on command without any pre-configured scope.",
@@ -1723,6 +1849,12 @@
           "type": "string",
           "const": "deny-update-person",
           "markdownDescription": "Denies the update_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-ping",
+          "markdownDescription": "Denies the update_ping command without any pre-configured scope."
         },
         {
           "description": "Denies the update_project command without any pre-configured scope.",

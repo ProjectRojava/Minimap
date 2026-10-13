@@ -58,6 +58,10 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 44 | [Safe zone: the room left before a project's target](../product-design/02-safe-zone.md) | — | Should | 05, 13, 15 |
 | 45 | [Approaching: trouble elsewhere that will reach you](../product-design/03-off-screen-indicators.md) | — | Should | 07, 13, 14, 16 |
 | 47 | [Dependencies, richer: see why, trace a chain, edit the links](../product-design/12-dependency-graph.md) | — | Should | 07, 13, 18, 33, 43, 44, 45 |
+| 51 | [Save points: every restorable copy on one timeline](../product-design/08-save-points.md) | — | Could | 20, 21, 22, 23 |
+| 50 | [Portfolio view and My view: north-up or player-up](../product-design/07-orientation.md) | — | Should | 15, 17, 18, 45 |
+| 49 | [Your people: compact frames for you and your reports](../product-design/06-your-people.md) | — | Should | 03, 08, 09, 16, 17 |
+| 48 | [Pings: come back to anything on a day](../product-design/05-pings.md) | — | Should | 01, 12, 16, 22, 24, 25, 26 |
 | 46 | [Route recalculation: a slip shown as the new route to the finish](../product-design/04-route-recalculation.md) | — | Should | 13, 14, 45 |
 
 Design docs for the minimap features (fog of war, safe zone, approaching, route, pings, your people, views, save points, zoom, radar, brand) are in [`docs/product-design/`](../product-design/README.md); each becomes a numbered row here when it is set to Ready.

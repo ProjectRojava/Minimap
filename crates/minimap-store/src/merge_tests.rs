@@ -1,13 +1,13 @@
 use minimap_types::{
-    AssigneeChoice, CreatePerson, CreateProject, CreateTask, CreateTeam, EdgeType, NewEdge,
-    NodeRef, NodeType, Patch, UpdateSettings, UpdateTask,
+    AssigneeChoice, CreatePerson, CreatePing, CreateProject, CreateTask, CreateTeam, EdgeType,
+    NewEdge, NodeRef, NodeType, Patch, UpdateSettings, UpdateTask,
 };
 use proptest::prelude::*;
 use rusqlite::Connection;
 use uuid::Uuid;
 
 use super::*;
-use crate::{edges, nodes, people, projects, settings, tasks, teams};
+use crate::{edges, nodes, people, pings, projects, settings, tasks, teams};
 
 fn device() -> Connection {
     crate::open_in_memory().unwrap()
@@ -144,6 +144,7 @@ fn view(conn: &Connection) -> String {
         ("decisions", ""),
         ("waiting_on", ""),
         ("attachments", ""),
+        ("pings", ""),
         ("edges", "id"),
         ("activity", ""),
         ("tombstones", ""),
@@ -304,6 +305,101 @@ fn a_deleted_item_stays_deleted_everywhere() {
     sync(&mut c, &mut d);
     assert!(tasks::get(&c, id).is_err() && tasks::get(&d, id).is_err());
     assert_eq!(view(&c), view(&d));
+}
+
+fn ping(conn: &mut Connection, target: Uuid, note: &str) -> Uuid {
+    let today = crate::today();
+    pings::create(
+        conn,
+        today,
+        CreatePing {
+            target: NodeRef::new(NodeType::Project, target),
+            note: note.into(),
+            on_date: today,
+        },
+    )
+    .unwrap()
+    .id
+}
+
+fn live_pings(conn: &Connection, target: Uuid) -> Vec<String> {
+    conn.prepare(
+        "SELECT note FROM pings WHERE target_id = ?1 AND archived_at IS NULL AND cleared_on IS NULL",
+    )
+    .unwrap()
+    .query_map([target.to_string()], |r| r.get(0))
+    .unwrap()
+    .collect::<rusqlite::Result<_>>()
+    .unwrap()
+}
+
+#[test]
+fn pings_sync_and_the_newest_write_wins() {
+    let (mut a, mut b) = (device(), device());
+    let p = project(&mut a, "EU");
+    let id = ping(&mut a, p, "from A");
+    sync(&mut a, &mut b);
+    assert_eq!(live_pings(&b, p), ["from A"]);
+    // B clears it later: both devices end with it cleared.
+    pings::clear(&mut b, id, crate::today()).unwrap();
+    b.execute(
+        "UPDATE pings SET updated_at = '2999-01-01T00:00:00.000Z'",
+        [],
+    )
+    .unwrap();
+    sync(&mut a, &mut b);
+    assert!(live_pings(&a, p).is_empty() && live_pings(&b, p).is_empty());
+    assert_eq!(view(&a), view(&b));
+}
+
+#[test]
+fn two_live_pings_on_one_item_become_one_and_both_devices_agree() {
+    let (mut a, mut b) = (device(), device());
+    let p = project(&mut a, "EU");
+    m(&mut b, &a);
+    ping(&mut a, p, "older");
+    ping(&mut b, p, "newer");
+    b.execute(
+        "UPDATE pings SET updated_at = '2999-01-01T00:00:00.000Z'",
+        [],
+    )
+    .unwrap();
+    let summary = m(&mut a, &b);
+    assert!(
+        summary
+            .repairs
+            .iter()
+            .any(|r| r.contains("Two devices each pinged \"EU\"")),
+        "{:?}",
+        summary.repairs
+    );
+    sync(&mut a, &mut b);
+    assert_eq!(live_pings(&a, p), ["newer"]);
+    assert_eq!(live_pings(&b, p), ["newer"]);
+    assert_eq!(view(&a), view(&b));
+    // Merging again changes nothing and repairs nothing.
+    let again = m(&mut a, &b);
+    assert!(again.repairs.is_empty() && again.added == 0 && again.updated == 0);
+}
+
+#[test]
+fn deleting_an_item_for_good_takes_its_pings_with_it_everywhere() {
+    let (mut a, mut b) = (device(), device());
+    let p = project(&mut a, "EU");
+    ping(&mut a, p, "x");
+    m(&mut b, &a);
+    nodes::archive(&mut b, NodeRef::new(NodeType::Project, p)).unwrap();
+    nodes::delete(&mut b, NodeRef::new(NodeType::Project, p)).unwrap();
+    // A pings the item again before hearing about the delete.
+    let id = pings::live_for(&a, p).unwrap().unwrap().id;
+    pings::clear(&mut a, id, crate::today()).unwrap();
+    sync(&mut a, &mut b);
+    let count = |c: &Connection| -> i64 {
+        c.query_row("SELECT COUNT(*) FROM pings", [], |r| r.get(0))
+            .unwrap()
+    };
+    assert_eq!((count(&a), count(&b)), (0, 0));
+    assert_eq!(view(&a), view(&b));
 }
 
 #[test]

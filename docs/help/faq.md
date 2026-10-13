@@ -94,6 +94,7 @@ Afterwards the database is empty again, apart from you.
 | **Handle** | A project's short unique name, such as `api-launch` |
 | **Item** | Anything you record: objective, project, task, person, team, note, decision, waiting-on |
 | **Lag** | Extra waiting working days on a *blocks* link |
+| **Ping** | A marker on any item with a day to come back to it; shows on This week that day ([Pings](help:pings)) |
 | **Recovery key** | A one-time key that opens your encrypted data or your Drive data on a new computer |
 | **Slack** | Working days a task can slip without moving the finish |
 | **Snooze** | Hide a waiting-on until a date |

@@ -79,6 +79,7 @@ pub(crate) fn fingerprint(conn: &Connection) -> String {
         "edges",
         "activity",
         "attachments",
+        "pings",
         "tombstones",
         "settings",
     ] {

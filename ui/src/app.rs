@@ -51,12 +51,18 @@ pub fn App() -> impl IntoView {
     provide_context(crate::state::MeetingDialog(RwSignal::new(None)));
     provide_context(crate::state::NowClock(RwSignal::new(None)));
     provide_context(CardMenuState(RwSignal::new(None)));
+    provide_context(crate::components::ping::PingBoxState::new());
+    provide_context(crate::components::save_points::SaveBoxState(RwSignal::new(
+        false,
+    )));
     provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
     provide_context(crate::state::FinishDecision::new());
     provide_context(crate::components::confirm_archive::ConfirmArchive::new());
     provide_context(DataVersion::new());
+    // Portfolio view or My view (spec 50), and what is in My view.
+    crate::components::orientation::Orientation::provide();
     let theme = ThemeCtx::new();
     provide_context(theme);
     // The database is the source of truth for the theme; localStorage only speeds up startup.
@@ -101,6 +107,8 @@ fn Shell() -> impl IntoView {
     crate::components::task_type::TaskTypes::provide();
     // How stale what is in play has become (spec 43), for the chips and fading on rows and cards.
     crate::components::fog::FogCtx::provide();
+    // The live pings (ADR-0020), for the pin on rows and cards and the card on This week.
+    crate::components::ping::PingsCtx::provide();
     let list = expect_context::<ListNav>();
     // Rows belong to the screen that registered them; clear them on route change.
     let location = leptos_router::hooks::use_location();
@@ -147,6 +155,8 @@ fn Shell() -> impl IntoView {
             <crate::components::meeting::MeetingDialogHost />
             <crate::components::meeting::MeetingClock />
             <CardMenuHost />
+            <crate::components::ping::PingBoxHost />
+            <crate::components::save_points::SaveBoxHost />
             <ToastHost />
             <FirstRun />
         </div>

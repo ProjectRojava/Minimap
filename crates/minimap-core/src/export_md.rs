@@ -468,6 +468,7 @@ pub fn readme(markdown: bool) -> String {
          - `edges.json`: every link between items (`blocks`, `depends_on`, `assigned_to`, ...), with `from_id` and `to_id` pointing at item ids; removed links have `archived_at` set\n\
          - `attachments.json`: the files attached to items (which item, name, size, checksum); the files themselves are in `attachments/<id>/`\n\
          - `task_types.json`: your list of task types; a task's `task_type` is the `id` of one of them\n\
+         - `pings.json`: the pings (markers on an item with a day to come back to it): `target` says which item, `on_date` the day, `cleared_on` the day it was cleared; removed ones have `archived_at` set\n\
          - `activity.json`: the full history of changes, oldest first. Each entry has a `diff` of `{field: [old, new]}`\n\n\
          Ids are UUIDs, dates are `YYYY-MM-DD` and timestamps are RFC 3339 in UTC.\n\n\
          Note bodies are Markdown. A mention of an item looks like `@[Name](node:<id>)` and a picture or file like `![name](attachment:<id>)`.\n\n\

@@ -25,6 +25,7 @@ use crate::{
         fog::{confirm_row, fog_class, mark_for, FogLine},
         form::BUTTON_SOFT,
         objective_colour::{assign, use_objective_colours, ObjectiveChips},
+        orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{Hints, Icon, PageHeader, Tone, CHIP},
         task_list::{next_status, BoardSort, FilterControls, LayoutToggle, TaskFilters},
         task_type::{
@@ -268,7 +269,7 @@ fn link_label(links: u32) -> String {
 }
 
 /// "AB" for "Ada Byron", "P" for "priya": the avatar's letters.
-fn initials(name: &str) -> String {
+pub(crate) fn initials(name: &str) -> String {
     name.split_whitespace()
         .filter_map(|w| w.chars().next())
         .take(2)
@@ -517,13 +518,16 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     });
     // The last tasks that loaded, so the board never blanks while it refreshes.
     let data = RwSignal::new(None::<Vec<TaskRow>>);
+    // In My view (spec 50) only your tasks and what reaches them.
+    let orientation = expect_context::<Orientation>();
     // Moves that are saving; cleared once the reloaded tasks arrive.
     let pending = RwSignal::new(HashMap::<Uuid, TaskStatus>::new());
     let all_done = RwSignal::new(false);
     let failed = RwSignal::new(false);
     Effect::new(move |_| match rows.get() {
-        Some(Ok(r)) => {
+        Some(Ok(mut r)) => {
             failed.set(false);
+            r.retain(|t| orientation.shows(Kind::Task, t.task.id));
             data.set(Some(r));
             pending.update(|p| p.clear());
         }
@@ -753,6 +757,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 <span class="ml-auto"><LayoutToggle board=layout /></span>
                 <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority")] />
             </PageHeader>
+            <MineBanner />
             <FilterControls filters=filters inbox=false board=true />
             <FilteredApproach project=filters.project />
             {move || if data.with(Option::is_some) {
@@ -1156,6 +1161,8 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         >
             <CardMenu task=id label=title_label />
             {(!closed).then(|| view! { <FogLine id=id /> })}
+            // A ping on the task (ADR-0020): a pin at the card's top left corner.
+            <span class="absolute left-1 top-1"><crate::components::ping::PingMarkFor id=id /></span>
             {(!closed && !is_meeting).then(|| view! {
                 <FocusStar task=id focus=focus place="absolute right-6 top-1" />
             })}
@@ -1171,6 +1178,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             }}
             <div class="flex items-start gap-1.5 pr-10">
                 <span class=title_class>{t.title}</span>
+                <WhyChip kind=Kind::Task id=id />
                 {repeats.map(|text| view! {
                     <span class="shrink-0 text-muted" title=text>"↻"</span>
                 })}

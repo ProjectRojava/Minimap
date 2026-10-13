@@ -12,7 +12,9 @@ use std::{
     time::Duration,
 };
 
-use minimap_core::backup::{display_time, file_name, parse_name, prune_plan};
+use minimap_core::backup::{
+    display_time, file_name_with_label, label_slug, parse_name, parse_name_full, prune_plan,
+};
 use minimap_types::{
     BackupCount, BackupEntry, BackupKind, RestorePreview, RestoreResult, UpdateSettings,
 };
@@ -37,7 +39,13 @@ fn io(context: &str, e: std::io::Error) -> StoreError {
     StoreError::Invalid(format!("{context}: {e}"))
 }
 
-fn entry_for(path: &Path, kind: BackupKind, at: OffsetDateTime, bytes: u64) -> BackupEntry {
+fn entry_for(
+    path: &Path,
+    kind: BackupKind,
+    at: OffsetDateTime,
+    bytes: u64,
+    label: Option<String>,
+) -> BackupEntry {
     let age = (now() - at).whole_minutes().max(0) as u64;
     BackupEntry {
         file_name: path
@@ -50,6 +58,7 @@ fn entry_for(path: &Path, kind: BackupKind, at: OffsetDateTime, bytes: u64) -> B
         age_minutes: age,
         bytes,
         encrypted: security::file_is_encrypted(path),
+        label,
     }
 }
 
@@ -64,6 +73,25 @@ pub fn create(
     schema_version: u32,
     key: &Key,
 ) -> Result<BackupEntry> {
+    create_with_label(conn, dir, kind, schema_version, key, None)
+}
+
+/// [`create`] for a named save point (spec 51): `label` is the name as typed; a manual backup
+/// gets its slug in the file name (`minimap-20270303-153000--before-q2-replan.db`). A name that
+/// is blank or too long is refused with the sentence, before anything is written. Only a manual
+/// backup can be named; for any other kind the name is ignored.
+pub fn create_with_label(
+    conn: &Connection,
+    dir: &Path,
+    kind: BackupKind,
+    schema_version: u32,
+    key: &Key,
+    label: Option<&str>,
+) -> Result<BackupEntry> {
+    let slug = match label {
+        Some(text) if kind == BackupKind::Manual => Some(label_slug(text).map_err(invalid)?),
+        _ => None,
+    };
     fs::create_dir_all(dir).map_err(|e| {
         io(
             &format!("Couldn't create the backup folder {}", dir.display()),
@@ -72,10 +100,11 @@ pub fn create(
     })?;
     // A second backup in the same second gets the next free second.
     let mut at = now().replace_nanosecond(0).unwrap_or_else(|_| now());
-    let mut target = dir.join(file_name(kind, at, schema_version));
+    let name = |at| file_name_with_label(kind, at, schema_version, slug.as_deref());
+    let mut target = dir.join(name(at));
     while target.exists() {
         at += time::Duration::seconds(1);
-        target = dir.join(file_name(kind, at, schema_version));
+        target = dir.join(name(at));
     }
     let partial = target.with_extension("db.part");
     let _ = fs::remove_file(&partial);
@@ -88,7 +117,7 @@ pub fn create(
         .map_err(|e| io(&format!("Couldn't save the backup {}", target.display()), e))?;
     security::restrict_permissions(&target);
     let bytes = fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
-    Ok(entry_for(&target, kind, at, bytes))
+    Ok(entry_for(&target, kind, at, bytes, slug))
 }
 
 pub(crate) fn copy_database(conn: &Connection, to: &Path, key: &Key) -> Result<()> {
@@ -125,14 +154,18 @@ pub fn list(dir: &Path) -> Result<Vec<BackupEntry>> {
     let mut found: Vec<(OffsetDateTime, BackupEntry)> = Vec::new();
     for item in read.flatten() {
         let name = item.file_name().to_string_lossy().into_owned();
-        let Some((kind, at)) = parse_name(&name) else {
+        let Some(parsed) = parse_name_full(&name) else {
             continue;
         };
+        let (kind, at) = (parsed.kind, parsed.at);
         let Ok(meta) = item.metadata() else { continue };
         if !meta.is_file() {
             continue;
         }
-        found.push((at, entry_for(&item.path(), kind, at, meta.len())));
+        found.push((
+            at,
+            entry_for(&item.path(), kind, at, meta.len(), parsed.label),
+        ));
     }
     found.sort_by(|a, b| {
         b.0.cmp(&a.0)
@@ -468,6 +501,74 @@ mod tests {
         );
         assert!(crate::meta::vault_key(&conn).unwrap().unwrap() == vault);
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_named_save_point_has_its_slug_in_the_file_name_and_comes_back_in_the_list() {
+        let dir = temp_dir("named");
+        let backups = dir.join("backups");
+        let mut conn = open(&dir.join("minimap.db")).unwrap();
+        add_task(&mut conn, "Anything");
+        let named = create_with_label(
+            &conn,
+            &backups,
+            BackupKind::Manual,
+            0,
+            &Key::None,
+            Some("Before the Q2 replan"),
+        )
+        .unwrap();
+        assert!(
+            named.file_name.ends_with("--before-the-q2-replan.db"),
+            "{}",
+            named.file_name
+        );
+        assert_eq!(named.label.as_deref(), Some("before-the-q2-replan"));
+        let plain = create(&conn, &backups, BackupKind::Manual, 0, &Key::None).unwrap();
+        assert_eq!(plain.label, None);
+        let listed = list(&backups).unwrap();
+        let by_name = |n: &str| listed.iter().find(|e| e.file_name == n).unwrap();
+        assert_eq!(
+            by_name(&named.file_name).label.as_deref(),
+            Some("before-the-q2-replan")
+        );
+        assert_eq!(by_name(&plain.file_name).label, None);
+        // A named backup restores like any other.
+        let preview = inspect(
+            Path::new(&named.path),
+            crate::LATEST_SCHEMA,
+            &Key::None,
+            &[],
+        )
+        .unwrap();
+        assert!(preview
+            .counts
+            .iter()
+            .any(|c| c.label == "Tasks" && c.count == 1));
+    }
+
+    #[test]
+    fn a_blank_or_endless_name_is_refused_before_anything_is_written() {
+        let dir = temp_dir("named-bad");
+        let backups = dir.join("backups");
+        let conn = open(&dir.join("minimap.db")).unwrap();
+        for bad in ["   ", &"x".repeat(200)] {
+            let err = create_with_label(
+                &conn,
+                &backups,
+                BackupKind::Manual,
+                0,
+                &Key::None,
+                Some(bad),
+            );
+            assert!(matches!(err, Err(StoreError::Invalid(_))), "{bad:?}");
+        }
+        assert!(list(&backups).unwrap().is_empty());
+        // A name on a backup that is not manual is ignored, not an error.
+        let auto =
+            create_with_label(&conn, &backups, BackupKind::Auto, 0, &Key::None, Some("x")).unwrap();
+        assert!(!auto.file_name.contains("--"));
+        assert_eq!(auto.label, None);
     }
 
     #[test]

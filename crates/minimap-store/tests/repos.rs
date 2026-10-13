@@ -2803,3 +2803,48 @@ fn activity_between_two_days_is_inclusive_and_oldest_first() {
             .is_empty()
     );
 }
+
+#[test]
+fn the_one_on_one_rhythm_and_all_levels_setting_persist_and_are_validated() {
+    let mut conn = db();
+    let s = settings::get(&conn).unwrap();
+    assert_eq!(s.one_on_one_every_days, DEFAULT_ONE_ON_ONE_EVERY_DAYS);
+    assert_eq!(s.one_on_one_every_days, 14);
+    assert!(s.frames_all_levels, "everyone below is shown by default");
+    let s = settings::update(
+        &mut conn,
+        UpdateSettings {
+            one_on_one_every_days: Some(7),
+            frames_all_levels: Some(false),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!((s.one_on_one_every_days, s.frames_all_levels), (7, false));
+    let again = settings::get(&conn).unwrap();
+    assert_eq!(again.one_on_one_every_days, 7);
+    assert!(!again.frames_all_levels);
+    for bad in [0, 181, 10_000] {
+        let refused = settings::update(
+            &mut conn,
+            UpdateSettings {
+                one_on_one_every_days: Some(bad),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(refused, Err(StoreError::Invalid(_))), "{bad}");
+    }
+    // Refused changes leave the stored value, and 1 and 180 are fine.
+    assert_eq!(settings::get(&conn).unwrap().one_on_one_every_days, 7);
+    for ok in [1, 180] {
+        settings::update(
+            &mut conn,
+            UpdateSettings {
+                one_on_one_every_days: Some(ok),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(settings::get(&conn).unwrap().one_on_one_every_days, ok);
+    }
+}

@@ -264,6 +264,11 @@ pub const DEFAULT_CAPACITY_TASK_LIMIT: u32 = 10;
 pub const DEFAULT_ZONE_NARROW_DAYS: u32 = 3;
 /// The most days of room the narrow setting can be.
 pub const MAX_ZONE_NARROW_DAYS: u32 = 30;
+/// You meet each direct report at least this often; later than this their frame says a 1:1 is due
+/// (the *Your people* frames, spec 49).
+pub const DEFAULT_ONE_ON_ONE_EVERY_DAYS: u32 = 14;
+/// The most days the 1:1 rhythm can be.
+pub const MAX_ONE_ON_ONE_EVERY_DAYS: u32 = 180;
 /// Dark is the default look. The UI owns the list of themes; the backend only stores the id.
 pub const DEFAULT_THEME: &str = "minimap-dark";
 
@@ -285,6 +290,12 @@ pub struct Settings {
     pub capacity_task_limit: u32,
     /// A project's safe zone is *narrow* at this many working days of room or fewer (spec 44).
     pub zone_narrow_days: u32,
+    /// How many days you go between 1:1s with a direct report; past that the *Your people* frame
+    /// says one is due (spec 49).
+    pub one_on_one_every_days: u32,
+    /// Show everyone below your direct reports in *Your people* too, not only the people who
+    /// report to you (spec 49). On by default.
+    pub frames_all_levels: bool,
     /// When a project's lateness, blocked/overdue share or unestimated share turns its health
     /// amber or red.
     pub health: crate::HealthThresholds,
@@ -314,6 +325,8 @@ impl Default for Settings {
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
             zone_narrow_days: DEFAULT_ZONE_NARROW_DAYS,
+            one_on_one_every_days: DEFAULT_ONE_ON_ONE_EVERY_DAYS,
+            frames_all_levels: true,
             health: crate::HealthThresholds::default(),
             fog: crate::FogThresholds::default(),
             report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
@@ -335,6 +348,8 @@ pub struct UpdateSettings {
     pub stale_waiting_days: Option<u32>,
     pub capacity_task_limit: Option<u32>,
     pub zone_narrow_days: Option<u32>,
+    pub one_on_one_every_days: Option<u32>,
+    pub frames_all_levels: Option<bool>,
     pub health: Option<crate::HealthThresholds>,
     pub fog: Option<crate::FogThresholds>,
     /// A new report template; an empty text restores the built-in one.

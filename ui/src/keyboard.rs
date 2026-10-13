@@ -43,6 +43,9 @@ pub fn use_global_shortcuts() {
     let palette = expect_context::<PaletteOpen>();
     let toasts = expect_context::<Toasts>();
     let version = expect_context::<DataVersion>();
+    let ping_box = expect_context::<crate::components::ping::PingBoxState>();
+    let orientation = expect_context::<crate::components::orientation::Orientation>();
+    let save_box = expect_context::<crate::components::save_points::SaveBoxState>();
     // When `g` was pressed, in ms since the epoch (0 = no chord pending).
     let chord_started = StoredValue::new(0.0_f64);
 
@@ -51,6 +54,17 @@ pub fn use_global_shortcuts() {
         if (e.ctrl_key() || e.meta_key()) && !e.alt_key() && e.key().eq_ignore_ascii_case("k") {
             e.prevent_default();
             palette.toggle();
+            return;
+        }
+        // Ctrl/Cmd+S makes a save point (spec 51), from anywhere, even a text box; the browser's
+        // own "save page" is never wanted.
+        if (e.ctrl_key() || e.meta_key())
+            && !e.alt_key()
+            && !e.shift_key()
+            && e.key().eq_ignore_ascii_case("s")
+        {
+            e.prevent_default();
+            save_box.open();
             return;
         }
         let (tag, editable) = e
@@ -121,6 +135,20 @@ pub fn use_global_shortcuts() {
             "n" => {
                 e.prevent_default();
                 list.request_new();
+            }
+            // Portfolio view <-> My view (spec 50).
+            "v" => {
+                e.prevent_default();
+                if !orientation.toggle() {
+                    toasts.info("Set who you are in People first.".to_owned());
+                }
+            }
+            // Ping the item under the cursor: the box asks for a day and a note (ADR-0020).
+            "m" if list.current().is_some() => {
+                e.prevent_default();
+                if let Some(node) = list.current() {
+                    ping_box.open(node);
+                }
             }
             k if is_row_key(k) && list.current().is_some() => {
                 e.prevent_default();

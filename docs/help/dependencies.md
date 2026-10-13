@@ -66,6 +66,8 @@ Work with **no links** isn't drawn (it would bury the graph); it waits in the **
 
 ## Filters
 
+In **My view** (`v`) the graph shows your tasks, what blocks them (up to four links back) and what they block, plus the usual dimmed context; the Projects level shows your projects the same way. See [Portfolio view and My view](help:views).
+
 Narrow the graph by **project**, **team** (including its sub-teams) or **objective**; filters combine. Items outside the filter that are directly linked to what is shown appear **dimmed** as context, so you can see what a filtered group depends on or holds up. A graph is limited to 400 boxes; if the filter is too wide, Minimap asks you to narrow it.
 
 ## Moving around

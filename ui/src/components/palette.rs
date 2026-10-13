@@ -1,5 +1,5 @@
 //! Command palette (Ctrl/Cmd+K): go to a screen, run an action, find a node, or capture work in
-//! one line. A line that starts with `task`, `project`, `wait`, `note` or `decision` and a space
+//! one line. A line that starts with `task`, `project`, `wait`, `note`, `decision` or `ping` and a space
 //! is quick-add: the palette shows what it understood, asks about names it can't place, and
 //! Enter adds it. Everything is keyboard driven. Grammar: `docs/quick-add-grammar.md`.
 
@@ -17,7 +17,9 @@ use crate::{
 };
 
 /// Words that turn the line into quick-add (when followed by a space).
-const KEYWORDS: [&str; 6] = ["task", "project", "wait", "waiting", "note", "decision"];
+const KEYWORDS: [&str; 7] = [
+    "task", "project", "wait", "waiting", "note", "decision", "ping",
+];
 const MAX_COMMANDS: usize = 8;
 const MAX_NODES: usize = 8;
 
@@ -41,6 +43,12 @@ pub enum Action {
     /// Undo or redo the last change (spec 25).
     Undo,
     Redo,
+    /// Ping the item open in the pane (ADR-0020).
+    PingOpen,
+    /// Scroll This week to its Pings card.
+    ShowPings,
+    /// Open the box that makes a named save point (spec 51).
+    MakeSavePoint,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -65,6 +73,9 @@ pub fn commands() -> Vec<Command> {
         action("New decision", "decision …", Action::Prefill("decision ")),
         action("New meeting…", "a day and a time", Action::NewMeeting),
         action("Resolve waiting-on…", "", Action::ResolveWaiting),
+        action("Ping this…", "m", Action::PingOpen),
+        action("Show pings", "This week", Action::ShowPings),
+        action("Make a save point…", "Ctrl S", Action::MakeSavePoint),
         action("Undo last change", "Ctrl Z", Action::Undo),
         action("Redo", "Ctrl Shift Z", Action::Redo),
         action("What if this slips?", "g f", Action::Go("/what-if")),
@@ -195,6 +206,8 @@ struct Pal {
     toasts: Toasts,
     version: DataVersion,
     meetings: crate::state::MeetingDialog,
+    pings: crate::components::ping::PingBoxState,
+    save_box: crate::components::save_points::SaveBoxState,
 }
 
 impl Pal {
@@ -228,6 +241,24 @@ impl Pal {
                     self.resolving.set(true);
                     self.input.set(String::new());
                     self.cursor.set(0);
+                }
+                Action::PingOpen => {
+                    self.close();
+                    match self.selection.0.get_untracked() {
+                        Some(node) => self.pings.open(node),
+                        None => self.toasts.info(
+                            "Open an item in the detail pane first, then ping it.".to_owned(),
+                        ),
+                    }
+                }
+                Action::MakeSavePoint => {
+                    self.close();
+                    self.save_box.open();
+                }
+                Action::ShowPings => {
+                    self.pings.show.set(true);
+                    self.go.set(Some("/"));
+                    self.close();
                 }
                 Action::Undo | Action::Redo => {
                     self.close();
@@ -303,6 +334,8 @@ pub fn PaletteHost() -> impl IntoView {
         toasts: expect_context::<Toasts>(),
         version: expect_context::<DataVersion>(),
         meetings: expect_context::<crate::state::MeetingDialog>(),
+        pings: expect_context::<crate::components::ping::PingBoxState>(),
+        save_box: expect_context::<crate::components::save_points::SaveBoxState>(),
     };
     let hits = RwSignal::new(Vec::<SearchHit>::new());
     let preview = RwSignal::new(Option::<QuickPreview>::None);
@@ -568,6 +601,39 @@ fn PaletteRow(
     }
 }
 
+/// The card's headline: the line's title; for a ping the item it is on ("EU Region").
+pub fn card_title(preview: &QuickPreview) -> String {
+    if preview.kind == minimap_types::QuickKind::Ping {
+        return preview
+            .refs
+            .iter()
+            .find_map(|r| match &r.state {
+                RefState::Resolved { node } => Some(node.label.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| "…".to_owned());
+    }
+    if preview.title.is_empty() {
+        "…".to_owned()
+    } else {
+        preview.title.clone()
+    }
+}
+
+/// The line under the headline: "Due: Fri 2027-03-05 · Estimate: 3d"; a ping adds its note, so
+/// the card reads "EU Region · On: Fri 2027-03-05 · check data residency".
+pub fn card_details(preview: &QuickPreview) -> String {
+    let mut parts: Vec<String> = preview
+        .details
+        .iter()
+        .map(|d| format!("{}: {}", d.label, d.value))
+        .collect();
+    if preview.kind == minimap_types::QuickKind::Ping && !preview.title.is_empty() {
+        parts.push(preview.title.clone());
+    }
+    parts.join(" · ")
+}
+
 /// What the line means, what is wrong with it, and the question about the first unclear name.
 #[component]
 fn QuickCard(preview: QuickPreview, pal: Pal) -> impl IntoView {
@@ -577,18 +643,10 @@ fn QuickCard(preview: QuickPreview, pal: Pal) -> impl IntoView {
         minimap_types::QuickKind::Wait => "Waiting on",
         minimap_types::QuickKind::Note => "Note",
         minimap_types::QuickKind::Decision => "Decision",
+        minimap_types::QuickKind::Ping => "Ping",
     };
-    let title = if preview.title.is_empty() {
-        "…".to_owned()
-    } else {
-        preview.title.clone()
-    };
-    let details = preview
-        .details
-        .iter()
-        .map(|d| format!("{}: {}", d.label, d.value))
-        .collect::<Vec<_>>()
-        .join(" · ");
+    let title = card_title(&preview);
+    let details = card_details(&preview);
     let pending_key = first_pending(&preview).map(|r| r.key.clone());
     let refs = preview
         .refs

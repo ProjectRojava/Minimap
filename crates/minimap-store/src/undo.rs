@@ -21,7 +21,7 @@ use crate::{
     convert::now,
     decisions, edges,
     error::{Result, StoreError},
-    nodes, objectives, people, projects, tasks, teams, waiting_on,
+    nodes, objectives, people, pings, projects, tasks, teams, waiting_on,
 };
 
 fn invalid(message: impl Into<String>) -> StoreError {
@@ -83,6 +83,7 @@ fn apply_one(tx: &Transaction, step: &Inverse) -> Result<()> {
             to,
             attrs,
         } => add_edge(tx, *edge_type, *from, *to, attrs),
+        Inverse::Ping { target, old, new } => pings::restore_in_tx(tx, *target, old, new),
     }
 }
 
@@ -166,6 +167,12 @@ fn patch_from<T: DeserializeOwned>(old: &Map<String, Value>, nullable: &[&str]) 
         fields.insert(key.clone(), value);
     }
     serde_json::from_value(Value::Object(fields)).map_err(StoreError::from)
+}
+
+/// The nullable (`Patch`) fields of a ping's update (ADR-0020).
+#[cfg(test)]
+pub(crate) fn ping_nullable_fields() -> &'static [&'static str] {
+    &["cleared_on"]
 }
 
 /// The nullable (`Patch`) fields of each node type's update.
@@ -292,5 +299,16 @@ mod tests {
             listed(NodeType::WaitingOn),
             patch_fields::<UpdateWaitingOn>()
         );
+    }
+
+    /// A ping is not a node, so its update has its own list (ADR-0020); undo restores whole
+    /// states, so the list is only kept here to catch a new `Patch` field.
+    #[test]
+    fn the_nullable_fields_of_a_ping_match_its_update_type() {
+        let listed: BTreeSet<String> = ping_nullable_fields()
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        assert_eq!(listed, patch_fields::<minimap_types::UpdatePing>());
     }
 }

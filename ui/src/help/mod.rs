@@ -98,6 +98,12 @@ pub const PAGES: &[Page] = &[
         "Track what you are waiting for, and chase the stale"
     ),
     page!(
+        "pings",
+        "Daily work",
+        "Pings: come back to anything on a day",
+        "Leave a marker on any item and see it again on the day"
+    ),
+    page!(
         "recurring",
         "Daily work",
         "Recurring items",
@@ -144,6 +150,12 @@ pub const PAGES: &[Page] = &[
         "Planning and insight",
         "Overview and health",
         "Health, risks, and how they are decided"
+    ),
+    page!(
+        "views",
+        "Planning and insight",
+        "Portfolio view and My view",
+        "Everything, or everything as it touches you (v)"
     ),
     page!(
         "fog",
@@ -383,7 +395,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 31);
+        assert_eq!(PAGES.len(), 33);
     }
 
     #[test]
@@ -583,6 +595,7 @@ mod tests {
         assert!(settings.contains(&format!("(default {})", defaults.stale_waiting_days)));
         assert!(settings.contains(&format!("(default {})", defaults.capacity_task_limit)));
         assert!(settings.contains(&format!("(default {})", defaults.zone_narrow_days)));
+        assert!(settings.contains(&format!("(default {})", defaults.one_on_one_every_days)));
         // The projects page says where it turns narrow.
         assert!(page("projects").body.contains(&format!(
             "narrow at {} days of room or fewer",

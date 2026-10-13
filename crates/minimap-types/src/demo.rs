@@ -13,6 +13,9 @@ pub struct DemoSummary {
     pub notes: u32,
     pub decisions: u32,
     pub waiting_ons: u32,
+    /// Pings: markers on items with a day to come back to them.
+    #[serde(default)]
+    pub pings: u32,
     /// Links between them (blocks, assignments, memberships, ...).
     pub links: u32,
 }
@@ -76,6 +79,7 @@ impl DemoSummary {
             part(self.notes, "note", "notes"),
             part(self.decisions, "decision", "decisions"),
             part(self.waiting_ons, "waiting-on", "waiting-ons"),
+            part(self.pings, "ping", "pings"),
             part(self.links, "link", "links"),
         ]
         .join(", ")
@@ -97,11 +101,12 @@ mod tests {
             notes: 3,
             decisions: 4,
             waiting_ons: 3,
+            pings: 3,
             links: 120,
         };
         assert_eq!(
             s.describe(),
-            "1 objective, 3 projects, 40 tasks, 8 people, 2 teams, 3 notes, 4 decisions, 3 waiting-ons, 120 links"
+            "1 objective, 3 projects, 40 tasks, 8 people, 2 teams, 3 notes, 4 decisions, 3 waiting-ons, 3 pings, 120 links"
         );
     }
 }

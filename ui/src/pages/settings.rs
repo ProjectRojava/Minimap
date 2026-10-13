@@ -152,11 +152,13 @@ pub fn Settings() -> impl IntoView {
                     <CapacitySettings settings=settings />
                     <HealthSettings />
                     <FogSettings />
+                    <PeopleSettings />
                 }.into_any())}
                 {panel(Tab::Reports, view! { <ReportSettings /> }.into_any())}
                 {panel(Tab::Data, view! {
                     <DemoDataSettings />
                     <DataLocation />
+                    <crate::components::save_points::SavePointsCard />
                     <DriveSettings />
                     <BackupSettings />
                     <ExportSettings />
@@ -526,6 +528,57 @@ fn HealthSettings() -> impl IntoView {
                         "The safe zone is the working days between when a project should finish and its target. "
                         "At this many days of room or fewer it turns amber; none left is amber too, past the target is red. 0 to 30."
                     </p>
+                }.into_any(),
+                Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+            }}
+        </Card>
+    }
+}
+
+/// How often you meet your direct reports, and whether *Your people* goes one level deeper
+/// (spec 49).
+#[component]
+fn PeopleSettings() -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let settings = LocalResource::new(move || {
+        version.track();
+        api::get_settings()
+    });
+    view! {
+        <Card title="Your people"
+              description="The frames for you and your direct reports on This week and People.">
+            {move || match settings.get() {
+                Some(Ok(s)) => view! {
+                    <NumberSetting label="1:1 is due after (days since the last one)"
+                        stored=f64::from(s.one_on_one_every_days) whole=true
+                        invalid="The 1:1 rhythm is a whole number of days, 1 to 180"
+                        patch=|n| UpdateSettings { one_on_one_every_days: Some(n as u32), ..Default::default() }
+                        read=|s| f64::from(s.one_on_one_every_days) />
+                    <p class="text-[11px] text-muted">
+                        "A direct report's frame says a 1:1 is due once it has been longer than this since the last 1:1 note that names them. 1 to 180 days."
+                    </p>
+                    <label class="flex cursor-pointer items-start gap-2">
+                        <input type="checkbox" class="mt-0.5"
+                            prop:checked=s.frames_all_levels
+                            on:change=move |ev| {
+                                let on = event_target_checked(&ev);
+                                spawn_local(async move {
+                                    let patch = UpdateSettings {
+                                        frames_all_levels: Some(on),
+                                        ..Default::default()
+                                    };
+                                    finish(api::update_settings(patch).await, toasts, version);
+                                });
+                            } />
+                        <span>
+                            <span class="block font-medium">"Also show everyone below my reports"</span>
+                            <span class="block text-[11px] text-muted">
+                                "The people who report to my reports, and theirs, and so on, each group under its manager. On by default."
+                            </span>
+                        </span>
+                    </label>
                 }.into_any(),
                 Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),

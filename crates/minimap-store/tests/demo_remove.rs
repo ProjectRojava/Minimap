@@ -79,7 +79,8 @@ fn seeded_data_is_found_by_its_recorded_ids_and_counted_without_me() {
     assert_eq!(status.items.projects, 3);
     assert_eq!(status.items.tasks, 45);
     assert_eq!(status.items.people, 7, "seven others; me is not demo data");
-    assert_eq!(status.items.links, 118);
+    assert_eq!(status.items.pings, 3);
+    assert_eq!(status.items.links, 119);
     assert_eq!(status.impact, DemoImpact::default());
     // Looking changes nothing.
     assert_eq!(count(&conn, "tasks"), 45);
@@ -100,6 +101,7 @@ fn removing_leaves_an_empty_database_that_can_be_seeded_again() {
         "decisions",
         "waiting_on",
         "edges",
+        "pings",
     ] {
         assert_eq!(count(&conn, table), 0, "{table}");
     }

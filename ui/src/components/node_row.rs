@@ -5,7 +5,10 @@ use leptos::prelude::*;
 use minimap_types::NodeRef;
 
 use crate::{
-    components::fog::{fog_class, mark_for, FogChip},
+    components::{
+        fog::{fog_class, mark_for, FogChip},
+        ping::PingMarkFor,
+    },
     labels::heat_strength,
     state::{ListNav, Selection},
 };
@@ -31,6 +34,9 @@ pub fn NodeRow(
     /// the top, instead of the 32px single line.
     #[prop(optional)]
     tall: bool,
+    /// Leave out the pin of a ping on this item (the Pings card is the ping itself).
+    #[prop(optional)]
+    no_ping: bool,
     children: Children,
 ) -> impl IntoView {
     let selection = expect_context::<Selection>();
@@ -62,6 +68,7 @@ pub fn NodeRow(
                 "fog-content flex gap-3 px-4 {}",
                 if tall { "min-h-12 items-start py-2" } else { "h-8 items-center" })>
                 {children()}
+                {(!no_ping).then(|| view! { <PingMarkFor id=node.id /> })}
                 {move || fog().map(|mark| view! { <FogChip mark=mark /> })}
             </div>
             {below.run()}

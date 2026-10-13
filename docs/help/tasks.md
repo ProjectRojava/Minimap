@@ -47,6 +47,8 @@ Keyboard: `j` / `k` move through the cards column by column, and `x`, `s`, `f` a
 
 ## Finding tasks
 
+In **My view** (`v`) the board and the list show only your tasks, the tasks that reach them and the ones they block, each with a chip that says why (the Inbox is not filtered). See [Portfolio view and My view](help:views).
+
 The filters above the board or list combine: text (matches title, description, project and assignee), project, assignee, **type** and a due-date range. The list adds a status filter and *Show done*: finished and cancelled tasks are hidden there unless you ask for them or pick that status. Switching between board and list keeps your filters. A filter or sort that is set to something other than its default is **ringed in the accent colour** (and *Due* and *Show done / Show cancelled* turn the accent colour), so you can see at a glance why the list is shorter than you expect; *Reset (N changed)* appears at the right of the bar and puts everything, including the board's sort, back to its default.
 
 ## Working in the list
@@ -71,6 +73,8 @@ A task that is in play (in progress, blocked, due within 14 days or in focus) bu
 ## Focus
 
 Normally a task reaches [This week](help:this-week) by its date: late, due, blocked or in progress. **Focus** is the other way in: you pick tasks to see **every day**, however far off (or missing) their due date is. They get their own *Focus* section on This week.
+
+**Focus or ping?** Focus is for a *task* you want in view every day until you take it out. To see *anything* (a person, a project, a decision, a task) again **on a day**, leave a [ping](help:pings) instead. A task that is in focus and has a ping whose day has come shows the ping on its Focus row rather than twice.
 
 - **Put a task in focus** with the **star** on its card or row (hover to see it; click to light it), with `f` on the highlighted card or row, or with the **Focus** box in the pane:
   - *Every day, until I take it out*: stays until you remove it.
