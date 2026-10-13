@@ -31,6 +31,7 @@ pub mod overlay;
 pub mod page;
 pub mod palette;
 pub mod people_panel;
+pub mod ping;
 pub mod project_panel;
 pub mod reference_links;
 pub mod repeat_field;

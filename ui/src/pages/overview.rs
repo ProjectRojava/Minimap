@@ -217,6 +217,7 @@ fn risk_row(r: &RiskItem, on_click: impl Fn(leptos::ev::MouseEvent) + 'static) -
             <span class="max-w-[18rem] shrink-0 truncate font-medium">{r.node.label.clone()}</span>
             <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&r.health, 2)}</span>
             <span class="shrink-0 text-[11px] text-muted">{risk_priority_text(r)}</span>
+            <crate::components::ping::PingMarkFor id=id />
             <FogChipFor id=id />
         </div>
     }
@@ -259,6 +260,7 @@ fn objective_block(o: &ObjectiveHealthRow, selection: Selection) -> impl IntoVie
                 </span>
                 <span class="shrink-0 text-[11px] text-muted">{target}</span>
                 <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&o.health, 2)}</span>
+                <crate::components::ping::PingMarkFor id=node.id />
                 <FogChipFor id=node.id />
             </div>
             {projects}
@@ -286,6 +288,7 @@ fn project_row(
             <span class="w-32 shrink-0 self-center"><ZoneBar zone=p.zone compact=true /></span>
             <span class="min-w-0 flex-1 truncate text-muted">{reasons_text(&p.health, 2)}</span>
             <span class="shrink-0 text-[11px] text-faint">{weight}</span>
+            <crate::components::ping::PingMarkFor id=id />
             <FogChipFor id=id />
         </div>
     }
@@ -300,6 +303,7 @@ fn person_row(
             <span class="w-4 shrink-0 text-center text-danger" title="Over capacity">"●"</span>
             <span class="max-w-[18rem] shrink-0 truncate font-medium">{p.person.label.clone()}</span>
             <span class="text-muted">{load_text(p)}</span>
+            <crate::components::ping::PingMarkFor id=p.person.node.id />
         </div>
     }
 }

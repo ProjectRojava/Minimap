@@ -72,6 +72,8 @@ A task that is in play (in progress, blocked, due within 14 days or in focus) bu
 
 Normally a task reaches [This week](help:this-week) by its date: late, due, blocked or in progress. **Focus** is the other way in: you pick tasks to see **every day**, however far off (or missing) their due date is. They get their own *Focus* section on This week.
 
+**Focus or ping?** Focus is for a *task* you want in view every day until you take it out. To see *anything* (a person, a project, a decision, a task) again **on a day**, leave a [ping](help:pings) instead. A task that is in focus and has a ping whose day has come shows the ping on its Focus row rather than twice.
+
 - **Put a task in focus** with the **star** on its card or row (hover to see it; click to light it), with `f` on the highlighted card or row, or with the **Focus** box in the pane:
   - *Every day, until I take it out*: stays until you remove it.
   - *Today only*: shows today and then drops off.

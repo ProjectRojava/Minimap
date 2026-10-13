@@ -19,6 +19,7 @@ pub mod meeting;
 pub mod notes;
 pub mod objectives;
 pub mod overview;
+pub mod pings;
 pub mod projects;
 pub mod quick_add;
 pub mod recurrence;

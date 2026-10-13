@@ -182,6 +182,7 @@ fn write_all(
     write_json(dir, "attachments", &data.attachments, &mut tally)?;
     write_json(dir, "activity", &data.activity, &mut tally)?;
     write_json(dir, "task_types", &data.task_types, &mut tally)?;
+    write_json(dir, "pings", &data.pings, &mut tally)?;
 
     let attachment_paths = write_attachments(dir, data, files, &mut tally)?;
     if format.markdown() {
@@ -335,6 +336,7 @@ mod tests {
             attachments: read(folder, "attachments"),
             activity: read(folder, "activity"),
             task_types: read(folder, "task_types"),
+            pings: read(folder, "pings"),
         };
         assert_eq!(back, data, "the files do not read back into the same data");
         assert_eq!(back.tasks.len(), 45);

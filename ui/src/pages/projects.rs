@@ -398,6 +398,7 @@ fn BoardCard(
             <FogLine id=id />
             <div class="flex items-start gap-2">
                 <span class="flex-1 break-words font-medium">{p.title}</span>
+                <crate::components::ping::PingMarkFor id=id />
                 <span class="text-[11px] tabular-nums text-muted">{priority_short(p.priority)}</span>
             </div>
             <div class="font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</div>

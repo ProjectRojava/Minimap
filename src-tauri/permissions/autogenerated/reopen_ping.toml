@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reopen-ping"
+description = "Enables the reopen_ping command without any pre-configured scope."
+commands.allow = ["reopen_ping"]
+
+[[permission]]
+identifier = "deny-reopen-ping"
+description = "Denies the reopen_ping command without any pre-configured scope."
+commands.deny = ["reopen_ping"]

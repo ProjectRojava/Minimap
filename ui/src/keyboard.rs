@@ -43,6 +43,7 @@ pub fn use_global_shortcuts() {
     let palette = expect_context::<PaletteOpen>();
     let toasts = expect_context::<Toasts>();
     let version = expect_context::<DataVersion>();
+    let ping_box = expect_context::<crate::components::ping::PingBoxState>();
     // When `g` was pressed, in ms since the epoch (0 = no chord pending).
     let chord_started = StoredValue::new(0.0_f64);
 
@@ -121,6 +122,13 @@ pub fn use_global_shortcuts() {
             "n" => {
                 e.prevent_default();
                 list.request_new();
+            }
+            // Ping the item under the cursor: the box asks for a day and a note (ADR-0020).
+            "m" if list.current().is_some() => {
+                e.prevent_default();
+                if let Some(node) = list.current() {
+                    ping_box.open(node);
+                }
             }
             k if is_row_key(k) && list.current().is_some() => {
                 e.prevent_default();

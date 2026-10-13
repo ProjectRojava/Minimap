@@ -8,7 +8,7 @@ Made a mistake? `Ctrl/Cmd+Z` takes back your last change and shows what it did (
 
 ## What can be undone
 
-Creating, editing, archiving and restoring items, adding and removing links, changing a manager, finishing a task, superseding a decision, making a task repeat. Undoing a creation **archives** the item (it isn't deleted, so redo can bring it back and nothing is lost).
+Creating, editing, archiving and restoring items, adding and removing links, changing a manager, finishing a task, superseding a decision, making a task repeat, and making, changing or clearing a [ping](help:pings). Undoing a creation **archives** the item (it isn't deleted, so redo can bring it back and nothing is lost).
 
 ## What can't
 

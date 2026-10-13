@@ -55,6 +55,9 @@ Matrix (enforce in core, reject anything else):
 
 Invariants (enforced in core, tested): no cycles in `blocks`, `depends_on` (report the cycle path), `supersedes`, `reports_to`, or team nesting; no self-edges; a task is a sub-task of at most one task and the tree is one level deep (`subtask_of`, spec 33); a meeting follows up on at most one meeting, both ends are meetings and the chain has no loop (`follows_up`, spec 38); archiving a node archives its edges; hard delete only after archive, with UI confirmation.
 
+### Pings (spec 48, ADR-0020)
+Not a node type: a small `pings` table (`target_type`, `target_id`, `note`, `on_date`, `cleared_on`, timestamps, `archived_at`) that marks any item with a day to come back to it. One live ping per item; it shows on This week on its day and never changes the item, its dates, the schedule, capacity, health or impact. Writes log an `updated` row on the target with a `ping` diff key (undoable).
+
 ### Activity log
 `activity(id, at, node_type, node_id, action [created/updated/archived/edge_added/edge_removed], diff JSON {field:[old,new]})`. Every write goes through a repository method that appends to `activity` in the same transaction.
 
@@ -78,6 +81,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - export: export_markdown(report_kind, params, path)
 - settings: get_settings, update_settings, get_data_info, show_data_folder, set_db_passphrase, backup_now(path)
 - fog (spec 43, ADR-0019): get_fog (items in play that have gone quiet + visibility), confirm_item(node) ("still accurate"; task, project or objective; one undo step)
+- pings (spec 48, ADR-0020): list_pings, ping_item(target, note, on), update_ping, clear_ping, reopen_ping, archive_ping, get_ping_for
 - undo: undo_last, redo_last (spec 25: Ctrl/Cmd+Z; built from the activity log, session only)
 - recurring: set_recurrence(node, text, template?) (spec 27: tasks make the next one when finished; notes on their date; quick-add `every:`)
 - export: export_all(path, format) (spec 26: JSON files per node type + edges + activity + manifest into a new folder, optional Markdown)
@@ -95,8 +99,9 @@ project Q1 EU region owner:@me target:2027-03-31 for:"Launch EU"
 wait @raj on "Security review sign-off" by:next-wed
 note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
+ping #eu-region check data residency by:fri
 ```
-`@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO; `fri` is today on a Friday, `next-wed` is that day in the next Mon-Sun week); no leading keyword = task · `est:` (3d, 4h) · `type:` a task type by name or id · `blocks:`/`for:`/`affects:` edges to a named node.
+`@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO; `fri` is today on a Friday, `next-wed` is that day in the next Mon-Sun week); `ping` leaves a marker on one item (spec 48) · no leading keyword = task · `est:` (3d, 4h) · `type:` a task type by name or id · `blocks:`/`for:`/`affects:` edges to a named node.
 
 ## 8. Storage, encryption, backup
 DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random key in the OS keychain via `keyring`, or a user passphrase (never a stored key); re-keying is a verified export-and-swap because SQLCipher can't encrypt in place (ADR-0010). `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). **Google Drive storage** (ADR-0011, spec 22): optional; once connected, every change autosaves an encrypted snapshot of the local DB to Drive (one file per device, 5 s idle, at most 30 s) and devices merge each other's snapshots automatically (row-level, newest `updated_at` wins, hard deletes via tombstones, invariants repaired and reported); no locks, no conflict dialogs. Hourly/daily checkpoints; attachments are encrypted content-addressed blobs on Drive with a local LRU cache. Everything uploaded is encrypted with a vault key (recovery key shown once). Without Drive the user is warned that data is on this device only. Desktop OAuth: loopback redirect + PKCE, `drive.file` scope only, refresh token in the OS keychain via `keyring` (local DB fallback); network calls happen in the Rust backend (`minimap-sync`), never the webview. The live DB never sits in a synced folder. Migrations run on startup in a transaction after a pre-migration backup.
@@ -125,7 +130,7 @@ DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mod
   3. If no, say so in your closing summary: "no ADR change needed because ...". Do not skip the question.
 - Undo (spec 25) works from the activity log, so **every write goes through a repository function that logs it** (already the rule) and a new kind of row or diff key must be considered in `minimap_core::undo` (undoable, ignored or irreversible). A new nullable field on an `Update*` type goes in `store::undo::nullable_fields` (a test enforces it).
 - The full export (spec 26) is everything the user put in the database: a **new table or node type** is added to `DataExport` (types), `store::export::collect`, the files `commands/export.rs` writes, and the README text in `core::export_md::readme`; a new column on an existing node type is exported automatically (the structs are the files), but check `export_md` if it should read well in Markdown.
-- **The in-app Help is documentation of the product** (`docs/help/*.md`, shown under Help; 31 pages indexed by `PAGES` in `ui/src/help/mod.rs`). **Every change to the codebase triggers a check of the wiki**, before the work is reported done:
+- **The in-app Help is documentation of the product** (`docs/help/*.md`, shown under Help; 32 pages indexed by `PAGES` in `ui/src/help/mod.rs`). **Every change to the codebase triggers a check of the wiki**, before the work is reported done:
   1. Ask: does this change what a user can see, do, type, press, read or rely on? That includes a screen, control, shortcut, setting or default, a rule or computation (health, schedule, capacity, impact, recurrence, undo), a grammar or accepted text, an error message people will meet, what is stored, backed up, synced, encrypted or exported, a limit, and behaviour in an edge case a page describes.
   2. If yes, **edit the matching page(s) in the same change** (find them with `grep -rn "<word>" docs/help`; a new feature gets a page or a section, a removed one loses its text, a renamed screen or button is renamed everywhere in the wiki). A new page is a file in `docs/help/` plus a line in `PAGES`, and a link to it from a related page (a test requires every page to be reachable).
   3. If no (a refactor, a performance fix, a test, an internal rename), say so in your closing summary: "no Help change needed because ...". Do not skip the question.

@@ -34,6 +34,7 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
         "4 written, 3 made by tasks of type Decision, one of them replaced"
     );
     assert_eq!(summary.waiting_ons, 3);
+    assert_eq!(summary.pings, 3);
     assert_eq!(summary.links, 118);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 45);
@@ -584,4 +585,33 @@ fn some_work_has_gone_quiet_and_one_task_was_only_confirmed() {
     // Platform Cost Reduction's work was last touched 22 days ago.
     let old = task("Autoscaling policy");
     assert_eq!(old.updated_at.date(), date!(2027 - 02 - 09));
+}
+
+#[test]
+fn three_pings_are_due_today_overdue_and_coming_up() {
+    let conn = seeded(TODAY);
+    let rows = pings::list_live(&conn).unwrap();
+    assert_eq!(rows.len(), 3);
+    let view = minimap_core::pings::arrange(rows, TODAY);
+    let line = |r: &PingRow| format!("{} · {} · {}", r.target.label, r.ping.note, r.ping.on_date);
+    let due: Vec<String> = view.due.iter().map(line).collect();
+    assert_eq!(
+        due,
+        [
+            "Raj Patel · ask about the auditor · 2027-03-02",
+            "Platform Cost Reduction · check the vendor contract · 2027-03-03",
+        ]
+    );
+    let upcoming: Vec<String> = view.upcoming.iter().map(line).collect();
+    assert_eq!(
+        upcoming,
+        ["Run EU data on managed Postgres · revisit once the EU pricing is approved · 2027-03-08"]
+    );
+    // A ping is bookkeeping: the project in the fog stays exactly as quiet as before.
+    let pf = projects::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .find(|p| p.title == "Platform Cost Reduction")
+        .unwrap();
+    assert!(pf.updated_at.date() < date!(2027 - 02 - 20));
 }

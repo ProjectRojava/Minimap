@@ -5,9 +5,9 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    ApproachScope, Date, Flag, FlaggedTask, FocusTask, NodeRef, NodeType, NoteKind, NoteRow,
-    QuietTask, TaskNotes, TaskStatus, ThisWeek as Week, UpdateTask, Uuid, WaitingOnRow, WeekDay,
-    WeekTask, FOCUS_QUIET_DAYS, FOCUS_SOFT_LIMIT,
+    ApproachScope, Date, Flag, FlaggedTask, FocusTask, NodeRef, NodeType, NoteKind, NoteRow, Ping,
+    PingRow as PingEntry, PingsView, QuietTask, TaskNotes, TaskStatus, ThisWeek as Week,
+    UpdateTask, Uuid, WaitingOnRow, WeekDay, WeekTask, FOCUS_QUIET_DAYS, FOCUS_SOFT_LIMIT,
 };
 
 use crate::{
@@ -21,6 +21,7 @@ use crate::{
         meeting::starts_in_text,
         node_row::NodeRow,
         page::{EmptyState, Hints, Icon, PageHeader, Tone},
+        ping::{ping_age_text, PingBoxState},
         review_row::ReviewRow,
         sync_status::SyncBanner,
         task_board::{priority_pill, today as local_today},
@@ -252,12 +253,23 @@ pub fn ThisWeek() -> impl IntoView {
     let week_start = RwSignal::new(Option::<Date>::None);
     // A past day to look back at: the screen shows the week as it stood then.
     let as_of = RwSignal::new(Option::<Date>::None);
+    // The week and the pings (ADR-0020) arrive together, so the rows the cursor walks are known
+    // when the screen is drawn. Looking back at a past day there are no pings to show.
     let week = LocalResource::new(move || {
         version.track();
-        api::get_this_week(week_start.get(), as_of.get())
+        let (start, day) = (week_start.get(), as_of.get());
+        async move {
+            let w = api::get_this_week(start, day).await?;
+            let pings = if w.as_of.is_some() {
+                PingsView::default()
+            } else {
+                api::list_pings().await.unwrap_or_default()
+            };
+            Ok::<_, minimap_types::AppError>((w, pings))
+        }
     });
     // The last week that loaded, so the screen never blanks while it refreshes after an action.
-    let shown = RwSignal::new(None::<Week>);
+    let shown = RwSignal::new(None::<(Week, PingsView)>);
     Effect::new(move |_| {
         if let Some(Ok(w)) = week.get() {
             shown.set(Some(w));
@@ -266,7 +278,7 @@ pub fn ThisWeek() -> impl IntoView {
     view! {
         <div class="flex h-full flex-col">
             {move || match (shown.get(), week.get()) {
-                (Some(w), _) => view! { <Body week=w week_start=week_start as_of=as_of /> }.into_any(),
+                (Some((w, pings)), _) => view! { <Body week=w pings=pings week_start=week_start as_of=as_of /> }.into_any(),
                 (None, Some(Err(e))) => view! { <p class="p-6 text-danger">{e.message}</p> }.into_any(),
                 (None, _) => view! { <p class="p-6 text-muted">"Loading…"</p> }.into_any(),
             }}
@@ -312,6 +324,7 @@ fn CardHead(
 #[component]
 fn Body(
     week: Week,
+    pings: PingsView,
     week_start: RwSignal<Option<Date>>,
     as_of: RwSignal<Option<Date>>,
 ) -> impl IntoView {
@@ -319,6 +332,16 @@ fn Body(
     let toasts = expect_context::<Toasts>();
     let gate = expect_context::<FinishDecision>();
     let list = expect_context::<ListNav>();
+
+    // A task that is already a row under Needs attention or Focus shows its ping on that row,
+    // not a second time in the Pings card.
+    let on_page: std::collections::HashSet<Uuid> = week
+        .attention
+        .iter()
+        .map(|f| f.task.id())
+        .chain(week.focus.iter().map(|f| f.task.id()))
+        .collect();
+    let (pings, row_pings) = split_pings(pings, &on_page);
 
     // Rows in display order, so j/k/Enter walk the whole screen.
     let mut nodes: Vec<NodeRef> = Vec::new();
@@ -337,6 +360,11 @@ fn Body(
             .iter()
             .map(|f| NodeRef::new(NodeType::Task, f.task.id())),
     );
+    // The pings whose day has come sit between Focus and the plan, as on the screen.
+    let pings_first = nodes.len();
+    nodes.extend(pings.due.iter().map(|r| r.ping.target));
+    let ping_ids: Vec<Uuid> = pings.due.iter().map(|r| r.ping.id).collect();
+    let pings_end = nodes.len();
     nodes.extend(
         week.priorities
             .iter()
@@ -373,7 +401,22 @@ fn Body(
     // focus or takes it out; `c` says a task that has gone quiet is still accurate (not when
     // looking back: there is no fog then).
     let looking_back_now = week.as_of.is_some();
+    let cursor = list.cursor;
+    let clear_pings = move |key: &str| -> bool {
+        // `x` on the Pings card clears the ping (not the item it is on).
+        let at = cursor
+            .get_untracked()
+            .filter(|i| (pings_first..pings_end).contains(i));
+        match (key, at) {
+            ("x", Some(i)) => {
+                clear_ping(ping_ids[i - pings_first], toasts, version);
+                true
+            }
+            _ => false,
+        }
+    };
     list.on_row_key(move |key, node| match (key.as_str(), node.node_type) {
+        _ if clear_pings(&key) => {}
         ("c", NodeType::Task) if !looking_back_now => confirm_row(node),
         ("x", NodeType::Task) => complete(node.id, toasts, version, gate),
         ("x", NodeType::WaitingOn) => resolve(node.id, toasts, version),
@@ -470,7 +513,7 @@ fn Body(
             .attention
             .iter()
             .enumerate()
-            .map(|(i, f)| view! { <FlagRow item=f.clone() index=first + i notes=notes_of.get(&f.task.id()).cloned() /> })
+            .map(|(i, f)| view! { <FlagRow item=f.clone() index=first + i notes=notes_of.get(&f.task.id()).cloned() ping=row_pings.get(&f.task.id()).cloned() /> })
             .collect_view();
         view! {
             <section class="mx-4 mt-4 overflow-hidden rounded-sm border border-danger/60 bg-danger/5 [&>[role=row]:last-child]:border-b-0"
@@ -494,7 +537,7 @@ fn Body(
             .focus
             .iter()
             .enumerate()
-            .map(|(i, f)| view! { <FocusRow item=f.clone() index=first + i today=today notes=notes_of.get(&f.task.id()).cloned() /> })
+            .map(|(i, f)| view! { <FocusRow item=f.clone() index=first + i today=today notes=notes_of.get(&f.task.id()).cloned() ping=row_pings.get(&f.task.id()).cloned() /> })
             .collect_view();
         view! {
             <section class=CARD_PINNED aria-label="Focus">
@@ -506,6 +549,11 @@ fn Body(
                 {rows}
             </section>
         }
+    });
+    let pings_card = (!pings.due.is_empty() || !pings.upcoming.is_empty()).then(|| {
+        let first = index;
+        index += pings.due.len();
+        view! { <PingsCard pings=pings.clone() first=first today=today /> }
     });
     let priorities = (!week.priorities.is_empty()).then(|| {
         let first = index;
@@ -589,7 +637,7 @@ fn Body(
             </section>
         }
     });
-    let empty = total_items(&week) == 0;
+    let empty = total_items(&week) == 0 && pings.due.is_empty() && pings.upcoming.is_empty();
     let strip = week
         .days
         .iter()
@@ -604,7 +652,7 @@ fn Body(
             <span class="tabular-nums text-muted">{range_text(week.week_start, week.week_end)}</span>
             <button class=BUTTON aria-label="Next week" on:click=next>"›"</button>
             <button class=BUTTON disabled=current && !back_to_today on:click=reset>"This week"</button>
-            <Hints keys=&[("j/k", "move"), ("Enter", "open"), ("x", "done"), ("f", "focus"), ("c", "still accurate")] />
+            <Hints keys=&[("j/k", "move"), ("Enter", "open"), ("x", "done"), ("f", "focus"), ("c", "still accurate"), ("m", "ping")] />
         </PageHeader>
         <div class="min-h-0 flex-1 overflow-y-auto pb-6">
             <SyncBanner />
@@ -639,6 +687,7 @@ fn Body(
             {meetings_card}
             {attention}
             {focus_section}
+            {pings_card}
             {priorities}
             {quiet}
             {waiting}
@@ -938,6 +987,9 @@ fn FlagRow(
     item: FlaggedTask,
     index: usize,
     #[prop(default = None)] notes: Option<TaskNotes>,
+    /// A ping on this task whose day has come, shown here instead of in the Pings card.
+    #[prop(default = None)]
+    ping: Option<Ping>,
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
@@ -975,6 +1027,10 @@ fn FlagRow(
             </span>
             {priority_chip(t.priority)}
             {blockers.map(|b| view! { <span class="min-w-0 truncate text-[11px] text-warning">{b}</span> })}
+            {ping.map(|p| {
+                let day = p.on_date;
+                view! { <RowPing ping=p today=local_today().unwrap_or(day) /> }
+            })}
             {assignee.map(|a| view! { <span class="shrink-0 text-[11px] text-muted">{a}</span> })}
             <FocusStar task=id focus=t.focus />
             <TaskActions id=id />
@@ -1091,6 +1147,9 @@ fn FocusRow(
     index: usize,
     today: Date,
     #[prop(default = None)] notes: Option<TaskNotes>,
+    /// A ping on this task whose day has come, shown here instead of in the Pings card.
+    #[prop(default = None)]
+    ping: Option<Ping>,
 ) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
@@ -1130,6 +1189,7 @@ fn FocusRow(
                         let title = format!("{text} Click the star to take it out of focus.");
                         view! { <span class="text-warning" title=title>{text}</span> }
                     })}
+                    {ping.map(|p| view! { <RowPing ping=p today=today /> })}
                 </div>
             </div>
             <span class="flex shrink-0 items-center gap-2">
@@ -1201,6 +1261,189 @@ fn PlanRow(
                 </span>
             </div>
         </NodeRow>
+    }
+}
+
+/// Splits off the due pings whose target is a task already listed as a row elsewhere on the page
+/// (`on_page`: the ids under *Needs attention* and *Focus*): those are shown on that row, the rest
+/// stay in the Pings card. Pings still to come are untouched.
+pub fn split_pings(
+    pings: PingsView,
+    on_page: &std::collections::HashSet<Uuid>,
+) -> (PingsView, std::collections::HashMap<Uuid, Ping>) {
+    let mut on_rows = std::collections::HashMap::new();
+    let mut due = Vec::new();
+    for row in pings.due {
+        let target = row.ping.target;
+        if target.node_type == NodeType::Task && on_page.contains(&target.id) {
+            on_rows.insert(target.id, row.ping);
+        } else {
+            due.push(row);
+        }
+    }
+    (
+        PingsView {
+            due,
+            upcoming: pings.upcoming,
+        },
+        on_rows,
+    )
+}
+
+/// A due ping shown on the task's own row: the pin, its note (or "Ping due"), and a small ✕ that
+/// clears it.
+#[component]
+fn RowPing(ping: Ping, today: Date) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    let id = ping.id;
+    let text = if ping.note.is_empty() {
+        "Ping due".to_owned()
+    } else {
+        ping.note.clone()
+    };
+    let title = format!("{}. Press ✕ to clear it.", ping_age_text(&ping, today));
+    view! {
+        <span class="inline-flex min-w-0 shrink items-center gap-1 text-[11px] text-accent" title=title
+              on:click=|ev| ev.stop_propagation()>
+            <Icon name="ping" size="h-3 w-3" />
+            <span class="min-w-0 truncate">{text}</span>
+            <button class="rounded-sm px-1 text-muted hover:bg-hover hover:text-fg"
+                    title="Clear this ping" aria-label="Clear this ping"
+                    on:click=move |_| clear_ping(id, toasts, version)>"✕"</button>
+        </span>
+    }
+}
+
+/// Clears a ping (it drops off the card; Ctrl/Cmd+Z brings it back).
+fn clear_ping(id: Uuid, toasts: Toasts, version: DataVersion) {
+    spawn_local(async move {
+        let result = api::clear_ping(id).await;
+        if finish(result, toasts, version).is_some() {
+            toasts.info("Ping cleared. Press Ctrl/Cmd+Z to undo.".to_owned());
+        }
+    });
+}
+
+/// Moves a ping to another day (`tomorrow`, `next-week`, ...).
+fn move_ping(id: Uuid, when: &'static str, toasts: Toasts, version: DataVersion) {
+    spawn_local(async move {
+        let result = api::update_ping(id, None, Some(when.to_owned())).await;
+        finish(result, toasts, version);
+    });
+}
+
+/// The heading above the upcoming pings: "Coming up (3)", with an arrow for open or closed.
+pub fn coming_up_text(count: usize, open: bool) -> String {
+    format!("{} Coming up ({count})", if open { "▾" } else { "▸" })
+}
+
+/// Pings: markers on anything, with a day to come back to it (ADR-0020). The ones whose day has
+/// come are rows you can clear (`x`), put off a day or a week; the ones still to come are under
+/// *Coming up*. A ping never changes the item.
+#[component]
+fn PingsCard(pings: PingsView, first: usize, today: Date) -> impl IntoView {
+    let state = expect_context::<PingBoxState>();
+    let open = RwSignal::new(false);
+    // The palette's *Show pings* lands here.
+    Effect::new(move |_| {
+        if state.show.get() {
+            state.show.set(false);
+            if let Some(el) = leptos::web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.get_element_by_id("pings-card"))
+            {
+                el.scroll_into_view();
+            }
+        }
+    });
+    let due_count = pings.due.len();
+    let upcoming_count = pings.upcoming.len();
+    let due_rows = pings
+        .due
+        .into_iter()
+        .enumerate()
+        .map(|(i, r)| view! { <PingLine row=r index=first + i today=today /> })
+        .collect_view();
+    let upcoming = pings.upcoming;
+    view! {
+        <section id="pings-card" class=CARD aria-label="Pings">
+            <CardHead title="Pings" count=due_count icon="ping" tone=Tone::Accent
+                hint="Markers you left on things to come back to today. Press m on anything to leave one" />
+            {due_rows}
+            {(upcoming_count > 0).then(|| view! {
+                <div class="border-t border-line">
+                    <button class="w-full px-4 py-1.5 text-left text-[12px] text-muted hover:bg-hover"
+                            aria-expanded=move || open.get().to_string()
+                            on:click=move |_| open.update(|o| *o = !*o)>
+                        {move || coming_up_text(upcoming_count, open.get())}
+                    </button>
+                    {move || open.get().then(|| {
+                        upcoming
+                            .iter()
+                            .cloned()
+                            .map(|r| view! { <UpcomingPing row=r /> })
+                            .collect_view()
+                    })}
+                </div>
+            })}
+        </section>
+    }
+}
+
+/// A ping whose day has come: the pin, what it is on, the note, and how long it has waited.
+#[component]
+fn PingLine(row: PingEntry, index: usize, today: Date) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    let id = row.ping.id;
+    let node = row.target.node;
+    let age = ping_age_text(&row.ping, today);
+    view! {
+        <NodeRow node=node index=index no_ping=true>
+            <span class="flex shrink-0 text-accent"><Icon name="ping" size="h-3.5 w-3.5" /></span>
+            <span class=Tone::Neutral.chip()>{crate::nav::type_label(node.node_type)}</span>
+            <span class="min-w-0 truncate">
+                <span class="font-medium">{row.target.label.clone()}</span>
+                {(!row.ping.note.is_empty()).then(|| view! { <span class="ml-2">{row.ping.note.clone()}</span> })}
+            </span>
+            <span class="ml-auto shrink-0 text-[11px] text-muted">{age}</span>
+            <span class="flex shrink-0 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100"
+                  on:click=|ev| ev.stop_propagation()>
+                <button class=BUTTON_SUCCESS title="Clear this ping (x)"
+                        on:click=move |_| clear_ping(id, toasts, version)>"Clear"</button>
+                <button class=BUTTON on:click=move |_| move_ping(id, "tomorrow", toasts, version)>"Tomorrow"</button>
+                <button class=BUTTON on:click=move |_| move_ping(id, "next-week", toasts, version)>"Next week"</button>
+            </span>
+        </NodeRow>
+    }
+}
+
+/// A ping still to come, under *Coming up*.
+#[component]
+fn UpcomingPing(row: PingEntry) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    let selection = expect_context::<Selection>();
+    let id = row.ping.id;
+    let node = row.target.node;
+    view! {
+        <div role="row" class="group flex h-8 cursor-default items-center gap-3 border-t border-line px-4 hover:bg-hover"
+             on:click=move |_| selection.open(node)>
+            <span class="flex shrink-0 text-muted"><Icon name="ping" size="h-3.5 w-3.5" /></span>
+            <span class=Tone::Neutral.chip()>{crate::nav::type_label(node.node_type)}</span>
+            <span class="min-w-0 truncate">
+                <span class="font-medium">{row.target.label.clone()}</span>
+                {(!row.ping.note.is_empty()).then(|| view! { <span class="ml-2 text-muted">{row.ping.note.clone()}</span> })}
+            </span>
+            <span class="ml-auto shrink-0 text-[11px] tabular-nums text-muted">
+                {format!("for {}", crate::timeline::day_text(row.ping.on_date))}
+            </span>
+            <span class="flex shrink-0 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100"
+                  on:click=|ev| ev.stop_propagation()>
+                <button class=BUTTON on:click=move |_| clear_ping(id, toasts, version)>"Clear"</button>
+            </span>
+        </div>
     }
 }
 
@@ -1308,6 +1551,53 @@ fn OneOnOneRow(row: NoteRow, index: usize) -> impl IntoView {
 mod tests {
     use super::*;
     use time::macros::date;
+
+    #[test]
+    fn a_due_ping_on_a_task_already_on_the_page_moves_to_its_row() {
+        use minimap_types::{NodeSummary, Ping};
+        use time::OffsetDateTime;
+        let row = |n: u128, node_type: NodeType, target: u128| {
+            let target = NodeRef::new(node_type, Uuid::from_u128(target));
+            PingEntry {
+                ping: Ping {
+                    id: Uuid::from_u128(n),
+                    target,
+                    note: String::new(),
+                    on_date: date!(2027 - 03 - 03),
+                    cleared_on: None,
+                    created_at: OffsetDateTime::UNIX_EPOCH,
+                    updated_at: OffsetDateTime::UNIX_EPOCH,
+                    archived_at: None,
+                },
+                target: NodeSummary {
+                    node: target,
+                    label: "x".into(),
+                    archived: false,
+                },
+            }
+        };
+        let pings = PingsView {
+            due: vec![
+                row(1, NodeType::Task, 10),    // on a row: moves
+                row(2, NodeType::Task, 11),    // a task not listed elsewhere: stays
+                row(3, NodeType::Project, 10), // same id, not a task: stays
+            ],
+            upcoming: vec![row(4, NodeType::Task, 10)],
+        };
+        let on_page = std::collections::HashSet::from([Uuid::from_u128(10)]);
+        let (card, on_rows) = split_pings(pings, &on_page);
+        let ids: Vec<u128> = card.due.iter().map(|r| r.ping.id.as_u128()).collect();
+        assert_eq!(ids, [2, 3]);
+        assert_eq!(on_rows.len(), 1);
+        assert_eq!(on_rows[&Uuid::from_u128(10)].id.as_u128(), 1);
+        assert_eq!(card.upcoming.len(), 1, "a ping still to come is untouched");
+    }
+
+    #[test]
+    fn the_coming_up_heading_counts_and_shows_whether_it_is_open() {
+        assert_eq!(coming_up_text(3, false), "▸ Coming up (3)");
+        assert_eq!(coming_up_text(1, true), "▾ Coming up (1)");
+    }
 
     #[test]
     fn only_one_on_ones_and_meetings_get_a_tag() {

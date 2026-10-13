@@ -21,10 +21,10 @@ use std::collections::HashMap;
 use minimap_core::{recurrence::parse_every, this_week::monday_of};
 use minimap_types::{
     mention_token, AssigneeChoice, Cadence, CreateDecision, CreateNote, CreateObjective,
-    CreatePerson, CreateProject, CreateTask, CreateTeam, CreateWaitingOn, DecisionStatus,
-    DemoSummary, EdgeType, Focus, NewEdge, NodeRef, NodeType, NoteKind, ObjectiveStatus, Patch,
-    ProjectStatus, Recurrence, RefLink, TaskStatus, UpdateDecision, UpdateObjective, UpdateTask,
-    UpdateWaitingOn, MEETING_TYPE,
+    CreatePerson, CreatePing, CreateProject, CreateTask, CreateTeam, CreateWaitingOn,
+    DecisionStatus, DemoSummary, EdgeType, Focus, NewEdge, NodeRef, NodeType, NoteKind,
+    ObjectiveStatus, Patch, ProjectStatus, Recurrence, RefLink, TaskStatus, UpdateDecision,
+    UpdateObjective, UpdateTask, UpdateWaitingOn, MEETING_TYPE,
 };
 use rusqlite::{params, Connection, Transaction};
 use time::{Date, Duration, OffsetDateTime, Time};
@@ -34,7 +34,7 @@ use crate::{
     convert::{id_s, ts_s},
     decisions, edges,
     error::{Result, StoreError},
-    notes, objectives, people, projects, snapshot, tasks, teams, waiting_on,
+    notes, objectives, people, pings, projects, snapshot, tasks, teams, waiting_on,
 };
 
 /// A weekday `n` calendar days from `today`: a date that falls on a weekend moves to the next
@@ -1294,6 +1294,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
 
     // ------------------------------------------------------------- this week
     this_week(&s, monday, managed.id, assets.id)?;
+    seed_pings(&s, monday, managed.id)?;
 
     backdate(&tx, today, monday, split)?;
     fog_story(&tx, &s, today)?;
@@ -1334,6 +1335,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
         notes: count("notes")?,
         decisions: count("decisions")?,
         waiting_ons: count("waiting_on")?,
+        pings: count("pings")?,
         links: count("edges")?,
     };
     // Everything in the database except "me" is demo data (the database was empty): write the
@@ -1341,6 +1343,52 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     crate::demo_remove::record(&tx)?;
     tx.commit()?;
     Ok(summary)
+}
+
+/// Three pings (pings spec, ADR-0020): one that is due today on the project in the fog, one on a
+/// person that was due yesterday (so *Pings* on This week has an older one first), and one on a
+/// decision that is still four days off (so *Coming up* has something).
+fn seed_pings(s: &Seeder, monday: Date, managed_postgres: Uuid) -> Result<()> {
+    let (tx, today) = (s.tx, s.today);
+    let d = |n: i64| day(today, n);
+    // (what it is on, note, the day, the day it was made)
+    let pings = [
+        (
+            s.project_ref(PF),
+            "check the vendor contract",
+            d(0),
+            at(monday, 10),
+        ),
+        (
+            s.person_ref("raj"),
+            "ask about the auditor",
+            d(-1),
+            at(d(-3), 15),
+        ),
+        (
+            NodeRef::new(NodeType::Decision, managed_postgres),
+            "revisit once the EU pricing is approved",
+            d(4),
+            at(d(-1), 16),
+        ),
+    ];
+    for (target, note, on_date, made) in pings {
+        // Checked against the day it was made, so a ping for a day already gone can be shown.
+        let ping = pings::create_in_tx(
+            tx,
+            made.date(),
+            CreatePing {
+                target,
+                note: note.into(),
+                on_date,
+            },
+        )?;
+        tx.execute(
+            "UPDATE pings SET created_at = ?2, updated_at = ?2 WHERE id = ?1",
+            params![id_s(ping.id), ts_s(made)],
+        )?;
+    }
+    Ok(())
 }
 
 /// What happened this week: a task finished, due dates moved later, a task newly blocked, a

@@ -732,6 +732,74 @@ pub async fn confirm_item(node: NodeRef) -> Result<(), AppError> {
     invoke("confirm_item", &ConfirmArg { node }).await
 }
 
+// ------------------------------------------------------------------ pings (ADR-0020)
+
+/// The live pings of items that are not archived: due ones and coming-up ones.
+pub async fn list_pings() -> Result<minimap_types::PingsView, AppError> {
+    invoke("list_pings", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct PingItemArg {
+    target: NodeRef,
+    note: String,
+    on: String,
+}
+
+/// Pings an item on a day (`today`, `tomorrow`, `fri`, `next-week`, an ISO date...). An item that
+/// has a live ping gets that one changed.
+pub async fn ping_item(
+    target: NodeRef,
+    note: String,
+    on: String,
+) -> Result<minimap_types::PingRow, AppError> {
+    invoke("ping_item", &PingItemArg { target, note, on }).await
+}
+
+#[derive(Serialize)]
+struct UpdatePingArg {
+    id: Uuid,
+    note: Option<String>,
+    on: Option<String>,
+}
+
+/// Changes a ping's note and/or day.
+pub async fn update_ping(
+    id: Uuid,
+    note: Option<String>,
+    on: Option<String>,
+) -> Result<minimap_types::PingRow, AppError> {
+    invoke("update_ping", &UpdatePingArg { id, note, on }).await
+}
+
+/// Clears a ping (it drops off This week).
+pub async fn clear_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("clear_ping", &IdArg { id }).await
+}
+
+/// Brings a cleared ping back.
+#[allow(dead_code)] // no screen needs it yet: undo brings a cleared ping back
+pub async fn reopen_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("reopen_ping", &IdArg { id }).await
+}
+
+/// Removes a ping.
+#[allow(dead_code)] // pings are cleared, not removed, on screen
+pub async fn archive_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_ping", &IdArg { id }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PingForArg {
+    target_id: Uuid,
+}
+
+/// The live ping on an item, for its pane.
+pub async fn get_ping_for(target_id: Uuid) -> Result<Option<minimap_types::Ping>, AppError> {
+    invoke("get_ping_for", &PingForArg { target_id }).await
+}
+
 #[derive(Serialize)]
 struct RescheduleArg {
     id: Uuid,

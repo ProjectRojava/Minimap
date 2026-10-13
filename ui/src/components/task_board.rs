@@ -1156,6 +1156,8 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
         >
             <CardMenu task=id label=title_label />
             {(!closed).then(|| view! { <FogLine id=id /> })}
+            // A ping on the task (ADR-0020): a pin at the card's top left corner.
+            <span class="absolute left-1 top-1"><crate::components::ping::PingMarkFor id=id /></span>
             {(!closed && !is_meeting).then(|| view! {
                 <FocusStar task=id focus=focus place="absolute right-6 top-1" />
             })}

@@ -515,6 +515,30 @@ mod tests {
     }
 
     #[test]
+    fn the_pings_of_the_demo_data() {
+        let conn = demo();
+        let view = crate::commands::pings::list_pings_at(&conn, TODAY).unwrap();
+        let mut out = String::new();
+        for (heading, rows) in [("DUE", &view.due), ("COMING UP", &view.upcoming)] {
+            let _ = writeln!(out, "{heading}");
+            for r in rows {
+                let _ = writeln!(
+                    out,
+                    "{:?} {} - {} - {} (made {})",
+                    r.target.node.node_type,
+                    r.target.label,
+                    r.ping.note,
+                    r.ping.on_date,
+                    r.ping.created_at.date()
+                );
+            }
+        }
+        insta::assert_snapshot!(out);
+        assert_eq!(view.due.len(), 2);
+        assert_eq!(view.upcoming.len(), 1);
+    }
+
+    #[test]
     fn the_fog_of_the_demo_data() {
         use minimap_types::{FogLevel, NodeType};
         let conn = demo();
