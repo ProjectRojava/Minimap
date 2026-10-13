@@ -47,6 +47,8 @@ Keyboard: `j` / `k` move through the cards column by column, and `x`, `s`, `f` a
 
 ## Finding tasks
 
+In **My view** (`v`) the board and the list show only your tasks, the tasks that reach them and the ones they block, each with a chip that says why (the Inbox is not filtered). See [Portfolio view and My view](help:views).
+
 The filters above the board or list combine: text (matches title, description, project and assignee), project, assignee, **type** and a due-date range. The list adds a status filter and *Show done*: finished and cancelled tasks are hidden there unless you ask for them or pick that status. Switching between board and list keeps your filters. A filter or sort that is set to something other than its default is **ringed in the accent colour** (and *Due* and *Show done / Show cancelled* turn the accent colour), so you can see at a glance why the list is shorter than you expect; *Reset (N changed)* appears at the right of the bar and puts everything, including the board's sort, back to its default.
 
 ## Working in the list

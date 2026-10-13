@@ -152,6 +152,12 @@ pub const PAGES: &[Page] = &[
         "Health, risks, and how they are decided"
     ),
     page!(
+        "views",
+        "Planning and insight",
+        "Portfolio view and My view",
+        "Everything, or everything as it touches you (v)"
+    ),
+    page!(
         "fog",
         "Planning and insight",
         "Fog: how fresh your information is",
@@ -389,7 +395,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 32);
+        assert_eq!(PAGES.len(), 33);
     }
 
     #[test]

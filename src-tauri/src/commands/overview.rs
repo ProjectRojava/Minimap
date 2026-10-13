@@ -1,25 +1,44 @@
 use minimap_core::overview::{build, OverviewWorld};
 use minimap_store::Connection;
-use minimap_types::{AppError, Date, PortfolioOverview, WaitingOnFilter};
+use minimap_types::{AppError, Date, PortfolioOverview, View, WaitingOnFilter};
 use tauri::State;
 
 use crate::{commands::waiting_on::list_impl, error::store_error, state::AppState};
 
 /// The whole portfolio at a glance: objectives with computed health and their projects, the top
 /// risks, overloaded people and stale waiting-ons. Read-only; thresholds come from Settings.
+/// With `view: mine` (spec 50) it is worked out for what touches you: the same health, but only
+/// your objectives, projects, risks (the top five among them) and people.
 #[tauri::command]
 pub async fn get_portfolio_overview(
     state: State<'_, AppState>,
+    view: Option<View>,
 ) -> Result<PortfolioOverview, AppError> {
-    state.run(overview_impl).await
+    state
+        .run(move |conn| overview_in_view(conn, minimap_store::today(), view.unwrap_or_default()))
+        .await
 }
 
+#[cfg(test)]
 pub(crate) fn overview_impl(conn: &mut Connection) -> Result<PortfolioOverview, AppError> {
     overview_at(conn, minimap_store::today())
 }
 
 /// [`overview_impl`] as of `today` (the demo-data snapshot tests fix it).
 pub(crate) fn overview_at(conn: &Connection, today: Date) -> Result<PortfolioOverview, AppError> {
+    overview_in_view(conn, today, View::Portfolio)
+}
+
+/// [`overview_at`] in a view: Portfolio is everything (unchanged), Mine is what touches you.
+pub(crate) fn overview_in_view(
+    conn: &Connection,
+    today: Date,
+    view: View,
+) -> Result<PortfolioOverview, AppError> {
+    let scope = match view {
+        View::Portfolio => None,
+        View::Mine => Some(crate::commands::orientation::my_scope_at(conn, today)?),
+    };
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     let tasks = minimap_store::tasks::list_planned(conn).map_err(store_error)?;
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
@@ -38,6 +57,7 @@ pub(crate) fn overview_at(conn: &Connection, today: Date) -> Result<PortfolioOve
         thresholds: settings.health,
         task_limit: settings.capacity_task_limit,
         zone_narrow_days: settings.zone_narrow_days,
+        scope: scope.as_ref(),
     });
     // Stale waiting-ons follow their own rules (age setting, expected date); oldest first.
     overview.stale_waiting = list_impl(conn, &WaitingOnFilter::default(), today)?

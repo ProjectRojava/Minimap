@@ -38,6 +38,12 @@ pub(crate) fn graph_at(
     let teams = minimap_store::teams::list(conn, false).map_err(store_error)?;
     let people = minimap_store::people::list(conn, false).map_err(store_error)?;
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
+    // My view (spec 50): the work that touches you.
+    let scope = if filter.mine {
+        Some(crate::commands::orientation::my_scope_at(conn, today)?)
+    } else {
+        None
+    };
     // The projects' health is the Overview's; only the Projects level shows it.
     let project_health: std::collections::HashMap<_, _> = if filter.level == GraphLevel::Projects {
         let overview = crate::commands::overview::overview_at(conn, today)?;
@@ -62,6 +68,7 @@ pub(crate) fn graph_at(
             zone_narrow_days: settings.zone_narrow_days,
             today,
             work_week: settings.work_week,
+            scope: scope.as_ref(),
         },
         filter,
     )

@@ -477,6 +477,12 @@
           "markdownDescription": "Enables the get_fog command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_my_scope command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-my-scope",
+          "markdownDescription": "Enables the get_my_scope command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-node-summary",
@@ -1315,6 +1321,12 @@
           "type": "string",
           "const": "deny-get-fog",
           "markdownDescription": "Denies the get_fog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_my_scope command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-my-scope",
+          "markdownDescription": "Denies the get_my_scope command without any pre-configured scope."
         },
         {
           "description": "Denies the get_node_summary command without any pre-configured scope.",

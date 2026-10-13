@@ -1,0 +1,37 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+OBJECTIVES
+  Cut platform costs by 20% - serves
+PROJECTS
+  EU Region - blocks via Gateway: build the routing layer, blocks via Autoscaling policy
+  Platform Cost Reduction - owner
+PEOPLE
+  Elena Rossi - on my projects
+  Jin Park - on my projects
+  Maya Chen - on my projects
+  Me - me
+  Priya Nair - report, on my projects
+  Raj Patel - report
+  Sam Okafor - report
+  Tomás Alvarez - report, on my projects
+TASKS
+  Autoscaling policy - in my project
+  Book the leadership offsite - assigned
+  Cost dashboard for teams - in my project
+  Decommission the legacy staging cluster - in my project
+  Gateway: build the routing layer - in my project
+  Gateway: design rate limiting - in my project
+  Gateway: migrate the first five services - in my project
+  Load test the EU stack - blocks via Autoscaling policy
+  Move cold storage to a cheaper tier - in my project
+  Platform weekly sync - in my project
+  Platform weekly sync - in my project
+  Regional auth and tenancy - blocks via Gateway: build the routing layer
+  Remove unused load balancers - in my project
+  Reserved-instance purchase plan - in my project
+  Review the Q2 headcount plan - assigned
+  Right-size the compute fleet - in my project
+  Savings review with finance - assigned, in my project
+  Weekly cost report automation - in my project

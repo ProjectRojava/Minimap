@@ -13,6 +13,7 @@ use crate::{
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveChips},
+        orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{column_head, EmptyState, GroupLabel, PageHeader, FILTER_BAR, FORM_BAR},
         zone::ZoneBar,
     },
@@ -76,8 +77,27 @@ pub fn Projects() -> impl IntoView {
         api::list_node_summaries(NodeType::Objective)
     });
 
+    // In My view (spec 50) only the projects you own, hold your tasks in, or that reach you. The
+    // board keeps all its columns.
+    let orientation = expect_context::<Orientation>();
+    let shown = move || {
+        groups.get().map(|r| {
+            r.map(|mut g| {
+                for group in &mut g {
+                    group
+                        .rows
+                        .retain(|row| orientation.shows(Kind::Project, row.project.id));
+                }
+                if !board.get() {
+                    g.retain(|group| !group.rows.is_empty());
+                }
+                g
+            })
+        })
+    };
+
     // Keyboard rows follow the screen: top to bottom (list) or column by column (board).
-    Effect::new(move |_| match groups.get() {
+    Effect::new(move |_| match shown() {
         Some(Ok(g)) => list.set_items(g.iter().flat_map(|g| g.rows.iter()).map(node_of).collect()),
         Some(Err(e)) => toasts.error(&e),
         None => {}
@@ -145,6 +165,7 @@ pub fn Projects() -> impl IntoView {
                             on:click=move |_| board.set(true)>"Board"</button>
                 </div>
             </PageHeader>
+            <MineBanner />
             <div class=FILTER_BAR>
                 <span class="text-[11px] uppercase tracking-wide text-muted">"Filter"</span>
                 {move || view! {
@@ -200,7 +221,7 @@ pub fn Projects() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
-            {move || match groups.get() {
+            {move || match shown() {
                 None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load projects."</p> }.into_any(),
                 Some(Ok(g)) if !board.get() && g.is_empty() => view! {
@@ -272,6 +293,7 @@ fn project_row(row: ProjectRow, index: usize, edge: Option<Signal<Option<u16>>>)
                 <span class="truncate">
                     <span class="font-medium">{p.title}</span>
                     <span class="ml-2 font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</span>
+                    <span class="ml-2"><WhyChip kind=Kind::Project id=p.id /></span>
                 </span>
                 <ObjectiveChips objectives=objectives max=1 />
                 <span class=format!("{WIDE_ONLY} truncate text-muted")>{row.owner.map(|o| o.label).unwrap_or_default()}</span>
@@ -401,7 +423,10 @@ fn BoardCard(
                 <crate::components::ping::PingMarkFor id=id />
                 <span class="text-[11px] tabular-nums text-muted">{priority_short(p.priority)}</span>
             </div>
-            <div class="font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</div>
+            <div class="flex items-center gap-2">
+                <span class="font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</span>
+                <WhyChip kind=Kind::Project id=id />
+            </div>
             <div class="mt-1"><ZoneBar zone=row.zone compact=true /></div>
             {(!objectives.is_empty()).then(|| view! {
                 <div class="mt-1"><ObjectiveChips objectives=objectives /></div>

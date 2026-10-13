@@ -11,6 +11,7 @@ use crate::{
         form::{DateField, SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveDot},
+        orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{column_head, EmptyState, GroupLabel, PageHeader, Tone, FORM_BAR},
         task_board::today,
     },
@@ -38,8 +39,23 @@ pub fn Objectives() -> impl IntoView {
         };
         api::list_objectives(grouping)
     });
+    // In My view (spec 50) only the objectives your work serves.
+    let orientation = expect_context::<Orientation>();
+    let shown = move || {
+        groups.get().map(|r| {
+            r.map(|mut g| {
+                for group in &mut g {
+                    group
+                        .rows
+                        .retain(|row| orientation.shows(Kind::Objective, row.objective.id));
+                }
+                g.retain(|group| !group.rows.is_empty());
+                g
+            })
+        })
+    };
     // Keyboard rows are the objectives in on-screen order, across groups.
-    Effect::new(move |_| match groups.get() {
+    Effect::new(move |_| match shown() {
         Some(Ok(g)) => list.set_items(
             g.iter()
                 .flat_map(|g| g.rows.iter())
@@ -117,6 +133,7 @@ pub fn Objectives() -> impl IntoView {
                     "Group by quarter"
                 </button>
             </PageHeader>
+            <MineBanner />
             <Show when=move || adding.get()>
                 <form class=FORM_BAR
                       on:submit=move |ev| { ev.prevent_default(); submit(); }>
@@ -141,7 +158,7 @@ pub fn Objectives() -> impl IntoView {
                 <span>"Target"</span><span class="text-right">"Work"</span>
             </div>
             <div class="flex-1 overflow-y-auto" role="table">
-                {move || match groups.get() {
+                {move || match shown() {
                     None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load objectives."</p> }.into_any(),
                     Some(Ok(g)) if g.is_empty() => view! {
@@ -193,6 +210,7 @@ fn objective_row(row: ObjectiveRow, index: usize) -> impl IntoView {
                 <span class="flex min-w-0 items-center gap-2">
                     <ObjectiveDot objective=summary />
                     <span class="truncate font-medium">{o.title}</span>
+                    <WhyChip kind=Kind::Objective id=o.id />
                 </span>
                 <span><span class=status_class>{objective_status_label(o.status)}</span></span>
                 {if ongoing {

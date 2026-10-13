@@ -56,6 +56,8 @@ pub struct GraphInput<'a> {
     pub zone_narrow_days: u32,
     pub today: Date,
     pub work_week: WorkWeek,
+    /// What is in My view; only read when the filter asks for `mine`.
+    pub scope: Option<&'a minimap_types::MyScope>,
 }
 
 /// What a box says beyond its title (spec 47).
@@ -240,8 +242,13 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
                     .is_some_and(|p| feeding.contains(&p))
         });
     }
-    let filtered =
-        filter.project_id.is_some() || filter.team_id.is_some() || filter.objective_id.is_some();
+    if filter.mine {
+        seeds.retain(|id| input.scope.is_some_and(|s| s.tasks.contains_key(id)));
+    }
+    let filtered = filter.project_id.is_some()
+        || filter.team_id.is_some()
+        || filter.objective_id.is_some()
+        || filter.mine;
 
     // Seeds, plus (when filtering) what they are linked to as context.
     let mut visible: HashSet<Uuid> = seeds.clone();
@@ -431,7 +438,10 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
             .collect();
         seeds.retain(|id| feeding.contains(id));
     }
-    let filtered = filter.project_id.is_some() || filter.objective_id.is_some();
+    if filter.mine {
+        seeds.retain(|id| input.scope.is_some_and(|s| s.projects.contains_key(id)));
+    }
+    let filtered = filter.project_id.is_some() || filter.objective_id.is_some() || filter.mine;
     let mut visible = seeds.clone();
     if filtered {
         for e in &links {
@@ -818,6 +828,7 @@ mod tests {
         teams: Vec<Team>,
         people: Vec<Person>,
         health: HashMap<Uuid, HealthLevel>,
+        scope: Option<minimap_types::MyScope>,
     }
 
     impl World {
@@ -833,6 +844,7 @@ mod tests {
                     teams: &self.teams,
                     today: MON,
                     work_week: WorkWeek::MON_FRI,
+                    scope: self.scope.as_ref(),
                 },
                 &filter,
             )
@@ -1669,5 +1681,53 @@ mod tests {
         assert_eq!((p.w, p.h), (EXPANDED_W, EXPANDED_PROJECT_H));
         const { assert!(EXPANDED_PROJECT_H < EXPANDED_TASK_H) };
         assert!(!by(&g, "Q").expanded);
+    }
+    #[test]
+    fn my_view_shows_my_tasks_what_reaches_them_and_the_one_hop_context() {
+        use minimap_types::{MyScope, Why};
+        // 1 -> 2 -> 3 -> 4, and an unrelated 5 -> 6. In my view: 2 and 3.
+        let w = World {
+            tasks: (1..=6)
+                .map(|n| task(n, &format!("T{n}"), 1.0, None))
+                .collect(),
+            edges: vec![blocks(1, 2), blocks(2, 3), blocks(3, 4), blocks(5, 6)],
+            scope: Some(MyScope {
+                tasks: [2u128, 3]
+                    .iter()
+                    .map(|n| (id(*n), vec![Why::Assigned]))
+                    .collect(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let g = w
+            .graph(GraphFilter {
+                mine: true,
+                ..Default::default()
+            })
+            .unwrap();
+        let shown: Vec<(u128, bool)> = g
+            .nodes
+            .iter()
+            .map(|n| (n.node.id.as_u128(), n.context))
+            .collect();
+        let mut sorted = shown.clone();
+        sorted.sort();
+        assert_eq!(sorted, [(1, true), (2, false), (3, false), (4, true)]);
+        // Without the filter everything linked is there; with no scope, nothing is mine.
+        let all = w.graph(GraphFilter::default()).unwrap();
+        assert_eq!(all.nodes.len(), 6);
+        let none = World {
+            scope: None,
+            tasks: w.tasks.clone(),
+            edges: w.edges.clone(),
+            ..Default::default()
+        }
+        .graph(GraphFilter {
+            mine: true,
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(none.nodes.is_empty());
     }
 }

@@ -1,6 +1,6 @@
-use minimap_core::capacity::{compute, CapacityInput};
+use minimap_core::capacity::{compute, in_my_view, CapacityInput};
 use minimap_store::Connection;
-use minimap_types::{AppError, Capacity, Date};
+use minimap_types::{AppError, Capacity, Date, View};
 use tauri::State;
 
 use crate::{error::store_error, state::AppState};
@@ -8,19 +8,30 @@ use crate::{error::store_error, state::AppState};
 /// How loaded each person is, week by week (Monday to Sunday weeks): scheduled working days of
 /// their open tasks, weighted by allocation, against weekly capacity; over 100% is overloaded.
 /// `from` and `to` can be any dates in the first and last week; without `to`, `weeks` weeks
-/// (default 8) are shown starting at `from` (this week when omitted).
+/// (default 8) are shown starting at `from` (this week when omitted). With `view: mine` (spec 50)
+/// only you, your direct reports and the people on your projects are listed.
 #[tauri::command]
 pub async fn get_capacity(
     state: State<'_, AppState>,
     from: Option<Date>,
     to: Option<Date>,
     weeks: Option<u32>,
+    view: Option<View>,
 ) -> Result<Capacity, AppError> {
     state
-        .run(move |conn| capacity_impl(conn, from, to, weeks))
+        .run(move |conn| {
+            let today = minimap_store::today();
+            let mut capacity = capacity_at(conn, today, from, to, weeks)?;
+            if view == Some(View::Mine) {
+                let scope = crate::commands::orientation::my_scope_at(conn, today)?;
+                in_my_view(&mut capacity, &scope);
+            }
+            Ok(capacity)
+        })
         .await
 }
 
+#[cfg(test)]
 pub(crate) fn capacity_impl(
     conn: &Connection,
     from: Option<Date>,

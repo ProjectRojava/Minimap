@@ -228,6 +228,7 @@ pub fn Graph() -> impl IntoView {
     let needs_fit = RwSignal::new(true);
     let viewport = leptos::prelude::NodeRef::<leptos::html::Div>::new();
 
+    let orientation = expect_context::<crate::components::orientation::Orientation>();
     let graph = LocalResource::new(move || {
         version.track();
         api::get_dependency_graph(GraphFilter {
@@ -241,6 +242,7 @@ pub fn Graph() -> impl IntoView {
             objective_id: parse_id(&objective.get()),
             include_done: include_done.get(),
             include_isolated: include_isolated.get(),
+            mine: orientation.is_mine(),
             expanded: expander.expanded.get(),
         })
     });
@@ -534,6 +536,7 @@ pub fn Graph() -> impl IntoView {
                     <button class=BUTTON on:click=move |_| fit_now()>"Fit"</button>
                 </span>
             </PageHeader>
+            <crate::components::orientation::MineBanner />
             <div class=FILTER_BAR>
                 {move || view! { <SelectField compact=true current=project.get_untracked()
                     options=option_list(if level.get() == GraphLevel::Tasks { "Any project" } else { "Any project (focus)" }, projects.get())

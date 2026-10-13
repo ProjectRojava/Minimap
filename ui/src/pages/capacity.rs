@@ -11,6 +11,7 @@ use crate::{
     calendar::MONTHS,
     components::{
         form::{BUTTON, BUTTON_ON},
+        orientation::{MineBanner, Orientation},
         page::{EmptyState, PageHeader, Tone},
     },
     state::{DataVersion, Selection},
@@ -145,9 +146,10 @@ pub fn Capacity() -> impl IntoView {
     let focus = person
         .get_untracked()
         .and_then(|p| Uuid::parse_str(&p).ok());
+    let orientation = expect_context::<Orientation>();
     let data = LocalResource::new(move || {
         version.track();
-        api::get_capacity(from.get(), None, Some(weeks.get()))
+        api::get_capacity(from.get(), None, Some(weeks.get()), orientation.view())
     });
     view! {
         <div class="flex h-full flex-col">
@@ -205,6 +207,7 @@ fn Body(
         })
         .collect_view();
 
+    let seen_group = std::cell::Cell::new(false);
     let rows = data
         .people
         .iter()
@@ -212,6 +215,14 @@ fn Body(
             let person_id = p.person.node.id;
             let node = p.person.node;
             let notes = person_notes(p, limit);
+            // In My view the people on your projects, not yours, have a heading of their own.
+            let heading = (p.on_my_projects && !seen_group.replace(true)).then(|| {
+                view! {
+                    <div class="col-span-full border-b border-line bg-panel px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                        "On your projects"
+                    </div>
+                }
+            });
             let flagged = p.over_task_limit;
             let cells = p
                 .weeks
@@ -238,6 +249,7 @@ fn Body(
                 .collect_view();
             view! {
                 <div class="contents">
+                    {heading}
                     <button id=format!("capacity-row-{person_id}")
                             class="flex min-w-0 flex-col justify-center border-b border-line px-4 py-1 text-left hover:bg-hover"
                             on:click=move |_| selection.open(node)>
@@ -342,6 +354,7 @@ fn Body(
             <button class=BUTTON disabled=at_start on:click=move |_| from.set(None)>"This week"</button>
             <span class="ml-auto flex items-center gap-1">{span_buttons}</span>
         </PageHeader>
+        <MineBanner />
         {warnings}
         <div class="min-h-0 flex-1 overflow-y-auto">
             {empty.then(|| view! {
@@ -395,6 +408,7 @@ mod tests {
             active_tasks: active,
             over_task_limit: over,
             unestimated_tasks: unest,
+            on_my_projects: false,
         }
     }
 

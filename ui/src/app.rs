@@ -58,6 +58,8 @@ pub fn App() -> impl IntoView {
     provide_context(crate::state::FinishDecision::new());
     provide_context(crate::components::confirm_archive::ConfirmArchive::new());
     provide_context(DataVersion::new());
+    // Portfolio view or My view (spec 50), and what is in My view.
+    crate::components::orientation::Orientation::provide();
     let theme = ThemeCtx::new();
     provide_context(theme);
     // The database is the source of truth for the theme; localStorage only speeds up startup.

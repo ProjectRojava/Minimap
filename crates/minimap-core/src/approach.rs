@@ -18,8 +18,40 @@ use minimap_types::{
 };
 
 /// How many `depends_on` links a chain between projects may have.
-const MAX_PROJECT_HOPS: usize = 3;
+pub const MAX_PROJECT_HOPS: usize = 3;
 const EPS: f64 = 1e-6;
+
+/// Walks back along `preds` (who comes before whom) from `start`, breadth first, at most
+/// `max_hops` links. `visit(node, path)` is called once for each node reached, with the chain
+/// from that node to `start` (the node first, `start` last); it answers whether to take the node
+/// and walk on past it (`false` leaves the node out and stops the chain there). The one walk
+/// behind *Approaching* (trouble that reaches what you look at) and *My view* (what reaches your
+/// work), so both see the same chains. `preds` lists should be sorted for a stable order.
+pub fn walk_back(
+    start: Uuid,
+    preds: &HashMap<Uuid, Vec<Uuid>>,
+    max_hops: usize,
+    mut visit: impl FnMut(Uuid, &[Uuid]) -> bool,
+) {
+    let mut seen: HashSet<Uuid> = HashSet::from([start]);
+    // Each entry: the node and the chain from it to `start` (itself first).
+    let mut queue: VecDeque<(Uuid, Vec<Uuid>)> = VecDeque::from([(start, vec![start])]);
+    while let Some((current, to_start)) = queue.pop_front() {
+        if to_start.len() > max_hops {
+            continue;
+        }
+        for &pred in preds.get(&current).into_iter().flatten() {
+            if !seen.insert(pred) {
+                continue;
+            }
+            let mut path = vec![pred];
+            path.extend(&to_start);
+            if visit(pred, &path) {
+                queue.push_back((pred, path));
+            }
+        }
+    }
+}
 
 /// Everything `approaching` reads.
 pub struct ApproachWorld<'a> {
@@ -235,54 +267,41 @@ pub fn approaching(w: &ApproachWorld, scope: ApproachScope) -> ApproachReport {
         let Some(target_sched) = scheduled.get(&target.id) else {
             continue;
         };
-        let mut seen: HashSet<Uuid> = HashSet::from([target.id]);
-        // Each entry: the task and the chain from it to the target (itself first).
-        let mut queue: VecDeque<(Uuid, Vec<Uuid>)> = VecDeque::from([(target.id, vec![target.id])]);
-        while let Some((current, to_target)) = queue.pop_front() {
-            if to_target.len() > MAX_HOPS {
-                continue;
+        walk_back(target.id, &blockers, MAX_HOPS, |pred, path| {
+            let Some(task) = task_by_id.get(&pred).filter(|t| is_open(t)) else {
+                return false; // finished work (or a meeting) breaks the chain
+            };
+            if inside.has(task) {
+                return false; // back inside: that task is a start of its own
             }
-            for &pred in blockers.get(&current).into_iter().flatten() {
-                if !seen.insert(pred) {
-                    continue;
-                }
-                let Some(task) = task_by_id.get(&pred).filter(|t| is_open(t)) else {
-                    continue; // finished work (or a meeting) breaks the chain
+            if let Some((reasons, overdue_days)) =
+                task_trouble(task, scheduled.get(&pred).copied(), w.today)
+            {
+                let (severity, slack) = task_severity(target_sched, target.due_date, path);
+                let label_of = |id: &Uuid| {
+                    task_by_id
+                        .get(id)
+                        .map_or_else(String::new, |t| t.title.clone())
                 };
-                if inside.has(task) {
-                    continue; // back inside: that task is a start of its own
-                }
-                let mut path = vec![pred];
-                path.extend(&to_target);
-                if let Some((reasons, overdue_days)) =
-                    task_trouble(task, scheduled.get(&pred).copied(), w.today)
-                {
-                    let (severity, slack) = task_severity(target_sched, target.due_date, &path);
-                    let label_of = |id: &Uuid| {
-                        task_by_id
-                            .get(id)
-                            .map_or_else(String::new, |t| t.title.clone())
-                    };
-                    items.push((
-                        task.project_id,
-                        Approaching {
-                            source: summary(NodeType::Task, pred, &task.title),
-                            target: summary(NodeType::Task, target.id, &target.title),
-                            path: path
-                                .iter()
-                                .map(|id| summary(NodeType::Task, *id, &label_of(id)))
-                                .collect(),
-                            reasons,
-                            overdue_days,
-                            arrives_in: arrives_in(target, target_sched),
-                            severity,
-                            target_slack: Some(slack),
-                        },
-                    ));
-                }
-                queue.push_back((pred, path));
+                items.push((
+                    task.project_id,
+                    Approaching {
+                        source: summary(NodeType::Task, pred, &task.title),
+                        target: summary(NodeType::Task, target.id, &target.title),
+                        path: path
+                            .iter()
+                            .map(|id| summary(NodeType::Task, *id, &label_of(id)))
+                            .collect(),
+                        reasons,
+                        overdue_days,
+                        arrives_in: arrives_in(target, target_sched),
+                        severity,
+                        target_slack: Some(slack),
+                    },
+                ));
             }
-        }
+            true
+        });
     }
 
     // --------------------------------------------------------------- project chains
@@ -302,62 +321,50 @@ pub fn approaching(w: &ApproachWorld, scope: ApproachScope) -> ApproachReport {
             .min()
             .unwrap_or(0);
         let (severity, slack) = project_severity(forecasts.get(&target).copied());
-        let mut seen: HashSet<Uuid> = HashSet::from([target]);
-        let mut queue: VecDeque<(Uuid, Vec<Uuid>)> = VecDeque::from([(target, vec![target])]);
-        while let Some((current, to_target)) = queue.pop_front() {
-            if to_target.len() > MAX_PROJECT_HOPS {
-                continue;
+        walk_back(target, &needs, MAX_PROJECT_HOPS, |q, path| {
+            let Some(project) = project_by_id.get(&q) else {
+                return false;
+            };
+            if inside.targets.contains(&q) {
+                return false;
             }
-            for &q in needs.get(&current).into_iter().flatten() {
-                if !seen.insert(q) {
-                    continue;
-                }
-                let Some(project) = project_by_id.get(&q) else {
-                    continue;
+            let mut reasons = Vec::new();
+            if forecasts.get(&q).is_some_and(|f| f.late_by_days.is_some())
+                && !matches!(
+                    project.status,
+                    ProjectStatus::Done | ProjectStatus::Cancelled | ProjectStatus::Paused
+                )
+            {
+                reasons.push(Reason::ProjectLate);
+            }
+            if w.red_projects.contains(&q) {
+                reasons.push(Reason::ProjectRed);
+            }
+            if !reasons.is_empty() {
+                let label_of = |id: &Uuid| {
+                    project_by_id
+                        .get(id)
+                        .map_or_else(String::new, |p| p.title.clone())
                 };
-                if inside.targets.contains(&q) {
-                    continue;
-                }
-                let mut path = vec![q];
-                path.extend(&to_target);
-                let mut reasons = Vec::new();
-                if forecasts.get(&q).is_some_and(|f| f.late_by_days.is_some())
-                    && !matches!(
-                        project.status,
-                        ProjectStatus::Done | ProjectStatus::Cancelled | ProjectStatus::Paused
-                    )
-                {
-                    reasons.push(Reason::ProjectLate);
-                }
-                if w.red_projects.contains(&q) {
-                    reasons.push(Reason::ProjectRed);
-                }
-                if !reasons.is_empty() {
-                    let label_of = |id: &Uuid| {
-                        project_by_id
-                            .get(id)
-                            .map_or_else(String::new, |p| p.title.clone())
-                    };
-                    items.push((
-                        Some(q),
-                        Approaching {
-                            source: summary(NodeType::Project, q, &project.title),
-                            target: summary(NodeType::Project, target, &target_project.title),
-                            path: path
-                                .iter()
-                                .map(|id| summary(NodeType::Project, *id, &label_of(id)))
-                                .collect(),
-                            reasons,
-                            overdue_days: None,
-                            arrives_in: arrives,
-                            severity,
-                            target_slack: slack,
-                        },
-                    ));
-                }
-                queue.push_back((q, path));
+                items.push((
+                    Some(q),
+                    Approaching {
+                        source: summary(NodeType::Project, q, &project.title),
+                        target: summary(NodeType::Project, target, &target_project.title),
+                        path: path
+                            .iter()
+                            .map(|id| summary(NodeType::Project, *id, &label_of(id)))
+                            .collect(),
+                        reasons,
+                        overdue_days: None,
+                        arrives_in: arrives,
+                        severity,
+                        target_slack: slack,
+                    },
+                ));
             }
-        }
+            true
+        });
     }
 
     // -------------------------------------------------------------- group and order

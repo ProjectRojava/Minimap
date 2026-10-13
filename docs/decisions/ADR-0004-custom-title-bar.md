@@ -13,3 +13,4 @@ The native title bar doesn't fit the flat, monochrome design (see `docs/design.m
 - The bar is part of every screen's layout (32px, `h-8`); overlays that cover the window sit below it (`top-8`).
 - Window behaviour can only be checked by running the app on each OS. The macOS path is untested.
 - Under WSLg the Windows host may still draw its own frame around the Linux window.
+- **Amended** (Portfolio / My view, spec 50): the title bar also holds the view button (`ViewToggle`, left of the window controls) that switches between Portfolio view and My view. It is an ordinary button beside the drag region, not a window control, so it needs no window permission; the choice is per device (`localStorage`), nothing in the database.

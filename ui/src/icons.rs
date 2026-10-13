@@ -71,6 +71,10 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
         "chevron" => &["M4.5 6.5 8 10l3.5-3.5"],
         "edit" => &["M2.5 13.5l.7-3L10.8 3a1.4 1.4 0 0 1 2 2l-7.6 7.6z", "M9.6 4.2l2.2 2.2"],
         "check" => &["M3 8.5l3.2 3.2L13 4.5"],
+        // The two views (spec 50): north-up is an arrow with its N, player-up the marker that
+        // points where you are going.
+        "north" => &["M6 13.5V3", "M3 6l3-3 3 3", "M11 14V9l3 5V9"],
+        "me" => &["M8 2.5l4.5 10.5L8 10.5 3.5 13z"],
         "ping" => &[
             "M8 14.2S3.5 10 3.5 6.6a4.5 4.5 0 0 1 9 0C12.5 10 8 14.2 8 14.2z",
             "M8 5.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z",
@@ -185,6 +189,8 @@ mod tests {
             "attach",
             "star",
             "ping",
+            "north",
+            "me",
             "about",
         ] {
             for d in paths(name).unwrap() {

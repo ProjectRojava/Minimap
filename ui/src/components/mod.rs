@@ -27,6 +27,7 @@ pub mod node_row;
 pub mod note_panel;
 pub mod objective_colour;
 pub mod objective_panel;
+pub mod orientation;
 pub mod overlay;
 pub mod page;
 pub mod palette;

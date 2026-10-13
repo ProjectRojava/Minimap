@@ -910,7 +910,8 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             PF,
             "Platform Cost Reduction",
             "Right-size, consolidate and put an API gateway in front of the services.",
-            "maya",
+            // You own it, so My view (spec 50) has a project of its own to show.
+            "me",
             -35,
             60,
             2,

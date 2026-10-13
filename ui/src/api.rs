@@ -674,14 +674,26 @@ struct CapacityArg {
     from: Option<minimap_types::Date>,
     to: Option<minimap_types::Date>,
     weeks: Option<u32>,
+    view: Option<minimap_types::View>,
 }
 
+/// Capacity; in My view (spec 50) only you, your reports and the people on your projects.
 pub async fn get_capacity(
     from: Option<minimap_types::Date>,
     to: Option<minimap_types::Date>,
     weeks: Option<u32>,
+    view: minimap_types::View,
 ) -> Result<Capacity, AppError> {
-    invoke("get_capacity", &CapacityArg { from, to, weeks }).await
+    invoke(
+        "get_capacity",
+        &CapacityArg {
+            from,
+            to,
+            weeks,
+            view: Some(view),
+        },
+    )
+    .await
 }
 
 #[derive(Serialize)]
@@ -1026,7 +1038,25 @@ pub async fn copy_text(text: &str) -> Result<(), AppError> {
 }
 
 pub async fn get_portfolio_overview() -> Result<PortfolioOverview, AppError> {
-    invoke("get_portfolio_overview", &NoArgs {}).await
+    invoke("get_portfolio_overview", &OverviewArg { view: None }).await
+}
+
+#[derive(Serialize)]
+struct OverviewArg {
+    view: Option<minimap_types::View>,
+}
+
+/// The overview in a view (spec 50): in My view only what touches you, with the top risks chosen
+/// among it. The health sections of the panes use [`get_portfolio_overview`].
+pub async fn get_portfolio_overview_in(
+    view: minimap_types::View,
+) -> Result<PortfolioOverview, AppError> {
+    invoke("get_portfolio_overview", &OverviewArg { view: Some(view) }).await
+}
+
+/// Everything that touches you, and why (spec 50).
+pub async fn get_my_scope() -> Result<minimap_types::MyScope, AppError> {
+    invoke("get_my_scope", &NoArgs {}).await
 }
 
 #[derive(Serialize)]

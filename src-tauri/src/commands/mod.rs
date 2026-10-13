@@ -14,6 +14,7 @@ pub mod meetings;
 pub mod nodes;
 pub mod notes;
 pub mod objectives;
+pub mod orientation;
 pub mod overview;
 pub mod people;
 pub mod people_frames;

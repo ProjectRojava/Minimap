@@ -33,6 +33,10 @@ pub struct GraphFilter {
     pub include_done: bool,
     /// Include nodes with no links at all.
     pub include_isolated: bool,
+    /// My view (spec 50): only the work in `MyScope`: your tasks, what blocks them (up to four
+    /// links back) and what they block (one hop), or the projects in the same way. The usual
+    /// one-hop dimmed context still applies.
+    pub mine: bool,
     /// The one box laid out large enough to show its details (spec 47): the layout makes room
     /// for it. Ignored when it isn't in the graph.
     pub expanded: Option<Uuid>,

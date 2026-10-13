@@ -4,6 +4,8 @@ The **Overview** (`g o`) is the state of everything on one screen. It is compute
 
 ## What is on it
 
+**My view.** Press `v` (or use the button in the title bar) and the Overview is worked out for what touches you: only your objectives and projects, with the top five risks chosen among them. Each row says why it is there. See [Portfolio view and My view](help:views).
+
 - **Counts**: how many projects are red, amber, green and *not scored*.
 - **Top risks**: the five worst things right now, most urgent first (and how many more there are).
 - **Objectives**, each with its computed health and the projects under it (with their weights), and **projects with no objective** listed separately. A goal shows its target date; an *ongoing* objective shows *ongoing* and when its review is due (or how overdue).
