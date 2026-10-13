@@ -75,6 +75,12 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
         // points where you are going.
         "north" => &["M6 13.5V3", "M3 6l3-3 3 3", "M11 14V9l3 5V9"],
         "me" => &["M8 2.5l4.5 10.5L8 10.5 3.5 13z"],
+        // A save point: a floppy disk, the old sign for "kept".
+        "save" => &[
+            "M3 2.5h8.5L13.5 4.5v9h-10.5z",
+            "M5.5 2.5v3.5h5v-3.5",
+            "M5.5 13.5v-4h5v4",
+        ],
         "ping" => &[
             "M8 14.2S3.5 10 3.5 6.6a4.5 4.5 0 0 1 9 0C12.5 10 8 14.2 8 14.2z",
             "M8 5.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z",
@@ -189,6 +195,7 @@ mod tests {
             "attach",
             "star",
             "ping",
+            "save",
             "north",
             "me",
             "about",

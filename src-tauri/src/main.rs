@@ -174,6 +174,8 @@ fn main() {
             commands::security::set_encryption,
             commands::security::delete_unencrypted_backups,
             commands::backup::get_backup_status,
+            commands::backup::list_save_points,
+            commands::backup::get_last_save_point,
             commands::backup::backup_now,
             commands::backup::preview_restore,
             commands::backup::restore_backup,

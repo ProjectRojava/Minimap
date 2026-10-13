@@ -1,5 +1,6 @@
-//! Settings → Backup (spec 20): where backups go, the daily backup, "Back up now", the list of
-//! backups and "Restore…". Restoring always shows what is in the file and asks first.
+//! Settings → Backup (spec 20): where backups go, the daily backup, "Back up now" (which makes a
+//! save point) and "Restore from file…". The list of copies is the Save points card
+//! (`save_points.rs`, spec 51). Restoring always shows what is in the file and asks first.
 
 use leptos::{prelude::*, task::spawn_local, web_sys};
 use minimap_types::{
@@ -55,18 +56,6 @@ pub fn kind_label(kind: BackupKind) -> &'static str {
     }
 }
 
-pub fn kind_tone(kind: BackupKind) -> Tone {
-    match kind {
-        BackupKind::Manual => Tone::Accent,
-        BackupKind::Auto => Tone::Neutral,
-        BackupKind::PreMigration
-        | BackupKind::PreRestore
-        | BackupKind::PreEncryption
-        | BackupKind::PreSync
-        | BackupKind::PreRecover => Tone::Warning,
-    }
-}
-
 /// "Last backup: 2027-03-03 15:30 UTC (3 hours ago)" or a nudge when there is none.
 pub fn last_text(last: Option<&BackupEntry>) -> String {
     match last {
@@ -101,7 +90,7 @@ pub fn BackupSettings() -> impl IntoView {
     let restore = Restore::new();
     view! {
         <Card title="Backup"
-              description="Copies of your data, made with SQLite's online backup so the app keeps working.">
+              description="Where backups go and the daily one. The copies themselves are listed under Save points.">
             {move || match status.get() {
                 Some(Ok(s)) => view! { <Body status=s restore=restore /> }.into_any(),
                 Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
@@ -160,19 +149,9 @@ fn Body(status: BackupStatus, restore: Restore) -> impl IntoView {
             version,
         );
     };
-    let back_up = move |_| {
-        spawn_local(async move {
-            match api::backup_now(None).await {
-                Ok(b) => toasts.info(format!(
-                    "Backed up as {} ({})",
-                    b.file_name,
-                    size_text(b.bytes)
-                )),
-                Err(e) => toasts.error(&e),
-            }
-            version.bump();
-        });
-    };
+    // "Back up now" is the same as making a save point: it opens the box (name optional).
+    let save_box = expect_context::<crate::components::save_points::SaveBoxState>();
+    let back_up = move |_| save_box.open();
     let pick_file = move |_| {
         spawn_local(async move {
             match api::pick_backup_file().await {
@@ -183,16 +162,9 @@ fn Body(status: BackupStatus, restore: Restore) -> impl IntoView {
         });
     };
 
-    let db_encrypted = status.database_encrypted;
     let last = last_text(status.last_backup.as_ref());
     let is_default = status.is_default_folder;
     let keep = status.keep_auto;
-    let rows = status
-        .backups
-        .iter()
-        .map(|b| view! { <BackupRow entry=b.clone() restore=restore flag_plain=db_encrypted /> })
-        .collect_view();
-    let none = status.backups.is_empty();
     view! {
         <div class="space-y-1">
             <div class="text-[11px] text-muted">"Backup folder"</div>
@@ -217,23 +189,23 @@ fn Body(status: BackupStatus, restore: Restore) -> impl IntoView {
             <button class=BUTTON_PRIMARY on:click=back_up>"Back up now"</button>
             <button class=BUTTON on:click=pick_file>"Restore from file…"</button>
         </div>
-        {(!none).then(|| view! {
-            <div class="max-h-64 overflow-y-auto rounded-sm border border-line">{rows}</div>
-        })}
+        <p class="text-[11px] text-muted">
+            "Every copy, with Google Drive's checkpoints, is listed under Save points above."
+        </p>
     }
 }
 
 /// The signals of a restore in progress: the checked file, the key typed for it (when it was
 /// encrypted with another key) and the file waiting for such a key.
 #[derive(Clone, Copy)]
-struct Restore {
-    pending: RwSignal<Option<RestorePreview>>,
+pub(crate) struct Restore {
+    pub(crate) pending: RwSignal<Option<RestorePreview>>,
     secret: RwSignal<Option<String>>,
-    need_key: RwSignal<Option<String>>,
+    pub(crate) need_key: RwSignal<Option<String>>,
 }
 
 impl Restore {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             pending: RwSignal::new(None),
             secret: RwSignal::new(None),
@@ -250,7 +222,7 @@ impl Restore {
 
 /// Checks a file and, when it can be restored, asks for confirmation. A backup encrypted with
 /// another key asks for that key first.
-fn check(path: String, secret: Option<String>, restore: Restore, toasts: Toasts) {
+pub(crate) fn check(path: String, secret: Option<String>, restore: Restore, toasts: Toasts) {
     spawn_local(async move {
         match api::preview_restore(path.clone(), secret.clone().map(Secret)).await {
             Ok(preview) => {
@@ -273,7 +245,7 @@ fn check(path: String, secret: Option<String>, restore: Restore, toasts: Toasts)
 }
 
 #[component]
-fn KeyPrompt(path: String, restore: Restore) -> impl IntoView {
+pub(crate) fn KeyPrompt(path: String, restore: Restore) -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let typed = RwSignal::new(String::new());
     let go = {
@@ -302,26 +274,7 @@ fn KeyPrompt(path: String, restore: Restore) -> impl IntoView {
 }
 
 #[component]
-fn BackupRow(entry: BackupEntry, restore: Restore, flag_plain: bool) -> impl IntoView {
-    let toasts = expect_context::<Toasts>();
-    let path = entry.path.clone();
-    let plain = flag_plain && !entry.encrypted;
-    view! {
-        <div class="flex items-center gap-2 border-b border-line px-2 py-1 last:border-b-0">
-            <span class=kind_tone(entry.kind).chip()>{kind_label(entry.kind)}</span>
-            {plain.then(|| view! { <span class=Tone::Danger.chip() title="This backup is not encrypted">"unencrypted"</span> })}
-            <span class="w-40 shrink-0 tabular-nums">{entry.created.clone()}</span>
-            <span class="min-w-0 flex-1 truncate text-[11px] text-muted" title=entry.file_name.clone()>
-                {format!("{} · {}", age_text(entry.age_minutes), entry.file_name)}
-            </span>
-            <span class="shrink-0 text-[11px] tabular-nums text-muted">{size_text(entry.bytes)}</span>
-            <button class=BUTTON on:click=move |_| check(path.clone(), None, restore, toasts)>"Restore…"</button>
-        </div>
-    }
-}
-
-#[component]
-fn ConfirmRestore(preview: RestorePreview, restore: Restore) -> impl IntoView {
+pub(crate) fn ConfirmRestore(preview: RestorePreview, restore: Restore) -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let path = preview.path.clone();
     let secret = restore.secret.get_untracked();
@@ -387,6 +340,7 @@ mod tests {
             age_minutes: minutes,
             bytes: 2048,
             encrypted: true,
+            label: None,
         }
     }
 
@@ -436,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn every_kind_has_a_label_and_the_cautionary_ones_are_warnings() {
+    fn every_kind_has_a_label() {
         for kind in [
             BackupKind::Manual,
             BackupKind::Auto,
@@ -448,7 +402,5 @@ mod tests {
         ] {
             assert!(!kind_label(kind).is_empty());
         }
-        assert_eq!(kind_tone(BackupKind::PreRestore), Tone::Warning);
-        assert_eq!(kind_tone(BackupKind::PreMigration), Tone::Warning);
     }
 }

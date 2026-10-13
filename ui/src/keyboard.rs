@@ -45,6 +45,7 @@ pub fn use_global_shortcuts() {
     let version = expect_context::<DataVersion>();
     let ping_box = expect_context::<crate::components::ping::PingBoxState>();
     let orientation = expect_context::<crate::components::orientation::Orientation>();
+    let save_box = expect_context::<crate::components::save_points::SaveBoxState>();
     // When `g` was pressed, in ms since the epoch (0 = no chord pending).
     let chord_started = StoredValue::new(0.0_f64);
 
@@ -53,6 +54,17 @@ pub fn use_global_shortcuts() {
         if (e.ctrl_key() || e.meta_key()) && !e.alt_key() && e.key().eq_ignore_ascii_case("k") {
             e.prevent_default();
             palette.toggle();
+            return;
+        }
+        // Ctrl/Cmd+S makes a save point (spec 51), from anywhere, even a text box; the browser's
+        // own "save page" is never wanted.
+        if (e.ctrl_key() || e.meta_key())
+            && !e.alt_key()
+            && !e.shift_key()
+            && e.key().eq_ignore_ascii_case("s")
+        {
+            e.prevent_default();
+            save_box.open();
             return;
         }
         let (tag, editable) = e

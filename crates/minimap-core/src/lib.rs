@@ -26,6 +26,7 @@ pub mod projects;
 pub mod quick_add;
 pub mod recurrence;
 pub mod report;
+pub mod save_points;
 pub mod schedule;
 pub mod search;
 pub mod slug;

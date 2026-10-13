@@ -477,6 +477,12 @@
           "markdownDescription": "Enables the get_fog command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_last_save_point command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-last-save-point",
+          "markdownDescription": "Enables the get_last_save_point command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_my_scope command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-my-scope",
@@ -709,6 +715,12 @@
           "type": "string",
           "const": "allow-list-projects",
           "markdownDescription": "Enables the list_projects command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_save_points command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-save-points",
+          "markdownDescription": "Enables the list_save_points command without any pre-configured scope."
         },
         {
           "description": "Enables the list_tasks command without any pre-configured scope.",
@@ -1323,6 +1335,12 @@
           "markdownDescription": "Denies the get_fog command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_last_save_point command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-last-save-point",
+          "markdownDescription": "Denies the get_last_save_point command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_my_scope command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-my-scope",
@@ -1555,6 +1573,12 @@
           "type": "string",
           "const": "deny-list-projects",
           "markdownDescription": "Denies the list_projects command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_save_points command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-save-points",
+          "markdownDescription": "Denies the list_save_points command without any pre-configured scope."
         },
         {
           "description": "Denies the list_tasks command without any pre-configured scope.",

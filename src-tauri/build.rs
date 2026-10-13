@@ -85,6 +85,8 @@ const COMMANDS: &[&str] = &[
     "set_encryption",
     "delete_unencrypted_backups",
     "get_backup_status",
+    "list_save_points",
+    "get_last_save_point",
     "backup_now",
     "preview_restore",
     "restore_backup",

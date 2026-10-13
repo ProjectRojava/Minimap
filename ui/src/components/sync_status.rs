@@ -101,7 +101,6 @@ pub fn StatusBar() -> impl IntoView {
                 let hint = state_hint(&s);
                 let local_only = s.state == SyncState::LocalOnly;
                 let warning = s.warning.clone();
-                let device = s.device_name.clone();
                 view! {
                     <A href=Tab::Data.path() attr:class="flex items-center gap-1.5 hover:text-fg" attr:title=hint>
                         <Icon name="cloud" size="h-3.5 w-3.5" />
@@ -117,9 +116,14 @@ pub fn StatusBar() -> impl IntoView {
                         let tip = w.clone();
                         view! { <span class="truncate text-warning" title=tip>{w}</span> }
                     })}
-                    <span class="ml-auto shrink-0">{device}</span>
                 }
             })}
+            // Outside the closure above, which redraws with every status poll: this one asks the
+            // backend itself and must keep its state.
+            <crate::components::save_points::SaveStatus />
+            <span class="ml-auto shrink-0">
+                {move || ctx.status.get().map(|s| s.device_name)}
+            </span>
         </footer>
     }
 }

@@ -12,6 +12,7 @@ Minimap is built to be used without the mouse. Shortcuts that are single keys wo
 | `Ctrl/Cmd+Z` | Undo the last change ([Undo and redo](help:undo)) |
 | `Ctrl/Cmd+Shift+Z` or `Ctrl+Y` | Redo |
 | `Esc` | Close the detail pane, or leave a text box |
+| `Ctrl/Cmd+S` | Make a save point: a copy of everything, with a name if you like ([Backup and restore](help:backup-restore)) |
 | `v` | Switch between Portfolio view and My view ([Portfolio view and My view](help:views)) |
 
 Inside a text box `Ctrl/Cmd+Z` undoes the typing, as usual.

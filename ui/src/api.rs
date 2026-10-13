@@ -881,13 +881,44 @@ pub async fn get_backup_status() -> Result<BackupStatus, AppError> {
 }
 
 #[derive(Serialize)]
-struct OptionalPathArg {
+struct BackupNowArg {
     path: Option<String>,
+    label: Option<String>,
 }
 
-/// Backs up into `folder` (the configured folder when `None`).
-pub async fn backup_now(folder: Option<String>) -> Result<BackupEntry, AppError> {
-    invoke("backup_now", &OptionalPathArg { path: folder }).await
+/// Backs up into `folder` (the configured folder when `None`). With a `label` it is a named
+/// save point (spec 51); a blank one means none.
+pub async fn backup_now(
+    folder: Option<String>,
+    label: Option<String>,
+) -> Result<BackupEntry, AppError> {
+    invoke(
+        "backup_now",
+        &BackupNowArg {
+            path: folder,
+            label,
+        },
+    )
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavePointsArg {
+    utc_offset_minutes: i32,
+}
+
+/// Every restorable copy on one timeline: the backups on this computer and, when connected,
+/// Google Drive's checkpoints. `utc_offset_minutes` is the offset of the person's clock.
+pub async fn list_save_points(
+    utc_offset_minutes: i32,
+) -> Result<minimap_types::SaveTimeline, AppError> {
+    invoke("list_save_points", &SavePointsArg { utc_offset_minutes }).await
+}
+
+/// The newest save point and whether it is too old, for the status bar (no network).
+pub async fn get_last_save_point() -> Result<minimap_types::SaveSummary, AppError> {
+    invoke("get_last_save_point", &NoArgs {}).await
 }
 
 #[derive(Serialize)]

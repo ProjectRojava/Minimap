@@ -52,6 +52,9 @@ pub fn App() -> impl IntoView {
     provide_context(crate::state::NowClock(RwSignal::new(None)));
     provide_context(CardMenuState(RwSignal::new(None)));
     provide_context(crate::components::ping::PingBoxState::new());
+    provide_context(crate::components::save_points::SaveBoxState(RwSignal::new(
+        false,
+    )));
     provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
@@ -153,6 +156,7 @@ fn Shell() -> impl IntoView {
             <crate::components::meeting::MeetingClock />
             <CardMenuHost />
             <crate::components::ping::PingBoxHost />
+            <crate::components::save_points::SaveBoxHost />
             <ToastHost />
             <FirstRun />
         </div>

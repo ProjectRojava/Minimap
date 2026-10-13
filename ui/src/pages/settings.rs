@@ -158,6 +158,7 @@ pub fn Settings() -> impl IntoView {
                 {panel(Tab::Data, view! {
                     <DemoDataSettings />
                     <DataLocation />
+                    <crate::components::save_points::SavePointsCard />
                     <DriveSettings />
                     <BackupSettings />
                     <ExportSettings />

@@ -90,6 +90,8 @@
     "allow-set-encryption",
     "allow-delete-unencrypted-backups",
     "allow-get-backup-status",
+    "allow-list-save-points",
+    "allow-get-last-save-point",
     "allow-backup-now",
     "allow-preview-restore",
     "allow-restore-backup",

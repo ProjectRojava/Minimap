@@ -47,6 +47,8 @@ pub enum Action {
     PingOpen,
     /// Scroll This week to its Pings card.
     ShowPings,
+    /// Open the box that makes a named save point (spec 51).
+    MakeSavePoint,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,6 +75,7 @@ pub fn commands() -> Vec<Command> {
         action("Resolve waiting-on…", "", Action::ResolveWaiting),
         action("Ping this…", "m", Action::PingOpen),
         action("Show pings", "This week", Action::ShowPings),
+        action("Make a save point…", "Ctrl S", Action::MakeSavePoint),
         action("Undo last change", "Ctrl Z", Action::Undo),
         action("Redo", "Ctrl Shift Z", Action::Redo),
         action("What if this slips?", "g f", Action::Go("/what-if")),
@@ -204,6 +207,7 @@ struct Pal {
     version: DataVersion,
     meetings: crate::state::MeetingDialog,
     pings: crate::components::ping::PingBoxState,
+    save_box: crate::components::save_points::SaveBoxState,
 }
 
 impl Pal {
@@ -246,6 +250,10 @@ impl Pal {
                             "Open an item in the detail pane first, then ping it.".to_owned(),
                         ),
                     }
+                }
+                Action::MakeSavePoint => {
+                    self.close();
+                    self.save_box.open();
                 }
                 Action::ShowPings => {
                     self.pings.show.set(true);
@@ -327,6 +335,7 @@ pub fn PaletteHost() -> impl IntoView {
         version: expect_context::<DataVersion>(),
         meetings: expect_context::<crate::state::MeetingDialog>(),
         pings: expect_context::<crate::components::ping::PingBoxState>(),
+        save_box: expect_context::<crate::components::save_points::SaveBoxState>(),
     };
     let hits = RwSignal::new(Vec::<SearchHit>::new());
     let preview = RwSignal::new(Option::<QuickPreview>::None);

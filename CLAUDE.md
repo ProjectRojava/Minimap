@@ -79,7 +79,8 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - review: get_weekly_review(week_start), render_report(report_kind, params)
 - quick_add: parse_quick_add(text) → preview; commit_quick_add(text)
 - export: export_markdown(report_kind, params, path)
-- settings: get_settings, update_settings, get_data_info, show_data_folder, set_db_passphrase, backup_now(path)
+- settings: get_settings, update_settings, get_data_info, show_data_folder, set_db_passphrase, backup_now(path?, label?)
+- save points (spec 51): list_save_points(utc_offset_minutes) (local backups + Drive checkpoints on one timeline), get_last_save_point() (status bar); restoring uses preview_restore / restore_backup / recover_checkpoint
 - fog (spec 43, ADR-0019): get_fog (items in play that have gone quiet + visibility), confirm_item(node) ("still accurate"; task, project or objective; one undo step)
 - orientation (spec 50): get_my_scope() (everything that touches you, and why); get_portfolio_overview(view?) and get_capacity(.., view?) compute in My view; get_dependency_graph(filter.mine)
 - people frames (spec 49): get_people_frames() (you and your direct reports at a glance: load this week, waiting-ons, blocked/overdue, 1:1 due)

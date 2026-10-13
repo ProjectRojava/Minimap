@@ -17,6 +17,7 @@ serde-wasm-bindgen.workspace = true
 js-sys.workspace = true
 web-sys.workspace = true
 console_error_panic_hook.workspace = true
+time.workspace = true
 
 [dev-dependencies]
 time.workspace = true
