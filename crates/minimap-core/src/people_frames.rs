@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use minimap_types::Uuid;
 use minimap_types::{
     Capacity, Edge, EdgeType, Frame, FrameFlag, FramesHint, NodeSummary, NodeType, NoteItem,
-    NoteKind, PeopleFrames, Person, SecondLevel, Task, TaskStatus, WaitingOn,
+    NoteKind, PeopleFrames, Person, ReportGroup, Task, TaskStatus, WaitingOn,
 };
 use time::Date;
 
@@ -32,7 +32,8 @@ pub struct FramesInput<'a> {
     pub capacity: &'a Capacity,
     pub stale_waiting_days: u32,
     pub one_on_one_every_days: u32,
-    pub second_level: bool,
+    /// Also everyone further down the reporting tree, not only your direct reports.
+    pub all_levels: bool,
 }
 
 fn active_edges<'a>(edges: &'a [Edge], edge_type: EdgeType) -> impl Iterator<Item = &'a Edge> + 'a {
@@ -275,28 +276,34 @@ pub fn build(input: &FramesInput) -> Option<PeopleFrames> {
 
     let direct = managed_by(me.id);
     let reports: Vec<Frame> = direct.iter().map(|p| facts.frame(p)).collect();
-    let mut second_level = Vec::new();
-    if input.second_level {
-        let shown: HashSet<Uuid> = direct.iter().map(|p| p.id).chain([me.id]).collect();
-        for manager in &direct {
-            let below: Vec<Frame> = managed_by(manager.id)
+    // Everyone further down, depth first: each manager's group is followed by the groups of
+    // the people in it. A person is shown once, under the first manager that reaches them.
+    let mut below: Vec<ReportGroup> = Vec::new();
+    if input.all_levels {
+        let mut shown: HashSet<Uuid> = direct.iter().map(|p| p.id).chain([me.id]).collect();
+        let mut stack: Vec<(Uuid, u32)> = direct.iter().rev().map(|p| (p.id, 1)).collect();
+        while let Some((manager, depth)) = stack.pop() {
+            let people: Vec<&Person> = managed_by(manager)
                 .into_iter()
                 .filter(|p| !shown.contains(&p.id))
-                .map(|p| facts.frame(p))
                 .collect();
-            if !below.is_empty() {
-                second_level.push(SecondLevel {
-                    manager: manager.id,
-                    frames: below,
-                });
+            if people.is_empty() {
+                continue;
             }
+            shown.extend(people.iter().map(|p| p.id));
+            below.push(ReportGroup {
+                manager,
+                depth,
+                frames: people.iter().map(|p| facts.frame(p)).collect(),
+            });
+            stack.extend(people.iter().rev().map(|p| (p.id, depth + 1)));
         }
     }
     Some(PeopleFrames {
         me: facts.frame(me),
         hint: reports.is_empty().then_some(FramesHint::NoReports),
         reports,
-        second_level,
+        below,
     })
 }
 
@@ -504,7 +511,7 @@ mod tests {
             capacity,
             stale_waiting_days: 7,
             one_on_one_every_days: 14,
-            second_level: false,
+            all_levels: false,
         }
     }
 
@@ -538,7 +545,7 @@ mod tests {
         let names: Vec<&str> = f.reports.iter().map(|r| r.person.label.as_str()).collect();
         // Raj is the most loaded, but the order is alphabetical (ignoring case).
         assert_eq!(names, ["anna", "Priya", "Raj"]);
-        assert!(f.second_level.is_empty(), "off by default");
+        assert!(f.below.is_empty(), "only when asked for");
         assert_eq!(f.hint, None);
     }
 
@@ -554,18 +561,73 @@ mod tests {
 
     #[test]
     fn reports_of_reports_are_shown_only_with_the_setting() {
-        let f = frames(&world(), |i| i.second_level = true);
-        assert_eq!(f.second_level.len(), 1);
-        assert_eq!(f.second_level[0].manager, id(3));
-        assert_eq!(f.second_level[0].frames[0].person.label, "Maya");
+        let f = frames(&world(), |i| i.all_levels = true);
+        assert_eq!(f.below.len(), 1);
+        assert_eq!(f.below[0].manager, id(3));
+        assert_eq!(f.below[0].depth, 1);
+        assert_eq!(f.below[0].frames[0].person.label, "Maya");
         // Zed reports to nobody, so is nowhere.
         let all: Vec<&str> = f
             .reports
             .iter()
-            .chain(f.second_level.iter().flat_map(|s| s.frames.iter()))
+            .chain(f.below.iter().flat_map(|s| s.frames.iter()))
             .map(|r| r.person.label.as_str())
             .collect();
         assert!(!all.contains(&"Zed"));
+    }
+
+    #[test]
+    fn everyone_below_a_report_is_shown_however_deep_each_group_after_its_manager() {
+        let mut w = world();
+        // Maya (5) has Zoe (7) and Abe (8); Zoe has Kit (9). Three levels below Priya.
+        let long_ago = date!(2026 - 01 - 01);
+        for (n, name) in [(7, "Zoe"), (8, "Abe"), (9, "Kit")] {
+            w.people.push(person(n, name, false, 40.0, long_ago));
+        }
+        w.edges.extend([
+            reports_to(14, 7, 5),
+            reports_to(15, 8, 5),
+            reports_to(16, 9, 7),
+        ]);
+        let f = frames(&w, |i| i.all_levels = true);
+        let groups: Vec<(u128, u32, Vec<&str>)> = f
+            .below
+            .iter()
+            .map(|g| {
+                (
+                    g.manager.as_u128(),
+                    g.depth,
+                    g.frames.iter().map(|x| x.person.label.as_str()).collect(),
+                )
+            })
+            .collect();
+        // Priya's people (Maya), then Maya's (Abe, Zoe by name), then Zoe's (Kit): a manager's
+        // people sit right after their group.
+        assert_eq!(
+            groups,
+            [
+                (3, 1, vec!["Maya"]),
+                (5, 2, vec!["Abe", "Zoe"]),
+                (7, 3, vec!["Kit"]),
+            ]
+        );
+        // Without the setting only your direct reports are shown.
+        assert!(frames(&w, |_| {}).below.is_empty());
+    }
+
+    #[test]
+    fn a_person_who_reaches_you_two_ways_is_shown_once() {
+        let mut w = world();
+        // Maya (5) also reports to Raj (2): she is shown under the first manager only.
+        w.edges.push(reports_to(17, 5, 2));
+        let f = frames(&w, |i| i.all_levels = true);
+        let shown: usize = f
+            .below
+            .iter()
+            .flat_map(|g| g.frames.iter())
+            .filter(|x| x.person.label == "Maya")
+            .count();
+        assert_eq!(shown, 1);
     }
 
     #[test]
@@ -753,11 +815,11 @@ mod tests {
             };
         }
         w.notes = vec![note];
-        let f = frames(&w, |i| i.second_level = true);
+        let f = frames(&w, |i| i.all_levels = true);
         let of = |name: &str| {
             f.reports
                 .iter()
-                .chain(f.second_level.iter().flat_map(|s| s.frames.iter()))
+                .chain(f.below.iter().flat_map(|s| s.frames.iter()))
                 .find(|r| r.person.label == name)
                 .unwrap()
                 .last_one_on_one
@@ -842,7 +904,7 @@ mod tests {
             keys in proptest::collection::vec(any::<u32>(), 12)
         ) {
             let w = world();
-            let want = frames(&w, |i| i.second_level = true);
+            let want = frames(&w, |i| i.all_levels = true);
             let shuffled = World {
                 people: shuffled(&w.people, &keys),
                 edges: shuffled(&w.edges, &keys[3..]),
@@ -850,10 +912,10 @@ mod tests {
                 waiting: shuffled(&w.waiting, &keys[7..]),
                 notes: shuffled(&w.notes, &keys[2..]),
             };
-            let got = frames(&shuffled, |i| i.second_level = true);
+            let got = frames(&shuffled, |i| i.all_levels = true);
             prop_assert_eq!(got.me, want.me);
             prop_assert_eq!(got.reports, want.reports);
-            prop_assert_eq!(got.second_level, want.second_level);
+            prop_assert_eq!(got.below, want.below);
         }
     }
 }

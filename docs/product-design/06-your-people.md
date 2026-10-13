@@ -87,6 +87,8 @@ Next shared meeting per person (needs attendees; meetings have one assignee); te
 - **Capacity** has a shared `capacity_at(conn, today, …)` that `get_capacity` and `get_people_frames` both call, so the figure is the heatmap's own.
 - **Demo data**: no schema change, but Tomás Alvarez (the overloaded person) now reports to you directly, so his frame is on your card with *Over capacity*; the 1:1 with Priya now mentions Priya (it did not), which is one more `mentions` link (119 links). Raj, Sam and Tomás have never had a 1:1, so their frames say *1:1 due*; Priya's is clear.
 
+- **Later change (everyone below)**: the second-level setting became `frames_all_levels` (default **on**): the card shows the whole reporting tree below you, depth first, each manager's people in a group right under them (`PeopleFrames.below: Vec<ReportGroup{manager, depth, frames}>`), because someone with people of their own should not hide them. My view's *Report* reasons follow the same tree (spec 50). The *no reports* hint now says what to do on the People screen itself instead of linking to it.
+
 ## Not yet verified by hand
 - Demo: This week shows you and your reports; the overloaded person's bar has the amber end.
 - *New 1:1* on a frame creates and opens the note; the frame's 1:1 pill disappears after a reload.

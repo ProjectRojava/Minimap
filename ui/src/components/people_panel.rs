@@ -370,43 +370,7 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
         .into_any();
     }
 
-    let archive = Callback::new(move |()| {
-        spawn_local(async move {
-            if finish(api::archive_person(id).await, toasts, version).is_some() {
-                selection.close();
-            }
-        });
-    });
-    // The tasks that lose their assignee are looked up when asked, and shown in the dialog.
-    let start = move |_| {
-        let name = name.clone();
-        spawn_local(async move {
-            match api::preview_archive_person(id).await {
-                Ok(p) => {
-                    let tasks = p.assigned_tasks;
-                    let message = if tasks.is_empty() {
-                        format!("Their links are archived with them. {UNDO_HINT}")
-                    } else {
-                        format!(
-                            "Their links are archived with them, so {} active task{} will become unassigned. {UNDO_HINT}",
-                            tasks.len(),
-                            if tasks.len() == 1 { "" } else { "s" }
-                        )
-                    };
-                    confirm.ask_with(ArchiveRequest {
-                        title: question(&name),
-                        message,
-                        body: (!tasks.is_empty()).then(|| task_lines(tasks)),
-                        choices: vec![ArchiveChoice {
-                            label: "Archive".to_owned(),
-                            run: archive,
-                        }],
-                    });
-                }
-                Err(e) => toasts.error(&e),
-            }
-        });
-    };
+    let start = move |_| ask_archive_person(id, name.clone(), toasts, version, selection, confirm);
 
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
@@ -414,6 +378,56 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
         </Section>
     }
     .into_any()
+}
+
+/// Asks first, in the shared dialog, then archives the person (their links go with them). The
+/// tasks that lose their assignee are looked up when asked and listed in the dialog. Used by the
+/// pane's *Archive person…* and by the *Archive* button on a People row; Ctrl/Cmd+Z brings the
+/// person back.
+pub fn ask_archive_person(
+    id: minimap_types::Uuid,
+    name: String,
+    toasts: Toasts,
+    version: DataVersion,
+    selection: Selection,
+    confirm: ConfirmArchive,
+) {
+    let archive = Callback::new(move |()| {
+        spawn_local(async move {
+            if finish(api::archive_person(id).await, toasts, version).is_some() {
+                // The pane may be showing this person.
+                if selection.0.get_untracked() == Some(NodeRef::new(NodeType::Person, id)) {
+                    selection.close();
+                }
+            }
+        });
+    });
+    spawn_local(async move {
+        match api::preview_archive_person(id).await {
+            Ok(p) => {
+                let tasks = p.assigned_tasks;
+                let message = if tasks.is_empty() {
+                    format!("Their links are archived with them. {UNDO_HINT}")
+                } else {
+                    format!(
+                        "Their links are archived with them, so {} active task{} will become unassigned. {UNDO_HINT}",
+                        tasks.len(),
+                        if tasks.len() == 1 { "" } else { "s" }
+                    )
+                };
+                confirm.ask_with(ArchiveRequest {
+                    title: question(&name),
+                    message,
+                    body: (!tasks.is_empty()).then(|| task_lines(tasks)),
+                    choices: vec![ArchiveChoice {
+                        label: "Archive".to_owned(),
+                        run: archive,
+                    }],
+                });
+            }
+            Err(e) => toasts.error(&e),
+        }
+    });
 }
 
 /// The tasks an archive touches, as plain lines in the dialog.

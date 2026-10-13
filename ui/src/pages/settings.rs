@@ -561,21 +561,21 @@ fn PeopleSettings() -> impl IntoView {
                     </p>
                     <label class="flex cursor-pointer items-start gap-2">
                         <input type="checkbox" class="mt-0.5"
-                            prop:checked=s.frames_second_level
+                            prop:checked=s.frames_all_levels
                             on:change=move |ev| {
                                 let on = event_target_checked(&ev);
                                 spawn_local(async move {
                                     let patch = UpdateSettings {
-                                        frames_second_level: Some(on),
+                                        frames_all_levels: Some(on),
                                         ..Default::default()
                                     };
                                     finish(api::update_settings(patch).await, toasts, version);
                                 });
                             } />
                         <span>
-                            <span class="block font-medium">"Also show the people who report to my reports"</span>
+                            <span class="block font-medium">"Also show everyone below my reports"</span>
                             <span class="block text-[11px] text-muted">
-                                "One level more, each group under its manager. Off by default."
+                                "The people who report to my reports, and theirs, and so on, each group under its manager. On by default."
                             </span>
                         </span>
                     </label>

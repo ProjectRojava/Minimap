@@ -120,15 +120,23 @@ pub fn name_text(frame: &Frame) -> String {
 pub fn nodes_of(frames: &PeopleFrames) -> Vec<NodeRef> {
     std::iter::once(&frames.me)
         .chain(frames.reports.iter())
-        .chain(frames.second_level.iter().flat_map(|s| s.frames.iter()))
+        .chain(frames.below.iter().flat_map(|s| s.frames.iter()))
         .map(|f| f.person.node)
         .collect()
 }
 
-/// The sentence under the frames when nobody reports to you.
-pub fn hint_text(hint: FramesHint) -> &'static str {
-    match hint {
-        FramesHint::NoReports => "Set managers in People to see your team here.",
+/// The sentence under the frames when nobody reports to you: what to do, in words that fit where
+/// it is read (on the People screen itself there is nowhere else to go).
+pub fn hint_text(hint: FramesHint, on_people_screen: bool) -> &'static str {
+    match (hint, on_people_screen) {
+        (FramesHint::NoReports, true) => {
+            "Nobody reports to you yet. Open a person in the list below and set their manager to \
+             you (Organization → Manager): they appear here."
+        }
+        (FramesHint::NoReports, false) => {
+            "Nobody reports to you yet. On the People screen, open a person and set their manager \
+             to you: they appear here."
+        }
     }
 }
 
@@ -264,6 +272,8 @@ pub fn FramesStrip(
 ) -> impl IntoView {
     let hues = use_hues();
     let navigate = use_navigate();
+    // The People screen gives the frames a place in its list; This week does not.
+    let on_people = first_index.is_some();
     let mut next = first_index;
     let mut take = || {
         let at = next;
@@ -280,13 +290,15 @@ pub fn FramesStrip(
             (f, at)
         })
         .collect();
+    // A manager can be one of your reports or anyone further down.
     let manager_name: HashMap<Uuid, String> = frames
         .reports
         .iter()
+        .chain(frames.below.iter().flat_map(|g| g.frames.iter()))
         .map(|f| (f.person.node.id, f.person.label.clone()))
         .collect();
-    let second: Vec<(String, Vec<Placed>)> = frames
-        .second_level
+    let second: Vec<(u32, String, Vec<Placed>)> = frames
+        .below
         .iter()
         .map(|group| {
             let who = manager_name
@@ -302,7 +314,7 @@ pub fn FramesStrip(
                     (f, at)
                 })
                 .collect();
-            (who, cards)
+            (group.depth, who, cards)
         })
         .collect();
     let hint = frames.hint;
@@ -316,10 +328,11 @@ pub fn FramesStrip(
         </div>
         {second
             .into_iter()
-            .map(|(who, cards)| view! {
-                <div class="px-4 pb-3">
+            .map(|(depth, who, cards)| view! {
+                // Each level is indented one step further under its manager.
+                <div class="px-4 pb-3" style=format!("padding-left: {}rem", 1.0 + depth as f64 * 1.0)>
                     <p class="mb-1 text-[11px] text-muted">{format!("Reporting to {who}")}</p>
-                    <div class="flex flex-wrap items-start gap-2 pl-4">
+                    <div class="flex flex-wrap items-start gap-2">
                         {cards
                             .into_iter()
                             .map(|(f, at)| view! { <FrameCard frame=f index=at hues=hues /> })
@@ -330,9 +343,11 @@ pub fn FramesStrip(
             .collect_view()}
         {hint.map(|h| view! {
             <p class="px-4 pb-3 text-[12px] text-muted">
-                {hint_text(h)} " "
-                <button class="text-accent hover:underline"
-                        on:click=move |_| navigate("/people", Default::default())>"Open People"</button>
+                {hint_text(h, on_people)} " "
+                {(!on_people).then(|| view! {
+                    <button class="text-accent hover:underline"
+                            on:click=move |_| navigate("/people", Default::default())>"Open People"</button>
+                })}
             </p>
         })}
     }
@@ -490,8 +505,9 @@ mod tests {
         let frames = PeopleFrames {
             me: at(1),
             reports: vec![at(2), at(3)],
-            second_level: vec![minimap_types::SecondLevel {
+            below: vec![minimap_types::ReportGroup {
                 manager: Uuid::from_u128(3),
+                depth: 1,
                 frames: vec![at(4)],
             }],
             hint: None,
@@ -501,11 +517,13 @@ mod tests {
     }
 
     #[test]
-    fn the_hint_points_at_people() {
-        assert_eq!(
-            hint_text(FramesHint::NoReports),
-            "Set managers in People to see your team here."
-        );
+    fn the_hint_says_what_to_do_where_it_is_read() {
+        let on_people = hint_text(FramesHint::NoReports, true);
+        assert!(on_people.contains("list below") && on_people.contains("Manager"));
+        let elsewhere = hint_text(FramesHint::NoReports, false);
+        assert!(elsewhere.contains("On the People screen"));
+        // Neither sends you to People from People.
+        assert!(!on_people.contains("Set managers in People"));
     }
 
     /// Frames are about support, never performance: none of these words appears in anything the

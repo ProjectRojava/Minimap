@@ -293,8 +293,9 @@ pub struct Settings {
     /// How many days you go between 1:1s with a direct report; past that the *Your people* frame
     /// says one is due (spec 49).
     pub one_on_one_every_days: u32,
-    /// Also show the people who report to your direct reports in *Your people* (spec 49).
-    pub frames_second_level: bool,
+    /// Show everyone below your direct reports in *Your people* too, not only the people who
+    /// report to you (spec 49). On by default.
+    pub frames_all_levels: bool,
     /// When a project's lateness, blocked/overdue share or unestimated share turns its health
     /// amber or red.
     pub health: crate::HealthThresholds,
@@ -325,7 +326,7 @@ impl Default for Settings {
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
             zone_narrow_days: DEFAULT_ZONE_NARROW_DAYS,
             one_on_one_every_days: DEFAULT_ONE_ON_ONE_EVERY_DAYS,
-            frames_second_level: false,
+            frames_all_levels: true,
             health: crate::HealthThresholds::default(),
             fog: crate::FogThresholds::default(),
             report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
@@ -348,7 +349,7 @@ pub struct UpdateSettings {
     pub capacity_task_limit: Option<u32>,
     pub zone_narrow_days: Option<u32>,
     pub one_on_one_every_days: Option<u32>,
-    pub frames_second_level: Option<bool>,
+    pub frames_all_levels: Option<bool>,
     pub health: Option<crate::HealthThresholds>,
     pub fog: Option<crate::FogThresholds>,
     /// A new report template; an empty text restores the built-in one.

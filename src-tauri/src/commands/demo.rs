@@ -639,6 +639,25 @@ mod tests {
                 f.flags
             );
         }
+        for group in &frames.below {
+            let manager = frames
+                .reports
+                .iter()
+                .chain(frames.below.iter().flat_map(|g| g.frames.iter()))
+                .find(|f| f.person.node.id == group.manager)
+                .map_or("?", |f| f.person.label.as_str());
+            let names: Vec<&str> = group
+                .frames
+                .iter()
+                .map(|f| f.person.label.as_str())
+                .collect();
+            let _ = writeln!(
+                out,
+                "BELOW {manager} (depth {}): {}",
+                group.depth,
+                names.join(", ")
+            );
+        }
         insta::assert_snapshot!(out);
         // The story the data tells: the overloaded person is over capacity, someone is due a
         // 1:1, and Priya (1:1 today) is not.

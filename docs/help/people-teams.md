@@ -18,11 +18,11 @@ One person is **you** (marked *you*, created on first launch). You can't archive
 
 - **Organization**: their **manager** (one person; a loop of managers is refused), their **direct reports**, and their **teams**, each with a role of *lead* or *member*.
 - The number of **active tasks** assigned to them (the tasks themselves are listed under *Links → Assigned tasks*), the **waiting-ons** you have open on them, and the **notes** that mention them, with a *New 1:1* button that starts a 1:1 note already mentioning them. A 1:1 appears on [This week](help:this-week) for the week it is dated.
-- **Archive**: asks first, in a dialog that lists the open tasks assigned to them. Their assignment links are archived with them; the tasks themselves stay (unassigned).
+- **Archive**: asks first, in a dialog that lists the open tasks assigned to them. You can also point at a row on the People screen and press its **Archive** button (not shown for yourself); `Ctrl/Cmd+Z` brings the person back. Their assignment links are archived with them; the tasks themselves stay (unassigned).
 
 ## Your people
 
-On [This week](help:this-week) (a card after the 1:1s) and at the top of the **People** screen, a small **frame** shows you and each of your **direct reports**: the people who have a *reports to* link to you (set a person's manager in their pane). They are listed **by name**, never by how busy they are. With the setting on (see [Settings](help:settings)) the people who report to your reports are shown too, each group under its manager.
+On [This week](help:this-week) (a card after the 1:1s) and at the top of the **People** screen, a small **frame** shows you and each of your **direct reports**: the people who have a *reports to* link to you (set a person's manager in their pane). They are listed **by name**, never by how busy they are. **Everyone below them is shown too**: if a direct report has people reporting to them, those people appear in a group under their manager (*Reporting to Priya*), indented, and so on down however many levels there are. You can turn that off under [Settings](help:settings), *Thresholds → Your people*.
 
 A frame has three lines:
 
@@ -39,7 +39,7 @@ Point at a frame, or tab into it, for three buttons: **New 1:1** (starts a 1:1 n
 
 Which 1:1 counts as *with* someone: a 1:1 that mentions one person is with them; one that mentions several is with the people whose name is in its title (*1:1 with Priya*), or with everyone it mentions when none is.
 
-**Frames are about support, never performance.** They show load and neglect (yours, of them): there are no scores, no ranking, no health for people, and nothing is sorted by how busy someone is. If nobody reports to you the card shows just you and a reminder to set managers on People.
+**Frames are about support, never performance.** They show load and neglect (yours, of them): there are no scores, no ranking, no health for people, and nothing is sorted by how busy someone is. If nobody reports to you the card shows just you and says what to do: open a person on People and set their manager to you (their pane's *Organization → Manager*).
 
 ## Teams
 

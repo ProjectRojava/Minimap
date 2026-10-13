@@ -17,7 +17,7 @@ Each thing in My view carries a small grey chip that says why it is there. An it
 | *reaches you via Pen test* | Work that sits **upstream** of yours: it blocks (through up to four *blocks* links, never past finished work) one of your open tasks, or a project your project *depends on* (up to three links). Its project is shown too |
 | *blocked by your work* | Work that **your task blocks**, one hop only |
 | *serves your work* | An objective that one of your own projects or tasks contributes to. Work that only reaches you does not count |
-| *reports to you* | A person who has a *reports to* link to you |
+| *reports to you* | A person below you in the reporting tree: someone who reports to you, or to someone who does, and so on |
 | *on your projects* | A person assigned to tasks in projects you own |
 
 Tasks are in if they are open, or finished in the last 14 days, so the Done column of the board isn't empty. A meeting assigned to you is in like any task. Nothing is in My view while there is no "you".
@@ -27,7 +27,7 @@ Tasks are in if they are open, or finished in the last 14 days, so the Done colu
 - **[Overview](help:overview)**: worked out for what touches you, not filtered afterwards. Only your objectives and projects are listed, the **top five risks are chosen among them**, and only your people can be overloaded. An objective's health is still judged by all its work. The counts at the top are those of the projects shown.
 - **[Objectives](help:objectives)**, **[Projects](help:projects)** (list and board; the board keeps all its columns) and **[Tasks](help:tasks)** (board and list; not the Inbox): only what is in My view.
 - **[Dependencies](help:dependencies)**: your tasks, what blocks them and what they block, with the usual dimmed context one link further.
-- **[Capacity](help:capacity)**: you, then your direct reports, then, under *On your projects*, the other people assigned to tasks in your projects.
+- **[Capacity](help:capacity)**: you, then everyone below you, then, under *On your projects*, the other people assigned to tasks in your projects.
 
 Every one of them shows a slim bar under its header while you are in My view, with **Show everything** to go back.
 

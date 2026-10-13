@@ -15,8 +15,8 @@
 //!    `depends_on` for `MAX_PROJECT_HOPS`.
 //! 4. **Objectives** your own projects and tasks contribute to (`Serves`; what only reaches you
 //!    does not count).
-//! 5. **People**: you (`Me`), those who report to you (`Report`) and those assigned to tasks in
-//!    your projects (`OnMyProjects`).
+//! 5. **People**: you (`Me`), everyone below you in the reporting tree (`Report`, direct reports and
+//!    theirs, however far down) and those assigned to tasks in your projects (`OnMyProjects`).
 //! 6. Without a "me" nothing is in scope.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -226,13 +226,26 @@ pub fn my_scope(input: &ScopeInput) -> MyScope {
         .map(|p| p.id)
         .collect();
     add(&mut scope.people, me, Why::Me);
+    // Everyone below you in the reporting tree, however many levels (not only direct reports).
+    let mut reports_of: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
     for e in edges().filter(|e| {
         e.edge_type == EdgeType::ReportsTo
             && e.from_type == NodeType::Person
-            && e.to_id == me
             && live_people.contains(&e.from_id)
     }) {
-        add(&mut scope.people, e.from_id, Why::Report);
+        reports_of.entry(e.to_id).or_default().push(e.from_id);
+    }
+    let mut below: Vec<Uuid> = vec![me];
+    let mut seen: HashSet<Uuid> = HashSet::from([me]);
+    while let Some(manager) = below.pop() {
+        let mut people = reports_of.get(&manager).cloned().unwrap_or_default();
+        people.sort();
+        for person in people {
+            if seen.insert(person) {
+                add(&mut scope.people, person, Why::Report);
+                below.push(person);
+            }
+        }
     }
     for e in edges().filter(|e| {
         e.edge_type == EdgeType::AssignedTo
@@ -665,7 +678,7 @@ mod tests {
         };
         w.edges.extend([
             reports_to(2, ME),
-            reports_to(3, 2), // reports to my report, not to me
+            reports_to(3, 2), // reports to my report: below me, so a report too
             assign(10, 2),    // my report, also working on my project
             assign(11, 3),
             assign(12, 4), // a task outside my projects
@@ -676,7 +689,10 @@ mod tests {
             why(&s.people, 2),
             Some(vec![Why::Report, Why::OnMyProjects])
         );
-        assert_eq!(why(&s.people, 3), Some(vec![Why::OnMyProjects]));
+        assert_eq!(
+            why(&s.people, 3),
+            Some(vec![Why::Report, Why::OnMyProjects])
+        );
         assert_eq!(why(&s.people, 4), None);
     }
 

@@ -12,7 +12,7 @@ So the percentage is *scheduled work ÷ capacity*. Above 100% is overloaded. Une
 
 ## Reading the heatmap
 
-In **My view** (`v`) the heatmap lists you, your direct reports and, under *On your projects*, the other people assigned to tasks in your projects. See [Portfolio view and My view](help:views).
+In **My view** (`v`) the heatmap lists you, everyone below you in the reporting tree and, under *On your projects*, the other people assigned to tasks in your projects. See [Portfolio view and My view](help:views).
 
 Each cell shows the percentage, coloured by band:
 

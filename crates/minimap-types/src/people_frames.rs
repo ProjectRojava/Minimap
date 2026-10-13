@@ -62,10 +62,12 @@ pub enum FramesHint {
     NoReports,
 }
 
-/// The people who report to one of your direct reports, shown under that manager.
+/// The people who report to one person below you, shown under that manager.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SecondLevel {
+pub struct ReportGroup {
     pub manager: Uuid,
+    /// 1 = they report to one of your direct reports, 2 = to one of those, and so on.
+    pub depth: u32,
     pub frames: Vec<Frame>,
 }
 
@@ -74,7 +76,9 @@ pub struct SecondLevel {
 pub struct PeopleFrames {
     pub me: Frame,
     pub reports: Vec<Frame>,
-    /// Only with the setting on; managers without reports of their own are left out.
-    pub second_level: Vec<SecondLevel>,
+    /// Everyone further down the reporting tree, a group for each manager that has people under
+    /// them, each group followed by the groups of its members (so a manager's people sit right
+    /// under them). Only with the setting on (it is, by default).
+    pub below: Vec<ReportGroup>,
     pub hint: Option<FramesHint>,
 }

@@ -8,6 +8,7 @@ use crate::{
         node_row::NodeRow,
         page::{column_head, EmptyState, PageHeader, FORM_BAR},
         people_frames::{nodes_of, use_frames, FramesStrip},
+        people_panel::ask_archive_person,
     },
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
@@ -20,6 +21,7 @@ pub fn People() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let list = expect_context::<ListNav>();
     let selection = expect_context::<Selection>();
+    let confirm = expect_context::<crate::components::confirm_archive::ConfirmArchive>();
 
     let rows = LocalResource::new(move || {
         version.track();
@@ -106,6 +108,7 @@ pub fn People() -> impl IntoView {
                         r.into_iter().enumerate().map(|(i, p)| {
                         let i = i + offset;
                         let node = NodeRef::new(NodeType::Person, p.person.id);
+                        let (pid, pname, is_self) = (p.person.id, p.person.name.clone(), p.person.is_self);
                         let teams = p.teams.iter().map(|t| t.label.clone()).collect::<Vec<_>>().join(", ");
                         view! {
                             <NodeRow node=node index=i>
@@ -119,6 +122,21 @@ pub fn People() -> impl IntoView {
                                     <span class="text-right tabular-nums">{p.active_task_count}</span>
                                     <span class="text-right tabular-nums">{p.open_waiting_on_count}</span>
                                 </div>
+                                // Archive from the list (you can't archive yourself). Asks first;
+                                // Ctrl/Cmd+Z brings the person back.
+                                {(!is_self).then(|| {
+                                    let (id, name) = (pid, pname.clone());
+                                    view! {
+                                        <button class="absolute right-3 top-1.5 hidden rounded bg-hover px-2 text-[11px] text-muted hover:text-danger group-hover:block"
+                                                title="Archive this person (Ctrl/Cmd+Z undoes)"
+                                                on:click=move |ev: leptos::ev::MouseEvent| {
+                                                    ev.stop_propagation();
+                                                    ask_archive_person(id, name.clone(), toasts, version, selection, confirm);
+                                                }>
+                                            "Archive"
+                                        </button>
+                                    }
+                                })}
                             </NodeRow>
                         }
                     }).collect_view().into_any()

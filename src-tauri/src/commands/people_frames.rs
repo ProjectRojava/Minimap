@@ -41,7 +41,7 @@ pub(crate) fn frames_at(conn: &Connection, today: Date) -> Result<Option<PeopleF
         capacity: &capacity,
         stale_waiting_days: settings.stale_waiting_days,
         one_on_one_every_days: settings.one_on_one_every_days,
-        second_level: settings.frames_second_level,
+        all_levels: settings.frames_all_levels,
     }))
 }
 
@@ -163,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn the_settings_set_the_rhythm_and_the_second_level() {
+    fn the_settings_set_the_rhythm_and_whether_everyone_below_is_shown() {
         let mut conn = minimap_store::open_in_memory().unwrap();
         let me = minimap_store::people::ensure_self(&mut conn, "Me")
             .unwrap()
@@ -191,19 +191,20 @@ mod tests {
             Some(date!(2027 - 02 - 24))
         );
         assert_eq!(by_default.reports[0].one_on_one_due, None);
-        assert!(by_default.second_level.is_empty());
+        // Everyone below your reports is shown by default.
+        assert_eq!(by_default.below.len(), 1);
+        assert_eq!(by_default.below[0].frames[0].person.label, "Maya");
         minimap_store::settings::update(
             &mut conn,
             UpdateSettings {
                 one_on_one_every_days: Some(5),
-                frames_second_level: Some(true),
+                frames_all_levels: Some(false),
                 ..Default::default()
             },
         )
         .unwrap();
         let tighter = frames_at(&conn, TODAY).unwrap().unwrap();
         assert_eq!(tighter.reports[0].one_on_one_due, Some(7));
-        assert_eq!(tighter.second_level.len(), 1);
-        assert_eq!(tighter.second_level[0].frames[0].person.label, "Maya");
+        assert!(tighter.below.is_empty(), "off: only your direct reports");
     }
 }
