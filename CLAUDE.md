@@ -140,6 +140,7 @@ DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mod
   3. If no (a refactor, a performance fix, a test, an internal rename), say so in your closing summary: "no Help change needed because ...". Do not skip the question.
   Tests catch some drift (every shortcut chord, screen, settings tab, report placeholder, quoted default, quick-add example and link is checked against the code), but they cannot tell whether prose is still true, so reading the pages your change touches is part of the change. Write the pages for a user, not a developer: say what to do and what will happen.
 - **Changelog** ([CHANGELOG.md](CHANGELOG.md)): **Add to `[Unreleased]` only.** When you complete a spec, fix a bug, or add a feature that users will see or feel, add one line to the appropriate subsection (Added/Changed/Fixed) under `[Unreleased]`. The release manager moves the whole section to a version number and date when tagging. Format: one line, active voice, user-facing language. Link specs (`Spec 24`) or ADRs (`ADR-0012`) if notable. Do not edit version-numbered sections.
+- **UI strings follow [`docs/voice.md`](docs/voice.md)** (what is true, then what to do; plain words; no judging people; Minimap words only for their own feature).
 - Small commits, one logical change each.
 
 ## 12. Commands

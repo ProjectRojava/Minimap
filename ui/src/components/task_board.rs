@@ -780,7 +780,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                             || !filters.due_to.with(String::is_empty);
                         empty.then(|| view! {
                             <p class="pb-3 text-center text-[11px] text-muted">
-                                {if filtered { "No tasks match the filters." } else { "No tasks yet. Press n to add one." }}
+                                {if filtered { "No tasks match the filters. Clear them to see all tasks." } else { "No tasks yet. Press n to add one." }}
                             </p>
                         })
                     }}

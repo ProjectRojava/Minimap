@@ -39,6 +39,10 @@ Every list screen is built from the same pieces (`ui/src/components/page.rs`), s
 - **`EmptyState`** (icon tile, title, hint) instead of a bare sentence; **`Card`** (title, description, body) for Settings. Settings is a **tab strip** under the page header (a 2px accent underline marks the current tab, muted text for the rest; `role=tablist`, arrow keys move) with one scrolling column of cards per tab; the table of tabs is `ui/src/settings_tab.rs`.
 - The Overview adds four **stat tiles** (red / amber / green / not scored) above its lists.
 
+## Brand and voice
+- **Words**: UI strings, toasts, errors, empty states and Help pages follow [`voice.md`](voice.md).
+- **The mark** (`branding/`): `minimap-logo-{dark,light,auto}.svg` (512px: a faint grid, a map line, the viewport box, you as the solid node, a fog vignette on the dark one) and the small marks `minimap-mark-small{,-light,-auto}.svg` (32px: no grid, no gradient, a 2px box, one link, three nodes) for the title bar (16px), the favicon and the 16 to 32px app icons. The logo SVGs are **brand assets, not UI**: they keep their own colours and gradients (the "tokens only, no gradients" rule above is for the app's UI). The teal in the mark stays teal whatever the theme.
+
 ## Sidebar
 `Sidebar` (208px, `bg-panel`): the search box in its own hairline-separated header; the screens in **groups** with 10px uppercase headings (none for the first group, then Plan, People, Log); a footer with Settings and a "Command palette" button showing the shortcut as key chips. Each entry is a 28px row with a 16px **line icon** (`currentColor`, 1.4px round stroke, path data in `ui/src/icons.rs`), the label, and a quiet `g x` key chip that appears on hover. The current screen has `bg-active`, medium weight, `text-fg` and a 2px `bg-fg` bar on its left edge; everything else is `text-muted` and turns `text-fg` on hover. Groups and icons come from the `group` and `icon` fields of `nav::NAV`, so a new screen is one table entry.
 

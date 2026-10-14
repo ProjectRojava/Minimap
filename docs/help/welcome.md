@@ -9,6 +9,10 @@ Minimap is a private command center for running a team or an organisation. It ke
 - **It works things out for you.** Dates, the critical path, project health, workload and the effect of a slip are all computed from your tasks and the links between them. You rarely have to maintain a status by hand.
 - **Keyboard first.** Almost everything has a shortcut, and `Ctrl/Cmd+K` opens a command palette that can add things from one line of text. See [Keyboard shortcuts](help:keyboard) and [Quick-add and the palette](help:quick-add).
 
+## Why the name
+
+In a game, the minimap is the small map in the corner: you don't play on it, you glance at it and get back to the game. Minimap is meant to be used the same way, as a quick look at where things stand, what is coming and what you have not looked at lately. The ideas show up as [the radar](help:radar), [fog](help:fog) and [My view](help:views).
+
 ## Your first ten minutes
 
 1. **Say who you are.** On the first launch Minimap asks for your name. You become the person marked *you* in People.

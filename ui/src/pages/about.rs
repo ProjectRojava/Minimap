@@ -17,6 +17,10 @@ pub const EMAIL: &str = "uditt.lamba@pm.me";
 /// The version of this build: the workspace version, so a release bump is the only change needed.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Why the product is called Minimap (docs/product-design/11-brand-and-voice.md): said once, here
+/// and on the Help welcome page.
+pub const WHY_NAME: &str = "In a game, the minimap is the small map in the corner. You don't play on it; you glance at it and get back to the game. Minimap is meant to be used the same way: a quick look that tells you where things stand, what's coming, and what you haven't looked at lately.";
+
 /// The address that opens the user's mail program with the developer's address filled in.
 pub fn mailto() -> String {
     format!("mailto:{EMAIL}")
@@ -57,6 +61,9 @@ pub fn About() -> impl IntoView {
                         </Row>
                         <Row label="Latest version"><span class="tabular-nums">{VERSION}</span></Row>
                     </Card>
+                    <Card title="Why \u{201c}Minimap\u{201d}">
+                        <p class="text-muted">{WHY_NAME}</p>
+                    </Card>
                 </div>
             </div>
         </div>
@@ -72,6 +79,17 @@ mod tests {
         assert_eq!(DEVELOPER, "Uditt Lamba");
         assert_eq!(EMAIL, "uditt.lamba@pm.me");
         assert_eq!(mailto(), "mailto:uditt.lamba@pm.me");
+    }
+
+    #[test]
+    fn the_page_says_why_the_product_is_called_minimap() {
+        // The idea, in the words of the design doc: the small map you glance at, then get back.
+        assert!(WHY_NAME.starts_with("In a game, the minimap is the small map in the corner."));
+        assert!(WHY_NAME.contains("glance"));
+        assert!(WHY_NAME.contains("what you haven't looked at lately"));
+        // The Help welcome page says the same thing.
+        let welcome = include_str!("../../../docs/help/welcome.md");
+        assert!(welcome.contains("## Why the name"));
     }
 
     #[test]

@@ -64,8 +64,7 @@ struct NodeIdArg {
     node_id: Uuid,
 }
 
-// The Overview used to show this; kept for the `ping` command's own smoke test.
-#[allow(dead_code)]
+/// Asks the backend to answer (the M0 `ping`): the palette shows it for the exact text `ping`.
 pub async fn ping() -> Result<PingResponse, AppError> {
     invoke("ping", &NoArgs {}).await
 }

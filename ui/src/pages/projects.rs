@@ -226,7 +226,7 @@ pub fn Projects() -> impl IntoView {
                 Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load projects."</p> }.into_any(),
                 Some(Ok(g)) if !board.get() && g.is_empty() => view! {
                     <EmptyState icon="projects" title="No projects match"
-                        hint="Add one with New project, or clear the filters." />
+                        hint="Clear the filters to see all projects, or add one with New project." />
                 }.into_any(),
                 Some(Ok(g)) if board.get() => view! { <Board groups=g /> }.into_any(),
                 Some(Ok(g)) => view! { <ListView groups=g /> }.into_any(),

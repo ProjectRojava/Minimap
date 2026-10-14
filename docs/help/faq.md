@@ -44,6 +44,14 @@ The schedule only uses working days, so a weekend start becomes the next working
 
 The preview card says why: an unreadable date, a bad estimate, an unclosed quote, or a question still waiting for your answer (pick, *Create* or *Skip*). See [Quick-add and the palette](help:quick-add).
 
+## Minimap shows its start screen for a long time
+
+While Minimap opens it shows its mark, the line *Starting up*, its version and who made it. It stays for at least five seconds, even when the app is ready sooner, and for as long as the app needs if that is longer. If it takes more than nine seconds the line changes to *Still starting. This can take a moment after an update.* Give it a little longer; if it never goes away, close Minimap and open it again, then see [*Is Minimap itself answering?*](help:faq) below. Your data is not touched while it starts.
+
+## Is Minimap itself answering?
+
+If something looks stuck, type `ping` in the command palette (`Ctrl/Cmd+K`). A single row answers *pong*, with the version of Minimap and the version of the database it runs. If the row says *no answer*, close Minimap and open it again.
+
 ## Google Drive says it needs attention
 
 - **Sign in again**: your access expired or was revoked. Press *Sign in with Google*.

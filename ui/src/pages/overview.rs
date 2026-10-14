@@ -188,8 +188,8 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
         </div>
         {warning_rows}
         {nothing.then(|| view! {
-            <EmptyState icon="overview" title="Nothing to show yet"
-                hint="Add objectives and projects, link projects to objectives (Links → Contributes to), and give them target dates and task estimates: health appears here." />
+            <EmptyState icon="overview" title="No health to show yet"
+                hint="Add objectives and projects, link each project to an objective (Links → Contributes to), and give them target dates and task estimates. Their health appears here." />
         })}
         {has_risks.then(|| view! {
             <Block title="Top risks".to_owned()>

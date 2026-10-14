@@ -120,7 +120,7 @@ pub fn Notes() -> impl IntoView {
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load notes."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
                         <EmptyState icon="notes" title="No notes match"
-                            hint="Press n to write one, or clear the filters." />
+                            hint="Clear the filters to see all notes, or press n to write one." />
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate()
                         .map(|(i, row)| view! { <NoteRowView row=row index=i /> })

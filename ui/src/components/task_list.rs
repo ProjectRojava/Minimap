@@ -116,8 +116,8 @@ impl BoardSort {
     pub fn label(self) -> &'static str {
         match self {
             BoardSort::Default => "Sort: default",
-            BoardSort::DueSoonest => "Sort: deadline, soonest",
-            BoardSort::DueLatest => "Sort: deadline, latest",
+            BoardSort::DueSoonest => "Sort: due date, soonest",
+            BoardSort::DueLatest => "Sort: due date, latest",
             BoardSort::Priority => "Sort: priority",
         }
     }
@@ -663,7 +663,7 @@ pub fn TaskList(
                             } else {
                                 view! {
                                     <EmptyState icon="tasks" title="No tasks match"
-                                        hint="Press n to add one, or adjust the filters." />
+                                        hint="Clear the filters to see all tasks, or press n to add one." />
                                 }.into_any()
                             };
                         }
