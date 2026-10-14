@@ -1,6 +1,6 @@
 # 11 — Brand and voice: the name, the mark and the words
 
-Status: Draft · Milestone: — · Priority: Could · Size: S
+Status: Implemented as spec 54 — awaiting manual check (open questions answered as recommended; the mark is option A1 on dark and A4 on light) · Milestone: — · Priority: Could · Size: S
 Depends on: spec 40 (About), the Help wiki · Read first: [README](README.md)
 Expected ADR: none (record the voice rules in a new `docs/voice.md`; `docs/design.md` links to it)
 
@@ -57,12 +57,12 @@ Nothing.
 A website, marketing copy, a new colour palette (themes are data, ADR-0005), renaming the product, sounds.
 
 ## Acceptance criteria
-- [ ] Small mark SVG added; title bar uses it; large logos updated with the "you" node; icons regenerated with tauri-cli; installer builds.
-- [ ] `docs/voice.md` written with rules, word list and 10 rewrites; linked from `docs/design.md` and `CLAUDE.md` §11.
-- [ ] About shows *Why "Minimap"* (unit test on the constant); Help welcome has *Why the name*.
-- [ ] Empty states reviewed against the voice; changed strings updated in Help; help tests pass.
-- [ ] `ping` in the palette answers pong with version and schema; nowhere else in the UI (palette unit test on `matching`/`build_rows`).
-- [ ] CHANGELOG (*Changed*: new app icon; *Added*: Why the name), knowledge graph (§8 About, palette), `docs/progress.md`; gate passes.
+- [x] Small mark SVG added; title bar uses it; large logos updated with the "you" node; icons regenerated with tauri-cli; installer builds.
+- [x] `docs/voice.md` written with rules, word list and 10 rewrites; linked from `docs/design.md` and `CLAUDE.md` §11.
+- [x] About shows *Why "Minimap"* (unit test on the constant); Help welcome has *Why the name*.
+- [x] Empty states reviewed against the voice; changed strings updated in Help; help tests pass.
+- [x] `ping` in the palette answers pong with version and schema; nowhere else in the UI (palette unit test on `matching`/`build_rows`).
+- [x] CHANGELOG (*Changed*: new app icon; *Added*: Why the name), knowledge graph (§8 About, palette), `docs/progress.md`; gate passes.
 
 ## Not yet verified by hand
 - Title bar at 100% and 200% scaling: the mark reads as a framed map with a dot, not a smudge.
@@ -73,3 +73,10 @@ A website, marketing copy, a new colour palette (themes are data, ADR-0005), ren
 ## Open questions
 1. Keep the teal accent in the logo even though the app's accent depends on the theme? **Yes**: the logo is a brand asset; the app keeps its tokens.
 2. Should the voice guide also govern commit messages and the CHANGELOG? **CHANGELOG yes** (it's user-facing), commits no.
+
+## As built (decisions made while implementing)
+- **Two marks, not one.** The dark logo is the "A1 viewport" option (grid, teal map line, cream box, solid teal "you", fog vignette) and the light logo is "A4" (cream tile, navy box, deep teal `#17877A` "you", no fog). `minimap-logo-auto.svg` switches between them with `prefers-color-scheme`.
+- **Small marks**: `minimap-mark-small.svg` (dark tile), `minimap-mark-small-light.svg` and `minimap-mark-small-auto.svg` (the favicon). The title bar picks the dark or light one by theme kind (`titlebar::mark_for`, tested against `ui/index.html`'s copy list).
+- **Icons**: `cargo tauri icon branding/minimap-logo-dark.svg` made the set (the Android and iOS folders it adds were removed: the app has no mobile target). `32x32.png`, `Square30x30Logo.png` and `Square44x44Logo.png` are the small mark; `icon.ico` was written with the small mark at 16, 24 and 32 and the large logo at 48 to 256, so it does hold the small variant. `icon.icns` is the tool's downscale of the large logo (macOS dock sizes are large; not checked on a Mac).
+- **Voice rewrites**: seven strings changed (the Overview empty state, four "No X match" hints, the board's empty line, and the two "Sort: deadline" labels); no Help page quoted them. `docs/voice.md` lists them as examples with three slips to avoid.
+- **`ping` in the palette**: the exact text `ping` (trimmed) shows one `Row::Pong` first ("pong · Minimap 0.4.0 · schema v18", or "no answer · <message>" if the backend fails); `pin`, `pings`, `Ping` and `ping this` do not. The Overview no longer showed it (`api::ping` was dead code); it is used again.

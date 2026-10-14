@@ -173,7 +173,8 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
     let n_waiting = stale_waiting.len();
 
     view! {
-        <PageHeader icon="overview" title="Overview" subtitle="What is at risk and why, without asking">
+        <PageHeader icon="overview" title="Overview" subtitle="What is at risk and why, without asking"
+                    crumbs=Signal::derive(|| crate::components::zoom::CrumbFocus::World)>
             <span class="text-muted">{counts_line}</span>
             <span class=format!("{CHIP} ml-auto")>{format!("as of {today}")}</span>
         </PageHeader>
@@ -187,8 +188,8 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
         </div>
         {warning_rows}
         {nothing.then(|| view! {
-            <EmptyState icon="overview" title="Nothing to show yet"
-                hint="Add objectives and projects, link projects to objectives (Links → Contributes to), and give them target dates and task estimates: health appears here." />
+            <EmptyState icon="overview" title="No health to show yet"
+                hint="Add objectives and projects, link each project to an objective (Links → Contributes to), and give them target dates and task estimates. Their health appears here." />
         })}
         {has_risks.then(|| view! {
             <Block title="Top risks".to_owned()>

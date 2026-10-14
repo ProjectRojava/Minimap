@@ -5,8 +5,8 @@
 use std::collections::{HashMap, HashSet};
 
 use minimap_types::{
-    Date, DependencyGraph, EdgeType, GraphEdge, GraphLevel, GraphNode, HealthLevel, NewEdge,
-    NodeRef, NodeType, TaskStatus, Uuid,
+    Date, DependencyGraph, EdgeType, GraphEdge, GraphLevel, GraphNode, GraphUnlinked, HealthLevel,
+    NewEdge, NodeRef, NodeType, TaskStatus, Uuid,
 };
 
 use crate::{
@@ -15,6 +15,64 @@ use crate::{
 };
 
 const EPS: f64 = 1e-9;
+
+// ------------------------------------------------------------------ hints
+
+/// The tooltip of a box: what a click and a double-click do.
+pub const NODE_HINT: &str =
+    "Click to expand it and trace it. Double-click to open it on the right.";
+
+/// The last line of an open box's card.
+pub const CARD_HINT: &str =
+    "Click an empty part of this card to close it. Double-click to open it on the right.";
+
+/// The two ends `(from, to)` of the link made by an unlinked item and a box, whether it was
+/// clicked or dropped: forward, the item is the source (it blocks the box, or the project is
+/// needed by it); reverse, the box is. `None` when they are the same item.
+pub fn tray_pair(item: Uuid, target: Uuid, reverse: bool) -> Option<(Uuid, Uuid)> {
+    let pair = if reverse {
+        (target, item)
+    } else {
+        (item, target)
+    };
+    (item != target).then_some(pair)
+}
+
+/// The link made by dropping an unlinked `item` beside the one `waiting` on the graph, from where
+/// it is dropped: the graph reads left to right, so what is on the left blocks what is on the
+/// right (on the Projects level, is needed by it). Dropped to the left of the waiting box's
+/// centre, the item comes first; to the right (or exactly on the centre), it comes after. `None`
+/// when they are the same item.
+pub fn drop_pair(
+    item: Uuid,
+    waiting: Uuid,
+    drop_x: f64,
+    waiting_centre_x: f64,
+) -> Option<(Uuid, Uuid)> {
+    let pair = if drop_x < waiting_centre_x {
+        (item, waiting)
+    } else {
+        (waiting, item)
+    };
+    (item != waiting).then_some(pair)
+}
+
+/// The line over the graph while an unlinked item is dragged and another waits on the graph.
+pub fn drop_beside_banner(waiting_name: &str) -> String {
+    format!(
+        "Drop it to the right of \u{201c}{waiting_name}\u{201d} to put it after, or to the left to put it before (Esc cancels)"
+    )
+}
+
+/// What the waiting box says on its third line.
+pub const WAITING_LINE: &str = "Not linked yet · drop another task beside it";
+
+/// The tooltip of an unlinked card.
+pub const UNLINKED_CARD_HINT: &str =
+    "Drag it onto the graph. Drop a second one to its right (it comes after) or left (it comes before) to link them. Or click it, then a box. Double-click to open it on the right.";
+
+/// The line along the bottom of the graph.
+pub const LEGEND_HINT: &str = "drag to pan · scroll to zoom (out far enough for projects) · click a box to expand it · double-click to open it on the right · drag from a box's handle to link";
 
 // ------------------------------------------------------------------ lenses
 
@@ -748,6 +806,164 @@ pub fn insights(g: &DependencyGraph) -> Vec<Insight> {
     out
 }
 
+// ------------------------------------------------------------------ the unlinked list
+
+/// What the unlinked list is narrowed to. Empty text and empty choices match everything.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UnlinkedFilter {
+    /// Every word must be in the name, the project line, the owner or the status.
+    pub text: String,
+    /// A status word's id (`todo`, `blocked`...), or empty.
+    pub status: String,
+    /// A project's id, `none` for work in no project, or empty.
+    pub project: String,
+    /// A person's id, `none` for work nobody has, or empty.
+    pub owner: String,
+}
+
+impl UnlinkedFilter {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// The status id of an unlinked box (a task's or a project's).
+pub fn status_id(n: &GraphNode) -> String {
+    match (n.task_status, n.project_status) {
+        (Some(s), _) => s.as_str().to_owned(),
+        (None, Some(s)) => s.as_str().to_owned(),
+        _ => String::new(),
+    }
+}
+
+/// Whether one unlinked entry passes the filter.
+pub fn unlinked_matches(item: &GraphUnlinked, f: &UnlinkedFilter) -> bool {
+    let look = &item.look;
+    if !f.status.is_empty() && status_id(look) != f.status {
+        return false;
+    }
+    match f.project.as_str() {
+        "" => {}
+        "none" => {
+            if look.project_id.is_some() {
+                return false;
+            }
+        }
+        id => {
+            if look.project_id.map(|p| p.to_string()).as_deref() != Some(id) {
+                return false;
+            }
+        }
+    }
+    match f.owner.as_str() {
+        "" => {}
+        "none" => {
+            if look.assignee.is_some() {
+                return false;
+            }
+        }
+        id => {
+            if look
+                .assignee
+                .as_ref()
+                .map(|a| a.node.id.to_string())
+                .as_deref()
+                != Some(id)
+            {
+                return false;
+            }
+        }
+    }
+    let hay = format!(
+        "{} {} {} {}",
+        item.label,
+        item.subtitle,
+        look.assignee.as_ref().map_or("", |a| a.label.as_str()),
+        status_word(look)
+    )
+    .to_lowercase();
+    f.text
+        .split_whitespace()
+        .all(|w| hay.contains(&w.to_lowercase()))
+}
+
+/// The entries that pass the filter, in their order (by name).
+pub fn filter_unlinked<'a>(
+    items: &'a [GraphUnlinked],
+    f: &UnlinkedFilter,
+) -> Vec<&'a GraphUnlinked> {
+    items.iter().filter(|i| unlinked_matches(i, f)).collect()
+}
+
+/// The choices a filter box offers, from what is actually in the list: `(value, label)`, the
+/// "any" choice first.
+pub fn status_choices_of(items: &[GraphUnlinked]) -> Vec<(String, String)> {
+    let mut seen: Vec<(String, String)> = Vec::new();
+    for i in items {
+        let id = status_id(&i.look);
+        if !id.is_empty() && !seen.iter().any(|(v, _)| *v == id) {
+            seen.push((id, status_word(&i.look)));
+        }
+    }
+    seen.sort_by(|a, b| a.1.cmp(&b.1));
+    std::iter::once((String::new(), "Any status".to_owned()))
+        .chain(seen)
+        .collect()
+}
+
+/// People who own something in the list, then "Unassigned" when some of it has no owner.
+pub fn owner_choices_of(items: &[GraphUnlinked]) -> Vec<(String, String)> {
+    let mut people: Vec<(String, String)> = Vec::new();
+    for i in items {
+        if let Some(a) = &i.look.assignee {
+            let id = a.node.id.to_string();
+            if !people.iter().any(|(v, _)| *v == id) {
+                people.push((id, a.label.clone()));
+            }
+        }
+    }
+    people.sort_by_key(|p| p.1.to_lowercase());
+    let mut out = vec![(String::new(), "Anyone".to_owned())];
+    out.extend(people);
+    if items.iter().any(|i| i.look.assignee.is_none()) {
+        out.push(("none".to_owned(), "Unassigned".to_owned()));
+    }
+    out
+}
+
+/// Projects that hold something in the list (named by `name_of`), then "No project" when some of
+/// it is in none.
+pub fn project_choices_of(
+    items: &[GraphUnlinked],
+    name_of: &dyn Fn(Uuid) -> Option<String>,
+) -> Vec<(String, String)> {
+    let mut projects: Vec<(String, String)> = Vec::new();
+    for i in items {
+        if let Some(p) = i.look.project_id {
+            let id = p.to_string();
+            if !projects.iter().any(|(v, _)| *v == id) {
+                projects.push((id, name_of(p).unwrap_or_else(|| "A project".to_owned())));
+            }
+        }
+    }
+    projects.sort_by_key(|p| p.1.to_lowercase());
+    let mut out = vec![(String::new(), "Any project".to_owned())];
+    out.extend(projects);
+    if items.iter().any(|i| i.look.project_id.is_none()) {
+        out.push(("none".to_owned(), "No project".to_owned()));
+    }
+    out
+}
+
+/// What the list's header says: how many there are, and how many pass the filter.
+pub fn unlinked_count_text(total: u32, shown: usize, filtered: bool) -> String {
+    if filtered {
+        format!("Unlinked ({shown} of {total})")
+    } else {
+        format!("Unlinked ({total})")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -770,6 +986,7 @@ mod tests {
             layer: 0,
             context: false,
             expanded: false,
+            waiting: false,
             done: false,
             critical: false,
             late: false,
@@ -1258,5 +1475,210 @@ mod tests {
         assert_eq!(Lens::Route.label(), "Route");
         assert_eq!(initials("priya nair"), "PN");
         assert_eq!(short_date(date!(2027 - 10 - 07)), "Oct 7");
+    }
+
+    // ---- the unlinked list
+
+    fn unlinked(n: u128, label: &str, f: impl Fn(&mut GraphNode)) -> GraphUnlinked {
+        let mut look = node(n, label);
+        f(&mut look);
+        GraphUnlinked {
+            node: look.node,
+            label: label.into(),
+            subtitle: look.subtitle.clone(),
+            look,
+        }
+    }
+
+    fn person(n: u128, name: &str) -> NodeSummary {
+        NodeSummary {
+            node: NodeRef::new(NodeType::Person, id(n)),
+            label: name.into(),
+            archived: false,
+        }
+    }
+
+    fn list() -> Vec<GraphUnlinked> {
+        vec![
+            unlinked(1, "Select a data provider", |n| {
+                n.assignee = Some(person(100, "Udit"));
+                n.project_id = Some(id(50));
+                n.subtitle = "Small Bonds Portal".into();
+            }),
+            unlinked(2, "Rotate credentials", |n| {
+                n.task_status = Some(TaskStatus::Blocked);
+                n.assignee = Some(person(101, "Vinay"));
+                n.project_id = Some(id(51));
+                n.subtitle = "Platform".into();
+            }),
+            unlinked(3, "Book the offsite", |n| {
+                n.task_status = Some(TaskStatus::InProgress);
+                n.subtitle = "Inbox".into();
+            }),
+        ]
+    }
+
+    fn found(f: &UnlinkedFilter) -> Vec<String> {
+        filter_unlinked(&list(), f)
+            .into_iter()
+            .map(|u| u.label.clone())
+            .collect()
+    }
+
+    #[test]
+    fn an_empty_filter_keeps_everything_in_order() {
+        assert!(UnlinkedFilter::default().is_empty());
+        assert_eq!(
+            found(&UnlinkedFilter::default()),
+            [
+                "Select a data provider",
+                "Rotate credentials",
+                "Book the offsite"
+            ]
+        );
+    }
+
+    #[test]
+    fn the_search_needs_every_word_in_the_name_project_owner_or_status() {
+        let text = |t: &str| UnlinkedFilter {
+            text: t.into(),
+            ..Default::default()
+        };
+        assert_eq!(found(&text("provider")), ["Select a data provider"]);
+        assert_eq!(found(&text("DATA  select")), ["Select a data provider"]);
+        // The project line, the owner and the status are searched too.
+        assert_eq!(found(&text("platform")), ["Rotate credentials"]);
+        assert_eq!(found(&text("vinay")), ["Rotate credentials"]);
+        assert_eq!(found(&text("in progress")), ["Book the offsite"]);
+        assert!(found(&text("provider vinay")).is_empty());
+        assert!(found(&text("zzz")).is_empty());
+    }
+
+    #[test]
+    fn status_project_and_owner_each_narrow_the_list() {
+        let blocked = UnlinkedFilter {
+            status: "blocked".into(),
+            ..Default::default()
+        };
+        assert_eq!(found(&blocked), ["Rotate credentials"]);
+        let project = UnlinkedFilter {
+            project: id(50).to_string(),
+            ..Default::default()
+        };
+        assert_eq!(found(&project), ["Select a data provider"]);
+        let inbox = UnlinkedFilter {
+            project: "none".into(),
+            ..Default::default()
+        };
+        assert_eq!(found(&inbox), ["Book the offsite"]);
+        let udit = UnlinkedFilter {
+            owner: id(100).to_string(),
+            ..Default::default()
+        };
+        assert_eq!(found(&udit), ["Select a data provider"]);
+        let nobody = UnlinkedFilter {
+            owner: "none".into(),
+            ..Default::default()
+        };
+        assert_eq!(found(&nobody), ["Book the offsite"]);
+        // They combine: all must hold.
+        let both = UnlinkedFilter {
+            status: "blocked".into(),
+            owner: id(100).to_string(),
+            ..Default::default()
+        };
+        assert!(found(&both).is_empty());
+    }
+
+    #[test]
+    fn the_filter_boxes_offer_only_what_is_in_the_list() {
+        let items = list();
+        let statuses: Vec<String> = status_choices_of(&items)
+            .into_iter()
+            .map(|(_, l)| l)
+            .collect();
+        assert_eq!(statuses, ["Any status", "Blocked", "In progress", "To do"]);
+        let owners: Vec<String> = owner_choices_of(&items)
+            .into_iter()
+            .map(|(_, l)| l)
+            .collect();
+        assert_eq!(owners, ["Anyone", "Udit", "Vinay", "Unassigned"]);
+        let name = |p: Uuid| (p == id(50)).then(|| "Small Bonds Portal".to_owned());
+        let projects: Vec<String> = project_choices_of(&items, &name)
+            .into_iter()
+            .map(|(_, l)| l)
+            .collect();
+        assert_eq!(
+            projects,
+            [
+                "Any project",
+                "A project",
+                "Small Bonds Portal",
+                "No project"
+            ]
+        );
+        // Nothing unassigned, nothing in the inbox: those choices are not offered.
+        let only = vec![items[0].clone()];
+        assert_eq!(owner_choices_of(&only).len(), 2);
+        assert_eq!(project_choices_of(&only, &name).len(), 2);
+    }
+
+    #[test]
+    fn a_dropped_or_clicked_item_links_in_the_direction_asked_for() {
+        let (item, target) = (id(1), id(2));
+        // Forward: the item blocks the box. Reverse: the box blocks the item.
+        assert_eq!(tray_pair(item, target, false), Some((item, target)));
+        assert_eq!(tray_pair(item, target, true), Some((target, item)));
+        // Dropping something on itself makes no link.
+        assert_eq!(tray_pair(item, item, false), None);
+        // And the link it makes is the one a drag from a box's handle makes.
+        let edge = new_link(GraphLevel::Tasks, item, target);
+        assert_eq!((edge.from.id, edge.to.id), (item, target));
+    }
+
+    #[test]
+    fn dropping_beside_the_waiting_box_follows_the_left_to_right_convention() {
+        let (item, waiting) = (id(1), id(2));
+        // To the right of the waiting box: it blocks the item (the item comes after).
+        assert_eq!(
+            drop_pair(item, waiting, 500.0, 300.0),
+            Some((waiting, item))
+        );
+        // To the left: the item blocks it (the item comes first).
+        assert_eq!(
+            drop_pair(item, waiting, 100.0, 300.0),
+            Some((item, waiting))
+        );
+        // Exactly on the centre counts as the right.
+        assert_eq!(
+            drop_pair(item, waiting, 300.0, 300.0),
+            Some((waiting, item))
+        );
+        // The same task dropped twice links nothing.
+        assert_eq!(drop_pair(item, item, 100.0, 300.0), None);
+        // And the pair is the order `new_link` draws left to right.
+        let edge = new_link(GraphLevel::Tasks, item, waiting);
+        assert_eq!((edge.from.id, edge.to.id), (item, waiting));
+        assert!(drop_beside_banner("Fetch").contains("right of \u{201c}Fetch\u{201d}"));
+        assert!(WAITING_LINE.contains("Not linked yet"));
+    }
+
+    #[test]
+    fn the_header_says_how_many_pass() {
+        assert_eq!(unlinked_count_text(14, 14, false), "Unlinked (14)");
+        assert_eq!(unlinked_count_text(14, 3, true), "Unlinked (3 of 14)");
+    }
+
+    #[test]
+    fn the_hints_say_what_a_click_and_a_double_click_do() {
+        for hint in [NODE_HINT, CARD_HINT, LEGEND_HINT] {
+            assert!(
+                hint.contains("double-click") || hint.contains("Double-click"),
+                "{hint}"
+            );
+            assert!(hint.contains("right"), "{hint}");
+        }
+        assert!(NODE_HINT.contains("expand"));
+        assert!(LEGEND_HINT.contains("click a box to expand it"));
     }
 }

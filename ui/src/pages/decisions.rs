@@ -95,7 +95,7 @@ pub fn Decisions() -> impl IntoView {
                     Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load decisions."</p> }.into_any(),
                     Some(Ok(r)) if r.is_empty() => view! {
                         <EmptyState icon="decisions" title="No decisions match"
-                            hint="Press n to record one, or clear the filters." />
+                            hint="Clear the filters to see all decisions, or press n to record one." />
                     }.into_any(),
                     Some(Ok(r)) => r.into_iter().enumerate()
                         .map(|(i, row)| view! { <DecisionRowView row=row index=i /> })

@@ -16,6 +16,14 @@ const CAPTION: &str = "inline-flex h-full w-11 items-center justify-center text-
 const CAPTION_CLOSE: &str = "inline-flex h-full w-11 items-center justify-center text-muted \
     hover:bg-danger hover:text-canvas focus-visible:outline-none";
 
+/// The small mark for a theme of this kind.
+pub fn mark_for(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Dark => "/minimap-mark-small.svg",
+        Kind::Light => "/minimap-mark-small-light.svg",
+    }
+}
+
 fn report(result: Result<(), AppError>, toasts: Toasts) {
     if let Err(e) = result {
         toasts.error(&e);
@@ -27,14 +35,9 @@ pub fn TitleBar() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let theme = expect_context::<ThemeCtx>();
     let platform = Platform::detect();
-    // The logo has a dark and a light tile; pick the one that sits well on the theme.
-    let logo = move || {
-        if theme.current().kind == Kind::Dark {
-            "/minimap-logo-dark.svg"
-        } else {
-            "/minimap-logo-light.svg"
-        }
-    };
+    // The small mark (no grid, no gradient: it has to read at 16px) has a dark and a light tile;
+    // pick the one that sits well on the theme.
+    let logo = move || mark_for(theme.current().kind);
     let maximized = RwSignal::new(false);
 
     let refresh = move || {
@@ -68,6 +71,7 @@ pub fn TitleBar() -> impl IntoView {
                 <img src=logo alt="" class="pointer-events-none h-4 w-4" />
                 <span class="pointer-events-none text-[12px] text-muted">"Minimap"</span>
             </div>
+            <crate::components::radar::RadarButton />
             <crate::components::orientation::ViewToggle />
             <Show when=move || platform.draws_window_controls()>
                 <button class=CAPTION aria-label="Minimize" title="Minimize" on:click=minimize>
@@ -119,5 +123,25 @@ fn ResizeHandles(maximized: RwSignal<bool>) -> impl IntoView {
                      }></div>
             }).collect_view()}
         </Show>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_title_bar_wears_the_small_mark_that_suits_the_theme() {
+        assert_eq!(mark_for(Kind::Dark), "/minimap-mark-small.svg");
+        assert_eq!(mark_for(Kind::Light), "/minimap-mark-small-light.svg");
+        // Trunk only serves what index.html copies.
+        let html = include_str!("../../index.html");
+        for path in [mark_for(Kind::Dark), mark_for(Kind::Light)] {
+            let file = path.trim_start_matches('/');
+            assert!(
+                html.contains(&format!("branding/{file}\"")),
+                "{file} is not copied"
+            );
+        }
     }
 }

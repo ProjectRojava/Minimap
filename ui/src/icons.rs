@@ -85,6 +85,14 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 14.2S3.5 10 3.5 6.6a4.5 4.5 0 0 1 9 0C12.5 10 8 14.2 8 14.2z",
             "M8 5.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z",
         ],
+        // The radar (spec 53): rings and the line that sweeps them.
+        "radar" => &[
+            "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z",
+            "M8 5.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z",
+            "M8 8l3.6-3.6",
+        ],
+        // Keep a window on top of the others.
+        "pin-top" => &["M5 2.5h6", "M6.2 2.5v4L4 9.5h8L9.8 6.5v-4", "M8 9.5v4"],
         "star" => &["M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"],
         "attach" => &["M12.6 7.6 7.5 12.7a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8L6.2 11.3a1 1 0 0 1-1.4-1.4l4.9-4.9"],
         "lock" => &[
@@ -195,6 +203,8 @@ mod tests {
             "attach",
             "star",
             "ping",
+            "radar",
+            "pin-top",
             "save",
             "north",
             "me",

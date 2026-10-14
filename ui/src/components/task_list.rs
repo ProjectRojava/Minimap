@@ -116,8 +116,8 @@ impl BoardSort {
     pub fn label(self) -> &'static str {
         match self {
             BoardSort::Default => "Sort: default",
-            BoardSort::DueSoonest => "Sort: deadline, soonest",
-            BoardSort::DueLatest => "Sort: deadline, latest",
+            BoardSort::DueSoonest => "Sort: due date, soonest",
+            BoardSort::DueLatest => "Sort: due date, latest",
             BoardSort::Priority => "Sort: priority",
         }
     }
@@ -605,7 +605,8 @@ pub fn TaskList(
 
     view! {
         <div class="flex flex-col h-full">
-            <PageHeader icon=if inbox { "inbox" } else { "tasks" } title=if inbox { "Inbox" } else { "Tasks" } subtitle="Work you or your team own, with estimates and due dates">
+            <PageHeader icon=if inbox { "inbox" } else { "tasks" } title=if inbox { "Inbox" } else { "Tasks" } subtitle="Work you or your team own, with estimates and due dates"
+                        crumbs=crate::components::zoom::project_crumbs(filters.project)>
                 <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New task" }}
                 </button>
@@ -662,7 +663,7 @@ pub fn TaskList(
                             } else {
                                 view! {
                                     <EmptyState icon="tasks" title="No tasks match"
-                                        hint="Press n to add one, or adjust the filters." />
+                                        hint="Clear the filters to see all tasks, or press n to add one." />
                                 }.into_any()
                             };
                         }

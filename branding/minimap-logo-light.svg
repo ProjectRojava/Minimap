@@ -1,35 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <title>Minimap – Light</title>
+  <!-- The same mark on a light tile. Brand asset: it keeps its own colours and gradients. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F7F4EC"/>
-      <stop offset="1" stop-color="#E6E0D2"/>
+      <stop offset="0" stop-color="#FBF8F0"/>
+      <stop offset="1" stop-color="#E9E3D4"/>
     </linearGradient>
-    <radialGradient id="fog" cx="0.5" cy="0.5" r="0.72">
-      <stop offset="0.55" stop-color="#E6E0D2" stop-opacity="0"/>
-      <stop offset="1" stop-color="#E6E0D2" stop-opacity="0.9"/>
-    </radialGradient>
     <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
   <g clip-path="url(#tile)">
-    <g stroke="#14263D" stroke-opacity="0.08" stroke-width="3">
+    <g stroke="#16293F" stroke-opacity="0.06" stroke-width="3">
       <path d="M64 0V512M128 0V512M192 0V512M256 0V512M320 0V512M384 0V512M448 0V512"/>
       <path d="M0 64H512M0 128H512M0 192H512M0 256H512M0 320H512M0 384H512M0 448H512"/>
     </g>
-    <g fill="none" stroke="#1E9E91" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M112 384 L196 236 L300 300 L400 148"/>
-      <path d="M300 300 L392 400"/>
-    </g>
-    <rect x="152" y="196" width="196" height="148" rx="20" fill="#14263D" fill-opacity="0.05" stroke="#14263D" stroke-width="12"/>
-    <g fill="#1E9E91">
-      <circle cx="112" cy="384" r="24"/>
-      <circle cx="196" cy="236" r="24"/>
-      <circle cx="400" cy="148" r="24"/>
-      <circle cx="392" cy="400" r="24"/>
-    </g>
-    <circle cx="300" cy="300" r="46" fill="#F29B1F" fill-opacity="0.22"/>
-    <circle cx="300" cy="300" r="30" fill="#F29B1F"/>
-    <rect width="512" height="512" fill="url(#fog)"/>
+    <path d="M104 392 L292 300 L408 140" fill="none" stroke="#17877A" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.5"/>
+    <rect x="148" y="196" width="200" height="152" rx="22" fill="#16293F" fill-opacity="0.05" stroke="#16293F" stroke-width="14"/>
+    <g fill="#17877A" fill-opacity="0.5"><circle cx="104" cy="392" r="24"/><circle cx="408" cy="140" r="24"/></g>
+    <circle cx="292" cy="300" r="62" fill="#17877A" fill-opacity="0.18"/>
+    <circle cx="292" cy="300" r="36" fill="#17877A"/>
   </g>
 </svg>

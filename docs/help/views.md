@@ -33,6 +33,9 @@ Every one of them shows a slim bar under its header while you are in My view, wi
 
 [This week](help:this-week), the weekly review, Notes, Decisions, Waiting on, People, Teams, Settings and Help ignore the view: they are already about you, or about everything on purpose. The button stays in the title bar, but nothing changes there.
 
+
+The [radar](help:radar) window follows the view too: its own button and the title-bar button are the same choice, so a switch in one window is followed by the other.
+
 ## Good to know
 
 - My view changes what you **see**, never what is stored: nothing is moved, hidden or archived.

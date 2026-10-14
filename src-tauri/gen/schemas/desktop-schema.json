@@ -285,6 +285,12 @@
           "markdownDescription": "Enables the clear_ping command without any pre-configured scope."
         },
         {
+          "description": "Enables the close_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-close-radar",
+          "markdownDescription": "Enables the close_radar command without any pre-configured scope."
+        },
+        {
           "description": "Enables the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "allow-commit-quick-add",
@@ -453,6 +459,12 @@
           "markdownDescription": "Enables the get_data_info command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_data_revision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-data-revision",
+          "markdownDescription": "Enables the get_data_revision command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_decision command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-decision",
@@ -561,6 +573,12 @@
           "markdownDescription": "Enables the get_project_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-radar",
+          "markdownDescription": "Enables the get_radar command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_recovery_key command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-recovery-key",
@@ -643,6 +661,12 @@
           "type": "string",
           "const": "allow-get-weekly-review",
           "markdownDescription": "Enables the get_weekly_review command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_zoom_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-zoom-path",
+          "markdownDescription": "Enables the get_zoom_path command without any pre-configured scope."
         },
         {
           "description": "Enables the list_activity_for command without any pre-configured scope.",
@@ -741,10 +765,22 @@
           "markdownDescription": "Enables the open_attachment command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_in_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-in-main",
+          "markdownDescription": "Enables the open_in_main command without any pre-configured scope."
+        },
+        {
           "description": "Enables the open_link command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open-link",
           "markdownDescription": "Enables the open_link command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-radar",
+          "markdownDescription": "Enables the open_radar command without any pre-configured scope."
         },
         {
           "description": "Enables the parse_quick_add command without any pre-configured scope.",
@@ -915,6 +951,12 @@
           "markdownDescription": "Enables the set_meeting command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_radar_on_top command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-radar-on-top",
+          "markdownDescription": "Enables the set_radar_on_top command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_recurrence command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-recurrence",
@@ -949,6 +991,12 @@
           "type": "string",
           "const": "allow-sync-now",
           "markdownDescription": "Enables the sync_now command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the toggle_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-toggle-radar",
+          "markdownDescription": "Enables the toggle_radar command without any pre-configured scope."
         },
         {
           "description": "Enables the undo_last command without any pre-configured scope.",
@@ -1143,6 +1191,12 @@
           "markdownDescription": "Denies the clear_ping command without any pre-configured scope."
         },
         {
+          "description": "Denies the close_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-close-radar",
+          "markdownDescription": "Denies the close_radar command without any pre-configured scope."
+        },
+        {
           "description": "Denies the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "deny-commit-quick-add",
@@ -1311,6 +1365,12 @@
           "markdownDescription": "Denies the get_data_info command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_data_revision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-data-revision",
+          "markdownDescription": "Denies the get_data_revision command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_decision command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-decision",
@@ -1419,6 +1479,12 @@
           "markdownDescription": "Denies the get_project_detail command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-radar",
+          "markdownDescription": "Denies the get_radar command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_recovery_key command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-recovery-key",
@@ -1501,6 +1567,12 @@
           "type": "string",
           "const": "deny-get-weekly-review",
           "markdownDescription": "Denies the get_weekly_review command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_zoom_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-zoom-path",
+          "markdownDescription": "Denies the get_zoom_path command without any pre-configured scope."
         },
         {
           "description": "Denies the list_activity_for command without any pre-configured scope.",
@@ -1599,10 +1671,22 @@
           "markdownDescription": "Denies the open_attachment command without any pre-configured scope."
         },
         {
+          "description": "Denies the open_in_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-in-main",
+          "markdownDescription": "Denies the open_in_main command without any pre-configured scope."
+        },
+        {
           "description": "Denies the open_link command without any pre-configured scope.",
           "type": "string",
           "const": "deny-open-link",
           "markdownDescription": "Denies the open_link command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-radar",
+          "markdownDescription": "Denies the open_radar command without any pre-configured scope."
         },
         {
           "description": "Denies the parse_quick_add command without any pre-configured scope.",
@@ -1773,6 +1857,12 @@
           "markdownDescription": "Denies the set_meeting command without any pre-configured scope."
         },
         {
+          "description": "Denies the set_radar_on_top command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-radar-on-top",
+          "markdownDescription": "Denies the set_radar_on_top command without any pre-configured scope."
+        },
+        {
           "description": "Denies the set_recurrence command without any pre-configured scope.",
           "type": "string",
           "const": "deny-set-recurrence",
@@ -1807,6 +1897,12 @@
           "type": "string",
           "const": "deny-sync-now",
           "markdownDescription": "Denies the sync_now command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the toggle_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-toggle-radar",
+          "markdownDescription": "Denies the toggle_radar command without any pre-configured scope."
         },
         {
           "description": "Denies the undo_last command without any pre-configured scope.",

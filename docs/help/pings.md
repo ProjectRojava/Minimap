@@ -53,6 +53,10 @@ Name the item with `#project`, `@person`, or `task:"…"`, `objective:"…"` or 
 
 On the Pings card, press `x` on the highlighted row, or use **Clear**. **Tomorrow** and **Next week** put it off instead. The strip in the pane and the box have **Clear** too. Clearing again keeps the first day it was cleared. Pinging a cleared item makes a new ping.
 
+## On the radar
+
+A ping that has come due shows on the [radar](help:radar): a pin on its own when the item is not otherwise on it, or a small dot on the corner of the item's blip when it is. The radar's bottom line counts the pings due today.
+
 ## Good to know
 
 - **Archived items.** A ping on an archived item is hidden, not deleted. Restore the item and the ping is back. You can't ping an archived item.

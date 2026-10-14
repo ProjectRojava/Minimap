@@ -4,12 +4,81 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Minimap</title>
-    <link data-trunk rel="icon" href="../branding/minimap-logo-auto.svg" />
-    <link data-trunk rel="copy-file" href="../branding/minimap-logo-auto.svg" />
-    <link data-trunk rel="copy-file" href="../branding/minimap-logo-dark.svg" />
-    <link data-trunk rel="copy-file" href="../branding/minimap-logo-light.svg" />
+    <link data-trunk rel="icon" href="../branding/minimap-mark-small-auto.svg" />
+    <link data-trunk rel="copy-file" href="../branding/minimap-mark-small.svg" />
+    <link data-trunk rel="copy-file" href="../branding/minimap-mark-small-light.svg" />
     <link data-trunk rel="tailwind-css" href="style/input.css" />
     <link data-trunk rel="rust" data-wasm-opt="z" />
+    <!-- The splash screen (docs/product-design/13-splash-screen.md): what the window shows while the
+         app downloads and starts. Plain HTML and CSS, no script, so it paints at once; the app removes
+         it once it has mounted and five seconds have passed (`ui/src/splash.rs`). The version and the
+         author are typed here and checked against the About page by a test. Always the dark default: that is the window's own
+         background colour, so nothing flashes. -->
+    <style>
+      #splash {
+        position: fixed; inset: 0; z-index: 1000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 14px; background: var(--canvas, #1e1f21); color: var(--fg, #d4d4d4);
+        font-family: "Inter", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        transition: opacity 220ms ease-out;
+      }
+      #splash.splash-out { opacity: 0; pointer-events: none; }
+      #splash svg { width: min(112px, 42vmin); height: auto; display: block; }
+      #splash .splash-name { font-size: 15px; font-weight: 600; letter-spacing: 0.04em; }
+      #splash .splash-note { position: relative; height: 34px; width: 100%; box-sizing: border-box; padding: 0 16px; font-size: 12px; line-height: 16px; color: var(--muted, #9a9ca1); text-align: center; }
+      #splash .splash-note span { position: absolute; left: 16px; right: 16px; opacity: 0; animation-fill-mode: forwards; }
+      #splash .splash-start { animation: splash-in 400ms ease-out 700ms forwards, splash-away 300ms ease-out 9s forwards; }
+      #splash .splash-slow { animation: splash-in 400ms ease-out 9.3s forwards; }
+      /* The viewport box draws itself in, then "you" pulses once. */
+      #splash .splash-meta { position: absolute; left: 16px; right: 16px; bottom: 18px; text-align: center; font-size: 11px; line-height: 16px; color: var(--faint, #64666b); opacity: 0; animation: splash-in 500ms ease-out 400ms forwards; }
+      #splash .splash-meta .splash-version { color: var(--muted, #9a9ca1); font-variant-numeric: tabular-nums; }
+      #splash .splash-box { stroke-dasharray: 1; stroke-dashoffset: 1; animation: splash-draw 700ms ease-out 150ms forwards; }
+      #splash .splash-halo { transform-origin: 292px 300px; animation: splash-pulse 1400ms ease-in-out 800ms 2; }
+      @keyframes splash-draw { to { stroke-dashoffset: 0; } }
+      @keyframes splash-pulse { 0%, 100% { transform: scale(1); opacity: 0.2; } 50% { transform: scale(1.35); opacity: 0.4; } }
+      @keyframes splash-in { to { opacity: 1; } }
+      @keyframes splash-away { to { opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash { transition: none; }
+        #splash .splash-box { animation: none; stroke-dashoffset: 0; }
+        #splash .splash-meta { animation: splash-in 1ms 400ms forwards; }
+        #splash .splash-halo { animation: none; }
+        #splash .splash-start { animation: splash-in 1ms 700ms forwards, splash-away 1ms 9s forwards; }
+        #splash .splash-slow { animation: splash-in 1ms 9s forwards; }
+      }
+    </style>
   </head>
-  <body></body>
+  <body>
+    <div id="splash" role="status" aria-live="polite">
+      <svg viewBox="0 0 512 512" aria-hidden="true">
+        <defs>
+          <linearGradient id="sp-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#16293F"/><stop offset="1" stop-color="#0B1524"/></linearGradient>
+          <radialGradient id="sp-fog" cx="0.5" cy="0.5" r="0.72"><stop offset="0.55" stop-color="#0B1524" stop-opacity="0"/><stop offset="1" stop-color="#0B1524" stop-opacity="0.85"/></radialGradient>
+          <clipPath id="sp-tile"><rect width="512" height="512" rx="112"/></clipPath>
+        </defs>
+        <rect width="512" height="512" rx="112" fill="url(#sp-bg)"/>
+        <g clip-path="url(#sp-tile)">
+          <g stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="3">
+            <path d="M64 0V512M128 0V512M192 0V512M256 0V512M320 0V512M384 0V512M448 0V512"/>
+            <path d="M0 64H512M0 128H512M0 192H512M0 256H512M0 320H512M0 384H512M0 448H512"/>
+          </g>
+          <path d="M104 392 L292 300 L408 140" fill="none" stroke="#3FC7B8" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55"/>
+          <rect class="splash-box" pathLength="1" x="148" y="196" width="200" height="152" rx="22" fill="#FFFFFF" fill-opacity="0.07" stroke="#F7F4EC" stroke-width="14"/>
+          <g fill="#3FC7B8" fill-opacity="0.55"><circle cx="104" cy="392" r="24"/><circle cx="408" cy="140" r="24"/></g>
+          <circle class="splash-halo" cx="292" cy="300" r="62" fill="#3FC7B8" fill-opacity="0.2"/>
+          <circle cx="292" cy="300" r="36" fill="#3FC7B8"/>
+          <rect width="512" height="512" fill="url(#sp-fog)"/>
+        </g>
+      </svg>
+      <div class="splash-name">Minimap</div>
+      <div class="splash-note">
+        <span class="splash-start">Starting up</span>
+        <span class="splash-slow">Still starting. This can take a moment after an update.</span>
+      </div>
+      <div class="splash-meta">
+        <div class="splash-version">Version 0.4.0</div>
+        <div>Uditt Lamba · uditt.lamba@pm.me</div>
+      </div>
+    </div>
+  </body>
 </html>

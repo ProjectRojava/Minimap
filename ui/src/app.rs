@@ -45,6 +45,11 @@ use crate::{
 
 #[component]
 pub fn App() -> impl IntoView {
+    // The radar (spec 53) is a second window of the same app: a page of its own, with none of the
+    // shell, that only reads.
+    if crate::window::is_radar_window() {
+        return view! { <crate::pages::radar::RadarApp /> }.into_any();
+    }
     provide_context(Selection(RwSignal::new(None)));
     provide_context(PaletteOpen(RwSignal::new(false)));
     provide_context(LinkDialog(RwSignal::new(None)));
@@ -78,6 +83,7 @@ pub fn App() -> impl IntoView {
             <LockGate />
         </Router>
     }
+    .into_any()
 }
 
 /// An encrypted database that is waiting for its key shows the unlock screen instead of the app
@@ -97,7 +103,12 @@ fn LockGate() -> impl IntoView {
 /// Sidebar | page | detail pane, plus toasts and keyboard shortcuts.
 #[component]
 fn Shell() -> impl IntoView {
+    // Zoom between the portfolio, an objective, a project and an item (spec 52). Before the
+    // shortcuts, which ask for it.
+    crate::state::ZoomCtx::provide();
     use_global_shortcuts();
+    // The radar window asks for an item to be opened here (spec 53).
+    crate::components::radar::use_open_requests();
     // Google Drive status, polled for the status bar, banners and Settings; a merge from another
     // computer reloads every screen.
     use_sync_status();
@@ -148,6 +159,7 @@ fn Shell() -> impl IntoView {
             <DetailPane />
             </div>
             <StatusBar />
+            <crate::components::zoom::ZoomHost />
             <PaletteHost />
             <LinkDialogHost />
             <crate::components::finish_decision::FinishDecisionHost />

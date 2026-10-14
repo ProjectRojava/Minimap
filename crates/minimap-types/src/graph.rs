@@ -40,6 +40,10 @@ pub struct GraphFilter {
     /// The one box laid out large enough to show its details (spec 47): the layout makes room
     /// for it. Ignored when it isn't in the graph.
     pub expanded: Option<Uuid>,
+    /// An unlinked task (or project) dropped onto the graph from the unlinked list: drawn even
+    /// though nothing links to it, in a place of its own below the graph, so the next one dropped
+    /// can be linked to it. Ignored when it isn't a candidate for the graph.
+    pub waiting: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -113,6 +117,9 @@ pub struct GraphNode {
     /// Laid out large, to show its details (`GraphFilter::expanded`).
     #[serde(default)]
     pub expanded: bool,
+    /// The unlinked item dropped onto the graph (`GraphFilter::waiting`).
+    #[serde(default)]
+    pub waiting: bool,
 }
 
 /// How big an expanded box is laid out, in the graph's own pixels (a task's, a project's).
@@ -141,13 +148,17 @@ pub struct GraphEdge {
     pub room_days: Option<u32>,
 }
 
-/// A node left out of the drawing because nothing links to it (spec 47): listed in a tray.
+/// A node left out of the drawing because nothing links to it (spec 47): listed in a panel.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GraphUnlinked {
     pub node: NodeRef,
     pub label: String,
     /// The project, or the status and finish for a project.
     pub subtitle: String,
+    /// The node as it would be drawn, with every fact a box says (status, owner, priority, due,
+    /// health...), so the list can look like the graph. Its place and size are zero and its
+    /// links none.
+    pub look: GraphNode,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -166,5 +177,6 @@ pub struct DependencyGraph {
     pub warnings: Vec<String>,
 }
 
-/// The most unlinked nodes listed by name; `hidden_unlinked` still counts them all.
-pub const MAX_UNLINKED_LISTED: usize = 60;
+/// The most unlinked nodes listed by name (a panel searches them); `hidden_unlinked` still counts
+/// them all.
+pub const MAX_UNLINKED_LISTED: usize = 500;

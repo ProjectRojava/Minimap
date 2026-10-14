@@ -25,6 +25,8 @@ pub const MAX_NODES: usize = 400;
 const NODE_W: f64 = 210.0;
 /// Tall enough for three lines (spec 47).
 const NODE_H: f64 = 54.0;
+/// The space between the graph and the dropped item waiting below it.
+const WAITING_GAP: f64 = 70.0;
 const EPS: f64 = 1e-9;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -90,6 +92,8 @@ struct Draft {
     late: bool,
     blocked: bool,
     held_up: bool,
+    /// The unlinked item the user dropped on the graph (`GraphFilter::waiting`).
+    waiting: bool,
     facts: Facts,
 }
 
@@ -271,9 +275,12 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
         .collect();
     let linked: HashSet<Uuid> = edges.iter().flat_map(|e| [e.from_id, e.to_id]).collect();
     let mut hidden: Vec<Uuid> = Vec::new();
+    // The item dropped onto the graph is drawn whether or not anything links to it.
+    let waiting = filter.waiting.filter(|w| candidates.contains_key(w));
+    visible.extend(waiting);
     if !filter.include_isolated {
         visible.retain(|id| {
-            let keep = linked.contains(id);
+            let keep = linked.contains(id) || waiting == Some(*id);
             if !keep {
                 hidden.push(*id);
             }
@@ -316,39 +323,38 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
             _ => project.to_owned(),
         }
     };
-    let drafts: Vec<Draft> = ids
-        .iter()
-        .map(|id| {
-            let t = candidates[id];
-            let s = scheduled.get(id);
-            Draft {
-                node: NodeRef::new(NodeType::Task, *id),
-                label: t.title.clone(),
-                subtitle: subtitle_of(id),
-                context: !seeds.contains(id),
-                done: t.status == TaskStatus::Done,
-                critical: s.is_some_and(|s| s.critical),
-                late: s.is_some_and(|s| s.slack_days < -EPS),
-                blocked: t.status == TaskStatus::Blocked,
-                held_up: held_up.contains(id),
-                facts: Facts {
-                    task_status: Some(t.status),
-                    priority: t.priority,
-                    assignee: assignee_of
-                        .get(id)
-                        .and_then(|p| person_summary(input.people, *p)),
-                    project_id: t.project_id,
-                    finish: s.filter(|s| !s.done).map(|s| s.finish),
-                    due: t.due_date,
-                    slack_days: s.filter(|s| !s.done).map(|s| s.slack_days),
-                    late_by_days: s.and_then(|s| s.late_by_days),
-                    estimate_days: t.estimate_days,
-                    task_type: t.task_type.clone(),
-                    ..Facts::default()
-                },
-            }
-        })
-        .collect();
+    let make_draft = |id: &Uuid| {
+        let t = candidates[id];
+        let s = scheduled.get(id);
+        Draft {
+            node: NodeRef::new(NodeType::Task, *id),
+            label: t.title.clone(),
+            subtitle: subtitle_of(id),
+            context: !seeds.contains(id) && waiting != Some(*id),
+            done: t.status == TaskStatus::Done,
+            critical: s.is_some_and(|s| s.critical),
+            late: s.is_some_and(|s| s.slack_days < -EPS),
+            blocked: t.status == TaskStatus::Blocked,
+            held_up: held_up.contains(id),
+            waiting: waiting == Some(*id),
+            facts: Facts {
+                task_status: Some(t.status),
+                priority: t.priority,
+                assignee: assignee_of
+                    .get(id)
+                    .and_then(|p| person_summary(input.people, *p)),
+                project_id: t.project_id,
+                finish: s.filter(|s| !s.done).map(|s| s.finish),
+                due: t.due_date,
+                slack_days: s.filter(|s| !s.done).map(|s| s.slack_days),
+                late_by_days: s.and_then(|s| s.late_by_days),
+                estimate_days: t.estimate_days,
+                task_type: t.task_type.clone(),
+                ..Facts::default()
+            },
+        }
+    };
+    let drafts: Vec<Draft> = ids.iter().map(make_draft).collect();
     let draft_edges: Vec<DraftEdge> = edges
         .iter()
         .map(|e| {
@@ -374,11 +380,7 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
     let unlinked: Vec<GraphUnlinked> = hidden
         .iter()
         .take(MAX_UNLINKED_LISTED)
-        .map(|id| GraphUnlinked {
-            node: NodeRef::new(NodeType::Task, *id),
-            label: candidates[id].title.clone(),
-            subtitle: subtitle_of(id),
-        })
+        .map(|id| unlisted(make_draft(id)))
         .collect();
     finish(
         GraphLevel::Tasks,
@@ -461,9 +463,12 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
         .collect();
     let linked: HashSet<Uuid> = edges.iter().flat_map(|e| [e.from_id, e.to_id]).collect();
     let mut hidden: Vec<Uuid> = Vec::new();
+    // The item dropped onto the graph is drawn whether or not anything links to it.
+    let waiting = filter.waiting.filter(|w| candidates.contains_key(w));
+    visible.extend(waiting);
     if !filter.include_isolated {
         visible.retain(|id| {
-            let keep = linked.contains(id);
+            let keep = linked.contains(id) || waiting == Some(*id);
             if !keep {
                 hidden.push(*id);
             }
@@ -505,47 +510,46 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
             }
         }
     }
-    let drafts: Vec<Draft> = ids
-        .iter()
-        .map(|id| {
-            let p = candidates[id];
-            let f = forecast.get(id);
-            Draft {
-                node: NodeRef::new(NodeType::Project, *id),
-                label: p.title.clone(),
-                subtitle: subtitle_of(id),
-                context: !seeds.contains(id),
-                done: p.status == ProjectStatus::Done,
-                critical: false,
-                late: f.is_some_and(|f| f.late_by_days.is_some()),
-                blocked: p.status == ProjectStatus::Paused,
-                held_up: false,
-                facts: Facts {
-                    project_status: Some(p.status),
-                    priority: p.priority,
-                    assignee: p
-                        .owner_person_id
-                        .and_then(|o| person_summary(input.people, o)),
-                    project_id: Some(*id),
-                    finish: f.and_then(|f| f.projected_finish),
-                    due: p.target_date,
-                    late_by_days: f.and_then(|f| f.late_by_days),
-                    health: input.project_health.get(id).copied(),
-                    zone: f.map_or(Zone::None, |f| {
-                        crate::zone::of(
-                            f,
-                            p.status,
-                            input.today,
-                            input.work_week,
-                            input.zone_narrow_days,
-                        )
-                    }),
-                    progress: progress.get(id).copied(),
-                    ..Facts::default()
-                },
-            }
-        })
-        .collect();
+    let make_draft = |id: &Uuid| {
+        let p = candidates[id];
+        let f = forecast.get(id);
+        Draft {
+            node: NodeRef::new(NodeType::Project, *id),
+            label: p.title.clone(),
+            subtitle: subtitle_of(id),
+            context: !seeds.contains(id) && waiting != Some(*id),
+            done: p.status == ProjectStatus::Done,
+            critical: false,
+            late: f.is_some_and(|f| f.late_by_days.is_some()),
+            blocked: p.status == ProjectStatus::Paused,
+            held_up: false,
+            waiting: waiting == Some(*id),
+            facts: Facts {
+                project_status: Some(p.status),
+                priority: p.priority,
+                assignee: p
+                    .owner_person_id
+                    .and_then(|o| person_summary(input.people, o)),
+                project_id: Some(*id),
+                finish: f.and_then(|f| f.projected_finish),
+                due: p.target_date,
+                late_by_days: f.and_then(|f| f.late_by_days),
+                health: input.project_health.get(id).copied(),
+                zone: f.map_or(Zone::None, |f| {
+                    crate::zone::of(
+                        f,
+                        p.status,
+                        input.today,
+                        input.work_week,
+                        input.zone_narrow_days,
+                    )
+                }),
+                progress: progress.get(id).copied(),
+                ..Facts::default()
+            },
+        }
+    };
+    let drafts: Vec<Draft> = ids.iter().map(make_draft).collect();
     // The earliest start of each project's open work, for the room between two projects.
     let mut starts: HashMap<Uuid, f64> = HashMap::new();
     for t in schedule
@@ -585,11 +589,7 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
     let unlinked: Vec<GraphUnlinked> = hidden
         .iter()
         .take(MAX_UNLINKED_LISTED)
-        .map(|id| GraphUnlinked {
-            node: NodeRef::new(NodeType::Project, *id),
-            label: candidates[id].title.clone(),
-            subtitle: subtitle_of(id),
-        })
+        .map(|id| unlisted(make_draft(id)))
         .collect();
     finish(
         GraphLevel::Projects,
@@ -632,6 +632,62 @@ fn reach_counts(count: usize, pairs: &[(usize, usize)]) -> Vec<(u32, u32)> {
         .collect()
 }
 
+/// A draft as the node it is drawn as: its place `(x, y, w, h, layer)`, how many nodes it waits
+/// on and holds up, and whether it is the open box.
+fn to_node(
+    d: Draft,
+    (x, y, w, h, layer): (f64, f64, f64, f64, u32),
+    (upstream, downstream): (u32, u32),
+    expanded: bool,
+) -> GraphNode {
+    GraphNode {
+        node: d.node,
+        label: d.label,
+        subtitle: d.subtitle,
+        x,
+        y,
+        w,
+        h,
+        layer,
+        context: d.context,
+        done: d.done,
+        critical: d.critical,
+        late: d.late,
+        blocked: d.blocked,
+        held_up: d.held_up,
+        task_status: d.facts.task_status,
+        project_status: d.facts.project_status,
+        priority: d.facts.priority,
+        assignee: d.facts.assignee,
+        project_id: d.facts.project_id,
+        finish: d.facts.finish,
+        due: d.facts.due,
+        slack_days: d.facts.slack_days,
+        late_by_days: d.facts.late_by_days,
+        estimate_days: d.facts.estimate_days,
+        task_type: d.facts.task_type,
+        health: d.facts.health,
+        zone: d.facts.zone,
+        progress: d.facts.progress,
+        upstream,
+        downstream,
+        expanded,
+        waiting: d.waiting,
+    }
+}
+
+/// An unlinked node for the list beside the graph: its name, and the box it would be drawn as
+/// (no place, no links).
+fn unlisted(d: Draft) -> GraphUnlinked {
+    let (node, label, subtitle) = (d.node, d.label.clone(), d.subtitle.clone());
+    GraphUnlinked {
+        node,
+        label,
+        subtitle,
+        look: to_node(d, (0.0, 0.0, NODE_W, NODE_H, 0), (0, 0), false),
+    }
+}
+
 fn finish(
     level: GraphLevel,
     drafts: Vec<Draft>,
@@ -641,6 +697,18 @@ fn finish(
     warnings: Vec<String>,
     expanded: Option<Uuid>,
 ) -> Result<DependencyGraph, GraphError> {
+    // The dropped item that nothing links to yet has no place in the layers: it goes below the
+    // graph, centred, so the next item dropped to its left or right can be linked to it.
+    let mut drafts = drafts;
+    let lonely = drafts
+        .iter()
+        .position(|d| {
+            d.waiting
+                && !edges
+                    .iter()
+                    .any(|e| e.from == d.node.id || e.to == d.node.id)
+        })
+        .map(|i| drafts.remove(i));
     let index: HashMap<Uuid, usize> = drafts
         .iter()
         .enumerate()
@@ -671,40 +739,41 @@ fn finish(
         .into_iter()
         .zip(&placed.nodes)
         .zip(&reach)
-        .map(|((d, p), (downstream, upstream))| GraphNode {
-            node: d.node,
-            label: d.label,
-            subtitle: d.subtitle,
-            x: p.x,
-            y: p.y,
-            w: p.w,
-            h: p.h,
-            layer: p.layer as u32,
-            context: d.context,
-            done: d.done,
-            critical: d.critical,
-            late: d.late,
-            blocked: d.blocked,
-            held_up: d.held_up,
-            task_status: d.facts.task_status,
-            project_status: d.facts.project_status,
-            priority: d.facts.priority,
-            assignee: d.facts.assignee,
-            project_id: d.facts.project_id,
-            finish: d.facts.finish,
-            due: d.facts.due,
-            slack_days: d.facts.slack_days,
-            late_by_days: d.facts.late_by_days,
-            estimate_days: d.facts.estimate_days,
-            task_type: d.facts.task_type,
-            health: d.facts.health,
-            zone: d.facts.zone,
-            progress: d.facts.progress,
-            upstream: *upstream,
-            downstream: *downstream,
-            expanded: expanded == Some(d.node.id),
+        .map(|((d, p), (downstream, upstream))| {
+            let expanded = expanded == Some(d.node.id);
+            to_node(
+                d,
+                (p.x, p.y, p.w, p.h, p.layer as u32),
+                (*upstream, *downstream),
+                expanded,
+            )
         })
         .collect();
+    let mut nodes = nodes;
+    let (mut width, mut height) = (placed.width, placed.height);
+    if let Some(d) = lonely {
+        let open = expanded == Some(d.node.id);
+        let (w, h) = if open {
+            (
+                EXPANDED_W,
+                match level {
+                    GraphLevel::Tasks => EXPANDED_TASK_H,
+                    GraphLevel::Projects => EXPANDED_PROJECT_H,
+                },
+            )
+        } else {
+            (NODE_W, NODE_H)
+        };
+        let y = if nodes.is_empty() {
+            0.0
+        } else {
+            height + WAITING_GAP
+        };
+        let x = ((width - w) / 2.0).max(0.0);
+        width = width.max(w);
+        height = y + h;
+        nodes.push(to_node(d, (x, y, w, h, 0), (0, 0), open));
+    }
     let critical_nodes = nodes.iter().filter(|n| n.critical).count() as u32;
     let edges = edges
         .into_iter()
@@ -724,8 +793,8 @@ fn finish(
         level,
         nodes,
         edges,
-        width: placed.width,
-        height: placed.height,
+        width,
+        height,
         critical_nodes,
         hidden_unlinked,
         unlinked,
@@ -1516,6 +1585,214 @@ mod tests {
         assert!(!crossing(1, 2));
         assert!(crossing(2, 3));
         assert!(crossing(4, 1));
+    }
+
+    #[test]
+    fn a_dropped_unlinked_task_is_drawn_below_the_graph_and_not_listed() {
+        let w = World {
+            tasks: vec![
+                task(1, "A", 1.0, None),
+                task(2, "B", 1.0, None),
+                task(3, "Loose", 1.0, None),
+                task(4, "Other loose", 1.0, None),
+            ],
+            edges: vec![blocks(1, 2)],
+            ..Default::default()
+        };
+        let plain = w.graph(GraphFilter::default()).unwrap();
+        assert_eq!(plain.hidden_unlinked, 2);
+        let g = w
+            .graph(GraphFilter {
+                waiting: Some(id(3)),
+                ..Default::default()
+            })
+            .unwrap();
+        let waiting = g.nodes.iter().find(|n| n.node.id == id(3)).unwrap();
+        assert!(waiting.waiting && !waiting.context);
+        // Below everything else, centred under the graph, and no layer of its own.
+        let lowest = g
+            .nodes
+            .iter()
+            .filter(|n| n.node.id != id(3))
+            .map(|n| n.y + n.h)
+            .fold(0.0, f64::max);
+        assert!(waiting.y > lowest, "{} {}", waiting.y, lowest);
+        assert!((waiting.x + waiting.w / 2.0 - g.width / 2.0).abs() < 1.0);
+        assert!(g.height >= waiting.y + waiting.h);
+        // It is no longer an unlinked item to list, and nothing else changed.
+        assert_eq!(g.hidden_unlinked, 1);
+        assert_eq!(g.unlinked.len(), 1);
+        assert_eq!(g.unlinked[0].node.id, id(4));
+        assert_eq!(g.nodes.len(), plain.nodes.len() + 1);
+        assert!(g.edges.len() == plain.edges.len());
+        // The others are laid out exactly as before.
+        for n in &plain.nodes {
+            let same = g.nodes.iter().find(|m| m.node.id == n.node.id).unwrap();
+            assert_eq!((same.x, same.y), (n.x, n.y));
+        }
+    }
+
+    #[test]
+    fn a_dropped_task_on_an_empty_graph_is_the_only_box() {
+        let w = World {
+            tasks: vec![task(1, "Loose", 1.0, None), task(2, "Other", 1.0, None)],
+            ..Default::default()
+        };
+        let g = w
+            .graph(GraphFilter {
+                waiting: Some(id(1)),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(g.nodes.len(), 1);
+        assert_eq!((g.nodes[0].x, g.nodes[0].y), (0.0, 0.0));
+        assert!(g.nodes[0].waiting);
+        assert_eq!(g.hidden_unlinked, 1);
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn once_the_dropped_task_is_linked_it_is_an_ordinary_box() {
+        let w = World {
+            tasks: vec![task(1, "A", 1.0, None), task(2, "B", 1.0, None)],
+            edges: vec![blocks(1, 2)],
+            ..Default::default()
+        };
+        let g = w
+            .graph(GraphFilter {
+                waiting: Some(id(2)),
+                ..Default::default()
+            })
+            .unwrap();
+        // It sits in its layer, to the right of what blocks it.
+        let a = g.nodes.iter().find(|n| n.node.id == id(1)).unwrap();
+        let b = g.nodes.iter().find(|n| n.node.id == id(2)).unwrap();
+        assert!(b.x > a.x && b.layer == 1);
+        assert_eq!(g.nodes.len(), 2);
+    }
+
+    #[test]
+    fn a_dropped_item_the_graph_would_not_draw_is_ignored() {
+        let mut done = task(9, "Done", 1.0, None);
+        done.status = TaskStatus::Done;
+        let w = World {
+            tasks: vec![task(1, "A", 1.0, None), task(2, "B", 1.0, None), done],
+            edges: vec![blocks(1, 2)],
+            ..Default::default()
+        };
+        let g = w
+            .graph(GraphFilter {
+                waiting: Some(id(9)),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(g.nodes.len(), 2);
+        assert!(g.nodes.iter().all(|n| !n.waiting));
+        // So is an id that is nothing at all.
+        let g = w
+            .graph(GraphFilter {
+                waiting: Some(id(77)),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(g.nodes.len(), 2);
+    }
+
+    #[test]
+    fn a_dropped_project_waits_below_the_graph_too() {
+        let w = World {
+            projects: vec![
+                project(10, "P1", None),
+                project(11, "P2", None),
+                project(12, "P3", None),
+            ],
+            edges: vec![edge(
+                EdgeType::DependsOn,
+                NodeType::Project,
+                11,
+                NodeType::Project,
+                10,
+            )],
+            ..Default::default()
+        };
+        let g = w
+            .graph(GraphFilter {
+                level: GraphLevel::Projects,
+                waiting: Some(id(12)),
+                ..Default::default()
+            })
+            .unwrap();
+        let waiting = g.nodes.iter().find(|n| n.node.id == id(12)).unwrap();
+        assert!(waiting.waiting);
+        assert!(g
+            .nodes
+            .iter()
+            .filter(|n| n.node.id != id(12))
+            .all(|n| n.y < waiting.y));
+        assert_eq!(g.hidden_unlinked, 0);
+    }
+
+    #[test]
+    fn an_unlinked_entry_carries_the_facts_of_the_box_it_would_be() {
+        let w = World {
+            tasks: vec![
+                task(1, "Blocker", 1.0, None),
+                task(2, "Solo", 2.0, Some(10)),
+                task(3, "Next", 1.0, None),
+            ],
+            edges: vec![blocks(1, 3)],
+            projects: vec![project(10, "P", Some(MON + time::Duration::days(30)))],
+            ..Default::default()
+        };
+        let g = w.graph(GraphFilter::default()).unwrap();
+        assert_eq!(g.unlinked.len(), 1);
+        let look = &g.unlinked[0].look;
+        assert_eq!(look.node, g.unlinked[0].node);
+        assert_eq!(look.label, "Solo");
+        assert_eq!(look.task_status, Some(TaskStatus::Todo));
+        assert_eq!(look.priority, 3);
+        assert_eq!(look.estimate_days, Some(2.0));
+        assert_eq!(look.project_id, Some(id(10)));
+        // It has no place and no links of its own.
+        assert_eq!((look.x, look.y, look.layer), (0.0, 0.0, 0));
+        assert_eq!((look.upstream, look.downstream), (0, 0));
+        // It is the same box it would be if it were drawn.
+        let drawn = w
+            .graph(GraphFilter {
+                include_isolated: true,
+                ..Default::default()
+            })
+            .unwrap();
+        let same = drawn.nodes.iter().find(|n| n.node.id == id(2)).unwrap();
+        assert_eq!(
+            (
+                same.task_status,
+                same.priority,
+                same.estimate_days,
+                &same.subtitle
+            ),
+            (
+                look.task_status,
+                look.priority,
+                look.estimate_days,
+                &look.subtitle
+            )
+        );
+    }
+
+    #[test]
+    fn many_unlinked_nodes_are_all_listed_so_a_search_can_find_them() {
+        let tasks: Vec<Task> = (1..=200)
+            .map(|n| task(n, &format!("T{n:03}"), 1.0, None))
+            .collect();
+        let w = World {
+            tasks,
+            ..Default::default()
+        };
+        let g = w.graph(GraphFilter::default()).unwrap();
+        assert_eq!(g.hidden_unlinked, 200);
+        assert_eq!(g.unlinked.len(), 200);
+        const { assert!(MAX_UNLINKED_LISTED >= 200) };
     }
 
     #[test]

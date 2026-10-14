@@ -24,6 +24,7 @@ pub mod people_frames;
 pub mod pings;
 pub mod projects;
 pub mod quick_add;
+pub mod radar;
 pub mod recurrence;
 pub mod report;
 pub mod save_points;
@@ -39,6 +40,7 @@ pub mod undo;
 pub mod waiting_on;
 pub mod weekly_review;
 pub mod zone;
+pub mod zoom;
 
 use minimap_types::PingResponse;
 

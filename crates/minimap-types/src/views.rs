@@ -313,6 +313,12 @@ pub struct Settings {
     /// Frame a board card in the line style and colour of its task type (spec 39). This device
     /// only, like the theme.
     pub type_borders: bool,
+    /// The radar window stays on top of other windows (spec 53, ADR-0021). This device only.
+    pub radar_on_top: bool,
+    /// Open the radar when Minimap starts. This device only.
+    pub radar_open_at_start: bool,
+    /// The radar's three rings, in working days from today. This device only.
+    pub radar_rings: [u32; 3],
 }
 
 impl Default for Settings {
@@ -334,6 +340,9 @@ impl Default for Settings {
             auto_backup: true,
             task_types: crate::default_task_types(),
             type_borders: true,
+            radar_on_top: true,
+            radar_open_at_start: false,
+            radar_rings: crate::DEFAULT_RADAR_RINGS,
         }
     }
 }
@@ -361,6 +370,9 @@ pub struct UpdateSettings {
     /// a type cannot be removed, only archived.
     pub task_types: Option<Vec<crate::TaskType>>,
     pub type_borders: Option<bool>,
+    pub radar_on_top: Option<bool>,
+    pub radar_open_at_start: Option<bool>,
+    pub radar_rings: Option<[u32; 3]>,
 }
 
 // ---------------------------------------------------------------- waiting-on

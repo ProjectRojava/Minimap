@@ -1,0 +1,73 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+== portfolio (rings [5, 10, 60])
+sector Launch in the EU             from    0.0 deg, 205.7 deg wide, colour rank Some(0)
+sector Cut platform costs by 20%    from  205.7 deg, 107.3 deg wide, colour rank Some(1)
+sector Keep internal systems healthy from  313.0 deg,  20.0 deg wide, colour rank Some(2)
+sector Other                        from  333.0 deg,  27.0 deg wide, colour rank None
+blip [Cut platform costs by 20%] Project r 0.85 M Green fog Fog pinged: Platform Cost Reduction · project · target 3 May · quiet for 22 days · pinged
+blip [Cut platform costs by 20%] Task r 0.29 M Green fog Fog: Gateway: design rate limiting · Platform Cost Reduction · due Mon · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.45 M Green fog Fog: Right-size the compute fleet · Platform Cost Reduction · due 11 Mar · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.50 S Green fog Fog: Remove unused load balancers · Platform Cost Reduction · due 12 Mar · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.55 M Green fog Fog: Autoscaling policy · Platform Cost Reduction · due 15 Mar · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.67 M Green fog Clear: Gateway: build the routing layer · Platform Cost Reduction · due 22 Mar
+blip [Cut platform costs by 20%] Task r 0.67 S Green fog Clear: Move cold storage to a cheaper tier · Platform Cost Reduction · due 23 Mar
+blip [Cut platform costs by 20%] Task r 0.70 S Green fog Clear: Cost dashboard for teams · Platform Cost Reduction · due 29 Mar
+blip [Cut platform costs by 20%] Task r 0.72 S Green fog Clear: Reserved-instance purchase plan · Platform Cost Reduction · due 2 Apr
+blip [Cut platform costs by 20%] Task r 0.74 M Green fog Fog: Gateway: migrate the first five services · Platform Cost Reduction · due 7 Apr · in focus · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.76 S Green fog Clear: Decommission the legacy staging cluster · Platform Cost Reduction · due 12 Apr
+blip [Cut platform costs by 20%] Task r 0.79 M Green fog Clear: Savings review with finance · Platform Cost Reduction · due 19 Apr
+blip [Keep internal systems healthy] Task r 0.65 S Green fog Clear: Rotate service credentials · Security and Compliance · due 17 Mar
+blip [Keep internal systems healthy] Task r 0.65 S Green fog Haze: Monthly access review · Security and Compliance · due 17 Mar · quiet for 9 days
+blip [Launch in the EU] Meeting r 0.12 S None fog Clear: Security review sync · meeting · today 16:00
+blip [Launch in the EU] Meeting r 0.18 S None fog Clear: EU cutover review · meeting · tomorrow 14:00
+blip [Launch in the EU] Project r 0.70 L Amber fog Clear: EU Region · project · target 29 Mar · 2 working days past its target
+blip [Launch in the EU] Project r 0.79 M Green fog Clear: Security and Compliance · project · target 19 Apr
+blip [Launch in the EU] Task r 0.08 M Red fog Clear: Customer communications plan · EU Region · overdue 5 days
+blip [Launch in the EU] Task r 0.29 M Green fog Haze: Choose a penetration-test vendor · Security and Compliance · due Mon · quiet for 9 days
+blip [Launch in the EU] Task r 0.40 L Green fog Clear: Provision EU network and clusters · EU Region · due 10 Mar
+blip [Launch in the EU] Task r 0.55 M Green fog Clear: EU pricing · EU Region · due 15 Mar
+blip [Launch in the EU] Task r 0.55 S Amber fog Clear: EU support runbook · EU Region · blocked · due 15 Mar
+blip [Launch in the EU] Task r 0.65 S Green fog Clear: EU CDN and DNS · EU Region · due 17 Mar
+blip [Launch in the EU] Task r 0.66 M Green fog Clear: Localised billing and VAT · EU Region · due 19 Mar
+blip [Launch in the EU] Task r 0.66 S Green fog Clear: EU status page and monitoring · EU Region · due 18 Mar
+blip [Launch in the EU] Task r 0.67 M Green fog Clear: GDPR impact assessment · Security and Compliance · due 23 Mar
+blip [Launch in the EU] Task r 0.67 M Green fog Clear: Regional auth and tenancy · EU Region · due 22 Mar
+blip [Launch in the EU] Task r 0.68 L Green fog Clear: External penetration test · Security and Compliance · due 24 Mar
+blip [Launch in the EU] Task r 0.70 L Green fog Clear: Replicate the customer data pipeline · EU Region · due 29 Mar
+blip [Launch in the EU] Task r 0.70 M Green fog Clear: Load test the EU stack · EU Region · due 29 Mar
+blip [Launch in the EU] Task r 0.71 L Green fog Clear: Go-live checklist · EU Region · due 31 Mar · in focus
+blip [Launch in the EU] Task r 0.72 S Green fog Clear: Beta customer onboarding · EU Region · due 2 Apr
+blip [Launch in the EU] Task r 0.72 S Green fog Clear: Incident response drill · Security and Compliance · due 2 Apr
+blip [Launch in the EU] Task r 0.73 L Green fog Clear: Security review sign-off · Security and Compliance · due 5 Apr
+blip [Launch in the EU] Task r 0.74 S Green fog Clear: SOC 2 gap assessment · Security and Compliance · due 7 Apr
+blip [Launch in the EU] Task r 0.76 S Green fog Clear: Security training roll-out · Security and Compliance · due 12 Apr
+blip [Other] Ping r 0.11 S None fog Clear pinged: Raj Patel · ping since 2 Mar: ask about the auditor
+blip [Other] Task r 0.34 M Green fog Clear: Review the Q2 headcount plan · due Tue
+blip [Other] Task r 0.55 S Green fog Clear: Book the leadership offsite · due 15 Mar
+footer: 1 overdue · 2 pings today · visibility 66%
+
+== mine (rings [5, 10, 60])
+sector Cut platform costs by 20%    from    0.0 deg, 270.0 deg wide, colour rank Some(1)
+sector Other                        from  270.0 deg,  90.0 deg wide, colour rank None
+blip [Cut platform costs by 20%] Project r 0.85 M Green fog Fog pinged: Platform Cost Reduction · project · target 3 May · quiet for 22 days · pinged
+blip [Cut platform costs by 20%] Task r 0.29 M Green fog Fog: Gateway: design rate limiting · Platform Cost Reduction · due Mon · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.45 M Green fog Fog: Right-size the compute fleet · Platform Cost Reduction · due 11 Mar · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.50 S Green fog Fog: Remove unused load balancers · Platform Cost Reduction · due 12 Mar · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.55 M Green fog Fog: Autoscaling policy · Platform Cost Reduction · due 15 Mar · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.67 M Green fog Clear: Gateway: build the routing layer · Platform Cost Reduction · due 22 Mar
+blip [Cut platform costs by 20%] Task r 0.67 S Green fog Clear: Move cold storage to a cheaper tier · Platform Cost Reduction · due 23 Mar
+blip [Cut platform costs by 20%] Task r 0.70 S Green fog Clear: Cost dashboard for teams · Platform Cost Reduction · due 29 Mar
+blip [Cut platform costs by 20%] Task r 0.72 S Green fog Clear: Reserved-instance purchase plan · Platform Cost Reduction · due 2 Apr
+blip [Cut platform costs by 20%] Task r 0.74 M Green fog Fog: Gateway: migrate the first five services · Platform Cost Reduction · due 7 Apr · in focus · quiet for 22 days
+blip [Cut platform costs by 20%] Task r 0.76 S Green fog Clear: Decommission the legacy staging cluster · Platform Cost Reduction · due 12 Apr
+blip [Cut platform costs by 20%] Task r 0.79 M Green fog Clear: Savings review with finance · Platform Cost Reduction · due 19 Apr
+blip [Other] Ping r 0.11 S None fog Clear pinged: Raj Patel · ping since 2 Mar: ask about the auditor
+blip [Other] Project r 0.70 L Amber fog Clear: EU Region · project · target 29 Mar · 2 working days past its target
+blip [Other] Task r 0.34 M Green fog Clear: Review the Q2 headcount plan · due Tue
+blip [Other] Task r 0.55 S Green fog Clear: Book the leadership offsite · due 15 Mar
+blip [Other] Task r 0.67 M Green fog Clear: Regional auth and tenancy · EU Region · due 22 Mar
+blip [Other] Task r 0.70 M Green fog Clear: Load test the EU stack · EU Region · due 29 Mar
+footer: 2 pings today · visibility 66%

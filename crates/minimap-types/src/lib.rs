@@ -24,6 +24,7 @@ mod patch;
 mod people_frames;
 mod pings;
 mod quick_add;
+mod radar;
 mod recurrence;
 mod review;
 mod schedule;
@@ -35,6 +36,7 @@ mod undo;
 mod views;
 mod week;
 mod work_week;
+mod zoom;
 
 pub use activity::*;
 pub use approach::*;
@@ -58,6 +60,7 @@ pub use patch::*;
 pub use people_frames::*;
 pub use pings::*;
 pub use quick_add::*;
+pub use radar::*;
 pub use recurrence::*;
 pub use review::*;
 pub use schedule::*;
@@ -70,6 +73,7 @@ pub use uuid::Uuid;
 pub use views::*;
 pub use week::*;
 pub use work_week::*;
+pub use zoom::*;
 
 /// Response of the `ping` command (M0 smoke test of the UI <-> Rust bridge).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

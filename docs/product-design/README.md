@@ -69,8 +69,9 @@ Avoid: "health" for a person, "score" for a person, "XP", "quest", "level up", "
 | 06 | [Your people](06-your-people.md) | Compact frames for you and your reports: load, waiting-ons, 1:1 cadence | — | M |
 | 07 | [Portfolio view and My view](07-orientation.md) | One toggle: the organisation as it is, or as it touches you | 03 (reuses its reach) | M |
 | 08 | [Save points](08-save-points.md) | One timeline of every restorable copy, a "Saved 2 min ago" mark, named saves | — | M |
-| 09 | [Zoom](09-semantic-zoom.md) | Zoom out from a task to its project, objective and the whole portfolio, and back | — | M |
+| 09 | [Zoom](09-semantic-zoom.md) (implemented as spec 52) | Zoom out from a task to its project, objective and the whole portfolio, and back | — | M |
 | 10 | [Radar window](10-radar-window.md) | A small, optionally always-on-top window: you at the centre, rings of time, sectors of objectives | 01, 02, 03, 05, 07 | L |
+| 13 | [Splash screen](13-splash-screen.md) | The mark and one calm line while the app starts, then it fades out | 11 | S |
 | 12 | [Dependencies, richer](12-dependency-graph.md) (implemented as spec 47) | Boxes that say who, what and when; lenses; trace a chain; edit the links on the graph | — | L |
 | 11 | [Brand and voice](11-brand-and-voice.md) | Logo, icon, the words the app uses, empty states | — (any time) | S |
 

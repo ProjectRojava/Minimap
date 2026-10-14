@@ -9,6 +9,7 @@ pub mod objectives;
 pub mod overview;
 pub mod people;
 pub mod projects;
+pub mod radar;
 pub mod settings;
 pub mod tasks;
 pub mod teams;

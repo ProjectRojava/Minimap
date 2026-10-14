@@ -21,9 +21,20 @@ const BACKUP_FOLDER: &str = "backup_folder";
 const AUTO_BACKUP: &str = "auto_backup";
 const TASK_TYPES: &str = "task_types";
 const TYPE_BORDERS: &str = "type_borders";
+const RADAR_ON_TOP: &str = "radar_on_top";
+const RADAR_OPEN_AT_START: &str = "radar_open_at_start";
+const RADAR_RINGS: &str = "radar_rings";
 
 /// Settings that belong to this device and are never synced (or put in a snapshot).
-pub const LOCAL_ONLY: [&str; 4] = [THEME, BACKUP_FOLDER, AUTO_BACKUP, TYPE_BORDERS];
+pub const LOCAL_ONLY: [&str; 7] = [
+    THEME,
+    BACKUP_FOLDER,
+    AUTO_BACKUP,
+    TYPE_BORDERS,
+    RADAR_ON_TOP,
+    RADAR_OPEN_AT_START,
+    RADAR_RINGS,
+];
 
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
@@ -169,6 +180,20 @@ pub fn get(conn: &Connection) -> Result<Settings> {
     if let Some(on) = read(conn, TYPE_BORDERS)?.and_then(|v| v.as_bool()) {
         s.type_borders = on;
     }
+    if let Some(on) = read(conn, RADAR_ON_TOP)?.and_then(|v| v.as_bool()) {
+        s.radar_on_top = on;
+    }
+    if let Some(on) = read(conn, RADAR_OPEN_AT_START)?.and_then(|v| v.as_bool()) {
+        s.radar_open_at_start = on;
+    }
+    if let Some(rings) =
+        read(conn, RADAR_RINGS)?.and_then(|v| serde_json::from_value::<[u32; 3]>(v).ok())
+    {
+        // Stored rings that are no longer valid fall back to the defaults.
+        if minimap_types::validate_radar_rings(rings).is_ok() {
+            s.radar_rings = rings;
+        }
+    }
     Ok(s)
 }
 
@@ -187,6 +212,9 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
                 "weekly capacity must be more than 0 and at most 168 hours".into(),
             ));
         }
+    }
+    if let Some(rings) = patch.radar_rings {
+        minimap_types::validate_radar_rings(rings).map_err(StoreError::Invalid)?;
     }
     if let Some(t) = &patch.theme {
         if !valid_theme_id(t) {
@@ -273,6 +301,15 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(on) = patch.type_borders {
         write(&tx, TYPE_BORDERS, &serde_json::json!(on))?;
+    }
+    if let Some(on) = patch.radar_on_top {
+        write(&tx, RADAR_ON_TOP, &serde_json::json!(on))?;
+    }
+    if let Some(on) = patch.radar_open_at_start {
+        write(&tx, RADAR_OPEN_AT_START, &serde_json::json!(on))?;
+    }
+    if let Some(rings) = patch.radar_rings {
+        write(&tx, RADAR_RINGS, &serde_json::json!(rings))?;
     }
     match (template, &patch.report_template) {
         (Some(""), _) => {

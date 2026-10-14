@@ -122,7 +122,13 @@ pub fn Objectives() -> impl IntoView {
 
     view! {
         <div class="flex flex-col h-full">
-            <PageHeader icon="objectives" title="Objectives" subtitle="The outcomes your portfolio serves">
+            <PageHeader icon="objectives" title="Objectives" subtitle="The outcomes your portfolio serves"
+                        crumbs=Signal::derive(move || match selection.0.get() {
+                            Some(n) if n.node_type == NodeType::Objective => {
+                                crate::components::zoom::CrumbFocus::Node(n)
+                            }
+                            _ => crate::components::zoom::CrumbFocus::Hidden,
+                        })>
                 <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New objective" }}
                 </button>

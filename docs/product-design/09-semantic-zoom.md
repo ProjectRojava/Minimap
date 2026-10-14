@@ -1,6 +1,6 @@
 # 09 — Zoom: move between the whole portfolio, an objective, a project and a task
 
-Status: Draft · Milestone: — · Priority: Could · Size: M
+Status: Implemented as spec 52 — awaiting manual check (open questions answered as recommended) · Milestone: — · Priority: Could · Size: M
 Depends on: specs 02, 04, 05, 06, 18, 35 (implemented) · Read first: [README](README.md)
 Expected ADR: none
 
@@ -70,11 +70,11 @@ Nothing stored.
 A dedicated "map" screen; zoom levels for teams/people; animated transitions.
 
 ## Acceptance criteria
-- [ ] `core::zoom` tests and proptest; `get_zoom_path` command test incl. the demo path.
-- [ ] `Alt+↑/↓` and palette actions work from tasks, projects, objectives, notes, decisions; the stack returns exactly to the previous screen, selection and cursor.
-- [ ] Breadcrumb in headers and the pane, clickable, with ▾ alternatives.
-- [ ] Graph switches levels at the zoom bounds, both ways.
-- [ ] Help page and links; CHANGELOG; knowledge graph (§5, §7, §8 incl. keys and `ZoomCtx`); `docs/progress.md`; gate passes.
+- [x] `core::zoom` tests and proptest; `get_zoom_path` command test incl. the demo path.
+- [x] `Alt+↑/↓` and palette actions work from tasks, projects, objectives, notes, decisions; the stack returns exactly to the previous screen, selection and cursor.
+- [x] Breadcrumb in headers and the pane, clickable, with ▾ alternatives.
+- [x] Graph switches levels at the zoom bounds, both ways.
+- [x] Help page and links; CHANGELOG; knowledge graph (§5, §7, §8 incl. keys and `ZoomCtx`); `docs/progress.md`; gate passes.
 
 ## Not yet verified by hand
 - From a task's pane, `Alt+↑` three times, `Alt+↓` three times: back to the same task, same board scroll.
@@ -85,3 +85,13 @@ A dedicated "map" screen; zoom levels for teams/people; animated transitions.
 ## Open questions
 1. Use `Alt+↑/↓` (works on all three OSes) rather than `Ctrl+↑` (macOS Mission Control) or `-`/`=` (the graph's zoom keys)? **Yes.**
 2. Should Project level be the Tasks board or the project panel's schedule? **Board + panel**; the schedule is one click away in the panel.
+
+## As built (decisions made while implementing)
+- **Notes, decisions and waiting-ons.** The path of one is the path *above* the first objective, project or task it mentions / affects / is about (the oldest active link), then itself. A mentioned task's own step is not repeated, so levels strictly deepen (the proptest requires it): a note about a task sits under that task's project.
+- **Inbox task with a direct objective** only uses it when it has no active project; a task in a project takes the project's objective.
+- **`ZoomInput.others`** names items that are not objectives, projects or tasks (the note itself); `get_zoom_path` fills it from `nodes::summary`.
+- **The focus** zoom starts from is the item open in the pane, else the project the Tasks screen is filtered to (`ZoomCtx.page_project`, written by `pages/tasks.rs`, so a filter changed with the dropdown counts), else nothing (the whole portfolio). A frame pushed from a filtered board is stored as `/tasks?project=<id>` so it returns filtered.
+- **Zoom in with an empty stack** goes to the highlighted row's *own* step (a project row opens that project's tasks; a task row opens the task), not to the next level down.
+- **Cursor** is restored to the same row index (applied to the first rows to arrive, within 3 s); the board's scroll position is not restored.
+- **Graph.** A zoom step that merely *arrives* at the bound does not switch; the next one does. `+` / `-` keys were added to the Dependencies screen (they did not exist). A zoom in on the Projects level switches only when a project is under the pointer or picked. The new Projects level is framed at the whole-graph fit, no smaller than 60 %, around the project of the task nearest the middle of the view.
+- **ADR.** None needed: nothing is stored, no schema, no rule an ADR states changes.

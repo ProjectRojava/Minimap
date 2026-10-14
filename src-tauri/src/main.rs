@@ -84,11 +84,17 @@ fn main() {
             tracing::info!(locked = vault.conn.is_none(), "database ready");
             let state = AppState::new(vault, dir, keys);
             app.manage(state.clone());
+            app.manage(
+                commands::radar::RadarSaver::start(state.clone())
+                    .context("start the radar's place keeper")?,
+            );
             spawn_auto_backup(state.clone())?;
             spawn_recurring_notes(state.clone())?;
-            sync::spawn(state)?;
+            sync::spawn(state.clone())?;
+            commands::radar::open_at_start(app.handle(), &state);
             Ok(())
         })
+        .on_window_event(commands::radar::on_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::system::ping,
             commands::nodes::get_node_summary,
@@ -168,6 +174,14 @@ fn main() {
             commands::graph::get_dependency_graph,
             commands::capacity::get_capacity,
             commands::orientation::get_my_scope,
+            commands::zoom::get_zoom_path,
+            commands::radar::get_radar,
+            commands::radar::get_data_revision,
+            commands::radar::open_radar,
+            commands::radar::close_radar,
+            commands::radar::toggle_radar,
+            commands::radar::set_radar_on_top,
+            commands::radar::open_in_main,
             commands::people_frames::get_people_frames,
             commands::security::get_security_status,
             commands::security::unlock_database,
