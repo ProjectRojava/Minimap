@@ -158,6 +158,12 @@ pub const PAGES: &[Page] = &[
         "Everything, or everything as it touches you (v)"
     ),
     page!(
+        "zoom",
+        "Planning and insight",
+        "Zoom: from the whole portfolio to one task",
+        "Move between the portfolio, an objective, a project and an item (Alt+Up / Alt+Down)"
+    ),
+    page!(
         "fog",
         "Planning and insight",
         "Fog: how fresh your information is",
@@ -395,7 +401,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 33);
+        assert_eq!(PAGES.len(), 34);
     }
 
     #[test]

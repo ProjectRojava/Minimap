@@ -645,6 +645,12 @@
           "markdownDescription": "Enables the get_weekly_review command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_zoom_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-zoom-path",
+          "markdownDescription": "Enables the get_zoom_path command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_activity_for command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-activity-for",
@@ -1501,6 +1507,12 @@
           "type": "string",
           "const": "deny-get-weekly-review",
           "markdownDescription": "Denies the get_weekly_review command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_zoom_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-zoom-path",
+          "markdownDescription": "Denies the get_zoom_path command without any pre-configured scope."
         },
         {
           "description": "Denies the list_activity_for command without any pre-configured scope.",

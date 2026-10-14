@@ -110,6 +110,8 @@ fn Shell() -> impl IntoView {
     // The live pings (ADR-0020), for the pin on rows and cards and the card on This week.
     crate::components::ping::PingsCtx::provide();
     let list = expect_context::<ListNav>();
+    // Zoom between the portfolio, an objective, a project and an item (spec 52).
+    crate::state::ZoomCtx::provide();
     // Rows belong to the screen that registered them; clear them on route change.
     let location = leptos_router::hooks::use_location();
     Effect::new(move |_| {
@@ -148,6 +150,7 @@ fn Shell() -> impl IntoView {
             <DetailPane />
             </div>
             <StatusBar />
+            <crate::components::zoom::ZoomHost />
             <PaletteHost />
             <LinkDialogHost />
             <crate::components::finish_decision::FinishDecisionHost />

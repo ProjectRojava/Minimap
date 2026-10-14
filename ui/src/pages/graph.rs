@@ -69,6 +69,76 @@ pub fn to_drawing(view: (f64, f64), pan: (f64, f64), zoom: f64) -> (f64, f64) {
     ((view.0 - pan.0) / zoom, (view.1 - pan.1) / zoom)
 }
 
+/// The level a further zoom step switches to (spec 52): zooming out of the smallest scale of the
+/// Tasks level goes to the Projects level, and zooming in past the largest scale of the Projects
+/// level goes back to tasks. `delta` is the direction of the step (positive = in, negative =
+/// out). Anywhere else a step just zooms.
+pub fn next_level(
+    scale: f64,
+    min: f64,
+    max: f64,
+    delta: f64,
+    level: GraphLevel,
+) -> Option<GraphLevel> {
+    const EPS: f64 = 1e-6;
+    match level {
+        GraphLevel::Tasks if delta < 0.0 && scale <= min + EPS => Some(GraphLevel::Projects),
+        GraphLevel::Projects if delta > 0.0 && scale >= max - EPS => Some(GraphLevel::Tasks),
+        _ => None,
+    }
+}
+
+/// The project of the task box nearest a point of the drawing (the middle of the view when
+/// zooming out of the tasks).
+pub fn nearest_project(graph: &DependencyGraph, at: (f64, f64)) -> Option<Uuid> {
+    graph
+        .nodes
+        .iter()
+        .filter(|n| n.node.node_type == NodeType::Task)
+        .filter_map(|n| {
+            let (cx, cy) = (n.x + n.w / 2.0, n.y + n.h / 2.0);
+            Some((n.project_id?, (cx - at.0).powi(2) + (cy - at.1).powi(2)))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(project, _)| project)
+}
+
+/// The project box under a point of the drawing, if one is.
+pub fn project_at(graph: &DependencyGraph, at: (f64, f64)) -> Option<Uuid> {
+    graph
+        .nodes
+        .iter()
+        .filter(|n| n.node.node_type == NodeType::Project)
+        .find(|n| at.0 >= n.x && at.0 <= n.x + n.w && at.1 >= n.y && at.1 <= n.y + n.h)
+        .map(|n| n.node.id)
+}
+
+/// The pan that puts the middle of a box in the middle of a `view`-sized view at this zoom.
+pub fn centre_on(node: &GraphNode, zoom: f64, view: (f64, f64)) -> (f64, f64) {
+    (
+        view.0 / 2.0 - (node.x + node.w / 2.0) * zoom,
+        view.1 / 2.0 - (node.y + node.h / 2.0) * zoom,
+    )
+}
+
+/// The smallest scale a drawing is left at when it is framed around one project: small enough
+/// to see its neighbours, never so small that the box is a speck.
+pub const FOCUS_MIN_ZOOM: f64 = 0.6;
+
+thread_local! {
+    /// Which level-switch hints have been shown this session (bit 0 out, bit 1 in).
+    static HINTED: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+}
+
+/// True the first time it is asked for `bit` in a session.
+fn first_hint(bit: u8) -> bool {
+    HINTED.with(|h| {
+        let shown = h.get() & bit != 0;
+        h.set(h.get() | bit);
+        !shown
+    })
+}
+
 /// A smooth route through the points, with horizontal tangents at each one.
 pub fn edge_path(points: &[(f64, f64)]) -> String {
     let Some(first) = points.first() else {
@@ -226,6 +296,8 @@ pub fn Graph() -> impl IntoView {
     let drag = RwSignal::new(Option::<((f64, f64), (f64, f64))>::None);
     let moved = RwSignal::new(false);
     let needs_fit = RwSignal::new(true);
+    // The project to centre and pick once the Projects level has been drawn (spec 52).
+    let pending_focus = RwSignal::new(Option::<Uuid>::None);
     let viewport = leptos::prelude::NodeRef::<leptos::html::Div>::new();
 
     let orientation = expect_context::<crate::components::orientation::Orientation>();
@@ -329,20 +401,104 @@ pub fn Graph() -> impl IntoView {
         if shown.get().is_some() && needs_fit.get_untracked() {
             needs_fit.set(false);
             fit_now();
+            // Zoomed out from the tasks: the project they belonged to is centred and picked.
+            if let (Some(id), Some(g), Some(el)) = (
+                pending_focus.get_untracked(),
+                shown.get_untracked(),
+                viewport.get_untracked(),
+            ) {
+                if g.level == GraphLevel::Projects {
+                    if let Some(n) = g.nodes.iter().find(|n| n.node.id == id) {
+                        let r = el.get_bounding_client_rect();
+                        let z = zoom.get_untracked().max(FOCUS_MIN_ZOOM);
+                        zoom.set(z);
+                        pan.set(centre_on(n, z, (r.width(), r.height())));
+                        picked.set(Some(Picked::Node(id)));
+                    }
+                    pending_focus.set(None);
+                }
+            }
         }
     });
 
+    // One zoom step by `factor` around `cursor` (view pixels). Out of the smallest scale of the
+    // tasks, or in past the largest scale of the projects, it changes level instead (spec 52).
+    let zoom_step =
+        move |factor: f64, cursor: (f64, f64), view: (f64, f64), prefer_picked: bool| {
+            let to = next_level(
+                zoom.get_untracked(),
+                MIN_ZOOM,
+                MAX_ZOOM,
+                factor.ln(),
+                level.get_untracked(),
+            );
+            match to {
+                Some(GraphLevel::Projects) => {
+                    let middle = to_drawing(
+                        (view.0 / 2.0, view.1 / 2.0),
+                        pan.get_untracked(),
+                        zoom.get_untracked(),
+                    );
+                    pending_focus.set(
+                        shown
+                            .get_untracked()
+                            .and_then(|g| nearest_project(&g, middle)),
+                    );
+                    project.set(String::new());
+                    level.set(GraphLevel::Projects);
+                    if first_hint(1) {
+                        toasts.info("Zoomed out to projects");
+                    }
+                }
+                Some(_) => {
+                    let graph = shown.get_untracked();
+                    let under = graph.as_ref().and_then(|g| {
+                        project_at(
+                            g,
+                            to_drawing(cursor, pan.get_untracked(), zoom.get_untracked()),
+                        )
+                    });
+                    let chosen = match picked.get_untracked() {
+                        Some(Picked::Node(id))
+                            if graph.as_ref().is_some_and(|g| {
+                                g.nodes.iter().any(|n| {
+                                    n.node.id == id && n.node.node_type == NodeType::Project
+                                })
+                            }) =>
+                        {
+                            Some(id)
+                        }
+                        _ => None,
+                    };
+                    let target = if prefer_picked {
+                        chosen.or(under)
+                    } else {
+                        under.or(chosen)
+                    };
+                    if let Some(id) = target {
+                        let name = graph
+                            .and_then(|g| g.nodes.into_iter().find(|n| n.node.id == id))
+                            .map(|n| n.label)
+                            .unwrap_or_default();
+                        level.set(GraphLevel::Tasks);
+                        project.set(id.to_string());
+                        if first_hint(2) {
+                            toasts.info(format!("Zoomed in to the tasks of {name}"));
+                        }
+                    }
+                }
+                None => {
+                    let (z, p) = zoom_at(zoom.get_untracked(), pan.get_untracked(), cursor, factor);
+                    zoom.set(z);
+                    pan.set(p);
+                }
+            }
+        };
     let zoom_by = move |factor: f64| {
         if let Some(el) = viewport.get_untracked() {
             let r = el.get_bounding_client_rect();
-            let (z, p) = zoom_at(
-                zoom.get_untracked(),
-                pan.get_untracked(),
-                (r.width() / 2.0, r.height() / 2.0),
-                factor,
-            );
-            zoom.set(z);
-            pan.set(p);
+            let view = (r.width(), r.height());
+            zoom_step(factor, (view.0 / 2.0, view.1 / 2.0), view, true);
         }
     };
     let on_wheel = move |ev: ev::WheelEvent| {
@@ -353,14 +509,12 @@ pub fn Graph() -> impl IntoView {
                 f64::from(ev.client_x()) - r.left(),
                 f64::from(ev.client_y()) - r.top(),
             );
-            let (z, p) = zoom_at(
-                zoom.get_untracked(),
-                pan.get_untracked(),
-                cursor,
+            zoom_step(
                 (-ev.delta_y() * 0.0015).exp(),
+                cursor,
+                (r.width(), r.height()),
+                false,
             );
-            zoom.set(z);
-            pan.set(p);
         }
     };
     let on_down = move |ev: ev::MouseEvent| {
@@ -429,7 +583,11 @@ pub fn Graph() -> impl IntoView {
         if typing {
             return;
         }
+        let plain = !(e.ctrl_key() || e.meta_key() || e.alt_key());
         match e.key().as_str() {
+            // `-` and `+` zoom like the buttons (and change level at the ends, spec 52).
+            "-" | "_" if plain => zoom_by(1.0 / 1.25),
+            "+" | "=" if plain => zoom_by(1.25),
             "Escape" => {
                 picked.set(None);
                 linking.set(None);
@@ -570,7 +728,7 @@ pub fn Graph() -> impl IntoView {
                 <EdgeCard graph=shown picked=picked pan=pan zoom=zoom />
                 <div class="pointer-events-none absolute bottom-2 left-3 flex flex-wrap items-center gap-2 text-[11px] text-muted">
                     {key}
-                    <span>"drag to pan · scroll to zoom · click to trace · ⌄ for details · double-click to open · drag from a box's handle to link"</span>
+                    <span>"drag to pan · scroll to zoom (out far enough for projects) · click to trace · ⌄ for details · double-click to open · drag from a box's handle to link"</span>
                 </div>
             </div>
             <Tray graph=shown linking=linking open=tray_open />
@@ -1281,6 +1439,78 @@ mod tests {
         // Huge drawings stop at the minimum zoom; nonsense sizes are harmless.
         assert_eq!(fit(100_000.0, 100_000.0, 1000.0, 600.0).0, MIN_ZOOM);
         assert_eq!(fit(0.0, 0.0, 1000.0, 600.0), (1.0, (0.0, 0.0)));
+    }
+
+    #[test]
+    fn only_the_ends_of_the_zoom_change_the_level() {
+        use GraphLevel::{Projects, Tasks};
+        let (min, max) = (MIN_ZOOM, MAX_ZOOM);
+        // Tasks: out at the smallest scale goes to projects; anything else just zooms.
+        assert_eq!(next_level(min, min, max, -0.2, Tasks), Some(Projects));
+        assert_eq!(next_level(min + 0.01, min, max, -0.2, Tasks), None);
+        assert_eq!(next_level(min, min, max, 0.2, Tasks), None);
+        assert_eq!(next_level(max, min, max, 0.2, Tasks), None);
+        // Projects: in at the largest scale goes to tasks.
+        assert_eq!(next_level(max, min, max, 0.2, Projects), Some(Tasks));
+        assert_eq!(next_level(max - 0.01, min, max, 0.2, Projects), None);
+        assert_eq!(next_level(max, min, max, -0.2, Projects), None);
+        assert_eq!(next_level(min, min, max, -0.2, Projects), None);
+        // A zoom that has just reached the bound (zoom_at clamps) has not switched yet.
+        let (z, _) = zoom_at(0.16, (0.0, 0.0), (0.0, 0.0), 0.5);
+        assert_eq!(z, MIN_ZOOM);
+        assert_eq!(next_level(0.16, min, max, -0.7, Tasks), None);
+        assert_eq!(next_level(z, min, max, -0.7, Tasks), Some(Projects));
+    }
+
+    #[test]
+    fn zooming_out_of_the_tasks_lands_on_the_project_nearest_the_middle() {
+        let a = Uuid::from_u128(1);
+        let b = Uuid::from_u128(2);
+        let g = graph(
+            vec![
+                node("a1", |n| {
+                    n.project_id = Some(a);
+                    n.x = 0.0;
+                }),
+                node("b1", |n| {
+                    n.project_id = Some(b);
+                    n.x = 1000.0;
+                }),
+                // An inbox task is nobody's project.
+                node("inbox", |n| n.x = 480.0),
+            ],
+            0,
+            0,
+            GraphLevel::Tasks,
+        );
+        assert_eq!(nearest_project(&g, (50.0, 20.0)), Some(a));
+        assert_eq!(nearest_project(&g, (900.0, 20.0)), Some(b));
+        assert_eq!(
+            nearest_project(&graph(vec![], 0, 0, GraphLevel::Tasks), (0.0, 0.0)),
+            None
+        );
+    }
+
+    #[test]
+    fn a_project_is_found_under_a_point_and_centred_in_the_view() {
+        let p = Uuid::from_u128(7);
+        let g = graph(
+            vec![node("P", |n| {
+                n.node = NodeRef::new(NodeType::Project, p);
+                n.x = 100.0;
+                n.y = 100.0;
+                n.w = 200.0;
+                n.h = 50.0;
+            })],
+            0,
+            0,
+            GraphLevel::Projects,
+        );
+        assert_eq!(project_at(&g, (150.0, 120.0)), Some(p));
+        assert_eq!(project_at(&g, (99.0, 120.0)), None);
+        assert_eq!(project_at(&g, (150.0, 151.0)), None);
+        // At 2x the box's middle (200, 125) lands in the middle of a 1000x600 view.
+        assert_eq!(centre_on(&g.nodes[0], 2.0, (1000.0, 600.0)), (100.0, 50.0));
     }
 
     #[test]

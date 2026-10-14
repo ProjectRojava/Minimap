@@ -72,7 +72,9 @@ Narrow the graph by **project**, **team** (including its sub-teams) or **objecti
 
 ## Moving around
 
-**Drag** the background to pan; the **mouse wheel** or the **+ / −** buttons zoom about the pointer; **Fit** shows everything.
+**Drag** the background to pan; the **mouse wheel**, the **+ / −** buttons or the `+` and `-` keys zoom about the pointer; **Fit** shows everything.
+
+Zoom out past the smallest size on the Tasks level and the graph becomes the **Projects** level, with the project of the tasks you were looking at centred and picked; zoom in past the largest size on a project and you are back on the Tasks level, filtered to it. See [Zoom](help:zoom).
 
 ## If it says there is a loop
 

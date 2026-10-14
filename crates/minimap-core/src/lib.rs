@@ -39,6 +39,7 @@ pub mod undo;
 pub mod waiting_on;
 pub mod weekly_review;
 pub mod zone;
+pub mod zoom;
 
 use minimap_types::PingResponse;
 

@@ -17,6 +17,7 @@ mod theme;
 mod themes;
 mod timeline;
 mod window;
+mod zoom;
 
 fn main() {
     console_error_panic_hook::set_once();

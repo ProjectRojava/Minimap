@@ -35,6 +35,7 @@ mod undo;
 mod views;
 mod week;
 mod work_week;
+mod zoom;
 
 pub use activity::*;
 pub use approach::*;
@@ -70,6 +71,7 @@ pub use uuid::Uuid;
 pub use views::*;
 pub use week::*;
 pub use work_week::*;
+pub use zoom::*;
 
 /// Response of the `ping` command (M0 smoke test of the UI <-> Rust bridge).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

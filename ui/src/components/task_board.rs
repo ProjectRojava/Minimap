@@ -743,7 +743,8 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
 
     view! {
         <div class="flex h-full flex-col" on:click=on_background_click>
-            <PageHeader icon="tasks" title="Tasks" subtitle="Drag cards between columns to change their status">
+            <PageHeader icon="tasks" title="Tasks" subtitle="Drag cards between columns to change their status"
+                        crumbs=crate::components::zoom::project_crumbs(filters.project)>
                 <button class=BUTTON_SOFT
                         on:click=move |_| adding.update(|a| *a = if a.is_some() { None } else { Some(TaskStatus::Todo) })>
                     {move || if adding.get().is_some() { "Cancel" } else { "New task" }}

@@ -81,6 +81,10 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
     view! {
         <header class="flex items-start gap-2 px-4 py-3 border-b border-line">
             <div class="flex-1 min-w-0">
+                <div class="mb-1">
+                    <crate::components::zoom::Crumbs
+                        focus=Signal::derive(move || crate::components::zoom::CrumbFocus::Node(node)) />
+                </div>
                 <p class="text-[11px] uppercase tracking-wide text-muted">{type_label(node.node_type)}</p>
                 <h2 class="text-base font-semibold break-words">
                     {move || match summary.get() {

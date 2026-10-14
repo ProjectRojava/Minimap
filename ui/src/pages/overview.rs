@@ -173,7 +173,8 @@ fn Body(overview: PortfolioOverview) -> impl IntoView {
     let n_waiting = stale_waiting.len();
 
     view! {
-        <PageHeader icon="overview" title="Overview" subtitle="What is at risk and why, without asking">
+        <PageHeader icon="overview" title="Overview" subtitle="What is at risk and why, without asking"
+                    crumbs=Signal::derive(|| crate::components::zoom::CrumbFocus::World)>
             <span class="text-muted">{counts_line}</span>
             <span class=format!("{CHIP} ml-auto")>{format!("as of {today}")}</span>
         </PageHeader>

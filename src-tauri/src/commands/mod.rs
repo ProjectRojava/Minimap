@@ -34,3 +34,4 @@ pub mod teams;
 pub mod this_week;
 pub mod undo;
 pub mod waiting_on;
+pub mod zoom;

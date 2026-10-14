@@ -1,4 +1,4 @@
-//! Global keyboard shortcuts: `g` chords, `/` search, `?`/F1 help, Ctrl/Cmd+K palette, Ctrl/Cmd+Z undo, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
+//! Global keyboard shortcuts: `g` chords, `/` search, `?`/F1 help, Ctrl/Cmd+K palette, Ctrl/Cmd+Z undo, Alt+Up/Down zoom, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
 
 use leptos::{ev, prelude::*, web_sys};
 use leptos_router::hooks::use_navigate;
@@ -10,6 +10,7 @@ use crate::{
         chord_target, is_help_key, is_row_key, is_typing_target, undo_key, UndoKey, CHORD_WINDOW_MS,
     },
     state::{undo_or_redo, DataVersion, ListNav, PaletteOpen, Selection, Toasts},
+    zoom::{zoom_key, ZoomKey},
 };
 
 /// Whether a right-click on this element may show the webview's own menu. Only text boxes keep
@@ -46,6 +47,7 @@ pub fn use_global_shortcuts() {
     let ping_box = expect_context::<crate::components::ping::PingBoxState>();
     let orientation = expect_context::<crate::components::orientation::Orientation>();
     let save_box = expect_context::<crate::components::save_points::SaveBoxState>();
+    let zoom = expect_context::<crate::state::ZoomCtx>();
     // When `g` was pressed, in ms since the epoch (0 = no chord pending).
     let chord_started = StoredValue::new(0.0_f64);
 
@@ -88,6 +90,19 @@ pub fn use_global_shortcuts() {
             if !is_typing_target(&tag, editable) {
                 e.prevent_default();
                 undo_or_redo(which == UndoKey::Redo, toasts, version);
+            }
+            return;
+        }
+        // Alt+Up zooms out and Alt+Down zooms in (spec 52), except in a text box, where the
+        // arrows keep their text meaning.
+        if let Some(which) = zoom_key(&key, e.ctrl_key(), e.meta_key(), e.shift_key(), e.alt_key())
+        {
+            if !is_typing_target(&tag, editable) {
+                e.prevent_default();
+                match which {
+                    ZoomKey::Out => zoom.out(),
+                    ZoomKey::In => zoom.inn(),
+                }
             }
             return;
         }

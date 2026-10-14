@@ -4,6 +4,8 @@ A **project** is work with a purpose: an owner, a start and target date, a statu
 
 ## The list and the board
 
+`Alt+↓` on a highlighted project opens its tasks (the Tasks board filtered to it) and `Alt+↑` from there goes up to its objective: see [Zoom](help:zoom).
+
 In **My view** (`v`) the list and the board show only projects you own, projects that hold your tasks, and projects that reach you, each with a chip that says why. See [Portfolio view and My view](help:views).
 
 The **Projects** screen has two layouts, switched at the top right:

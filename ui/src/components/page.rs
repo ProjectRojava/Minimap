@@ -4,7 +4,10 @@
 
 use leptos::prelude::*;
 
-use crate::icons;
+use crate::{
+    components::zoom::{CrumbFocus, Crumbs},
+    icons,
+};
 
 /// A 16px line icon in the current text colour (path data in `icons.rs`).
 #[component]
@@ -112,8 +115,13 @@ pub fn PageHeader(
     icon: &'static str,
     title: &'static str,
     #[prop(optional)] subtitle: &'static str,
+    /// The zoom path of what the page is about (spec 52), shown under the title in place of the
+    /// subtitle: "World", or the path to an item. `Hidden` shows the subtitle.
+    #[prop(optional)]
+    crumbs: Option<Signal<CrumbFocus>>,
     children: Children,
 ) -> impl IntoView {
+    let crumbs_shown = move || crumbs.is_some_and(|c| c.get() != CrumbFocus::Hidden);
     view! {
         <header class="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
             <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-accent/30 bg-accent/10 text-accent">
@@ -121,8 +129,17 @@ pub fn PageHeader(
             </span>
             <div class="min-w-0 shrink-0">
                 <h1 class="text-[14px] font-semibold leading-4">{title}</h1>
+                {crumbs.map(|focus| view! {
+                    <Show when=crumbs_shown>
+                        <Crumbs focus=focus />
+                    </Show>
+                })}
                 {(!subtitle.is_empty()).then(|| view! {
-                    <p class="hidden truncate text-[11px] leading-4 text-muted lg:block">{subtitle}</p>
+                    <p class=move || if crumbs_shown() {
+                           "hidden"
+                       } else {
+                           "hidden truncate text-[11px] leading-4 text-muted lg:block"
+                       }>{subtitle}</p>
                 })}
             </div>
             <div class="flex min-w-0 flex-1 items-center gap-2 pl-2">{children()}</div>

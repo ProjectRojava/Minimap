@@ -14,8 +14,10 @@ Minimap is built to be used without the mouse. Shortcuts that are single keys wo
 | `Esc` | Close the detail pane, or leave a text box |
 | `Ctrl/Cmd+S` | Make a save point: a copy of everything, with a name if you like ([Backup and restore](help:backup-restore)) |
 | `v` | Switch between Portfolio view and My view ([Portfolio view and My view](help:views)) |
+| `Alt+↑` | Zoom out one level: from a task to its project, objective and the Overview ([Zoom](help:zoom)) |
+| `Alt+↓` | Zoom back in to where you came from, or into the highlighted row |
 
-Inside a text box `Ctrl/Cmd+Z` undoes the typing, as usual.
+Inside a text box `Ctrl/Cmd+Z` undoes the typing, as usual, and `Alt+↑` / `Alt+↓` do not zoom.
 
 ## Go to a screen: press `g`, then a letter
 

@@ -168,6 +168,7 @@ fn main() {
             commands::graph::get_dependency_graph,
             commands::capacity::get_capacity,
             commands::orientation::get_my_scope,
+            commands::zoom::get_zoom_path,
             commands::people_frames::get_people_frames,
             commands::security::get_security_status,
             commands::security::unlock_database,

@@ -605,7 +605,8 @@ pub fn TaskList(
 
     view! {
         <div class="flex flex-col h-full">
-            <PageHeader icon=if inbox { "inbox" } else { "tasks" } title=if inbox { "Inbox" } else { "Tasks" } subtitle="Work you or your team own, with estimates and due dates">
+            <PageHeader icon=if inbox { "inbox" } else { "tasks" } title=if inbox { "Inbox" } else { "Tasks" } subtitle="Work you or your team own, with estimates and due dates"
+                        crumbs=crate::components::zoom::project_crumbs(filters.project)>
                 <button class=BUTTON_SOFT on:click=move |_| adding.update(|a| *a = !*a)>
                     {move || if adding.get() { "Cancel" } else { "New task" }}
                 </button>

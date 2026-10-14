@@ -49,6 +49,9 @@ pub enum Action {
     ShowPings,
     /// Open the box that makes a named save point (spec 51).
     MakeSavePoint,
+    /// Zoom out or in between the portfolio, an objective, a project and an item (spec 52).
+    ZoomOut,
+    ZoomIn,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -76,6 +79,8 @@ pub fn commands() -> Vec<Command> {
         action("Ping this…", "m", Action::PingOpen),
         action("Show pings", "This week", Action::ShowPings),
         action("Make a save point…", "Ctrl S", Action::MakeSavePoint),
+        action("Zoom out", "Alt ↑", Action::ZoomOut),
+        action("Zoom in", "Alt ↓", Action::ZoomIn),
         action("Undo last change", "Ctrl Z", Action::Undo),
         action("Redo", "Ctrl Shift Z", Action::Redo),
         action("What if this slips?", "g f", Action::Go("/what-if")),
@@ -208,6 +213,7 @@ struct Pal {
     meetings: crate::state::MeetingDialog,
     pings: crate::components::ping::PingBoxState,
     save_box: crate::components::save_points::SaveBoxState,
+    zoom: crate::state::ZoomCtx,
 }
 
 impl Pal {
@@ -259,6 +265,14 @@ impl Pal {
                     self.pings.show.set(true);
                     self.go.set(Some("/"));
                     self.close();
+                }
+                Action::ZoomOut => {
+                    self.close();
+                    self.zoom.out();
+                }
+                Action::ZoomIn => {
+                    self.close();
+                    self.zoom.inn();
                 }
                 Action::Undo | Action::Redo => {
                     self.close();
@@ -336,6 +350,7 @@ pub fn PaletteHost() -> impl IntoView {
         meetings: expect_context::<crate::state::MeetingDialog>(),
         pings: expect_context::<crate::components::ping::PingBoxState>(),
         save_box: expect_context::<crate::components::save_points::SaveBoxState>(),
+        zoom: expect_context::<crate::state::ZoomCtx>(),
     };
     let hits = RwSignal::new(Vec::<SearchHit>::new());
     let preview = RwSignal::new(Option::<QuickPreview>::None);

@@ -1090,6 +1090,11 @@ pub async fn get_my_scope() -> Result<minimap_types::MyScope, AppError> {
     invoke("get_my_scope", &NoArgs {}).await
 }
 
+/// The way from the whole portfolio down to an item: World first, the item last (spec 52).
+pub async fn get_zoom_path(node: NodeRef) -> Result<Vec<minimap_types::ZoomStep>, AppError> {
+    invoke("get_zoom_path", &NodeArg { node }).await
+}
+
 #[derive(Serialize)]
 struct SlipsArg {
     slips: Vec<Slip>,

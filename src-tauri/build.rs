@@ -79,6 +79,7 @@ const COMMANDS: &[&str] = &[
     "get_dependency_graph",
     "get_capacity",
     "get_my_scope",
+    "get_zoom_path",
     "get_people_frames",
     "get_security_status",
     "unlock_database",

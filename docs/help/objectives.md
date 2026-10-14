@@ -8,6 +8,8 @@ Two kinds: a **goal** has an end (a target date, and it can be *done*); an **ong
 
 In **My view** (`v`) only the objectives your own projects and tasks contribute to are listed, marked *serves your work*. See [Portfolio view and My view](help:views).
 
+With an objective open, `Alt+↑` zooms out to the Overview and the line under the title shows where you are ([Zoom](help:zoom)). A project that serves several objectives zooms out to the one with the highest priority.
+
 Objectives are listed by priority (1 is highest), then target date, then title. A toggle groups them by **calendar quarter** of their target date, with a *No date* group for goals without one. Ongoing objectives are always in a group of their own, *Ongoing*, at the end, whichever way you group; the date column shows an *ongoing* pill (or an amber *review due* pill when its review is overdue). Each row shows how many projects and tasks contribute.
 
 ## Colours

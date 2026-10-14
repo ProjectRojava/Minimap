@@ -84,6 +84,7 @@
     "allow-get-dependency-graph",
     "allow-get-capacity",
     "allow-get-my-scope",
+    "allow-get-zoom-path",
     "allow-get-people-frames",
     "allow-get-security-status",
     "allow-unlock-database",

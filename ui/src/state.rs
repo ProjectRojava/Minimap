@@ -2,10 +2,14 @@
 
 use std::time::Duration;
 
-use leptos::prelude::*;
-use minimap_types::{AppError, Clock, LinkRelation, NodeRef, Uuid};
+use leptos::{prelude::*, task::spawn_local};
+use leptos_router::hooks::use_location;
+use minimap_types::{AppError, Clock, LinkRelation, NodeRef, Uuid, ZoomStep};
 
-use crate::nav::move_cursor;
+use crate::{
+    nav::move_cursor,
+    zoom::{focus_of, in_target, join_route, out_target, project_route, route_for, WORLD_ROUTE},
+};
 
 /// The node shown in the detail pane, if any.
 #[derive(Clone, Copy)]
@@ -139,7 +143,13 @@ pub struct ListNav {
     pub new_request: RwSignal<u64>,
     /// The last row shortcut (`x`, `1`-`5`, ...) pressed with a row under the cursor.
     pub row_key: RwSignal<Option<RowKey>>,
+    /// A cursor position to put back on the next rows that arrive (a zoom in returning to a
+    /// screen), with the time it was asked for in ms.
+    restore: StoredValue<Option<(usize, f64)>>,
 }
+
+/// How long a cursor waits for its screen's rows before it is forgotten, in ms.
+const RESTORE_WAIT_MS: f64 = 3000.0;
 
 /// A row shortcut. `seq` grows with every press so repeating a key is still a change.
 #[derive(Clone, PartialEq)]
@@ -155,6 +165,7 @@ impl ListNav {
             cursor: RwSignal::new(None),
             new_request: RwSignal::new(0),
             row_key: RwSignal::new(None),
+            restore: StoredValue::new(None),
         }
     }
 
@@ -205,9 +216,41 @@ impl ListNav {
     pub fn set_items(&self, items: Vec<NodeRef>) {
         let len = items.len();
         self.items.set(items);
+        // A cursor waiting for its screen's rows lands on the first rows that arrive.
+        let waiting = if len == 0 {
+            None
+        } else {
+            self.restore
+                .try_update_value(Option::take)
+                .flatten()
+                .filter(|(_, asked)| js_sys::Date::now() - asked < RESTORE_WAIT_MS)
+                .map(|(i, _)| i)
+        };
         self.cursor.update(|c| {
-            *c = c.and_then(|i| if len == 0 { None } else { Some(i.min(len - 1)) });
+            *c = match waiting {
+                Some(i) => Some(i.min(len - 1)),
+                None => c.and_then(|i| if len == 0 { None } else { Some(i.min(len - 1)) }),
+            };
         });
+    }
+
+    /// Puts the cursor back on row `i` (a zoom in returning to where it was). On the screen that
+    /// is already showing it moves now; for a screen that is about to open it waits for the
+    /// screen's rows.
+    pub fn restore_cursor(&self, i: usize, screen_changes: bool) {
+        if screen_changes {
+            self.restore.set_value(Some((i, js_sys::Date::now())));
+        } else {
+            let len = self.items.with_untracked(Vec::len);
+            if len > 0 {
+                self.cursor.set(Some(i.min(len - 1)));
+            }
+        }
+    }
+
+    /// Whether a screen's rows include this node (it is on the screen).
+    pub fn contains(&self, node: NodeRef) -> bool {
+        self.items.with_untracked(|i| i.contains(&node))
     }
 
     /// Leaving a screen: forget its rows and the cursor.
@@ -398,4 +441,169 @@ pub fn undo_or_redo(redo: bool, toasts: Toasts, version: DataVersion) {
             Err(e) => toasts.error(&e),
         }
     });
+}
+
+// ------------------------------------------------------------------------------------- zoom
+
+/// A place to come back to: where the screen was before a zoom out (spec 52).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ZoomFrame {
+    pub route: String,
+    pub selection: Option<NodeRef>,
+    pub cursor: Option<usize>,
+}
+
+/// A move waiting for `ZoomHost` to carry it out: go to `route`, open `selection` in the pane
+/// (none closes it), and remember `push` so a zoom in comes back.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ZoomMove {
+    pub route: String,
+    pub selection: Option<NodeRef>,
+    pub cursor: Option<usize>,
+    pub push: Option<ZoomFrame>,
+}
+
+/// Zoom (spec 52): moving between the whole portfolio, an objective, a project and an item, and
+/// back to exactly where you were. `Alt+Up` / `Alt+Down`, the breadcrumb and the palette call
+/// [`out`](Self::out), [`inn`](Self::inn) and [`go_to`](Self::go_to).
+#[derive(Clone, Copy)]
+pub struct ZoomCtx {
+    /// Where to come back to, newest last. A normal navigation empties it (`ZoomHost`).
+    pub stack: RwSignal<Vec<ZoomFrame>>,
+    /// The move waiting to be carried out.
+    pub request: RwSignal<Option<ZoomMove>>,
+    /// The project the Tasks screen is filtered to, while that screen is open.
+    pub page_project: RwSignal<Option<Uuid>>,
+    /// A project filter the Tasks screen should take (`Some(None)` = none), set when a zoom
+    /// lands on it.
+    pub pending_project: RwSignal<Option<Option<Uuid>>>,
+    /// The route the last zoom went to, so the arrival is not mistaken for a navigation.
+    pub expected: StoredValue<Option<String>>,
+    selection: Selection,
+    list: ListNav,
+    toasts: Toasts,
+    pathname: Memo<String>,
+    search: Memo<String>,
+}
+
+impl ZoomCtx {
+    /// Provides the context. Call inside the `<Router>`.
+    pub fn provide() -> Self {
+        let location = use_location();
+        let ctx = Self {
+            stack: RwSignal::new(Vec::new()),
+            request: RwSignal::new(None),
+            page_project: RwSignal::new(None),
+            pending_project: RwSignal::new(None),
+            expected: StoredValue::new(None),
+            selection: expect_context::<Selection>(),
+            list: expect_context::<ListNav>(),
+            toasts: expect_context::<Toasts>(),
+            pathname: location.pathname,
+            search: location.search,
+        };
+        provide_context(ctx);
+        ctx
+    }
+
+    /// The screen you are on, with its query.
+    pub fn route(&self) -> String {
+        join_route(&self.pathname.get_untracked(), &self.search.get_untracked())
+    }
+
+    /// The route that brings the screen back as it is: a Tasks board filtered by its dropdown
+    /// has no query, so the project is written into it.
+    fn return_route(&self) -> String {
+        if self.pathname.get_untracked() == "/tasks" {
+            if let Some(project) = self.page_project.get_untracked() {
+                return project_route(project);
+            }
+        }
+        self.route()
+    }
+
+    /// What zooming starts from: the item open in the pane, else the filtered project.
+    pub fn focus(&self) -> Option<NodeRef> {
+        focus_of(
+            self.selection.0.get_untracked(),
+            self.page_project.get_untracked(),
+        )
+    }
+
+    /// Zooms out one level from what you are looking at.
+    pub fn out(self) {
+        let Some(node) = self.focus() else {
+            // Already the widest view of a screen: out is the Overview.
+            if self.pathname.get_untracked() != WORLD_ROUTE {
+                self.go(&ZoomStep::world(), true);
+            }
+            return;
+        };
+        spawn_local(async move {
+            match crate::api::get_zoom_path(node).await {
+                Ok(path) => {
+                    if let Some(step) = out_target(&path) {
+                        self.go(step, true);
+                    }
+                }
+                Err(e) => self.toasts.error(&e),
+            }
+        });
+    }
+
+    /// Zooms back in to where the last zoom out came from; with nothing to go back to, into the
+    /// item under the list cursor.
+    pub fn inn(self) {
+        if let Some(frame) = self.stack.try_update(|s| s.pop()).flatten() {
+            self.request.set(Some(ZoomMove {
+                route: frame.route,
+                selection: frame.selection,
+                cursor: frame.cursor,
+                push: None,
+            }));
+            return;
+        }
+        let Some(row) = self.list.current() else {
+            return;
+        };
+        let focus = self.focus();
+        spawn_local(async move {
+            match crate::api::get_zoom_path(row).await {
+                Ok(path) => {
+                    if let Some(step) = in_target(focus, &path) {
+                        self.go(step, false);
+                    }
+                }
+                Err(e) => self.toasts.error(&e),
+            }
+        });
+    }
+
+    /// Zooms to a step of a path (a breadcrumb was clicked); a zoom in comes back to here.
+    pub fn go_to(self, step: &ZoomStep) {
+        self.go(step, true);
+    }
+
+    fn go(self, step: &ZoomStep, push: bool) {
+        let here = self.route();
+        let visible = step
+            .node
+            .as_ref()
+            .is_some_and(|n| self.list.contains(n.node));
+        let (route, selection) = route_for(step, &here, visible);
+        if route == here && selection == self.selection.0.get_untracked() {
+            return;
+        }
+        let push = push.then(|| ZoomFrame {
+            route: self.return_route(),
+            selection: self.selection.0.get_untracked(),
+            cursor: self.list.cursor.get_untracked(),
+        });
+        self.request.set(Some(ZoomMove {
+            route,
+            selection,
+            cursor: None,
+            push,
+        }));
+    }
 }
