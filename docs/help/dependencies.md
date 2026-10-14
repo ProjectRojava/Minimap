@@ -30,13 +30,13 @@ Every mark has words on the box, so colour is never the only signal.
 
 ## Trace a chain
 
-**Click a box.** The graph **traces** it: everything it waits on and everything it holds up stays lit, and the rest dims. Click the background or press `Esc` to clear the trace. **Double-click** a box to open it in the detail pane (a single click no longer does).
+**Click a box.** The graph **traces** it: everything it waits on and everything it holds up stays lit, and the rest dims, and the box **opens in place** (below). Click the background or press `Esc` to clear the trace. **Double-click** a box to open it in the detail pane on the right. A hint along the bottom of the graph, and the tooltip of every box, say so.
 
 Under the filters, a row of **insights** says what stands out (*Biggest bottleneck: Provision EU network and clusters holds up 9 · 4 links cross projects · 3 blocked · 2 late*); click one that names a box to trace it.
 
 ## Open a box for its details
 
-Every box has a small **⌄** icon at its top right (hidden when you zoom far out). Click it and the box **grows in place**; the rest of the graph moves aside to make room, and the view keeps the box where it was. Only **one box is open at a time**: opening another closes the first. Close it with **⌃**, with `Esc`, or by opening another.
+**Click anywhere on a box** (when you are zoomed in enough to read it) and it **grows in place**; the rest of the graph moves aside to make room, and the view keeps the box where it was. Click an empty part of the open box, or its **⌃**, or press `Esc`, to close it again. Only **one box is open at a time**: opening another closes the first. A double-click opens the item in the detail pane instead of expanding it (the click waits a moment to see whether a second one follows).
 
 An open task says:
 
@@ -62,7 +62,11 @@ All of these are ordinary link changes, so they are logged, exported, synced and
 
 ## Unlinked work
 
-Work with **no links** isn't drawn (it would bury the graph); it waits in the **Unlinked (N)** bar at the bottom. Open it, click a chip, and then click the box it should **block** (on the Projects level, the project that needs it). `Esc` cancels. *Draw unlinked* draws them all instead. *Show finished* adds finished work.
+Work with **no links** isn't drawn (it would bury the graph). A small **Unlinked (N)** button at the top right of the graph opens the list **on the right**; **✕** (or the button's return) hides it again.
+
+The list shows each task or project **as a box**, like the ones in the graph: its title, status, owner, finish, priority, a stripe in its objective's colour and the line the lens says. To find one, **search** (every word must be in the name, the project, the owner or the status) and narrow the list with **status**, **project** and **owner**; the header says *Unlinked (3 of 16)* while it is narrowed. **Drag one onto the graph.** Drop it on empty space and it waits there as a dashed box under the graph, marked *Not linked yet* (the view moves to show it). Then **drag a second one beside it**: dropped to the **right** of the waiting box, the second comes **after** it (the waiting one blocks it); dropped to the **left**, it comes **before** (it blocks the waiting one). It is the same left-to-right order as everywhere else in the graph, and a line over the graph says so while you drag. The two are now linked and join the graph, and the next item you drop starts a new pair. Only one item waits at a time. Take it off again with the **✕** on its box or `Esc`; it also goes when you switch between *Tasks* and *Projects* or leave the screen.
+
+To link something to a box that is already in the graph, **drag it onto that box** (it lights up, and the item blocks the box, or on the Projects level the box needs it), or drag from the box's handle to the waiting one, or click an item and then the box. A link that would make a loop is refused with the path, as always. **Double-click** an item to open it in the detail pane. `Esc` cancels a link you started. A new link is saved like any other (it is in the task's *Links* and shows on its card on the Tasks board, and `Ctrl/Cmd+Z` undoes it), and the item leaves the unlinked list at once and stays out of it, on this screen or after you come back to it. *Draw unlinked* draws them all in the graph instead, and the list goes away. *Show finished* adds finished work.
 
 ## Filters
 

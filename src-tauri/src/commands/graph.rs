@@ -146,6 +146,68 @@ mod tests {
     }
 
     #[test]
+    fn an_unlinked_task_dropped_onto_a_box_is_linked_everywhere() {
+        use minimap_types::GraphFilter;
+        let today = time::macros::date!(2027 - 03 - 01);
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let p = project(&mut conn, "P");
+        let (a, b, c) = (
+            task(&mut conn, "Anchor", 1.0, p),
+            task(&mut conn, "Next", 1.0, p),
+            task(&mut conn, "Loose", 1.0, p),
+        );
+        link(&mut conn, EdgeType::Blocks, NodeType::Task, a, b);
+        // "Loose" is in the unlinked list, not in the drawing, and has no link on the board.
+        let before = graph_at(&conn, &GraphFilter::default(), today).unwrap();
+        assert_eq!(
+            before
+                .unlinked
+                .iter()
+                .map(|u| u.node.id)
+                .collect::<Vec<_>>(),
+            [c]
+        );
+        assert!(before.nodes.iter().all(|n| n.node.id != c));
+        let rows = minimap_store::views::task_rows(&conn).unwrap();
+        assert_eq!(rows.iter().find(|r| r.task.id == c).unwrap().link_count, 0);
+
+        // The UI drops it on "Next": the link the drag makes is `Loose blocks Next`, through the
+        // same command as every other link.
+        crate::commands::edges::add_edge_impl(
+            &mut conn,
+            NewEdge {
+                edge_type: EdgeType::Blocks,
+                from: NodeRef::new(NodeType::Task, c),
+                to: NodeRef::new(NodeType::Task, b),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .unwrap();
+
+        // The next graph draws it and the list no longer has it (so it stays gone after switching
+        // screens), and the Tasks board counts the link on both cards.
+        let after = graph_at(&conn, &GraphFilter::default(), today).unwrap();
+        assert!(after.unlinked.is_empty() && after.hidden_unlinked == 0);
+        assert!(after.nodes.iter().any(|n| n.node.id == c));
+        assert!(after.edges.iter().any(|e| e.from == c && e.to == b));
+        let rows = minimap_store::views::task_rows(&conn).unwrap();
+        let links = |id| rows.iter().find(|r| r.task.id == id).unwrap().link_count;
+        assert_eq!((links(c), links(b), links(a)), (1, 2, 1));
+        // A drop that would make a loop is refused and links nothing.
+        let err = crate::commands::edges::add_edge_impl(
+            &mut conn,
+            NewEdge {
+                edge_type: EdgeType::Blocks,
+                from: NodeRef::new(NodeType::Task, b),
+                to: NodeRef::new(NodeType::Task, c),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "cycle");
+    }
+
+    #[test]
     fn the_graph_reads_the_plan_and_marks_the_critical_path() {
         let mut conn = minimap_store::open_in_memory().unwrap();
         let p = project(&mut conn, "API");

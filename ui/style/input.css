@@ -270,11 +270,15 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .dep .edge.dim { opacity: 0.2; }
 .dep .edge-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
 .dep .rubber { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 4 3; pointer-events: none; }
-.dep .info circle { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
-.dep .info path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.dep .info { cursor: pointer; }
-.dep .info:hover circle { fill: var(--hover); stroke: var(--accent); }
-.dep .info:hover path { stroke: var(--fg); }
+/* An owner's initials as a round badge (the list of unlinked work, like the one in a box). */
+.person-badge { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 9999px; font-size: 9px; font-weight: 600; color: var(--obj); background: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.2); border: 1px solid var(--obj); }
+.dep .node.waiting .box { stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 6 4; }
+.dep .unstage circle { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
+.dep .unstage path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; }
+.dep .unstage { cursor: pointer; }
+.dep .unstage:hover circle { fill: var(--hover); stroke: var(--accent); }
+.dep .unstage:hover path { stroke: var(--fg); }
+.dep .node.drop .box { stroke: var(--accent); stroke-width: 2.4; fill: var(--hover); }
 .dep .node.expanded { cursor: default; }
 .dep .node.expanded .box { fill: var(--panel); stroke: var(--accent); stroke-width: 1.6; }
 .dep .node.expanded:hover .box { fill: var(--panel); }
