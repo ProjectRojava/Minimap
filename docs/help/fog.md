@@ -70,6 +70,10 @@ The Overview shows a tile, **Visibility**: the share of what is in play that is 
 
 [Weekly review](help:weekly-review) has a step, **Fog**, just before the report. It lists everything that has gone quiet, fog first and then haze, oldest first. Each row has *Still accurate*, and tasks have the usual reschedule buttons. When you have cleared it, the step button says *All clear*. The status report does not mention fog: it is your bookkeeping, not something to show a board.
 
+## On the radar
+
+The [radar](help:radar) shows fog the same way: a blip whose item has gone quiet is faded, with a dashed outline, and its hover text says for how long. The radar's bottom line quotes your visibility.
+
 ## Good habits
 
 - Let the weekly review be the scouting run: open the Fog step, and for each item either change it or say it is still accurate.

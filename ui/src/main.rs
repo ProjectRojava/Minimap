@@ -11,6 +11,7 @@ mod md_edit;
 mod mentions;
 mod nav;
 mod pages;
+mod radar_geom;
 mod settings_tab;
 mod state;
 mod theme;

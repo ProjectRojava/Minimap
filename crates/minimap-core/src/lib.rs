@@ -24,6 +24,7 @@ pub mod people_frames;
 pub mod pings;
 pub mod projects;
 pub mod quick_add;
+pub mod radar;
 pub mod recurrence;
 pub mod report;
 pub mod save_points;

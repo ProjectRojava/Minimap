@@ -35,6 +35,7 @@ pub mod people_frames;
 pub mod people_panel;
 pub mod ping;
 pub mod project_panel;
+pub mod radar;
 pub mod reference_links;
 pub mod repeat_field;
 pub mod review_row;

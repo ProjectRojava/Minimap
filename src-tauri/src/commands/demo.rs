@@ -898,4 +898,67 @@ mod tests {
         }
         insta::assert_snapshot!(out);
     }
+
+    #[test]
+    fn the_radar_of_the_demo_data() {
+        use minimap_types::View;
+        let mut conn = demo();
+        let mut out = String::new();
+        for view in [View::Portfolio, View::Mine] {
+            let r = crate::commands::radar::radar_at(&mut conn, view, TODAY).unwrap();
+            let _ = writeln!(out, "== {} (rings {:?})", view.as_str(), r.rings);
+            for s in &r.sectors {
+                let _ = writeln!(
+                    out,
+                    "sector {:<28} from {:>6.1} deg, {:>5.1} deg wide, colour rank {:?}",
+                    s.objective.as_ref().map_or("Other", |o| o.label.as_str()),
+                    s.start.to_degrees(),
+                    s.sweep.to_degrees(),
+                    s.hue_rank
+                );
+            }
+            // The angles come from the items' ids, which are new on every run, so the snapshot
+            // says which sector a blip is in (in a stable order) instead of its angle.
+            let sector_name = |theta: f64| {
+                r.sectors
+                    .iter()
+                    .find(|s| theta >= s.start - 1e-9 && theta <= s.start + s.sweep + 1e-9)
+                    .map_or("?", |s| {
+                        s.objective.as_ref().map_or("Other", |o| o.label.as_str())
+                    })
+            };
+            let mut lines: Vec<String> = r
+                .blips
+                .iter()
+                .map(|b| {
+                    format!(
+                        "[{}] {:?} r {:.2} {:?} {:?} fog {:?}{}: {}",
+                        sector_name(b.theta),
+                        b.kind,
+                        b.r,
+                        b.size,
+                        b.mark,
+                        b.fog,
+                        if b.pinged { " pinged" } else { "" },
+                        b.label
+                    )
+                })
+                .collect();
+            lines.sort();
+            for line in lines {
+                let _ = writeln!(out, "blip {line}");
+            }
+            for m in &r.edge_marks {
+                let _ = writeln!(
+                    out,
+                    "edge {:?} in [{}]: {}",
+                    m.severity,
+                    sector_name(m.theta),
+                    m.label
+                );
+            }
+            let _ = writeln!(out, "footer: {}\n", r.footer.text());
+        }
+        insta::assert_snapshot!(out);
+    }
 }

@@ -52,6 +52,9 @@ pub enum Action {
     /// Zoom out or in between the portfolio, an objective, a project and an item (spec 52).
     ZoomOut,
     ZoomIn,
+    /// Open or close the radar window (spec 53).
+    OpenRadar,
+    CloseRadar,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -79,6 +82,8 @@ pub fn commands() -> Vec<Command> {
         action("Ping this…", "m", Action::PingOpen),
         action("Show pings", "This week", Action::ShowPings),
         action("Make a save point…", "Ctrl S", Action::MakeSavePoint),
+        action("Open radar", "Ctrl Shift M", Action::OpenRadar),
+        action("Close radar", "Ctrl Shift M", Action::CloseRadar),
         action("Zoom out", "Alt ↑", Action::ZoomOut),
         action("Zoom in", "Alt ↓", Action::ZoomIn),
         action("Undo last change", "Ctrl Z", Action::Undo),
@@ -214,6 +219,7 @@ struct Pal {
     pings: crate::components::ping::PingBoxState,
     save_box: crate::components::save_points::SaveBoxState,
     zoom: crate::state::ZoomCtx,
+    theme: crate::theme::ThemeCtx,
 }
 
 impl Pal {
@@ -265,6 +271,14 @@ impl Pal {
                     self.pings.show.set(true);
                     self.go.set(Some("/"));
                     self.close();
+                }
+                Action::OpenRadar => {
+                    self.close();
+                    crate::components::radar::open(self.theme, self.toasts);
+                }
+                Action::CloseRadar => {
+                    self.close();
+                    crate::components::radar::close(self.toasts);
                 }
                 Action::ZoomOut => {
                     self.close();
@@ -351,6 +365,7 @@ pub fn PaletteHost() -> impl IntoView {
         pings: expect_context::<crate::components::ping::PingBoxState>(),
         save_box: expect_context::<crate::components::save_points::SaveBoxState>(),
         zoom: expect_context::<crate::state::ZoomCtx>(),
+        theme: expect_context::<crate::theme::ThemeCtx>(),
     };
     let hits = RwSignal::new(Vec::<SearchHit>::new());
     let preview = RwSignal::new(Option::<QuickPreview>::None);

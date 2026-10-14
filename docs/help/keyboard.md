@@ -13,6 +13,7 @@ Minimap is built to be used without the mouse. Shortcuts that are single keys wo
 | `Ctrl/Cmd+Shift+Z` or `Ctrl+Y` | Redo |
 | `Esc` | Close the detail pane, or leave a text box |
 | `Ctrl/Cmd+S` | Make a save point: a copy of everything, with a name if you like ([Backup and restore](help:backup-restore)) |
+| `Ctrl/Cmd+Shift+M` | Open or close the [radar](help:radar), the small always-on-top window |
 | `v` | Switch between Portfolio view and My view ([Portfolio view and My view](help:views)) |
 | `Alt+↑` | Zoom out one level: from a task to its project, objective and the Overview ([Zoom](help:zoom)) |
 | `Alt+↓` | Zoom back in to where you came from, or into the highlighted row |

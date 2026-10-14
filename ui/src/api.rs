@@ -1090,6 +1090,55 @@ pub async fn get_my_scope() -> Result<minimap_types::MyScope, AppError> {
     invoke("get_my_scope", &NoArgs {}).await
 }
 
+#[derive(Serialize)]
+struct ViewArg {
+    view: minimap_types::View,
+}
+
+/// The radar's layout for a view (spec 53).
+pub async fn get_radar(view: minimap_types::View) -> Result<minimap_types::Radar, AppError> {
+    invoke("get_radar", &ViewArg { view }).await
+}
+
+/// A number that moves when anything the radar shows may have changed (spec 53).
+pub async fn get_data_revision() -> Result<i64, AppError> {
+    invoke("get_data_revision", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct DarkArg {
+    dark: bool,
+}
+
+/// Opens the radar window, or brings it forward. `dark` is the colour it shows first.
+pub async fn open_radar(dark: bool) -> Result<(), AppError> {
+    invoke("open_radar", &DarkArg { dark }).await
+}
+
+pub async fn close_radar() -> Result<(), AppError> {
+    invoke("close_radar", &NoArgs {}).await
+}
+
+/// Opens the radar when it is closed and closes it when it is open; true when it is open now.
+pub async fn toggle_radar(dark: bool) -> Result<bool, AppError> {
+    invoke("toggle_radar", &DarkArg { dark }).await
+}
+
+#[derive(Serialize)]
+struct OnArg {
+    on: bool,
+}
+
+/// Keeps the radar on top of other windows, or lets it go behind them.
+pub async fn set_radar_on_top(on: bool) -> Result<(), AppError> {
+    invoke("set_radar_on_top", &OnArg { on }).await
+}
+
+/// Brings the main window forward with the item open (the radar's only action).
+pub async fn open_in_main(node: NodeRef) -> Result<(), AppError> {
+    invoke("open_in_main", &NodeArg { node }).await
+}
+
 /// The way from the whole portfolio down to an item: World first, the item last (spec 52).
 pub async fn get_zoom_path(node: NodeRef) -> Result<Vec<minimap_types::ZoomStep>, AppError> {
     invoke("get_zoom_path", &NodeArg { node }).await

@@ -1,8 +1,8 @@
 # 10 — Radar: the minimap itself, a small window you glance at
 
-Status: Draft · Milestone: — · Priority: Should · Size: L
+Status: Implemented as spec 53 — awaiting manual check (open questions answered as recommended; the sweep line is not built) · Milestone: — · Priority: Should · Size: L
 Depends on: docs 01 (fog), 02 (safe zone), 03 (approaching), 05 (pings), 07 (My view); specs 13, 15, 16 (implemented) · Read first: [README](README.md)
-Expected ADR: ADR-0021 *A second window: the radar* (window label, its narrow capability, how it asks the main window to open an item)
+Expected ADR: ADR-0021 *A second window: the radar* (window label, its narrow capability, how it asks the main window to open an item) — [written](../decisions/ADR-0021-a-second-window-the-radar.md)
 
 ## Goal
 This is the feature the product is named after. A **small, frameless window** (about 260×260) that can stay on top of other apps, showing your world **centred on you**:
@@ -104,14 +104,14 @@ Nothing stored except device-local window geometry and settings.
 A system-tray icon with a mini radar (needs Tauri's `tray-icon` feature); notifications; editing from the radar; a sweep animation by default; showing people as blips.
 
 ## Acceptance criteria
-- [ ] `core::radar` tests and proptests pass; stable angles; caps respected.
-- [ ] `get_radar` command tests at a fixed date for both views; demo snapshot reviewed.
-- [ ] The radar opens/closes from the title-bar button, the shortcut and the palette; remembers position, size and on-top; closes with the main window.
-- [ ] The radar's capability allows only the listed commands (a test in `src-tauri` parses `capabilities/radar.json` and asserts the list); the main window alone has `core:event:allow-listen`.
-- [ ] Clicking a blip focuses the main window with the item open; view toggles stay in sync between windows.
-- [ ] Refresh follows changes within ~5 s; no calls while nothing changes except the 60 s refresh.
-- [ ] Reduced motion respected; tokens only; shapes carry meaning without colour.
-- [ ] ADR-0021, Help page and links, CHANGELOG, knowledge graph (§1 windows, §7 commands + capability, §8 route/screens/keys), `docs/progress.md`; gate passes; `cargo tauri build` still produces an installer.
+- [x] `core::radar` tests and proptests pass; stable angles; caps respected.
+- [x] `get_radar` command tests at a fixed date for both views; demo snapshot reviewed.
+- [x] The radar opens/closes from the title-bar button, the shortcut and the palette; remembers position, size and on-top; closes with the main window.
+- [x] The radar's capability allows only the listed commands (a test in `src-tauri` parses `capabilities/radar.json` and asserts the list); the main window alone has `core:event:allow-listen`.
+- [x] Clicking a blip focuses the main window with the item open; view toggles stay in sync between windows.
+- [x] Refresh follows changes within ~5 s; no calls while nothing changes except the 60 s refresh.
+- [x] Reduced motion respected; tokens only; shapes carry meaning without colour.
+- [x] ADR-0021, Help page and links, CHANGELOG, knowledge graph (§1 windows, §7 commands + capability, §8 route/screens/keys), `docs/progress.md`; gate passes; `cargo tauri build` still produces an installer.
 
 ## Not yet verified by hand (all three OSes if possible; Linux/WSL at least)
 - Open the radar, move it to a corner, resize it, close and reopen: same place and size.
@@ -126,3 +126,14 @@ A system-tray icon with a mini radar (needs Tauri's `tray-icon` feature); notifi
 1. A slow sweep line (classic radar look)? **Off by default, behind a setting**, or not at all; it's motion without information.
 2. Rings in working days or calendar days? **Working days**, like everything else in the schedule; the hover shows real dates.
 3. Show people (overloaded reports) as blips? **No**; they aren't items with dates. Doc 06's frames cover them.
+
+## As built (decisions made while implementing)
+- **Open questions**: answered as recommended. The sweep line is **not built** (motion without information); rings are in working days.
+- **Types live in `minimap-types`** (`radar.rs`: `Radar`, `Sector`, `Blip`, `EdgeMark`, `Footer`, `BlipKind`, `BlipSize`, `RadarMark`), because the UI depends only on that crate; `Footer::text()` is the bottom line. `BlipKind::Objective` from the sketch was left out: the objectives are the sectors, and no rule makes one a blip. `Blip.pinged` is true for any live ping (due or upcoming), the pin badge.
+- **`RadarInput` has no schedule**: blips are placed by their own due date or target in working days (`schedule::working_index`), so nothing else from the schedule is needed; project health and zone come from the Overview (`overview_at`, always the Portfolio overview, with My view applied by the scope), edge marks from `approaching_at(ApproachScope::Me)` in both views.
+- **`get_radar(view)` has no `utc_offset_minutes`**: the app counts "today" in UTC everywhere (`store::today()`); the radar must agree with This week. My view without a "me" is the Portfolio view (`Radar.view` says which was used).
+- **Window geometry** (`local.radar_geometry`) is x, y, w, h in physical pixels, without `on_top`: whether the radar stays on top lives in the setting `radar_on_top` alone (the pin in the radar and the Settings box both go through `set_radar_on_top`).
+- **Capability**: `radar.json` also has `core:window:allow-start-resize-dragging` (an undecorated window has no resize border on Linux and macOS; Windows has one natively), and the main window got `allow-toggle-radar` and `allow-set-radar-on-top` besides the listed `allow-open-radar` / `allow-close-radar`.
+- **Sectors**: the in-scope objectives that are not done, ordered by priority then title, with "Other" only when something sits there; in My view an item whose objective is not in your view is in "Other". An item serving several objectives sits in the first sector; its colour rank is its place among all objectives by id (ADR-0012).
+- **The demo data has no "Me" approaching item** (spec 45's demo check is for a project scope), so its radar snapshot (`the_radar_of_the_demo_data`) has no edge marks; a command test (`trouble_elsewhere_that_reaches_your_work_is_a_mark_on_the_rim`) covers them end to end. The snapshot lists each blip's sector instead of its angle, because angles come from ids and the seed makes new ids on every run.
+- **Settings changes** (rings) write no activity, so the radar picks them up at its once-a-minute refresh.

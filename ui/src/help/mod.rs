@@ -164,6 +164,12 @@ pub const PAGES: &[Page] = &[
         "Move between the portfolio, an objective, a project and an item (Alt+Up / Alt+Down)"
     ),
     page!(
+        "radar",
+        "Planning and insight",
+        "The radar",
+        "A small window to glance at: your world centred on you (Ctrl/Cmd+Shift+M)"
+    ),
+    page!(
         "fog",
         "Planning and insight",
         "Fog: how fresh your information is",
@@ -401,7 +407,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 34);
+        assert_eq!(PAGES.len(), 35);
     }
 
     #[test]
@@ -602,6 +608,14 @@ mod tests {
         assert!(settings.contains(&format!("(default {})", defaults.capacity_task_limit)));
         assert!(settings.contains(&format!("(default {})", defaults.zone_narrow_days)));
         assert!(settings.contains(&format!("(default {})", defaults.one_on_one_every_days)));
+        // The radar's rings, on the settings page and the radar's own.
+        let rings = defaults.radar_rings;
+        let quoted = format!(
+            "default {}, {} and {} working days",
+            rings[0], rings[1], rings[2]
+        );
+        assert!(settings.contains(&quoted), "settings: {quoted}");
+        assert!(page("radar").body.contains(&quoted), "radar: {quoted}");
         // The projects page says where it turns narrow.
         assert!(page("projects").body.contains(&format!(
             "narrow at {} days of room or fewer",

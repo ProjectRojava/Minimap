@@ -146,6 +146,7 @@ pub fn Settings() -> impl IntoView {
                     <TimeSettings settings=settings />
                     <TaskTypeSettings />
                     <Appearance />
+                    <RadarSettings settings=settings />
                 }.into_any())}
                 {panel(Tab::Thresholds, view! {
                     <WaitingSettings settings=settings />
@@ -329,6 +330,144 @@ fn TimeSettings(settings: Loaded) -> impl IntoView {
     });
     view! {
         <Card title="Time" description="How estimates, working days and capacity are measured.">{body}</Card>
+    }
+}
+
+/// The three rings typed into their boxes, as working days: whole numbers from 1 to 260, each
+/// farther out than the one before. The refusal is a sentence for the person.
+pub fn parse_rings(first: &str, second: &str, third: &str) -> Result<[u32; 3], String> {
+    let one = |text: &str| {
+        text.trim()
+            .parse::<u32>()
+            .map_err(|_| "A ring is a whole number of working days.".to_owned())
+    };
+    let rings = [one(first)?, one(second)?, one(third)?];
+    minimap_types::validate_radar_rings(rings)?;
+    Ok(rings)
+}
+
+/// The radar window (spec 53): staying on top, opening with Minimap and the three rings. All of it
+/// is about this computer, like the theme.
+#[component]
+fn RadarSettings(settings: Loaded) -> impl IntoView {
+    let body = when_loaded(settings, |s| {
+        view! { <RadarFields on_top=s.radar_on_top at_start=s.radar_open_at_start rings=s.radar_rings /> }
+            .into_any()
+    });
+    view! {
+        <Card title="Radar" description="The small window you glance at. These are about this computer only.">
+            {body}
+        </Card>
+    }
+}
+
+#[component]
+fn RadarFields(on_top: bool, at_start: bool, rings: [u32; 3]) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let last = StoredValue::new(rings);
+    let texts = rings.map(|d| RwSignal::new(d.to_string()));
+    let save_rings = move || {
+        let parsed = parse_rings(
+            &texts[0].get_untracked(),
+            &texts[1].get_untracked(),
+            &texts[2].get_untracked(),
+        );
+        let back = move || {
+            for (t, d) in texts.iter().zip(last.get_value()) {
+                t.set(d.to_string());
+            }
+        };
+        match parsed {
+            Err(message) => {
+                toasts.error(&AppError {
+                    code: "invalid".into(),
+                    message,
+                });
+                back();
+            }
+            Ok(rings) if rings == last.get_value() => {}
+            Ok(rings) => {
+                spawn_local(async move {
+                    let patch = UpdateSettings {
+                        radar_rings: Some(rings),
+                        ..Default::default()
+                    };
+                    match api::update_settings(patch).await {
+                        Ok(saved) => {
+                            last.set_value(saved.radar_rings);
+                            for (t, d) in texts.iter().zip(saved.radar_rings) {
+                                t.set(d.to_string());
+                            }
+                        }
+                        Err(e) => {
+                            toasts.error(&e);
+                            back();
+                        }
+                    }
+                });
+            }
+        }
+    };
+    let labels = ["Inner ring", "Middle ring", "Outer ring"];
+    let boxes = texts
+        .iter()
+        .zip(labels)
+        .map(|(text, label)| {
+            let text = *text;
+            view! {
+                <label class="block w-24">
+                    <span class="mb-0.5 block text-[11px] text-muted">{label}</span>
+                    <input class=INPUT type="number" min="1" max="260" prop:value=move || text.get()
+                        on:input=move |ev| text.set(event_target_value(&ev))
+                        on:change=move |_| save_rings() />
+                </label>
+            }
+        })
+        .collect_view();
+    view! {
+        <label class="flex items-start gap-2">
+            <input type="checkbox" class="mt-0.5" prop:checked=on_top
+                on:change=move |ev| {
+                    let on = event_target_checked(&ev);
+                    spawn_local(async move {
+                        if let Err(e) = api::set_radar_on_top(on).await {
+                            toasts.error(&e);
+                        }
+                    });
+                } />
+            <span>
+                <span class="block font-medium">"Keep on top of other windows"</span>
+                <span class="block text-[11px] text-muted">
+                    "The radar stays in view over a video call or a browser. You can also switch it with the pin in the radar's own top bar."
+                </span>
+            </span>
+        </label>
+        <label class="flex items-start gap-2">
+            <input type="checkbox" class="mt-0.5" prop:checked=at_start
+                on:change=move |ev| {
+                    let on = event_target_checked(&ev);
+                    spawn_local(async move {
+                        let patch = UpdateSettings {
+                            radar_open_at_start: Some(on),
+                            ..Default::default()
+                        };
+                        if let Err(e) = api::update_settings(patch).await {
+                            toasts.error(&e);
+                        }
+                    });
+                } />
+            <span>
+                <span class="block font-medium">"Open with Minimap"</span>
+                <span class="block text-[11px] text-muted">"Show the radar whenever Minimap starts."</span>
+            </span>
+        </label>
+        <div>
+            <span class="mb-0.5 block text-[11px] text-muted">"Rings (working days from today)"</span>
+            <div class="flex flex-wrap gap-2">{boxes}</div>
+            <p class="mt-1 text-[11px] text-muted">
+                "How far out each ring is, counted in working days. Each must be farther out than the one before, from 1 to 260. A change shows in the radar within a minute."
+            </p>
+        </div>
     }
 }
 
@@ -825,5 +964,19 @@ mod tests {
             work_week_text(WorkWeek::from_days(&[0, 1, 2, 3]).unwrap()),
             "Mon-Thu · 4 working days a week"
         );
+    }
+
+    #[test]
+    fn rings_are_whole_working_days_that_grow() {
+        assert_eq!(parse_rings("5", " 10 ", "60"), Ok([5, 10, 60]));
+        assert_eq!(parse_rings("1", "2", "260"), Ok([1, 2, 260]));
+        assert!(parse_rings("5", "five", "60")
+            .unwrap_err()
+            .contains("whole number"));
+        assert!(parse_rings("5", "2.5", "60").is_err());
+        assert!(parse_rings("-1", "10", "60").is_err());
+        assert!(parse_rings("10", "5", "60").unwrap_err().contains("larger"));
+        assert!(parse_rings("5", "10", "261").is_err());
+        assert!(parse_rings("0", "10", "60").is_err());
     }
 }

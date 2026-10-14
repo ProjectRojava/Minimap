@@ -131,7 +131,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
    theme. The two pairs below are mirrored by DARK_SL / LIGHT_SL (a test keeps them in step). */
 :root { --obj-s: 55%; --obj-l: 70%; }
 :root[data-kind="light"] { --obj-s: 55%; --obj-l: 32%; }
-.obj-dot, .obj-chip, .obj-edge, .obj-bar, .dep .node, .dep .stripe, .dep .person { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
+.obj-dot, .obj-chip, .obj-edge, .obj-bar, .radar-rim, .dep .node, .dep .stripe, .dep .person { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
 .obj-dot { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 9999px; background: var(--obj); }
 .obj-chip {
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0; height: 18px;
@@ -279,3 +279,18 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .dep .node.expanded .box { fill: var(--panel); stroke: var(--accent); stroke-width: 1.6; }
 .dep .node.expanded:hover .box { fill: var(--panel); }
 .dep .node.expanded foreignObject { user-select: text; cursor: default; }
+
+/*
+ * The radar window (spec 53). A sector's rim wears its objective's colour like every other
+ * objective mark (ADR-0012); an edge mark pulses twice when it first appears, then holds still,
+ * and not at all when the system asks for less motion.
+ */
+.radar-rim { fill: none; stroke: var(--obj); }
+.radar-pulse { animation: radar-pulse 600ms ease-in-out 2; }
+@keyframes radar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .radar-pulse { animation: none; }
+}

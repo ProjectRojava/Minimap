@@ -22,7 +22,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 
    Press `Enter` to see a preview and `Enter` again to add it. Tasks without a project go to the *Inbox*.
 5. **Say what depends on what.** Open a task and, under *Links*, add a *blocks* link to the task that has to wait for it. See [Links between items](help:links).
-6. **Look around.** [This week](help:this-week) shows what needs you now. [Overview](help:overview) shows health across everything (press `v` for [My view](help:views): everything as it touches you). [Schedule](help:schedule) shows when things will really finish. `Alt+↑` and `Alt+↓` [zoom](help:zoom) between the whole portfolio, an objective, a project and one task.
+6. **Look around.** [This week](help:this-week) shows what needs you now. [Overview](help:overview) shows health across everything (press `v` for [My view](help:views): everything as it touches you). [Schedule](help:schedule) shows when things will really finish. `Alt+↑` and `Alt+↓` [zoom](help:zoom) between the whole portfolio, an objective, a project and one task. The [radar](help:radar) (`Ctrl/Cmd+Shift+M`) is a small window you can leave on top of other apps and glance at.
 7. **Protect your data.** Turn on [automatic backups](help:backup-restore), consider [encryption](help:encryption), and optionally connect [Google Drive](help:google-drive).
 
 > **Tip:** the quickest way to see everything working is the demo data. In a development build, *Settings → Developer → Add demo data* fills an empty database with a realistic company. It is not offered in the released app. To get rid of it again, see [the FAQ](help:faq).
@@ -33,6 +33,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 |---|---|---|
 | | [This week](help:this-week) | Your landing screen: overdue, due, blocked, the tasks you keep in focus, in progress, waiting, 1:1s |
 | | [Overview](help:overview) | Health of objectives and projects, top risks, overloaded people |
+| | [Radar](help:radar) | A small window, opened from the title bar, with your world centred on you |
 | | Inbox | Tasks that belong to no project (the Tasks screen, filtered) |
 | Plan | [Objectives](help:objectives) | The outcomes you are after, and what contributes to them |
 | Plan | [Projects](help:projects) | Work with an owner, a target date and tasks; list and board |

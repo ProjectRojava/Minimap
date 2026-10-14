@@ -275,6 +275,12 @@ pub fn undo_key(key: &str, ctrl: bool, meta: bool, shift: bool, alt: bool) -> Op
     (key.eq_ignore_ascii_case("y") && ctrl && !meta && !shift).then_some(UndoKey::Redo)
 }
 
+/// Ctrl/Cmd+Shift+M opens or closes the radar (spec 53). Not Alt; not without Shift (that is
+/// nothing of ours); from anywhere, even a text box.
+pub fn radar_key(key: &str, ctrl: bool, meta: bool, shift: bool, alt: bool) -> bool {
+    (ctrl || meta) && shift && !alt && key.eq_ignore_ascii_case("m")
+}
+
 /// Keys must not trigger shortcuts while the user is typing.
 pub fn is_typing_target(tag: &str, editable: bool) -> bool {
     editable
@@ -287,6 +293,18 @@ pub fn is_typing_target(tag: &str, editable: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_radar_shortcut_is_ctrl_or_cmd_shift_m_and_nothing_else() {
+        assert!(radar_key("M", true, false, true, false));
+        assert!(radar_key("m", false, true, true, false));
+        assert!(!radar_key("m", true, false, false, false));
+        assert!(!radar_key("m", false, false, true, false));
+        assert!(!radar_key("m", true, false, true, true));
+        assert!(!radar_key("z", true, false, true, false));
+        // It does not collide with undo and redo.
+        assert_eq!(undo_key("M", true, false, true, false), None);
+    }
 
     #[test]
     fn help_keys() {

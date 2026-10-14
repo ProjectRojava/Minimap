@@ -16,20 +16,26 @@ use crate::{
     state::DataVersion,
 };
 
-const STORAGE_KEY: &str = "minimap.view";
+pub(crate) const STORAGE_KEY: &str = "minimap.view";
 
 /// The remembered view (a convenience of this computer: nothing breaks without it).
-fn load_view() -> View {
+pub(crate) fn load_view() -> View {
     web_sys::window()
         .and_then(|w| w.local_storage().ok().flatten())
         .and_then(|s| s.get_item(STORAGE_KEY).ok().flatten())
         .map_or(View::Portfolio, |word| View::from_str_or_default(&word))
 }
 
-fn save_view(view: View) {
+pub(crate) fn save_view(view: View) {
     if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
         let _ = storage.set_item(STORAGE_KEY, view.as_str());
     }
+}
+
+/// The view another window of Minimap chose, from a `storage` event (the radar and the main
+/// window share the remembered view, spec 53). `None` for any other key.
+pub(crate) fn view_from_storage(key: Option<&str>, new_value: Option<&str>) -> Option<View> {
+    (key == Some(STORAGE_KEY)).then(|| new_value.map_or(View::Portfolio, View::from_str_or_default))
 }
 
 // ------------------------------------------------------------------ pure wording
@@ -149,6 +155,14 @@ impl Orientation {
                 names.set(list.into_iter().map(|s| (s.node.id, s.label)).collect());
             }
         });
+        // The radar window shares the remembered view: a toggle there arrives here as a
+        // `storage` event (it fires in the other windows of the same origin only).
+        let follow = window_event_listener(leptos::ev::storage, move |e: web_sys::StorageEvent| {
+            if let Some(view) = view_from_storage(e.key().as_deref(), e.new_value().as_deref()) {
+                chosen.set(view);
+            }
+        });
+        on_cleanup(move || follow.remove());
         let ctx = Self {
             chosen,
             scope,
@@ -304,6 +318,25 @@ mod tests {
 
     fn id(n: u128) -> Uuid {
         Uuid::from_u128(n)
+    }
+
+    #[test]
+    fn another_window_changing_the_view_is_followed() {
+        assert_eq!(
+            view_from_storage(Some("minimap.view"), Some("mine")),
+            Some(View::Mine)
+        );
+        assert_eq!(
+            view_from_storage(Some("minimap.view"), Some("portfolio")),
+            Some(View::Portfolio)
+        );
+        // Cleared storage is the default view; other keys are not ours.
+        assert_eq!(
+            view_from_storage(Some("minimap.view"), None),
+            Some(View::Portfolio)
+        );
+        assert_eq!(view_from_storage(Some("minimap.theme"), Some("mine")), None);
+        assert_eq!(view_from_storage(None, None), None);
     }
 
     #[test]

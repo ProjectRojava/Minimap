@@ -1046,6 +1046,12 @@ impl Engine {
 
     // ------------------------------------------------------------ status
 
+    /// How many times another computer's data has been merged in (or recovered) since start:
+    /// the cheap part of [`status`](Self::status) that screens poll to know when to reload.
+    pub fn data_revision(&self) -> u64 {
+        self.inner().data_revision
+    }
+
     /// Everything the status bar and Settings show.
     pub fn status(&self, banner_hidden_until: Option<String>) -> SyncStatus {
         let connected = self.is_connected();

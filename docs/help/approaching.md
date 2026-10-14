@@ -34,6 +34,10 @@ From each open task you are looking at, Minimap walks back along the **blocks** 
 
 Click the strip to open the chains. Each one shows the path from the trouble to what it reaches, why it is in trouble, how soon it arrives, and two buttons: **Open** opens the source in the pane, and **What if it slips?** starts a [what-if](help:what-if) with the source already in the scenario (as many days as it is overdue, or 5).
 
+## On the radar
+
+The [radar](help:radar) draws what hits or threatens your own work as marks on its rim, in the wedge of the objective they will reach. Hover one for the sentence; click it to open the thing in trouble. Items that only deserve a look are left off.
+
 ## Good to know
 
 - It is computed from your tasks, dates and links; nothing is stored, and it follows every change as soon as the screen reloads. Mark the blocking task done and the strip goes away.
