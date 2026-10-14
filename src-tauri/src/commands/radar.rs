@@ -16,8 +16,8 @@ use minimap_types::{
 };
 use serde::{Deserialize, Serialize};
 use tauri::{
-    window::Color, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl,
-    WebviewWindowBuilder, Window, WindowEvent,
+    window::Color, AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, Window,
+    WindowEvent,
 };
 
 use crate::{
@@ -316,34 +316,26 @@ pub(crate) fn open_radar_window(
     } else {
         Color(0xf6, 0xf6, 0xf4, 0xff)
     };
-    let window = WebviewWindowBuilder::new(app, RADAR_LABEL, WebviewUrl::App("index.html".into()))
-        .title("Minimap radar")
-        .decorations(false)
-        .resizable(true)
-        .inner_size(START_SIZE, START_SIZE)
-        .min_inner_size(MIN_SIZE, MIN_SIZE)
-        .always_on_top(on_top)
-        .skip_taskbar(true)
-        .transparent(false)
-        .background_color(background)
-        .visible(false)
-        .build()
-        .map_err(|e| window_error("open the radar", e))?;
-    // Put it where it was, on a screen that is still there; else in the corner of the main one.
-    let screens: Vec<Rect> = app
-        .available_monitors()
-        .unwrap_or_default()
-        .iter()
-        .map(screen_of)
-        .collect();
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let min = (MIN_SIZE * scale).round() as u32;
-    let place = place
+    // Where it goes, worked out before the window exists: where it was left, on a screen that
+    // is still there; else the corner of the primary one. The window is made visible and in
+    // place at once (hiding it and moving it later left the web view unpainted on Linux).
+    let monitors = app.available_monitors().unwrap_or_default();
+    let screens: Vec<Rect> = monitors.iter().map(screen_of).collect();
+    let scale_at = |p: &Rect| {
+        monitors
+            .iter()
+            .find(|m| screen_of(m).overlap(p) > 0)
+            .map_or(1.0, tauri::Monitor::scale_factor)
+    };
+    let placed = place
         .and_then(|p| clamp_to_screens(p, &screens))
-        .map(|p| Rect {
-            w: p.w.max(min),
-            h: p.h.max(min),
-            ..p
+        .map(|p| {
+            let min = (MIN_SIZE * scale_at(&p)).round() as u32;
+            Rect {
+                w: p.w.max(min),
+                h: p.h.max(min),
+                ..p
+            }
         })
         .or_else(|| {
             app.primary_monitor()
@@ -351,9 +343,31 @@ pub(crate) fn open_radar_window(
                 .flatten()
                 .map(|m| corner_of(screen_of(&m), m.scale_factor()))
         });
-    if let Some(p) = place {
-        let _ = window.set_size(PhysicalSize::new(p.w, p.h));
-        let _ = window.set_position(PhysicalPosition::new(p.x, p.y));
+    let mut builder =
+        WebviewWindowBuilder::new(app, RADAR_LABEL, WebviewUrl::App("index.html".into()))
+            .title("Minimap radar")
+            .decorations(false)
+            .resizable(true)
+            .inner_size(START_SIZE, START_SIZE)
+            .min_inner_size(MIN_SIZE, MIN_SIZE)
+            .always_on_top(on_top)
+            .skip_taskbar(true)
+            .transparent(false)
+            .background_color(background);
+    if let Some(p) = placed {
+        let scale = scale_at(&p);
+        builder = builder
+            .inner_size(f64::from(p.w) / scale, f64::from(p.h) / scale)
+            .position(f64::from(p.x) / scale, f64::from(p.y) / scale);
+    }
+    let window = builder
+        .build()
+        .map_err(|e| window_error("open the radar", e))?;
+    // For finding out why a radar is empty: MINIMAP_RADAR_DEVTOOLS=1 opens its web inspector
+    // (debug builds only).
+    #[cfg(debug_assertions)]
+    if std::env::var_os("MINIMAP_RADAR_DEVTOOLS").is_some() {
+        window.open_devtools();
     }
     window.show().map_err(|e| window_error("show the radar", e))
 }

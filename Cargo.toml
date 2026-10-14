@@ -54,3 +54,15 @@ lto = true
 opt-level = "z"
 codegen-units = 1
 panic = "abort"
+
+# `trunk serve` (and so `cargo tauri dev`) builds the UI in the dev profile, and with full debug
+# information the .wasm was over 300 MB, which every window (the main one and the radar) had to
+# download and compile at start. Dependencies and the UI crate keep only what a panic message
+# needs; the backend crates keep full debug information for the debugger.
+[profile.dev.package."*"]
+debug = false
+opt-level = "s"
+
+[profile.dev.package.minimap-ui]
+debug = false
+opt-level = "s"
