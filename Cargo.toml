@@ -37,9 +37,13 @@ sha2 = "0.11.0"
 base64 = "0.23.1"
 open = "5.4.4"
 
-tauri = { version = "2.12.1", features = [] }
+tauri = { version = "2.12.1", features = ["tray-icon"] }
 tauri-build = "2.7.1"
 tauri-plugin-dialog = "2.8.1"
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
+zbus = "5"
 leptos = { version = "0.8.21", features = ["csr"] }
 leptos_router = "0.8.16"
 wasm-bindgen = "0.2.129"

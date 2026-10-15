@@ -79,10 +79,15 @@ pub fn App() -> impl IntoView {
         }
     });
 
+    // What the shell asks of the window: keep running in the tray?, quick add, locked. Outside
+    // the unlock gate, so it works before the database is open.
+    let close_asked = crate::components::close_prompt::use_shell_events();
+
     view! {
         <Router>
             <LockGate />
         </Router>
+        <crate::components::close_prompt::ClosePrompt asked=close_asked />
     }
     .into_any()
 }

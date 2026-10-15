@@ -164,6 +164,24 @@ pub(crate) fn unlock_impl(
     ))
 }
 
+/// Whether [`lock_impl`] would lock this vault: open, and opened with a passphrase.
+pub(crate) fn lockable(vault: &Vault) -> bool {
+    vault.conn.is_some() && vault.method == Some(KeyMethod::Passphrase)
+}
+
+/// Locks an open database that was opened with a passphrase: the connection and the key are
+/// dropped, and only the passphrase (or the recovery key) opens it again. A database opened with
+/// the keychain is left open, since the keychain would open it again with nothing typed, so
+/// locking it would protect nothing. Returns whether it locked.
+pub(crate) fn lock_impl(vault: &mut Vault) -> bool {
+    if !lockable(vault) {
+        return false;
+    }
+    *vault = Vault::locked();
+    tracing::info!("database locked");
+    true
+}
+
 /// Stores `raw` as the current key and checks it reads back. `Some(Keychain)` when it is safe.
 fn repair_keychain(keys: &dyn KeyStore, raw: &RawKey) -> Option<KeyMethod> {
     keys.availability().ok()?;
@@ -605,6 +623,40 @@ mod tests {
         unlock_impl(&mut again, &none, &dir, "a long enough passphrase").unwrap();
         assert_eq!(again.method, Some(KeyMethod::Passphrase));
         assert_eq!(task_count(&again), 3);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn only_a_database_opened_with_a_passphrase_locks_and_the_passphrase_opens_it_again() {
+        let (dir, mut vault) = fresh("lock-after-hidden");
+        let none = MemoryKeyStore::unavailable();
+        // Not encrypted: nothing to lock.
+        assert!(!lockable(&vault) && !lock_impl(&mut vault));
+        assert_eq!(task_count(&vault), 3);
+
+        set_encryption_impl(
+            &mut vault,
+            &none,
+            &dir,
+            passphrase("a long enough passphrase"),
+        )
+        .unwrap();
+        assert!(lockable(&vault));
+        assert!(lock_impl(&mut vault));
+        assert!(vault.conn.is_none(), "the connection is gone");
+        assert_eq!(vault.parts().unwrap_err().code, "locked");
+        // Locking twice does nothing.
+        assert!(!lockable(&vault) && !lock_impl(&mut vault));
+
+        unlock_impl(&mut vault, &none, &dir, "a long enough passphrase").unwrap();
+        assert_eq!(task_count(&vault), 3, "nothing lost by locking");
+
+        // The keychain would open it again with nothing typed, so locking would protect nothing.
+        let keys = MemoryKeyStore::new();
+        set_encryption_impl(&mut vault, &keys, &dir, request(EncryptionChoice::Keychain)).unwrap();
+        assert_eq!(vault.method, Some(KeyMethod::Keychain));
+        assert!(!lockable(&vault) && !lock_impl(&mut vault));
+        assert!(vault.conn.is_some());
         std::fs::remove_dir_all(dir).unwrap();
     }
 

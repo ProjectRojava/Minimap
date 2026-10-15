@@ -11,9 +11,6 @@ extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "window"], js_name = getCurrentWindow)]
     fn current_window() -> TauriWindow;
 
-    #[wasm_bindgen(method, catch, js_name = minimize)]
-    async fn minimize_raw(this: &TauriWindow) -> Result<JsValue, JsValue>;
-
     #[wasm_bindgen(method, catch, js_name = toggleMaximize)]
     async fn toggle_maximize_raw(this: &TauriWindow) -> Result<JsValue, JsValue>;
 
@@ -102,14 +99,6 @@ fn window_error(what: &str, e: JsValue) -> AppError {
             e.as_string().unwrap_or_else(|| format!("{e:?}"))
         ),
     }
-}
-
-pub async fn minimize() -> Result<(), AppError> {
-    current_window()
-        .minimize_raw()
-        .await
-        .map(drop)
-        .map_err(|e| window_error("minimize", e))
 }
 
 pub async fn toggle_maximize() -> Result<(), AppError> {

@@ -3,7 +3,8 @@
 use minimap_types::{
     Activity, AddAttachment, AdvanceResult, AppError, ApplyPreview, ApplyResult, ArchivedItem,
     AssigneeChoice,
-    Attachment, BackupEntry, BackupStatus, Capacity, CheckpointInfo, Clock, ConnectOutcome,
+    Attachment, BackupEntry, BackupStatus, Capacity, CheckpointInfo, Clock, CloseChoice,
+    ConnectOutcome, DeviceSettings, DeviceView,
     CreateDecision, CreateMeeting, CreateNote, CreateObjective, CreatePerson, CreateProject,
     CreateTask, CreateTeam, CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow,
     DemoRemoval, DemoStatus, DemoSummary, DependencyGraph, Edge, EdgeLink, EncryptionResult,
@@ -176,6 +177,42 @@ pub async fn remember_splash_scheme(scheme: &'static str) -> Result<(), AppError
 /// Tells the shell the app is on the page, so it shows the main window and closes the splash.
 pub async fn app_ready() -> Result<(), AppError> {
     invoke("app_ready", &NoArgs {}).await
+}
+
+/// What closing the window does, the tray, starting with the computer, reminders and locking:
+/// this computer's own settings, and what it can do.
+pub async fn get_device_settings() -> Result<DeviceView, AppError> {
+    invoke("get_device_settings", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct DeviceArg {
+    settings: DeviceSettings,
+}
+
+pub async fn update_device_settings(settings: DeviceSettings) -> Result<DeviceView, AppError> {
+    invoke("update_device_settings", &DeviceArg { settings }).await
+}
+
+#[derive(Serialize)]
+struct CloseArg {
+    choice: CloseChoice,
+    remember: bool,
+}
+
+/// The answer from the "keep running in the tray?" box.
+pub async fn answer_close(choice: CloseChoice, remember: bool) -> Result<(), AppError> {
+    invoke("answer_close", &CloseArg { choice, remember }).await
+}
+
+/// The title bar's minimise button: to the tray or the task bar, as Settings says.
+pub async fn minimize_main() -> Result<(), AppError> {
+    invoke("minimize_main", &NoArgs {}).await
+}
+
+/// Closes Minimap for good, whatever closing the window does.
+pub async fn quit_app() -> Result<(), AppError> {
+    invoke("quit_app", &NoArgs {}).await
 }
 
 /// Everything that has been archived, newest first.

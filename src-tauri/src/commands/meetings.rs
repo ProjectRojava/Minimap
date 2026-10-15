@@ -125,6 +125,9 @@ pub async fn advance_meetings(
     state: State<'_, AppState>,
     clock: Clock,
 ) -> Result<AdvanceResult, AppError> {
+    // The screen is the only thing that knows the time zone: keep it for the meeting reminders
+    // that come while the window is hidden (`watch.rs`).
+    state.clock.note(clock.utc_offset_minutes);
     state
         .run_vault(move |vault, _| {
             let conn = vault.parts()?.0;

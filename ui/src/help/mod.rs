@@ -218,6 +218,12 @@ pub const PAGES: &[Page] = &[
         "Every setting, tab by tab"
     ),
     page!(
+        "tray",
+        "Your data",
+        "Tray, reminders and starting with your computer",
+        "Keep Minimap running when the window is closed, with reminders and a lock"
+    ),
+    page!(
         "backup-restore",
         "Your data",
         "Backup and restore",
@@ -413,7 +419,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 36);
+        assert_eq!(PAGES.len(), 37);
     }
 
     #[test]

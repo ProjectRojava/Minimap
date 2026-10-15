@@ -147,6 +147,7 @@ pub fn Settings() -> impl IntoView {
                     <TaskTypeSettings />
                     <Appearance />
                     <RadarSettings settings=settings />
+                    <crate::components::device_settings::DeviceSettingsCard />
                 }.into_any())}
                 {panel(Tab::Thresholds, view! {
                     <WaitingSettings settings=settings />

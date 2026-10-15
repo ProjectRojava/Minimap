@@ -18,7 +18,7 @@ use std::{
 use minimap_types::AppError;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-use crate::{error::app_error, state::AppState};
+use crate::{error::app_error, shell::Shell, state::AppState};
 
 /// The splash stays at least this long, so a fast start still shows the mark and the version.
 pub const MIN_SHOW: Duration = Duration::from_secs(5);
@@ -147,9 +147,14 @@ pub fn spawn_failsafe(app: AppHandle, started: Instant) {
         });
 }
 
-/// The app is on the page: show it, once the splash has had its time.
+/// The app is on the page: show it, once the splash has had its time. When Minimap was started
+/// by the computer and stays in the tray, there is no splash and the window waits to be opened.
 #[tauri::command]
-pub fn app_ready(app: AppHandle, clock: State<'_, SplashClock>) {
+pub fn app_ready(app: AppHandle, clock: State<'_, SplashClock>, shell: State<'_, Shell>) {
+    shell.set_ui_ready();
+    if shell.hidden_start() {
+        return;
+    }
     let wait = wait_before_reveal(clock.0.elapsed(), MIN_SHOW);
     let _ = std::thread::Builder::new()
         .name("splash-reveal".into())

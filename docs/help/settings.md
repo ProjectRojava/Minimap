@@ -16,6 +16,8 @@
 
 **Appearance**: choose a colour theme. *System* follows your computer's light or dark setting; there are 17 themes, dark by default. The choice applies at once. *Frame task cards by type* (on by default) draws each card's border on the Tasks board in a line style that goes with its type (double, dashed, dotted, heavy or plain); turn it off for a plain line on every card, so the type is only the label (see [Tasks](help:tasks), *The board*). Both settings are for this computer only.
 
+**Window and tray**: what the close button does, the tray icon, starting with the computer, meeting and ping reminders, and locking after the window has been hidden; for this computer only. See [Tray, reminders and starting with your computer](help:tray).
+
 **Radar**: how the small [radar](help:radar) window behaves, for this computer only. *Keep on top of other windows* (on by default) keeps it over your other apps. *Open with Minimap* (off by default) shows it whenever Minimap starts. *Rings* (default 5, 10 and 60 working days) is how far out each of its three rings is; each must be farther out than the one before, from 1 to 260, and a change shows within a minute.
 
 ## Thresholds
