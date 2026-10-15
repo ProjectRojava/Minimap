@@ -245,6 +245,19 @@ pub struct TaskRow {
     pub subtasks_done: u32,
 }
 
+/// One thing in the Archive: what it is, when it was archived, and for a task the state it was
+/// left in and its project.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArchivedItem {
+    pub node: NodeSummary,
+    /// The day it was archived (UTC).
+    pub archived_on: time::Date,
+    /// The exact time, as stored; newest first sorts by it.
+    pub archived_at: String,
+    /// "done · Small Bonds Portal" for a task; empty for the rest.
+    pub detail: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TaskDetail {
     pub task: Task,
@@ -319,7 +332,18 @@ pub struct Settings {
     pub radar_open_at_start: bool,
     /// The radar's three rings, in working days from today. This device only.
     pub radar_rings: [u32; 3],
+    /// A finished task is archived on its own this many days after it was finished; 0 = never.
+    pub done_archive_days: u32,
+    /// The same for a finished meeting (they pile up fastest); 0 = never.
+    pub done_archive_meeting_days: u32,
 }
+
+/// Finished tasks are archived after a month by default.
+pub const DEFAULT_DONE_ARCHIVE_DAYS: u32 = 30;
+/// Finished meetings after two days.
+pub const DEFAULT_DONE_ARCHIVE_MEETING_DAYS: u32 = 2;
+/// The most days either setting can be (a year).
+pub const MAX_DONE_ARCHIVE_DAYS: u32 = 365;
 
 impl Default for Settings {
     fn default() -> Self {
@@ -343,6 +367,8 @@ impl Default for Settings {
             radar_on_top: true,
             radar_open_at_start: false,
             radar_rings: crate::DEFAULT_RADAR_RINGS,
+            done_archive_days: DEFAULT_DONE_ARCHIVE_DAYS,
+            done_archive_meeting_days: DEFAULT_DONE_ARCHIVE_MEETING_DAYS,
         }
     }
 }
@@ -373,6 +399,8 @@ pub struct UpdateSettings {
     pub radar_on_top: Option<bool>,
     pub radar_open_at_start: Option<bool>,
     pub radar_rings: Option<[u32; 3]>,
+    pub done_archive_days: Option<u32>,
+    pub done_archive_meeting_days: Option<u32>,
 }
 
 // ---------------------------------------------------------------- waiting-on

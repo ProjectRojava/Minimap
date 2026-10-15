@@ -27,6 +27,7 @@ use crate::{
     error::Result,
     meta, nodes,
     repo::table,
+    self_person,
     settings::LOCAL_ONLY,
 };
 
@@ -82,7 +83,8 @@ fn node_spec(node_type: NodeType) -> Spec {
         table: table(node_type),
         tombstone_kind: Some(node_type.as_str()),
         key: &["id"],
-        // Who is "me" is a fact about this device, not about the item.
+        // `is_self` is a copy of the synced `self_person_id` setting, kept by `settle_self`; it is
+        // never copied from the other device's row.
         local_cols: if node_type == NodeType::Person {
             &["is_self"]
         } else {
@@ -100,8 +102,8 @@ struct Cx<'a> {
     recovered_at: String,
     summary: MergeSummary,
     tombstoned: HashSet<(String, String)>,
-    /// This database already has its "me".
-    has_self: bool,
+    /// The people the other device has as "me" (ids), for settling who "me" is afterwards.
+    remote_selves: Vec<String>,
 }
 
 fn q(name: &str) -> String {
@@ -228,11 +230,6 @@ pub fn merge(
         "INSERT OR REPLACE INTO app_meta (key, value) VALUES (?1, '1')",
         [meta::MERGING],
     )?;
-    let has_self: bool = tx.query_row(
-        "SELECT EXISTS (SELECT 1 FROM people WHERE is_self = 1)",
-        [],
-        |r| r.get(0),
-    )?;
     let at = now();
     let mut cx = Cx {
         tx: &tx,
@@ -246,7 +243,7 @@ pub fn merge(
             ..Default::default()
         },
         tombstoned: HashSet::new(),
-        has_self,
+        remote_selves: Vec::new(),
     };
 
     if mode != MergeMode::Recover {
@@ -410,6 +407,9 @@ fn merge_table(cx: &mut Cx, spec: &Spec) -> Result<()> {
                 continue;
             }
         }
+        if spec.table == "people" && matches!(row.get("is_self"), Some(Value::Integer(1))) {
+            cx.remote_selves.push(text(&row, "id"));
+        }
         if spec.table == "edges" && edge_endpoint_missing(cx, &row)? {
             continue;
         }
@@ -536,23 +536,23 @@ fn conflict_slug(tx: &Transaction, wanted: &str, id: &str) -> Result<String> {
     }))
 }
 
-/// Last changes to a row about to be inserted: who is "me", and a handle held by an older
-/// project here.
+/// Last changes to a row about to be inserted: who is "me" (settled after all the rows are in,
+/// so everyone arrives as an ordinary person), and a handle held by an older project here.
 fn prepare_insert(cx: &mut Cx, spec: &Spec, row: &mut RowMap) -> Result<()> {
     if spec.table == "people" {
-        let remote_self = matches!(row.get("is_self"), Some(Value::Integer(1)));
-        let become_self = remote_self && !cx.has_self;
-        if remote_self && cx.has_self {
-            cx.summary.repairs.push(format!(
-                "{} was the \"me\" of {}; here it is an ordinary person (this device already has its own \"me\")",
-                text(row, "name"),
-                cx.device
-            ));
+        row.insert("is_self".into(), Value::Integer(0));
+    }
+    // An edge's id belongs to the device; its key is what matches. Folding a person into
+    // another moves an edge to a new key and keeps its id, so the id may be taken here.
+    if spec.table == "edges" {
+        let taken: bool = cx.tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM edges WHERE id = ?1)",
+            [text(row, "id")],
+            |r| r.get(0),
+        )?;
+        if taken {
+            row.insert("id".into(), Value::Text(Uuid::now_v7().to_string()));
         }
-        if become_self {
-            cx.has_self = true;
-        }
-        row.insert("is_self".into(), Value::Integer(i64::from(become_self)));
     }
     if spec.table == "projects" {
         displace_slug_holder(cx, row)?;
@@ -735,12 +735,34 @@ fn merge_settings(cx: &mut Cx) -> Result<()> {
 /// Re-checks what the schema cannot express. Each repair is deterministic (it depends only on
 /// the data), so every device makes the same one, and none of them stamps a new `updated_at`.
 fn repair(cx: &mut Cx) -> Result<()> {
+    settle_self(cx)?;
     clear_dangling_pointers(cx)?;
     drop_dangling_edges(cx)?;
     break_loops(cx)?;
     break_team_loops(cx)?;
     drop_dangling_pings(cx)?;
     settle_double_pings(cx)?;
+    Ok(())
+}
+
+/// One "me" on every device: the setting names them, else the oldest of the people each device
+/// made for itself. Any other "me" is folded into theirs (see `self_person`), and a "me" that
+/// another device archived is restored.
+fn settle_self(cx: &mut Cx) -> Result<()> {
+    let settled = self_person::settle(cx.tx, &cx.remote_selves)?;
+    for f in settled.folded {
+        cx.summary.repairs.push(format!(
+            "\"{}\" was a second \"me\" (from {}); it was merged into your \"me\" and {} links, \
+             owners and notes were moved across",
+            f.name, cx.device, f.moved
+        ));
+    }
+    if settled.restored {
+        cx.summary.repairs.push(format!(
+            "Your \"me\" had been archived on {}; it is restored",
+            cx.device
+        ));
+    }
     Ok(())
 }
 

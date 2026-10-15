@@ -247,6 +247,19 @@ pub(crate) fn ensure_for_task_in_tx(tx: &Transaction, task: &Task) -> Result<Dec
     Ok(d)
 }
 
+/// A task that stops being a Decision loses its record: archived, then deleted for good (with the
+/// links that joined it to other things), so nothing is left in the Decisions log. Returns whether
+/// there was a record.
+pub(crate) fn remove_for_task_in_tx(tx: &Transaction, task: Uuid) -> Result<bool> {
+    let Some(record) = for_task(tx, task)? else {
+        return Ok(false);
+    };
+    let node = NodeRef::new(NodeType::Decision, record.id);
+    nodes::archive_in_tx(tx, node)?;
+    nodes::delete_in_tx(tx, node)?;
+    Ok(true)
+}
+
 /// The "Create decision record" button for a task that was a Decision before records existed (or
 /// whose record was archived). Refused for other tasks.
 pub fn ensure_for_task(conn: &mut Connection, task: Uuid) -> Result<Decision> {

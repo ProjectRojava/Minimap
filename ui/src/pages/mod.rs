@@ -1,4 +1,5 @@
 pub mod about;
+pub mod archive;
 pub mod capacity;
 pub mod decisions;
 pub mod deep_link;

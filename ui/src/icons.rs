@@ -11,6 +11,8 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M9 9h4.5v4.5H9z",
         ],
         "inbox" => &["M2 9.5 4 3h8l2 6.5V13H2z", "M2 9.5h3.2l.8 1.5h4l.8-1.5H14"],
+        // A lidded box: what was put away.
+        "archive" => &["M2 3.5h12v3H2z", "M3 6.5V13h10V6.5", "M6.5 9.5h3"],
         "week" => &[
             "M2.5 3.5h11v10h-11z",
             "M2.5 6.5h11",
@@ -194,6 +196,7 @@ mod tests {
             "step-more",
             "search",
             "capacity",
+            "archive",
             "graph",
             "chain",
             "subtasks",

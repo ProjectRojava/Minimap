@@ -1170,6 +1170,7 @@ fn FocusRow(
     let status = (t.status != TaskStatus::Todo)
         .then(|| (task_status_tone(t.status), task_status_label(t.status)));
     let quiet = quiet_text(item.quiet_days);
+    let description = (!t.description.trim().is_empty()).then(|| t.description.clone());
     // Under the title: the star column, then a gap.
     let below = move || {
         notes
@@ -1195,6 +1196,13 @@ fn FocusRow(
                     })}
                     {ping.map(|p| view! { <RowPing ping=p today=today /> })}
                 </div>
+                // The task's own description, as far as it fits; the full text is in the task panel.
+                {description.map(|text| view! {
+                    <div class="mt-1 max-h-[4.75rem] overflow-hidden text-[12px]"
+                         on:click=|ev| { if clicked_a_link(&ev) { ev.stop_propagation(); } }>
+                        <MarkdownView text=text class="text-[12px] [&>:last-child]:mb-0" />
+                    </div>
+                })}
             </div>
             <span class="flex shrink-0 items-center gap-2">
                 <TaskActions id=id />

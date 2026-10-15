@@ -19,6 +19,7 @@
         "minWidth": 900,
         "minHeight": 600,
         "maximized": true,
+        "visible": false,
         "decorations": false,
         "dragDropEnabled": false,
         "backgroundColor": "#1e1f21"

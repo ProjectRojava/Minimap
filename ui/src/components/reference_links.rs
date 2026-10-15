@@ -4,14 +4,11 @@
 //! answers with a message that becomes a toast.
 
 use leptos::{prelude::*, task::spawn_local};
-use minimap_types::{LinkKind, RefLink, UpdateTask, Uuid};
+use minimap_types::{AppError, LinkKind, RefLink, Task, UpdateTask, Uuid};
 
 use crate::{
     api,
-    components::{
-        detail_pane::Section,
-        form::{BUTTON_PRIMARY, INPUT},
-    },
+    components::form::{BUTTON_PRIMARY, INPUT},
     state::{finish, DataVersion, Toasts},
 };
 
@@ -41,14 +38,24 @@ fn kind_tag(kind: LinkKind) -> &'static str {
     }
 }
 
-#[component]
-pub fn ReferenceLinks(task: Uuid) -> impl IntoView {
+/// The task, reloaded on every write (its reference links are part of it).
+pub fn use_task(task: Uuid) -> LocalResource<Result<Task, AppError>> {
     let version = expect_context::<DataVersion>();
-    let toasts = expect_context::<Toasts>();
-    let loaded = LocalResource::new(move || {
+    LocalResource::new(move || {
         version.track();
         api::get_task(task)
-    });
+    })
+}
+
+/// The reference links of a task and the boxes to add one: the content of the *Files & links*
+/// section.
+#[component]
+pub fn ReferenceLinksBody(
+    task: Uuid,
+    loaded: LocalResource<Result<Task, AppError>>,
+) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
     let url = RwSignal::new(String::new());
     let title = RwSignal::new(String::new());
 
@@ -74,7 +81,7 @@ pub fn ReferenceLinks(task: Uuid) -> impl IntoView {
     };
 
     view! {
-        <Section title="Reference links">
+        <div>
             {move || match loaded.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(_)) => view! { <p class="text-muted">"Couldn't load the links."</p> }.into_any(),
@@ -142,7 +149,7 @@ pub fn ReferenceLinks(task: Uuid) -> impl IntoView {
                     }.into_any()
                 }
             }}
-        </Section>
+        </div>
     }
 }
 

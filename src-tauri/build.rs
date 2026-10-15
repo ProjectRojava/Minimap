@@ -2,6 +2,13 @@
 /// and the permissions in capabilities/default.json.
 const COMMANDS: &[&str] = &[
     "ping",
+    "app_ready",
+    "remember_splash_scheme",
+    "get_device_settings",
+    "update_device_settings",
+    "answer_close",
+    "minimize_main",
+    "quit_app",
     "get_node_summary",
     "list_edges_for",
     "list_activity_for",
@@ -21,6 +28,9 @@ const COMMANDS: &[&str] = &[
     "update_person",
     "preview_archive_person",
     "archive_person",
+    "list_archived",
+    "restore_archived",
+    "merge_people",
     "list_teams",
     "get_team",
     "get_team_detail",

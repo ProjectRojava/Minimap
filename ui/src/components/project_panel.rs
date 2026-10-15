@@ -383,6 +383,7 @@ fn ArchiveProject(detail: ProjectDetail) -> impl IntoView {
         spawn_local(async move {
             match api::preview_archive_project(id).await {
                 Ok(p) if p.tasks.is_empty() => confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
                     title: question(&title),
                     message: format!("It has no tasks. {UNDO_HINT}"),
                     body: None,
@@ -394,6 +395,7 @@ fn ArchiveProject(detail: ProjectDetail) -> impl IntoView {
                 Ok(p) => {
                     let n = p.tasks.len();
                     confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
                         title: question(&title),
                         message: format!(
                             "What should happen to its {n} task{}? {UNDO_HINT}",

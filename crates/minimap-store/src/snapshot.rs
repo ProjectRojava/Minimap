@@ -305,7 +305,8 @@ mod tests {
         );
         add_task(&mut conn, "Something");
         assert!(!is_pristine(&conn).unwrap());
-        assert_eq!(item_count(&conn).unwrap(), 2);
+        // The "me", the task and the project the task is in.
+        assert_eq!(item_count(&conn).unwrap(), 3);
         let mut other = crate::open_in_memory().unwrap();
         add_person(&mut other, "Priya");
         assert!(!is_pristine(&other).unwrap());

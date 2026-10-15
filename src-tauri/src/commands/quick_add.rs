@@ -1,6 +1,6 @@
 use minimap_core::quick_add::{plan, Context, Outcome};
 use minimap_store::Connection;
-use minimap_types::{AppError, QuickChoice, QuickPreview, QuickResult};
+use minimap_types::{AppError, QuickChoice, QuickMain, QuickPlan, QuickPreview, QuickResult};
 use tauri::State;
 
 use crate::{
@@ -12,7 +12,7 @@ fn outcome(conn: &Connection, text: &str, choices: &[QuickChoice]) -> Result<Out
     let directory = minimap_store::quick_add::directory(conn).map_err(store_error)?;
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     let hours_per_day = settings.hours_per_day;
-    Ok(plan(
+    let mut out = plan(
         text,
         &Context {
             today: minimap_store::today(),
@@ -21,7 +21,23 @@ fn outcome(conn: &Connection, text: &str, choices: &[QuickChoice]) -> Result<Out
             choices,
             task_types: &settings.task_types,
         },
-    ))
+    );
+    // A task needs a project, so there is nothing to go ahead with until one is named. (A task
+    // that mentions a new project to be made has one, and so does a ping or a note.)
+    if matches!(
+        &out.plan,
+        Some(QuickPlan {
+            main: QuickMain::Task { project: None, .. },
+            ..
+        })
+    ) {
+        out.preview
+            .problems
+            .push("A task needs a project: add #handle (type # to pick one)".into());
+        out.preview.ready = false;
+        out.plan = None;
+    }
+    Ok(out)
 }
 
 /// What a line of quick-add would do: what it means, what is wrong, and which names need an
@@ -112,6 +128,7 @@ mod tests {
     }
 
     fn task(conn: &mut Connection, title: &str) -> Uuid {
+        let __p = minimap_store::fixtures::project(conn);
         minimap_store::tasks::create(
             conn,
             CreateTask {
@@ -123,7 +140,7 @@ mod tests {
                 title: title.into(),
                 assignee: minimap_types::AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,
@@ -197,11 +214,19 @@ mod tests {
     }
 
     #[test]
-    fn a_bare_task_goes_to_the_inbox_assigned_to_me() {
-        let (mut conn, me, _, _, _) = seeded();
-        let r = commit_impl(&mut conn, "Write the plan", &[]).unwrap();
+    fn a_task_needs_a_project_and_is_assigned_to_me_by_default() {
+        let (mut conn, me, _, _, api) = seeded();
+        // Without a project there is no plan, and the preview says why.
+        let before = minimap_store::tasks::list(&conn, true).unwrap().len();
+        let err = commit_impl(&mut conn, "Write the plan", &[]).unwrap_err();
+        assert!(err.message.contains("needs a project"), "{}", err.message);
+        let preview = outcome(&conn, "Write the plan", &[]).unwrap().preview;
+        assert!(!preview.ready && preview.problems[0].contains("#handle"));
+        assert_eq!(minimap_store::tasks::list(&conn, true).unwrap().len(), before);
+
+        let r = commit_impl(&mut conn, "Write the plan #api-launch", &[]).unwrap();
         let t = minimap_store::tasks::get(&conn, r.node.node.id).unwrap();
-        assert_eq!(t.project_id, None);
+        assert_eq!(t.project_id, Some(api));
         let assigned = minimap_store::edges::links_for_node(&conn, t.id).unwrap();
         assert_eq!(assigned.len(), 1);
         assert_eq!(assigned[0].other.node.id, me);
@@ -350,7 +375,7 @@ mod tests {
     #[test]
     fn previews_follow_the_settings_and_the_directory() {
         let (conn, ..) = seeded();
-        let out = outcome(&conn, "task x @priya est:4h", &[]).unwrap();
+        let out = outcome(&conn, "task x @priya #api-launch est:4h", &[]).unwrap();
         assert!(out.preview.ready);
         let hours = out
             .preview

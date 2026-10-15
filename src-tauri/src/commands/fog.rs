@@ -82,6 +82,7 @@ mod tests {
     }
 
     fn task(conn: &mut Connection, title: &str, status: TaskStatus, project: Option<Uuid>) -> Uuid {
+        let project = Some(project.unwrap_or_else(|| minimap_store::fixtures::project(conn)));
         minimap_store::tasks::create(
             conn,
             CreateTask {
@@ -164,8 +165,9 @@ mod tests {
             ]
         );
         assert!(report.mark(fresh).is_none());
-        // Four in play: the project and three tasks; the far-off one is not.
-        assert_eq!((report.in_play, report.clear), (4, 1));
+        // In play: two projects and three tasks; the far-off one is not.
+        // (The project of the three loose tasks counts too: five in play, two of them clear.)
+        assert_eq!((report.in_play, report.clear), (5, 2));
         assert_eq!(report.marks[1].node.node_type, NodeType::Project);
         assert_eq!(report.marks[0].reason, FogReason::NoChange);
         assert!(report.visibility.is_some());

@@ -4,6 +4,7 @@ use minimap_store::*;
 use minimap_types::*;
 
 fn task(conn: &mut Connection, title: &str, project: Option<uuid::Uuid>) -> Task {
+    let project = Some(project.unwrap_or_else(|| fixtures::project(conn)));
     tasks::create(
         conn,
         CreateTask {

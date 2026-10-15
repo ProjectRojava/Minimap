@@ -9,6 +9,7 @@ use time::macros::date;
 const TODAY: time::Date = date!(2027 - 03 - 03);
 
 fn new_task(conn: &mut Connection, title: &str) -> Task {
+    let __p = minimap_store::fixtures::project(conn);
     tasks::create(
         conn,
         CreateTask {
@@ -20,7 +21,7 @@ fn new_task(conn: &mut Connection, title: &str) -> Task {
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: Some(TaskStatus::InProgress),
             estimate_days: None,
             start_date: None,

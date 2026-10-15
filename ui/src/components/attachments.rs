@@ -3,7 +3,7 @@
 //! dropped into a note's text (see `note_panel.rs`), which uses [`attach_files`].
 
 use leptos::{prelude::*, task::spawn_local, web_sys};
-use minimap_types::{Attachment, AttachmentState, NodeRef};
+use minimap_types::{AppError, Attachment, AttachmentState, NodeRef};
 
 use crate::{
     api,
@@ -60,29 +60,59 @@ pub async fn attach_files(
     done
 }
 
-#[component]
-pub fn Attachments(node: NodeRef) -> impl IntoView {
+/// Opens the file picker and attaches the chosen file to `node`.
+pub fn pick_and_attach(node: NodeRef) {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
-    let list = LocalResource::new(move || {
+    spawn_local(async move {
+        match api::pick_attachment().await {
+            Ok(Some(path)) => match api::add_attachment(node, path).await {
+                Ok(_) => {}
+                Err(e) => toasts.error(&e),
+            },
+            Ok(None) => {}
+            Err(e) => toasts.error(&e),
+        }
+        version.bump();
+    });
+}
+
+/// The attachments of `node`, reloaded on every write.
+pub fn use_attachments(node: NodeRef) -> LocalResource<Result<Vec<Attachment>, AppError>> {
+    let version = expect_context::<DataVersion>();
+    LocalResource::new(move || {
         version.track();
         api::list_attachments(node)
-    });
-    let over = RwSignal::new(false);
+    })
+}
 
-    let pick = move |_| {
-        spawn_local(async move {
-            match api::pick_attachment().await {
-                Ok(Some(path)) => match api::add_attachment(node, path).await {
-                    Ok(_) => {}
-                    Err(e) => toasts.error(&e),
-                },
-                Ok(None) => {}
-                Err(e) => toasts.error(&e),
+#[component]
+pub fn Attachments(node: NodeRef) -> impl IntoView {
+    let list = use_attachments(node);
+    view! {
+        <Section title="Attachments"
+            meta=move || view! {
+                {move || list.get().and_then(|l| l.ok()).filter(|l| !l.is_empty())
+                    .map(|l| format!("· {}", l.len()))}
             }
-            version.bump();
-        });
-    };
+            actions=move || view! {
+                <button class=SECTION_ACTION on:click=move |_| pick_and_attach(node)>"Attach file…"</button>
+            }>
+            <AttachmentsBody node=node list=list />
+        </Section>
+    }
+}
+
+/// The files of an item: a drop zone with the list in it (the content of a section, so the
+/// attachments of other items and a task's *Files & links* share it).
+#[component]
+pub fn AttachmentsBody(
+    node: NodeRef,
+    list: LocalResource<Result<Vec<Attachment>, AppError>>,
+) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let over = RwSignal::new(false);
     let on_drop = move |ev: leptos::ev::DragEvent| {
         ev.prevent_default();
         over.set(false);
@@ -95,39 +125,29 @@ pub fn Attachments(node: NodeRef) -> impl IntoView {
             version.bump();
         });
     };
-
     view! {
-        <Section title="Attachments"
-            meta=move || view! {
-                {move || list.get().and_then(|l| l.ok()).filter(|l| !l.is_empty())
-                    .map(|l| format!("· {}", l.len()))}
-            }
-            actions=move || view! {
-                <button class=SECTION_ACTION on:click=pick>"Attach file…"</button>
-            }>
-            <div class=move || format!(
-                     "space-y-2 rounded-sm border border-dashed p-2 {}",
-                     if over.get() { "border-accent bg-accent/10" } else { "border-line" })
-                 on:dragover=move |ev| { ev.prevent_default(); over.set(true); }
-                 on:dragleave=move |_| over.set(false)
-                 on:drop=on_drop>
-                {move || match list.get() {
-                    None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
-                    Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
-                    Some(Ok(items)) if items.is_empty() => view! {
-                        <p class="text-muted">"Nothing attached. Drop a file here."</p>
-                    }.into_any(),
-                    Some(Ok(items)) => view! {
-                        <ul class="space-y-1">
-                            {items.into_iter().map(|a| view! { <AttachmentRow attachment=a /> }).collect_view()}
-                        </ul>
-                    }.into_any(),
-                }}
-                <p class="text-[11px] text-muted">
-                    "Images, SVG, Markdown, PDF, Word, Excel, PowerPoint"
-                </p>
-            </div>
-        </Section>
+        <div class=move || format!(
+                 "space-y-2 rounded-sm border border-dashed p-2 {}",
+                 if over.get() { "border-accent bg-accent/10" } else { "border-line" })
+             on:dragover=move |ev| { ev.prevent_default(); over.set(true); }
+             on:dragleave=move |_| over.set(false)
+             on:drop=on_drop>
+            {move || match list.get() {
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+                Some(Err(e)) => view! { <p class="text-danger">{e.message}</p> }.into_any(),
+                Some(Ok(items)) if items.is_empty() => view! {
+                    <p class="text-muted">"Nothing attached. Drop a file here."</p>
+                }.into_any(),
+                Some(Ok(items)) => view! {
+                    <ul class="space-y-1">
+                        {items.into_iter().map(|a| view! { <AttachmentRow attachment=a /> }).collect_view()}
+                    </ul>
+                }.into_any(),
+            }}
+            <p class="text-[11px] text-muted">
+                "Images, SVG, Markdown, PDF, Word, Excel, PowerPoint"
+            </p>
+        </div>
     }
 }
 

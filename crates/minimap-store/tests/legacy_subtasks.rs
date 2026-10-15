@@ -7,6 +7,7 @@ use minimap_types::*;
 
 fn two_tasks(conn: &mut Connection) -> (Task, Task) {
     let make = |conn: &mut Connection, title: &str| {
+        let __p = minimap_store::fixtures::project(conn);
         tasks::create(
             conn,
             CreateTask {
@@ -18,7 +19,7 @@ fn two_tasks(conn: &mut Connection) -> (Task, Task) {
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,

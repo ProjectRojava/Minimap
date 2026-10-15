@@ -64,7 +64,9 @@ fn nothing_to_remove_in_an_empty_or_ordinary_database() {
         "invalid value: There is no demo data to remove."
     );
     people::ensure_self(&mut conn, "Me").unwrap();
-    tasks::create(&mut conn, new_task("Write the handbook", None)).unwrap();
+    // (A task needs a project.)
+    let project = fixtures::project(&conn);
+    tasks::create(&mut conn, new_task("Write the handbook", Some(project))).unwrap();
     assert!(!demo_remove::status(&conn).unwrap().found);
     assert_eq!(count(&conn, "tasks"), 1);
 }
@@ -234,7 +236,8 @@ fn demo_data_from_before_ids_were_recorded_is_recognised_by_its_titles() {
     let mut conn = seeded();
     meta::remove(&conn, meta::DEMO_ITEMS).unwrap();
     // The user's own task has a title of its own and is left alone.
-    tasks::create(&mut conn, new_task("Plan the offsite", None)).unwrap();
+    let project = demo_project(&conn).id;
+    tasks::create(&mut conn, new_task("Plan the offsite", Some(project))).unwrap();
     let status = demo_remove::status(&conn).unwrap();
     assert_eq!(status.source, Some(DemoSource::Titles));
     assert_eq!(status.items.tasks, 45);
@@ -259,8 +262,9 @@ fn a_few_titles_in_common_are_not_taken_for_the_demo_data() {
 
     let mut conn = open_in_memory().unwrap();
     people::ensure_self(&mut conn, "Me").unwrap();
+    let project = fixtures::project(&conn);
     for t in titles {
-        tasks::create(&mut conn, new_task(&t, None)).unwrap();
+        tasks::create(&mut conn, new_task(&t, Some(project))).unwrap();
     }
     assert!(!demo_remove::status(&conn).unwrap().found);
     assert!(demo_remove::remove(&mut conn).is_err());

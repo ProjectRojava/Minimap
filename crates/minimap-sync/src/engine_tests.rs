@@ -76,6 +76,7 @@ impl Device {
 
     fn task(&self, title: &str) -> Uuid {
         self.write(|c| {
+            let __p = minimap_store::fixtures::project(c);
             tasks::create(
                 c,
                 CreateTask {
@@ -87,7 +88,7 @@ impl Device {
                     title: title.into(),
                     assignee: AssigneeChoice::Nobody,
                     description: String::new(),
-                    project_id: None,
+                    project_id: Some(__p),
                     status: None,
                     estimate_days: None,
                     start_date: None,

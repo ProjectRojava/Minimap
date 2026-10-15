@@ -6,7 +6,7 @@ use crate::{
     components::{
         form::{BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
-        page::{column_head, EmptyState, PageHeader, FORM_BAR},
+        page::{column_head, EmptyState, PageHeader, Tone, FORM_BAR},
         people_frames::{nodes_of, use_frames, FramesStrip},
         people_panel::ask_archive_person,
     },
@@ -113,9 +113,13 @@ pub fn People() -> impl IntoView {
                         view! {
                             <NodeRow node=node index=i>
                                 <div class=COLS>
-                                    <span class="truncate font-medium">
+                                    // "Me" stands out: the name in the accent colour and a chip.
+                                    <span class=if is_self { "truncate font-semibold text-accent" } else { "truncate font-medium" }>
                                         {p.person.name}
-                                        {p.person.is_self.then(|| view! { <span class="ml-1.5 text-[11px] font-normal text-muted">"you"</span> })}
+                                        {is_self.then(|| view! {
+                                            <span class=format!("ml-2 align-middle {}", Tone::Accent.chip())
+                                                  title="This is you: the same person on every computer">"ME"</span>
+                                        })}
                                     </span>
                                     <span class="truncate text-muted">{p.person.role_title}</span>
                                     <span class="truncate text-muted">{teams}</span>

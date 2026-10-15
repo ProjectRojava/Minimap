@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-device-settings"
+description = "Enables the update_device_settings command without any pre-configured scope."
+commands.allow = ["update_device_settings"]
+
+[[permission]]
+identifier = "deny-update-device-settings"
+description = "Denies the update_device_settings command without any pre-configured scope."
+commands.deny = ["update_device_settings"]

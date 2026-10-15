@@ -316,7 +316,9 @@ fn detach(tx: &Transaction, plan: &Plan) -> Result<()> {
             project_id: Patch::Clear,
             ..Default::default()
         };
-        tasks::update_in_tx(tx, *id, patch)?;
+        // Their project is going: the one place a task is let go of its project (like archiving a
+        // project and sending its tasks to the Inbox), so it goes round the rule.
+        tasks::restore_in_tx(tx, *id, patch)?;
     }
     for id in &plan.owners_cleared {
         let patch = UpdateProject {

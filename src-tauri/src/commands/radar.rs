@@ -45,7 +45,7 @@ const SAVE_AFTER: Duration = Duration::from_millis(600);
 /// A number that moves when anything the radar shows may have changed: the newest activity row
 /// (every write logs one, and a merge from another computer does too) plus how many times the
 /// sync engine has merged another computer's data. Cheap.
-fn revision_of(conn: &Connection, merges: u64) -> i64 {
+pub(crate) fn revision_of(conn: &Connection, merges: u64) -> i64 {
     let rows = minimap_store::activity::latest_rowid(conn).unwrap_or(0);
     rows.saturating_add(i64::try_from(merges).unwrap_or(0))
 }

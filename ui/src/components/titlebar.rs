@@ -52,7 +52,9 @@ pub fn TitleBar() -> impl IntoView {
     let handle = window_event_listener(ev::resize, move |_| refresh());
     on_cleanup(move || handle.remove());
 
-    let minimize = move |_| spawn_local(async move { report(window::minimize().await, toasts) });
+    // To the task bar, or to the tray when Settings says so (the shell decides).
+    let minimize =
+        move |_| spawn_local(async move { report(crate::api::minimize_main().await, toasts) });
     let toggle = move |_| {
         spawn_local(async move { report(window::toggle_maximize().await, toasts) });
     };

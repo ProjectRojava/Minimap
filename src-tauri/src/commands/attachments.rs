@@ -304,6 +304,7 @@ mod tests {
     fn a_task(state: &AppState, title: &str) -> NodeRef {
         let mut guard = state.db.lock().unwrap();
         let conn = guard.conn.as_mut().unwrap();
+        let __p = minimap_store::fixtures::project(conn);
         let task = tasks::create(
             conn,
             CreateTask {
@@ -315,7 +316,7 @@ mod tests {
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,

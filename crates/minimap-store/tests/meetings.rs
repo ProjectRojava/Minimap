@@ -35,6 +35,7 @@ fn meeting(conn: &mut Connection, title: &str) -> Task {
 }
 
 fn plain_task(conn: &mut Connection, title: &str) -> Task {
+    let __p = minimap_store::fixtures::project(conn);
     tasks::create(
         conn,
         CreateTask {
@@ -46,7 +47,7 @@ fn plain_task(conn: &mut Connection, title: &str) -> Task {
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: None,
             start_date: None,
@@ -140,6 +141,7 @@ fn a_meeting_needs_a_day_and_a_time_however_it_is_made_or_changed() {
     .unwrap_err();
     assert!(err.to_string().contains("needs a date"), "{err}");
     // Nor can one be created without a time.
+    let __p = minimap_store::fixtures::project(&conn);
     let err = tasks::create(
         &mut conn,
         CreateTask {
@@ -151,7 +153,7 @@ fn a_meeting_needs_a_day_and_a_time_however_it_is_made_or_changed() {
             title: "No time".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: None,
             start_date: None,

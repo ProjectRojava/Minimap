@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local, web_sys};
 use minimap_types::{
-    timefmt::parse_date, AssigneeChoice, CreateTask, NodeRef, NodeType, Patch, TaskFilter, TaskRow,
+    timefmt::parse_date, AppError, AssigneeChoice, CreateTask, NodeRef, NodeType, Patch, TaskFilter, TaskRow,
     TaskStatus, UpdateTask, Uuid,
 };
 use wasm_bindgen::JsCast;
@@ -530,16 +530,27 @@ pub fn TaskList(
     list.on_new(move || adding.set(true));
     let draft = RwSignal::new(String::new());
     let preview = RwSignal::new(None::<Vec<String>>);
-    // New tasks go into the project being filtered on (never in the inbox).
+    // A task needs a project: the one being filtered on, else the one picked in the form.
+    let new_project = RwSignal::new(String::new());
     let target_project = move || {
-        if inbox {
+        let filtered = if inbox {
             None
         } else {
             Uuid::parse_str(&project.get_untracked()).ok()
-        }
+        };
+        filtered.or_else(|| Uuid::parse_str(&new_project.get_untracked()).ok())
+    };
+    let needs_project = move || {
+        toasts.error(&AppError {
+            code: "invalid".into(),
+            message: "Choose a project for the new task first.".into(),
+        });
     };
 
     let create_one = move |title: String| {
+        let Some(project_id) = target_project() else {
+            return needs_project();
+        };
         let input = CreateTask {
             links: Vec::new(),
             focus: None,
@@ -550,7 +561,7 @@ pub fn TaskList(
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
-            project_id: target_project(),
+            project_id: Some(project_id),
             status: None,
             estimate_days: None,
             start_date: None,
@@ -588,10 +599,12 @@ pub fn TaskList(
         let Some(titles) = preview.get_untracked() else {
             return;
         };
-        let project_id = target_project();
+        let Some(project_id) = target_project() else {
+            return needs_project();
+        };
         spawn_local(async move {
             if finish(
-                api::create_tasks_bulk(titles, project_id, AssigneeChoice::Me).await,
+                api::create_tasks_bulk(titles, Some(project_id), AssigneeChoice::Me).await,
                 toasts,
                 version,
             )
@@ -619,8 +632,25 @@ pub fn TaskList(
             {(!inbox).then(|| view! { <FilteredApproach project=filters.project /> })}
             <Show when=move || adding.get()>
                 <div class="px-4 py-2 border-b border-line bg-panel space-y-2">
+                    // Filtering on a project already says where the task goes; otherwise it is asked.
+                    {move || {
+                        let filtered = !inbox && !project.get().is_empty();
+                        (!filtered).then(|| {
+                            let options: Vec<(String, String)> = std::iter::once((String::new(), "Choose a project…".to_owned()))
+                                .chain(match projects.get() {
+                                    Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
+                                    _ => Vec::new(),
+                                })
+                                .collect();
+                            view! {
+                                <SelectField label="Project (required)" options=options
+                                             current=new_project.get_untracked()
+                                             on_change=move |v: String| new_project.set(v) />
+                            }
+                        })
+                    }}
                     <textarea class=INPUT rows="1" autofocus
-                        placeholder=if inbox { "New task for the inbox (paste a list for several)" } else { "New task (paste a list for several)" }
+                        placeholder="New task (paste a list for several)"
                         prop:value=move || draft.get()
                         on:input=move |ev| { draft.set(event_target_value(&ev)); preview.set(None); }
                         on:keydown=move |ev| {
@@ -658,7 +688,7 @@ pub fn TaskList(
                             return if inbox {
                                 view! {
                                     <EmptyState icon="inbox" title="Inbox zero"
-                                        hint="Every open task has a project. New tasks without one land here." />
+                                        hint="Every open task has a project. Tasks from before projects were required, and ones whose project was archived, land here." />
                                 }.into_any()
                             } else {
                                 view! {
@@ -723,10 +753,15 @@ fn TaskRowView(
         .map(|r| format!("Repeats {}", r.describe()));
     let closed = matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled);
     let focus = t.focus;
-    let project_options: Vec<(String, String)> =
+    // A project can be changed but not taken away; "No project" is only there for a meeting or a
+    // task from before projects were required, which have none.
+    let project_options: Vec<(String, String)> = if t.project_id.is_some() && !is_meeting {
+        projects.into_iter().collect()
+    } else {
         std::iter::once((String::new(), "No project".to_owned()))
             .chain(projects)
-            .collect();
+            .collect()
+    };
     let assignee_options: Vec<(String, String)> =
         std::iter::once((String::new(), "Unassigned".to_owned()))
             .chain(people)

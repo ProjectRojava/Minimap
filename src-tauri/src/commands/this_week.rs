@@ -129,6 +129,7 @@ mod tests {
         status: TaskStatus,
         who: AssigneeChoice,
     ) -> Uuid {
+        let __p = minimap_store::fixtures::project(conn);
         let t = minimap_store::tasks::create(
             conn,
             CreateTask {
@@ -140,7 +141,7 @@ mod tests {
                 title: title.into(),
                 assignee: who,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: Some(status),
                 estimate_days: None,
                 start_date: None,

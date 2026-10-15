@@ -48,6 +48,10 @@ The preview card says why: an unreadable date, a bad estimate, an unclosed quote
 
 While Minimap opens it shows its mark, the line *Starting up*, its version and who made it. It stays for at least five seconds, even when the app is ready sooner, and for as long as the app needs if that is longer. If it takes more than nine seconds the line changes to *Still starting. This can take a moment after an update.* Give it a little longer; if it never goes away, close Minimap and open it again, then see [*Is Minimap itself answering?*](help:faq) below. Your data is not touched while it starts.
 
+## I closed the window and Minimap is still running
+
+If you chose *Keep running in the tray*, closing the window only hides it. Click the Minimap icon in the tray (by the clock) to open it again, or right-click it and choose **Quit Minimap** to close it for good. To change what the close button does, see *Settings → General → Window and tray* and [Tray, reminders and starting with your computer](help:tray). When the system refuses Minimap a tray icon, closing the window closes Minimap. On Linux, Minimap asks the desktop whether anything shows tray icons and, if nothing does (WSL, or GNOME without an AppIndicator extension), closing the window closes Minimap and *Settings → General → Window and tray* says why. On Windows a new tray icon may first sit behind the **^** arrow next to the clock: drag it out to keep it visible.
+
 ## Is Minimap itself answering?
 
 If something looks stuck, type `ping` in the command palette (`Ctrl/Cmd+K`). A single row answers *pong*, with the version of Minimap and the version of the database it runs. If the row says *no answer*, close Minimap and open it again.

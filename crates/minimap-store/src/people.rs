@@ -126,6 +126,86 @@ pub(crate) fn create_in_tx(tx: &Transaction, input: CreatePerson) -> Result<Pers
     Ok(p)
 }
 
+/// "Me" can't be archived, but an older version could end up with one that was (another device
+/// archived what it saw as a duplicate). Puts that right: if an active person has the same name,
+/// "me" was that person all along (the archived record was the duplicate), so the archived one is
+/// merged into them and they become "me" on every device; otherwise "me" is simply restored.
+/// Returns whether anything changed.
+pub fn repair_self(conn: &mut Connection) -> Result<bool> {
+    let tx = conn.transaction()?;
+    let Some(me) = get_self(&tx)? else {
+        return Ok(false);
+    };
+    if me.archived_at.is_none() {
+        return Ok(false);
+    }
+    let twin: Option<String> = tx
+        .query_row(
+            "SELECT id FROM people
+             WHERE id != ?1 AND archived_at IS NULL AND lower(trim(name)) = lower(trim(?2))
+             ORDER BY created_at, id LIMIT 1",
+            params![id_s(me.id), me.name],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match twin {
+        Some(twin) => {
+            let twin = Uuid::parse_str(&twin)
+                .map_err(|e| StoreError::Invalid(format!("malformed person id: {e}")))?;
+            tx.execute("UPDATE people SET is_self = 0 WHERE id = ?1", [id_s(me.id)])?;
+            tx.execute("UPDATE people SET is_self = 1 WHERE id = ?1", [id_s(twin)])?;
+            crate::settings::set_self_person_id(&tx, twin)?;
+            crate::self_person::fold(&tx, me.id, twin)?;
+        }
+        None => crate::nodes::unarchive_in_tx(
+            &tx,
+            minimap_types::NodeRef::new(NodeType::Person, me.id),
+        )?,
+    }
+    tx.commit()?;
+    Ok(true)
+}
+
+/// Merges `from` into `into`, for two records of the same person: everything linked to `from`
+/// (tasks, projects they own, waiting-on, mentions in notes, links, files, pings) moves to
+/// `into`, and `from` is deleted for good, on every device. If `from` was "me", `into` is "me"
+/// from now on, on every device too.
+pub fn merge_into(conn: &mut Connection, from: Uuid, into: Uuid) -> Result<Person> {
+    if from == into {
+        return Err(StoreError::Invalid(
+            "pick two different people to merge".into(),
+        ));
+    }
+    let tx = conn.transaction()?;
+    let source = get(&tx, from)?;
+    let target = get(&tx, into)?;
+    if target.archived_at.is_some() {
+        return Err(StoreError::Invalid(format!(
+            "{} is archived; restore them before merging someone into them",
+            target.name
+        )));
+    }
+    if source.is_self {
+        tx.execute(
+            "UPDATE people SET is_self = 0 WHERE id = ?1",
+            [id_s(from)],
+        )?;
+        tx.execute("UPDATE people SET is_self = 1 WHERE id = ?1", [id_s(into)])?;
+        crate::settings::set_self_person_id(&tx, into)?;
+    }
+    let moved = crate::self_person::fold(&tx, from, into)?;
+    activity::record(
+        &tx,
+        now(),
+        NodeType::Person,
+        from,
+        ActivityAction::Deleted,
+        &serde_json::json!({ "merged_into": id_s(into), "moved": moved }),
+    )?;
+    tx.commit()?;
+    get(conn, into)
+}
+
 pub fn update(conn: &mut Connection, id: Uuid, patch: UpdatePerson) -> Result<Person> {
     let tx = conn.transaction()?;
     let new = update_in_tx(&tx, id, patch)?;

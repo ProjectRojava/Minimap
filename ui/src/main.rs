@@ -24,6 +24,13 @@ mod zoom;
 fn main() {
     console_error_panic_hook::set_once();
     leptos::mount::mount_to_body(app::App);
-    // The splash in index.html has done its job once the app is on the page.
+    // The overlay in index.html has done its job once the app is on the page.
     splash::dismiss();
+    // The main window is hidden behind its own small splash window until the app says it is
+    // ready; the shell then shows the window (after the splash has had its five seconds).
+    if !window::is_radar_window() {
+        leptos::task::spawn_local(async {
+            let _ = api::app_ready().await;
+        });
+    }
 }

@@ -40,6 +40,7 @@ Press `g`, then the letter within a second.
 | `g n` | Notes |
 | `g d` | Decisions |
 | `g a` | Waiting on |
+| `g v` | Archive |
 | `g r` | Weekly review |
 | `g s` | Settings |
 | `g h` | Help |

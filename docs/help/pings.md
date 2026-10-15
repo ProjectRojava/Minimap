@@ -49,6 +49,10 @@ Name the item with `#project`, `@person`, or `task:"…"`, `objective:"…"` or 
 - **The detail pane**: a strip under the item's name says *Ping due* or *Ping*, with its day and note, and has **Clear** and **Change…**.
 - The palette's *Show pings* takes you to the card.
 
+## Finishing a task clears its ping
+
+Moving a task to **Done** clears its ping, so a finished task never comes back to you on This week. The ping stays in the history and the export like any cleared ping, and `Ctrl/Cmd+Z` on the finish brings the task and its ping back together. Other statuses (in progress, blocked, cancelled) leave the ping alone.
+
 ## Clear a ping
 
 On the Pings card, press `x` on the highlighted row, or use **Clear**. **Tomorrow** and **Next week** put it off instead. The strip in the pane and the box have **Clear** too. Clearing again keeps the first day it was cleared. Pinging a cleared item makes a new ping.

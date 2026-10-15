@@ -127,6 +127,7 @@ mod tests {
     const TODAY: Date = date!(2027 - 03 - 03);
 
     fn task(conn: &mut Connection, due: Option<Date>) -> NodeRef {
+        let __p = minimap_store::fixtures::project(conn);
         let t = minimap_store::tasks::create(
             conn,
             CreateTask {
@@ -138,7 +139,7 @@ mod tests {
                 title: "Board update".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,

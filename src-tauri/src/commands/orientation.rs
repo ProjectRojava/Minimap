@@ -61,6 +61,7 @@ mod tests {
         let mut conn = minimap_store::open_in_memory().unwrap();
         minimap_store::people::ensure_self(&mut conn, "Me").unwrap();
         let task = |conn: &mut Connection, title: &str, who: AssigneeChoice| {
+            let __p = minimap_store::fixtures::project(conn);
             minimap_store::tasks::create(
                 conn,
                 CreateTask {
@@ -72,7 +73,7 @@ mod tests {
                     title: title.into(),
                     assignee: who,
                     description: String::new(),
-                    project_id: None,
+                    project_id: Some(__p),
                     status: None,
                     estimate_days: Some(1.0),
                     start_date: None,

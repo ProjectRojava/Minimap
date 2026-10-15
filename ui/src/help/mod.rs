@@ -98,6 +98,12 @@ pub const PAGES: &[Page] = &[
         "Track what you are waiting for, and chase the stale"
     ),
     page!(
+        "archive",
+        "Daily work",
+        "Archive",
+        "Everything archived in one place, and finished tasks that archive themselves"
+    ),
+    page!(
         "pings",
         "Daily work",
         "Pings: come back to anything on a day",
@@ -210,6 +216,12 @@ pub const PAGES: &[Page] = &[
         "Your data",
         "Settings",
         "Every setting, tab by tab"
+    ),
+    page!(
+        "tray",
+        "Your data",
+        "Tray, reminders and starting with your computer",
+        "Keep Minimap running when the window is closed, with reminders and a lock"
     ),
     page!(
         "backup-restore",
@@ -407,7 +419,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 35);
+        assert_eq!(PAGES.len(), 37);
     }
 
     #[test]

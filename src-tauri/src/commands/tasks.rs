@@ -297,7 +297,8 @@ mod tests {
     }
 
     fn task(conn: &mut Connection, title: &str) -> Task {
-        create_tasks_bulk_impl(conn, vec![title.into()], None, AssigneeChoice::Nobody)
+        let project = minimap_store::fixtures::project(conn);
+        create_tasks_bulk_impl(conn, vec![title.into()], Some(project), AssigneeChoice::Nobody)
             .unwrap()
             .remove(0)
     }

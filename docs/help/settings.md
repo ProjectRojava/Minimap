@@ -16,11 +16,14 @@
 
 **Appearance**: choose a colour theme. *System* follows your computer's light or dark setting; there are 17 themes, dark by default. The choice applies at once. *Frame task cards by type* (on by default) draws each card's border on the Tasks board in a line style that goes with its type (double, dashed, dotted, heavy or plain); turn it off for a plain line on every card, so the type is only the label (see [Tasks](help:tasks), *The board*). Both settings are for this computer only.
 
+**Window and tray**: what the close button does, the tray icon, starting with the computer, meeting and ping reminders, and locking after the window has been hidden; for this computer only. See [Tray, reminders and starting with your computer](help:tray).
+
 **Radar**: how the small [radar](help:radar) window behaves, for this computer only. *Keep on top of other windows* (on by default) keeps it over your other apps. *Open with Minimap* (off by default) shows it whenever Minimap starts. *Rings* (default 5, 10 and 60 working days) is how far out each of its three rings is; each must be farther out than the one before, from 1 to 260, and a change shows within a minute.
 
 ## Thresholds
 
 - **Waiting on, stale after (days)** (default 7): when an open [waiting-on](help:waiting-on) counts as stale.
+- **Finished tasks, archive after (days)** (default 30) and **Finished meetings, archive after (days)** (default 2): a finished task is archived by itself that many days after it was finished; 0 means never (0 to 365). See [Archive](help:archive).
 - **Capacity, too many open tasks above** (default 10): flags a person on [Capacity](help:capacity) and the Overview whatever the estimates.
 - **Project health**: when a project turns amber or red, for lateness, overdue-or-blocked share and unestimated share. Amber can't be above red. *Reset to defaults* restores them. See [Overview and health](help:overview).
 - **Safe zone is narrow at** (default 3): a project's safe zone turns amber at this many working days of room or fewer (0 to 30). See [Projects](help:projects), *Safe zone*.

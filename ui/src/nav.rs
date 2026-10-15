@@ -129,6 +129,14 @@ pub const NAV: &[NavItem] = &[
         enabled: true,
     },
     NavItem {
+        label: "Archive",
+        icon: "archive",
+        group: "Log",
+        path: "/archive",
+        chord: 'v',
+        enabled: true,
+    },
+    NavItem {
         label: "Weekly review",
         icon: "review",
         group: "Review",

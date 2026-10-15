@@ -17,7 +17,7 @@ use crate::{
     },
     labels::{
         date_tone, objective_status_label, objective_status_tone, priority_short, priority_tone,
-        project_status_label, project_status_tone, task_status_label, task_status_tone,
+        project_status_label, project_status_tone,
     },
     state::DataVersion,
 };
@@ -72,17 +72,10 @@ pub fn TaskSummary(id: Uuid) -> impl IntoView {
                 t.status,
                 minimap_types::TaskStatus::Done | minimap_types::TaskStatus::Cancelled
             );
-            let due = t.due_date.map(|d| {
-                let today = today();
-                let tone = date_tone(d, today, open);
-                (tone, date_text("due", d, tone, today))
-            });
             let in_focus = open && crate::components::focus::is_on(t.focus.as_ref(), today());
+            // Status, priority and the due date are controls in the pinned header (`task_pinned`).
             view! {
                 <div class="mb-3 flex flex-wrap items-center gap-1.5">
-                    <Pill tone=task_status_tone(t.status)>{task_status_label(t.status)}</Pill>
-                    <Pill tone=priority_tone(t.priority)>{priority_short(t.priority)}</Pill>
-                    {due.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
                     {in_focus.then(|| view! { <Pill tone=Tone::Accent>"★ In focus"</Pill> })}
                     <FogPill node=NodeRef::new(NodeType::Task, id) />
                     <crate::components::task_type::TypeChip id=t.task_type.clone() />

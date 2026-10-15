@@ -1,7 +1,9 @@
-//! The splash screen (docs/product-design/13-splash-screen.md): `index.html` paints it as plain
-//! HTML and CSS the moment the window opens, while the app is still being downloaded and
-//! started. Once the app has mounted this fades it out and removes it. It is in every window of
-//! the app (the main window and the radar).
+//! The splash screen (docs/product-design/13-splash-screen.md). The main window has a small
+//! window of its own for it (`splash.html`, opened by the shell while the main window stays
+//! hidden; `src-tauri/src/commands/splash.rs`), so it never covers the screen. The radar is small
+//! already, so it shows the same mark as an overlay painted by `index.html`, which this fades out
+//! and removes once the app has mounted. (The main window has the overlay too, but it is hidden
+//! until the app is ready, so it is removed at once.)
 
 use std::time::Duration;
 
@@ -15,10 +17,16 @@ pub const OUT_CLASS: &str = "splash-out";
 /// How long the fade takes, in milliseconds (the CSS transition is 220).
 pub const FADE_MS: u64 = 260;
 
-/// The main window's splash stays at least this long (milliseconds since the page started):
-/// until the app is ready, or five seconds, whichever is later. A fast start shows the mark, the
-/// version and who made it for the full five.
+/// The splash window stays at least this long (milliseconds since the shell started): until the
+/// app is ready, or five seconds, whichever is later. A fast start shows the mark, the version and
+/// who made it for the full five. The shell keeps the time (`MIN_SHOW` in
+/// `src-tauri/src/commands/splash.rs`, which a test there holds equal to this).
+#[allow(dead_code)] // the shell keeps the time; this is the number its test holds it to
 pub const MIN_SHOW_MS: f64 = 5000.0;
+
+/// The overlay in the main window is behind a hidden window until the app is ready, so it goes at
+/// once.
+pub const MAIN_OVERLAY_MIN_SHOW_MS: f64 = 0.0;
 
 /// The radar is a window to glance at, so its splash only holds long enough not to flash.
 pub const RADAR_MIN_SHOW_MS: f64 = 700.0;
@@ -44,13 +52,13 @@ fn elapsed_ms() -> f64 {
         .unwrap_or(0.0)
 }
 
-/// Fades the splash out and removes it, once the app has mounted (this is called then) and the
-/// splash has been up for [`MIN_SHOW_MS`] (the radar: [`RADAR_MIN_SHOW_MS`]).
+/// Fades the overlay out and removes it, once the app has mounted (this is called then): at once
+/// in the main window, after [`RADAR_MIN_SHOW_MS`] in the radar.
 pub fn dismiss() {
     let min = if crate::window::is_radar_window() {
         RADAR_MIN_SHOW_MS
     } else {
-        MIN_SHOW_MS
+        MAIN_OVERLAY_MIN_SHOW_MS
     };
     set_timeout(
         fade_out,
@@ -110,30 +118,63 @@ mod tests {
 
     #[test]
     fn the_splash_says_which_version_this_is_and_who_made_it() {
-        // The page is plain HTML, so these are typed there; a release bump or a change of
-        // address fails here until `ui/index.html` says the same as the About page.
-        let html = include_str!("../index.html");
-        assert!(html.contains(&format!("Version {}", crate::pages::about::VERSION)));
-        assert!(html.contains(crate::pages::about::DEVELOPER));
-        assert!(html.contains(crate::pages::about::EMAIL));
+        // The pages are plain HTML, so these are typed there; a release bump or a change of
+        // address fails here until `ui/index.html` and `ui/splash.html` say the same as the
+        // About page.
+        for html in [include_str!("../index.html"), include_str!("../splash.html")] {
+            assert!(html.contains(&format!("Version {}", crate::pages::about::VERSION)));
+            assert!(html.contains(crate::pages::about::DEVELOPER));
+            assert!(html.contains(crate::pages::about::EMAIL));
+        }
     }
 
     #[test]
     fn the_splash_needs_no_script_and_follows_the_security_policy() {
-        let html = include_str!("../index.html");
-        let start = html.find("id=\"splash\"").unwrap_or(0);
-        let markup = &html[start..];
-        // The content security policy allows no inline script, so the splash must not use any.
-        assert!(!markup.contains("<script"));
-        assert!(!markup.contains("onload=") && !markup.contains("onclick="));
-        // Motion is switched off for people who ask for less of it.
-        assert!(html.contains("prefers-reduced-motion: reduce"));
+        for html in [include_str!("../index.html"), include_str!("../splash.html")] {
+            let start = html.find("id=\"splash\"").unwrap_or(0);
+            let markup = &html[start..];
+            // The content security policy allows no inline script, so the splash must not use any.
+            assert!(!markup.contains("<script"));
+            assert!(!markup.contains("onload=") && !markup.contains("onclick="));
+            // Motion is switched off for people who ask for less of it.
+            assert!(html.contains("prefers-reduced-motion: reduce"));
+        }
     }
 
     #[test]
     fn the_words_follow_the_voice() {
-        let html = include_str!("../index.html");
-        assert!(html.contains("Starting up"));
-        assert!(html.contains("Still starting. This can take a moment after an update."));
+        for html in [include_str!("../index.html"), include_str!("../splash.html")] {
+            assert!(html.contains("Starting up"));
+            assert!(html.contains("Still starting. This can take a moment after an update."));
+        }
+    }
+
+    #[test]
+    fn the_splash_window_is_small_and_the_main_overlay_goes_at_once() {
+        // The window is its own page, sized by the shell; it fills that window, not the screen.
+        let page = include_str!("../splash.html");
+        assert!(page.contains("position: fixed; inset: 0"));
+        assert_eq!(MAIN_OVERLAY_MIN_SHOW_MS, 0.0);
+    }
+
+    #[test]
+    fn the_splash_window_has_a_dark_look_and_a_light_look_in_the_brand_colours() {
+        let page = include_str!("../splash.html");
+        // Chosen by the system's colour scheme: the app's own theme is not known yet.
+        assert!(page.contains("prefers-color-scheme: light"));
+        assert!(page.contains("scene-dark") && page.contains("scene-light"));
+        assert!(page.contains("mark-dark") && page.contains("mark-light"));
+        // The dark map: navy, teal and cream. The light map: paper, navy ink and deep teal.
+        for colour in ["#16293F", "#0B1524", "#3FC7B8", "#F7F4EC"] {
+            assert!(page.contains(colour), "the dark look lacks {colour}");
+        }
+        for colour in ["#FBF8F0", "#E9E3D4", "#17877A"] {
+            assert!(page.contains(colour), "the light look lacks {colour}");
+        }
+        // A background pattern in each: the grid, the network and the viewport's corners.
+        assert!(page.contains("sd-grid") && page.contains("sl-grid"));
+        assert!(page.matches("class=\"net-node\"").count() >= 24, "twelve nodes in each look");
+        // Both marks are the brand logos, and still draw themselves in.
+        assert_eq!(page.matches("class=\"splash-box\"").count(), 2);
     }
 }
