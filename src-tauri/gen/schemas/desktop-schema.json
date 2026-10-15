@@ -207,6 +207,12 @@
           "markdownDescription": "Enables the advance_meetings command without any pre-configured scope."
         },
         {
+          "description": "Enables the app_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-app-ready",
+          "markdownDescription": "Enables the app_ready command without any pre-configured scope."
+        },
+        {
           "description": "Enables the apply_slips command without any pre-configured scope.",
           "type": "string",
           "const": "allow-apply-slips",
@@ -675,6 +681,12 @@
           "markdownDescription": "Enables the list_activity_for command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-archived",
+          "markdownDescription": "Enables the list_archived command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_attachments command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-attachments",
@@ -849,6 +861,12 @@
           "markdownDescription": "Enables the redo_last command without any pre-configured scope."
         },
         {
+          "description": "Enables the remember_splash_scheme command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remember-splash-scheme",
+          "markdownDescription": "Enables the remember_splash_scheme command without any pre-configured scope."
+        },
+        {
           "description": "Enables the remove_attachment command without any pre-configured scope.",
           "type": "string",
           "const": "allow-remove-attachment",
@@ -901,6 +919,12 @@
           "type": "string",
           "const": "allow-resolve-waiting-on",
           "markdownDescription": "Enables the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the restore_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-restore-archived",
+          "markdownDescription": "Enables the restore_archived command without any pre-configured scope."
         },
         {
           "description": "Enables the restore_backup command without any pre-configured scope.",
@@ -1117,6 +1141,12 @@
           "type": "string",
           "const": "deny-advance-meetings",
           "markdownDescription": "Denies the advance_meetings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the app_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-app-ready",
+          "markdownDescription": "Denies the app_ready command without any pre-configured scope."
         },
         {
           "description": "Denies the apply_slips command without any pre-configured scope.",
@@ -1587,6 +1617,12 @@
           "markdownDescription": "Denies the list_activity_for command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-archived",
+          "markdownDescription": "Denies the list_archived command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_attachments command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-attachments",
@@ -1761,6 +1797,12 @@
           "markdownDescription": "Denies the redo_last command without any pre-configured scope."
         },
         {
+          "description": "Denies the remember_splash_scheme command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remember-splash-scheme",
+          "markdownDescription": "Denies the remember_splash_scheme command without any pre-configured scope."
+        },
+        {
           "description": "Denies the remove_attachment command without any pre-configured scope.",
           "type": "string",
           "const": "deny-remove-attachment",
@@ -1813,6 +1855,12 @@
           "type": "string",
           "const": "deny-resolve-waiting-on",
           "markdownDescription": "Denies the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the restore_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-restore-archived",
+          "markdownDescription": "Denies the restore_archived command without any pre-configured scope."
         },
         {
           "description": "Denies the restore_backup command without any pre-configured scope.",

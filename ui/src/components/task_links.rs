@@ -1,10 +1,13 @@
-//! The link sections of a task's panel. Two ideas that are never mixed:
+//! The *Related tasks* section of a task's panel. Two ideas that are never mixed, in two groups of
+//! it:
 //!
 //! - **Part of** (spec 33): the task's parent and its sub-tasks, with the progress of the
 //!   sub-tasks. Organisation only; no date moves and nothing waits.
 //! - **Links**: the order of the work (what blocks it, what it blocks), related tasks, then its
 //!   other links (the generic list), with the ways to add one side by side: a new linked task, an
 //!   existing task, or something else.
+//!
+//! The section is hidden while there is none of either (`pane_reveal`); the Add row offers them.
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
@@ -18,6 +21,7 @@ use crate::{
         detail_pane::{Section, SECTION_ACTION},
         form::SelectField,
         links_editor::{shown_links, LinksEditor},
+        pane_reveal::shown,
         people_panel::error_line,
     },
     labels::{task_status_label, task_status_tone},
@@ -178,16 +182,6 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                 let blocks_rows = group("Blocks".to_owned(), "These wait until this task is done", &groups.blocks);
                 let related_rows = group("Related tasks".to_owned(), "Connected, with no order", &groups.related);
                 let editor_links = links.clone();
-                let part_meta = if total > 0 {
-                    format!("· {}", progress_text(done, total))
-                } else {
-                    String::new()
-                };
-                let links_meta = if link_total > 0 {
-                    format!("· {link_total}")
-                } else {
-                    String::new()
-                };
                 // Meetings (spec 38): the meetings before and after this one.
                 let is_meeting = this.is_some_and(|r| r.task.is_meeting());
                 let follow_section = is_meeting.then(|| {
@@ -235,28 +229,34 @@ pub fn TaskLinks(task: Uuid) -> impl IntoView {
                         </Section>
                     }
                 });
+                // One section for everything that ties this task to others: where it sits in a
+                // tree (part of, sub-tasks), what orders the work (blocks, blocked by), related
+                // tasks and its other links. Hidden while there is none; the add buttons sit at
+                // the bottom (and in the pane's Add row).
+                let related_empty = part_empty && empty;
+                let related_meta = {
+                    let n = groups.parent.len() + groups.subtasks.len() + link_total;
+                    if n > 0 { format!("· {n}") } else { String::new() }
+                };
+                let add_buttons = move || view! { {part_buttons_view()} {actions()} };
                 view! {
                     {follow_section}
-                    <Section title="Part of" meta=move || part_meta.clone() actions=part_buttons_view>
-                        {part_empty.then(|| view! {
-                            <p class="text-muted" title="Part of is for organising: it moves no date and holds nothing up.">"None yet."</p>
-                        })}
-                        {parent_rows}
-                        {subtask_rows}
-                    </Section>
-                    <Section title="Links" meta=move || links_meta.clone() actions=actions>
-                        {empty.then(|| view! { <p class="mb-1 text-muted">"No links yet."</p> })}
-                        {blocked_by_rows}
-                        {blocks_rows}
-                        {related_rows}
-                        <div class="mt-3">
-                            <LinksEditor node=node links=editor_links compact=true />
-                        </div>
-                    </Section>
+                    <div class:hidden=move || !shown("related", !related_empty)>
+                        <Section title="Related tasks" meta=move || related_meta.clone()>
+                            {parent_rows}
+                            {subtask_rows}
+                            {blocked_by_rows}
+                            {blocks_rows}
+                            {related_rows}
+                            <div class="mt-3">
+                                <LinksEditor node=node links=editor_links compact=true actions=add_buttons />
+                            </div>
+                        </Section>
+                    </div>
                 }.into_any()
             }
-            (Some(Err(e)), _) | (_, Some(Err(e))) => view! { <Section title="Links">{error_line(e)}</Section> }.into_any(),
-            _ => view! { <Section title="Links"><p class="text-muted">"Loading…"</p></Section> }.into_any(),
+            (Some(Err(e)), _) | (_, Some(Err(e))) => view! { <Section title="Related tasks">{error_line(e)}</Section> }.into_any(),
+            _ => view! { <Section title="Related tasks"><p class="text-muted">"Loading…"</p></Section> }.into_any(),
         }}
     }
 }

@@ -470,14 +470,33 @@ fn update_core(
     if decides {
         crate::decisions::decide_with_task_in_tx(tx, &new)?;
     }
-    // Becoming a decision task makes its record (spec 41); the record stays if the type is changed
-    // away again.
-    if make_record
-        && new.task_type != old.task_type
-        && new.task_type.as_deref() == Some(DECISION_TYPE)
-        && new.archived_at.is_none()
-    {
-        crate::decisions::ensure_for_task_in_tx(tx, &new)?;
+    // A finished task needs no reminder: its ping is cleared (it stays in the history and the
+    // export, like any cleared ping). Undo and redo of the finish bring it back or clear it again
+    // through the ping's own activity row, so they don't do it here.
+    if make_record && finishing {
+        if let Some(ping) = crate::pings::live_for(tx, id)? {
+            let day = today();
+            crate::pings::update_in_tx(
+                tx,
+                ping.id,
+                day,
+                minimap_types::UpdatePing {
+                    cleared_on: minimap_types::Patch::Set(day),
+                    ..Default::default()
+                },
+            )?;
+        }
+    }
+    // Becoming a decision task makes its record (spec 41); ceasing to be one removes it, for good
+    // (the pane asks first). Changing back later makes a new, empty one. Undo and redo put the type
+    // back without touching records, so a task typed Decision again by undo has none, and its pane
+    // offers to create one.
+    if make_record && new.task_type != old.task_type {
+        if new.task_type.as_deref() == Some(DECISION_TYPE) && new.archived_at.is_none() {
+            crate::decisions::ensure_for_task_in_tx(tx, &new)?;
+        } else if old.task_type.as_deref() == Some(DECISION_TYPE) {
+            crate::decisions::remove_for_task_in_tx(tx, id)?;
+        }
     }
     if let Some(rule) = handed_on {
         make_next(tx, &new, rule)?;

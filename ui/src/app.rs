@@ -30,6 +30,7 @@ use crate::{
         people::People,
         projects::Projects,
         settings::Settings,
+        archive::Archive,
         tasks::{Inbox, Tasks},
         teams::Teams,
         this_week::ThisWeek,
@@ -148,6 +149,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/notes") view=Notes />
                     <Route path=path!("/decisions") view=Decisions />
                     <Route path=path!("/waiting-on") view=WaitingOn />
+                    <Route path=path!("/archive") view=Archive />
                     <Route path=path!("/what-if") view=WhatIf />
                     <Route path=path!("/weekly-review") view=WeeklyReview />
                     <Route path=path!("/settings") view=Settings />

@@ -21,6 +21,7 @@
 ## Thresholds
 
 - **Waiting on, stale after (days)** (default 7): when an open [waiting-on](help:waiting-on) counts as stale.
+- **Finished tasks, archive after (days)** (default 30) and **Finished meetings, archive after (days)** (default 2): a finished task is archived by itself that many days after it was finished; 0 means never (0 to 365). See [Archive](help:archive).
 - **Capacity, too many open tasks above** (default 10): flags a person on [Capacity](help:capacity) and the Overview whatever the estimates.
 - **Project health**: when a project turns amber or red, for lateness, overdue-or-blocked share and unestimated share. Amber can't be above red. *Reset to defaults* restores them. See [Overview and health](help:overview).
 - **Safe zone is narrow at** (default 3): a project's safe zone turns amber at this many working days of room or fewer (0 to 30). See [Projects](help:projects), *Safe zone*.

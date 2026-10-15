@@ -119,27 +119,87 @@ fn other_types_and_no_type_make_no_record() {
 }
 
 #[test]
-fn choosing_the_type_later_makes_one_record_and_never_a_second() {
+fn choosing_the_type_later_makes_one_record() {
     let mut conn = db();
     let t = task(&mut conn, None, None);
     set_type(&mut conn, t.id, Patch::Set("decision".into()));
     let first = decisions::for_task(&conn, t.id).unwrap().unwrap();
-
-    set_type(&mut conn, t.id, Patch::Set("design".into()));
-    // Changing the type away keeps the record.
-    assert_eq!(
-        decisions::for_task(&conn, t.id).unwrap().map(|d| d.id),
-        Some(first.id)
-    );
+    // Choosing it again changes nothing: still the one record.
     set_type(&mut conn, t.id, Patch::Set("decision".into()));
-    set_type(&mut conn, t.id, Patch::Clear);
-    set_type(&mut conn, t.id, Patch::Set("decision".into()));
-
     assert_eq!(decisions::list(&conn, false).unwrap().len(), 1);
     assert_eq!(
         decisions::for_task(&conn, t.id).unwrap().map(|d| d.id),
         Some(first.id)
     );
+}
+
+#[test]
+fn changing_the_type_away_from_decision_removes_the_record_for_good() {
+    let mut conn = db();
+    let p = project(&mut conn);
+    let t = task(&mut conn, Some("decision"), Some(p.id));
+    let d = decisions::for_task(&conn, t.id).unwrap().unwrap();
+    write_up(&mut conn, d.id);
+
+    set_type(&mut conn, t.id, Patch::Set("design".into()));
+    assert!(decisions::for_task(&conn, t.id).unwrap().is_none());
+    assert!(decisions::get(&conn, d.id).is_err(), "deleted, not just archived");
+    assert!(decisions::list(&conn, true).unwrap().is_empty());
+    assert!(views::task_detail(&conn, t.id).unwrap().decision.is_none());
+    // Its links went with it; the task and the project are untouched.
+    assert!(edges::list_active_of_type(&conn, EdgeType::Affects)
+        .unwrap()
+        .is_empty());
+    assert_eq!(tasks::get(&conn, t.id).unwrap().project_id, Some(p.id));
+    // The deletion reaches other devices.
+    let tomb: bool = conn
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM tombstones WHERE kind = 'decision' AND id = ?1)",
+            [d.id.to_string()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(tomb);
+
+    // Clearing the type does the same, and making it a Decision again starts a new, empty record.
+    let again = task(&mut conn, Some("decision"), Some(p.id));
+    let second = decisions::for_task(&conn, again.id).unwrap().unwrap();
+    set_type(&mut conn, again.id, Patch::Clear);
+    assert!(decisions::for_task(&conn, again.id).unwrap().is_none());
+    set_type(&mut conn, again.id, Patch::Set("decision".into()));
+    let third = decisions::for_task(&conn, again.id).unwrap().unwrap();
+    assert_ne!(third.id, second.id);
+    assert!(third.decision.is_empty());
+}
+
+#[test]
+fn a_decision_that_only_affects_the_task_is_not_removed_with_the_type() {
+    let mut conn = db();
+    let t = task(&mut conn, Some("decision"), None);
+    let other = decisions::create(
+        &mut conn,
+        CreateDecision {
+            title: "Separate".into(),
+            context: String::new(),
+            decision: String::new(),
+            rationale: String::new(),
+            decided_on: None,
+            status: None,
+        },
+    )
+    .unwrap();
+    edges::add(
+        &mut conn,
+        NewEdge {
+            edge_type: EdgeType::Affects,
+            from: NodeRef::new(NodeType::Decision, other.id),
+            to: NodeRef::new(NodeType::Task, t.id),
+            attrs: serde_json::json!({}),
+        },
+    )
+    .unwrap();
+    set_type(&mut conn, t.id, Patch::Set("design".into()));
+    assert!(decisions::get(&conn, other.id).is_ok());
 }
 
 fn write_up(conn: &mut Connection, id: uuid::Uuid) {

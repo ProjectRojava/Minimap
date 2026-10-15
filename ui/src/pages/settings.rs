@@ -150,6 +150,7 @@ pub fn Settings() -> impl IntoView {
                 }.into_any())}
                 {panel(Tab::Thresholds, view! {
                     <WaitingSettings settings=settings />
+                    <FinishedSettings settings=settings />
                     <CapacitySettings settings=settings />
                     <HealthSettings />
                     <FogSettings />
@@ -488,6 +489,30 @@ fn WaitingSettings(settings: Loaded) -> impl IntoView {
         .into_any()
     });
     view! { <Card title="Waiting on" description="When an open waiting-on counts as stale.">{body}</Card> }
+}
+
+/// How long a finished task stays before it is archived on its own.
+#[component]
+fn FinishedSettings(settings: Loaded) -> impl IntoView {
+    let body = when_loaded(settings, |s| {
+        view! {
+            <NumberSetting label="Archive finished tasks after (days)" stored=f64::from(s.done_archive_days) whole=true
+                invalid="Archive after must be a whole number of days (0 = never)"
+                patch=|n| UpdateSettings { done_archive_days: Some(n as u32), ..Default::default() }
+                read=|s| f64::from(s.done_archive_days) />
+            <NumberSetting label="Archive finished meetings after (days)" stored=f64::from(s.done_archive_meeting_days) whole=true
+                invalid="Archive after must be a whole number of days (0 = never)"
+                patch=|n| UpdateSettings { done_archive_meeting_days: Some(n as u32), ..Default::default() }
+                read=|s| f64::from(s.done_archive_meeting_days) />
+            <p class="text-[11px] text-muted">
+                "0 means never, up to 365. Counted from the day the task was finished. Archived tasks are "
+                "kept in the Archive and can be restored. A finished task that something open still depends "
+                "on (a sub-task of an open task, a blocker of open work, one with a live ping) is kept."
+            </p>
+        }
+        .into_any()
+    });
+    view! { <Card title="Finished tasks" description="When a done task is archived by itself.">{body}</Card> }
 }
 
 /// When someone has too much on, whatever the estimates say.

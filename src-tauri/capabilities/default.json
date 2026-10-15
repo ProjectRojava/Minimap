@@ -7,6 +7,8 @@
   ],
   "permissions": [
     "allow-ping",
+    "allow-app-ready",
+    "allow-remember-splash-scheme",
     "allow-get-node-summary",
     "allow-list-edges-for",
     "allow-list-activity-for",
@@ -19,6 +21,8 @@
     "allow-update-person",
     "allow-preview-archive-person",
     "allow-archive-person",
+    "allow-list-archived",
+    "allow-restore-archived",
     "allow-merge-people",
     "allow-list-teams",
     "allow-get-team",

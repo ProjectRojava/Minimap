@@ -132,7 +132,8 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Decision => view! { <DecisionPanel id=node.id /> }.into_any(),
         }}
 
-        <Attachments node=node />
+        // A task's files are in its own panel, with its reference links (Files & links).
+        {(node.node_type != NodeType::Task).then(|| view! { <Attachments node=node /> })}
 
         // A task's links are in its own panel, together with the buttons to link tasks.
         {(node.node_type != NodeType::Task).then(|| view! {

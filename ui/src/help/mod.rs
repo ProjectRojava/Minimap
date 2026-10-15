@@ -98,6 +98,12 @@ pub const PAGES: &[Page] = &[
         "Track what you are waiting for, and chase the stale"
     ),
     page!(
+        "archive",
+        "Daily work",
+        "Archive",
+        "Everything archived in one place, and finished tasks that archive themselves"
+    ),
+    page!(
         "pings",
         "Daily work",
         "Pings: come back to anything on a day",
@@ -407,7 +413,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 35);
+        assert_eq!(PAGES.len(), 36);
     }
 
     #[test]

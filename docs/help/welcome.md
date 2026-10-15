@@ -49,6 +49,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 | Log | [Notes](help:notes) | Meeting notes and 1:1s, with `@` mentions and checklists |
 | Log | [Decisions](help:decisions) | What was decided, why, and what replaced it |
 | Log | [Waiting on](help:waiting-on) | What you are waiting for from others, and how long |
+| Log | [Archive](help:archive) | Everything you archived, and finished tasks that archive themselves; restore anything |
 | Review | [Weekly review](help:weekly-review) | A guided look back, ending in a status report |
 | | [Settings](help:settings) | Appearance, working time, thresholds, backups, encryption, Drive |
 | | About | Who made Minimap (name and email, click the email to write to them) and the version you are running. In the sidebar footer, or `g u` |

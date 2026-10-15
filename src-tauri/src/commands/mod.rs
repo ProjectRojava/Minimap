@@ -1,4 +1,5 @@
 pub mod approach;
+pub mod archive;
 pub mod attachments;
 pub mod backup;
 pub mod capacity;
@@ -28,6 +29,7 @@ pub mod schedule;
 pub mod search;
 pub mod security;
 pub mod settings;
+pub mod splash;
 pub mod sync;
 pub mod system;
 pub mod tasks;

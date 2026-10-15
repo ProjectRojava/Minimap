@@ -64,6 +64,19 @@ fn apply(theme: &Theme) {
     );
 }
 
+/// The look the splash screen should have at the next start for the selected theme: `dark` or
+/// `light` by the kind of the theme, and `system` when the app follows the system (so the splash
+/// does too).
+pub fn splash_scheme(id: &str) -> &'static str {
+    if id == themes::SYSTEM_ID {
+        return "system";
+    }
+    match themes::resolve(id, true).kind {
+        Kind::Dark => "dark",
+        Kind::Light => "light",
+    }
+}
+
 /// The selected theme id (or `system`), reactive. Provided as a context from `App`.
 #[derive(Clone, Copy)]
 pub struct ThemeCtx {
@@ -96,6 +109,16 @@ impl ThemeCtx {
         }
 
         Effect::new(move |_| apply(ctx.current()));
+        // The splash screen of the next start is in the look of this theme (the shell opens it
+        // before the app, and the database, can say). Only the main window says it.
+        if !crate::window::is_radar_window() {
+            Effect::new(move |_| {
+                let scheme = splash_scheme(&ctx.id.get());
+                leptos::task::spawn_local(async move {
+                    let _ = crate::api::remember_splash_scheme(scheme).await;
+                });
+            });
+        }
         ctx
     }
 
@@ -113,5 +136,32 @@ impl ThemeCtx {
     pub fn select(&self, id: &str) {
         cache_id(id);
         self.id.set(id.to_owned());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_splash_follows_the_kind_of_the_selected_theme() {
+        // Every theme gives the splash the look of its own kind.
+        for t in themes::ALL.iter() {
+            let want = if t.kind == Kind::Dark { "dark" } else { "light" };
+            assert_eq!(splash_scheme(t.id), want, "{}", t.id);
+        }
+        assert_eq!(splash_scheme("minimap-dark"), "dark");
+        assert_eq!(splash_scheme("minimap-light"), "light");
+        // Both kinds exist among the themes, so both looks are reachable.
+        assert!(themes::ALL.iter().any(|t| t.kind == Kind::Light));
+        assert!(themes::ALL.iter().any(|t| t.kind == Kind::Dark));
+    }
+
+    #[test]
+    fn the_system_choice_and_unknown_ids_are_handled() {
+        // Following the system, the splash follows the system too.
+        assert_eq!(splash_scheme(themes::SYSTEM_ID), "system");
+        // An id that is no longer a theme draws the default, which is dark.
+        assert_eq!(splash_scheme("gone-theme"), "dark");
     }
 }

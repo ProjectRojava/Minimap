@@ -418,6 +418,7 @@ fn MergePerson(detail: PersonDetail, people: Vec<PersonRow>) -> impl IntoView {
             });
         });
         confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
             title: format!("Merge \"{name}\" into \"{into_name}\"?"),
             message: merge_message(&name, &into_name, is_self),
             body: None,
@@ -505,6 +506,7 @@ pub fn ask_archive_person(
                     )
                 };
                 confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
                     title: question(&name),
                     message,
                     body: (!tasks.is_empty()).then(|| task_lines(tasks)),

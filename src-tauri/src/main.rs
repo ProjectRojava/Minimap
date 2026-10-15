@@ -48,6 +48,19 @@ fn spawn_recurring_notes(state: AppState) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Archives finished tasks that have come of age (Settings, `store::done_sweep`): at start, then
+/// every hour.
+fn spawn_done_sweep(state: AppState) -> anyhow::Result<()> {
+    std::thread::Builder::new()
+        .name("done-sweep".into())
+        .spawn(move || loop {
+            commands::archive::archive_old_done_tick(&state);
+            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+        })
+        .context("start the finished-task archiving timer")?;
+    Ok(())
+}
+
 fn spawn_auto_backup(state: AppState) -> anyhow::Result<()> {
     std::thread::Builder::new()
         .name("auto-backup".into())
@@ -74,7 +87,15 @@ fn main() {
             });
         })
         .setup(|app| {
+            // First of all: the small splash window, while the main window stays hidden. The
+            // app shows the main window when it is ready (`commands::splash::app_ready`), and
+            // the failsafe does it anyway after thirty seconds.
+            let started = std::time::Instant::now();
+            app.manage(commands::splash::SplashClock(started));
             let dir = app.path().app_data_dir().context("resolve app data dir")?;
+            // In the look that matches the app's theme, as it was told at the last start.
+            commands::splash::open(app.handle(), commands::splash::read_scheme(&dir));
+            commands::splash::spawn_failsafe(app.handle().clone(), started);
             fs::create_dir_all(&dir).context("create app data dir")?;
             init_logging(&dir)?;
             commands::attachments::clean_opened(&dir);
@@ -90,6 +111,7 @@ fn main() {
             );
             spawn_auto_backup(state.clone())?;
             spawn_recurring_notes(state.clone())?;
+            spawn_done_sweep(state.clone())?;
             sync::spawn(state.clone())?;
             commands::radar::open_at_start(app.handle(), &state);
             Ok(())
@@ -97,6 +119,8 @@ fn main() {
         .on_window_event(commands::radar::on_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::system::ping,
+            commands::splash::app_ready,
+            commands::splash::remember_splash_scheme,
             commands::nodes::get_node_summary,
             commands::nodes::list_edges_for,
             commands::nodes::list_activity_for,
@@ -116,6 +140,8 @@ fn main() {
             commands::people::update_person,
             commands::people::preview_archive_person,
             commands::people::archive_person,
+            commands::archive::list_archived,
+            commands::archive::restore_archived,
             commands::people::merge_people,
             commands::teams::list_teams,
             commands::teams::get_team,

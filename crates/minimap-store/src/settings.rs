@@ -24,6 +24,8 @@ const TYPE_BORDERS: &str = "type_borders";
 const RADAR_ON_TOP: &str = "radar_on_top";
 const RADAR_OPEN_AT_START: &str = "radar_open_at_start";
 const RADAR_RINGS: &str = "radar_rings";
+const DONE_ARCHIVE_DAYS: &str = "done_archive_days";
+const DONE_ARCHIVE_MEETING_DAYS: &str = "done_archive_meeting_days";
 
 /// Settings that belong to this device and are never synced (or put in a snapshot).
 pub const LOCAL_ONLY: [&str; 7] = [
@@ -165,6 +167,19 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.health = h;
         }
     }
+    for (key, slot) in [
+        (DONE_ARCHIVE_DAYS, &mut s.done_archive_days),
+        (DONE_ARCHIVE_MEETING_DAYS, &mut s.done_archive_meeting_days),
+    ] {
+        if let Some(n) = read(conn, key)?
+            .and_then(|v| v.as_u64())
+            .and_then(|n| u32::try_from(n).ok())
+        {
+            if n <= minimap_types::MAX_DONE_ARCHIVE_DAYS {
+                *slot = n;
+            }
+        }
+    }
     if let Some(f) = read(conn, FOG)?
         .and_then(|v| serde_json::from_value::<minimap_types::FogThresholds>(v).ok())
     {
@@ -244,6 +259,17 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             return Err(StoreError::Invalid(
                 "stale after must be between 1 and 365 days".into(),
             ));
+        }
+    }
+    for n in [patch.done_archive_days, patch.done_archive_meeting_days]
+        .into_iter()
+        .flatten()
+    {
+        if n > minimap_types::MAX_DONE_ARCHIVE_DAYS {
+            return Err(StoreError::Invalid(format!(
+                "finished tasks can be archived after at most {} days (0 = never)",
+                minimap_types::MAX_DONE_ARCHIVE_DAYS
+            )));
         }
     }
     if let Some(h) = &patch.health {
@@ -339,6 +365,12 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(f) = patch.fog {
         write(&tx, FOG, &serde_json::to_value(f)?)?;
+    }
+    if let Some(n) = patch.done_archive_days {
+        write(&tx, DONE_ARCHIVE_DAYS, &serde_json::json!(n))?;
+    }
+    if let Some(n) = patch.done_archive_meeting_days {
+        write(&tx, DONE_ARCHIVE_MEETING_DAYS, &serde_json::json!(n))?;
     }
     if let Some(n) = patch.zone_narrow_days {
         write(&tx, ZONE_NARROW_DAYS, &serde_json::json!(n))?;

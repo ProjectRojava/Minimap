@@ -79,7 +79,12 @@ fn note_from_text(text: &str, label: &str, id: Uuid) -> Option<(String, String)>
 }
 
 #[component]
-pub fn ItemNotes(node: NodeRef) -> impl IntoView {
+pub fn ItemNotes(
+    node: NodeRef,
+    /// Keep the section out of the way until there is a note (or the *Add* row asked for it).
+    #[prop(optional)]
+    hide_when_empty: bool,
+) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let id = node.id;
@@ -142,7 +147,15 @@ pub fn ItemNotes(node: NodeRef) -> impl IntoView {
         });
     };
 
+    let hidden = move || {
+        hide_when_empty
+            && !crate::components::pane_reveal::shown(
+                "notes",
+                notes.get().and_then(|n| n.ok()).is_some_and(|n| !n.is_empty()),
+            )
+    };
     view! {
+        <div class:hidden=hidden>
         <Section title="Notes and findings"
             meta=move || view! {
                 {move || notes.get().and_then(|n| n.ok()).filter(|n| !n.is_empty())
@@ -180,6 +193,7 @@ pub fn ItemNotes(node: NodeRef) -> impl IntoView {
                 <span class="text-[11px] text-muted">"Ctrl/Cmd+Enter adds. Saved as a note that mentions this item."</span>
             </div>
         </Section>
+        </div>
     }
 }
 

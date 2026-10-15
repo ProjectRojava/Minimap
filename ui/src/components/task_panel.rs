@@ -1,38 +1,92 @@
 //! Detail-pane body for a task: editable fields, assignee, project, archive.
 
-use std::str::FromStr;
-
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask, Uuid,
-    MEETING_TYPE,
+    NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, UpdateTask, Uuid,
+    DECISION_TYPE, MEETING_TYPE,
 };
 
 use crate::{
     api,
     components::{
-        confirm_archive::{ConfirmArchive, UNDO_HINT},
+        confirm_archive::{ArchiveChoice, ArchiveRequest, ConfirmArchive, UNDO_HINT},
         detail_pane::{Section, FIELD_GROUP},
+        files_links::FilesAndLinks,
         focus::FocusField,
         form::{date_patch, SelectField, TextField, BUTTON_DANGER},
         item_notes::ItemNotes,
         markdown_box::{saver, MarkdownField},
         meeting::{MakeMeeting, MeetingFields},
+        pane_reveal::Reveal,
         people_panel::error_line,
-        reference_links::ReferenceLinks,
         repeat_field::RepeatField,
         summary_chips::TaskSummary,
+        task_add_row::TaskAddRow,
         task_decision::TaskDecision,
         task_links::TaskLinks,
         task_type::{use_task_types, TaskTiming},
-        what_if_button::WhatIfButton,
     },
-    labels::{estimate_text, priority_option, task_status_label, PRIORITY_TINT, TASK_STATUS_TINT},
+    labels::{estimate_text, priority_option, PRIORITY_TINT},
     state::{finish, finish_task, DataVersion, FinishDecision, Selection, Toasts},
 };
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use minimap_types::{Decision, DecisionStatus};
+
+    fn record(decision: &str, rationale: &str) -> Decision {
+        Decision {
+            id: Uuid::nil(),
+            title: "Pick the store".into(),
+            context: String::new(),
+            decision: decision.into(),
+            rationale: rationale.into(),
+            decided_on: None,
+            status: DecisionStatus::Proposed,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+            updated_at: time::OffsetDateTime::UNIX_EPOCH,
+            archived_at: None,
+            auto_status: false,
+            auto_decided_on: false,
+        }
+    }
+
+    #[test]
+    fn leaving_decision_asks_and_says_whether_something_was_written() {
+        let (title, message, label) =
+            type_change_question(Some(&record("", "")), false, None).unwrap();
+        assert_eq!(title, "Remove the decision record?");
+        assert!(message.contains("\"Pick the store\" from the Decisions log"));
+        assert!(!message.contains("what was decided"));
+        assert!(message.contains("can't be undone"));
+        assert_eq!(label, "Remove record and change type");
+
+        let (_, written, _) =
+            type_change_question(Some(&record("Postgres", "")), false, None).unwrap();
+        assert!(written.contains("with what was decided and why"));
+    }
+
+    #[test]
+    fn nothing_is_asked_when_there_is_no_record() {
+        assert!(type_change_question(None, false, None).is_none());
+    }
+
+    #[test]
+    fn leaving_meeting_names_the_time_that_goes() {
+        let (title, message, _) =
+            type_change_question(None, true, Some("10:30 – 11:30")).unwrap();
+        assert_eq!(title, "Change this meeting into a task?");
+        assert!(message.contains("(10:30 – 11:30)") && message.contains("due date"));
+        let (_, plain, _) = type_change_question(None, true, None).unwrap();
+        assert!(plain.starts_with("Its time is removed"));
+    }
+}
+
 #[component]
 pub fn TaskPanel(id: Uuid) -> impl IntoView {
+    // What the person asked to see among the sections that stay hidden while empty.
+    Reveal::provide();
     // Loaded once per opening so typing is never overwritten by a reload; `reload` asks for it
     // again (a task made a meeting or turned back, a meeting the clock moved on).
     let reload = RwSignal::new(0u32);
@@ -68,10 +122,12 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
             }}
         </Section>
         <TaskDecision task=id />
+        // Below the fields: what a task can have, hidden while it has none of it, and the row
+        // that starts the first of each (and "what if").
+        <TaskAddRow id=id />
         <TaskLinks task=id />
-        <ReferenceLinks task=id />
-        <ItemNotes node=NodeRef::new(NodeType::Task, id) />
-        <WhatIfButton node=NodeRef::new(NodeType::Task, id) />
+        <FilesAndLinks task=id />
+        <ItemNotes node=NodeRef::new(NodeType::Task, id) hide_when_empty=true />
     }
 }
 
@@ -114,14 +170,6 @@ fn TaskFields(
             finish(api::set_task_estimate(id, text).await, toasts, version);
         });
     };
-    let save_status = move |v: String| {
-        if let Ok(s) = TaskStatus::from_str(&v) {
-            save(UpdateTask {
-                status: Some(s),
-                ..Default::default()
-            });
-        }
-    };
     let save_priority = move |v: String| {
         if let Ok(p) = v.parse::<u8>() {
             save(UpdateTask {
@@ -138,11 +186,13 @@ fn TaskFields(
     let is_meeting = task.is_meeting();
     let making = RwSignal::new(false);
     let type_epoch = RwSignal::new(0u32);
-    let save_type = move |v: String| {
-        if v == MEETING_TYPE && !is_meeting {
-            making.set(true);
-            return;
-        }
+    let confirm = expect_context::<ConfirmArchive>();
+    // When the time of a meeting is what is about to go, the dialog says what it was.
+    let meeting_time = StoredValue::new(
+        task.start_minute
+            .map(|m| minimap_types::fmt_range(m, task.meeting_minutes())),
+    );
+    let apply_type = move |v: String| {
         making.set(false);
         let task_type = if v.is_empty() {
             Patch::Clear
@@ -159,6 +209,48 @@ fn TaskFields(
             if finish(api::update_task(id, patch).await, toasts, version).is_some() && is_meeting {
                 reload.update(|n| *n += 1);
             }
+        });
+    };
+    let save_type = move |v: String| {
+        if v == MEETING_TYPE && !is_meeting {
+            making.set(true);
+            return;
+        }
+        // Leaving a type that owns something removes it: a Decision's record, a meeting's time.
+        // That is asked first, and the type box goes back to what it was if the answer is no.
+        let leaving_decision =
+            type_now.get_untracked().as_deref() == Some(DECISION_TYPE) && v != DECISION_TYPE;
+        let leaving_meeting = is_meeting && v != MEETING_TYPE;
+        if !leaving_decision && !leaving_meeting {
+            return apply_type(v);
+        }
+        // Made by the dialog's own owner: ones made here would go with the type box, which is
+        // redrawn before the question is answered.
+        let go = confirm.callback({
+            let v = v.clone();
+            move || apply_type(v.clone())
+        });
+        let back = confirm.callback(move || type_epoch.update(|n| *n += 1));
+        let meeting_time = meeting_time.get_value();
+        spawn_local(async move {
+            let record = if leaving_decision {
+                api::get_task_detail(id).await.ok().and_then(|d| d.decision)
+            } else {
+                None
+            };
+            let Some((title, message, label)) =
+                type_change_question(record.as_ref(), leaving_meeting, meeting_time.as_deref())
+            else {
+                // Nothing would be lost (a Decision task whose record is already gone).
+                return go.run(());
+            };
+            confirm.ask_with(ArchiveRequest {
+                title,
+                message,
+                body: None,
+                choices: vec![ArchiveChoice { label, run: go }],
+                on_cancel: Some(back),
+            });
         });
     };
     let cancel_making = Callback::new(move |()| {
@@ -183,10 +275,6 @@ fn TaskFields(
         });
     };
 
-    let status_options: Vec<(String, String)> = TaskStatus::ALL
-        .iter()
-        .map(|s| (s.as_str().to_owned(), task_status_label(*s).to_owned()))
-        .collect();
     let priority_options: Vec<(String, String)> = (1..=5u8)
         .map(|p| (p.to_string(), priority_option(p)))
         .collect();
@@ -222,13 +310,14 @@ fn TaskFields(
                 finish(api::update_task(id, UpdateTask { description: Some(v), ..Default::default() }).await, toasts, version).is_some()
             }) />
         <div class=FIELD_GROUP>
-        <div class="grid grid-cols-3 gap-3">
-            <SelectField label="Status" options=status_options
-                current=task.status.as_str().to_owned() on_change=save_status
-                tint=TASK_STATUS_TINT />
-            <SelectField label="Priority" options=priority_options
-                current=task.priority.to_string() on_change=save_priority
-                tint=PRIORITY_TINT />
+        // Status, priority and the due date are in the pinned header (`task_pinned`), so they are
+        // not here a second time. A meeting's header has no priority, so its priority stays.
+        <div class=if is_meeting { "grid grid-cols-2 gap-3" } else { "grid grid-cols-3 gap-3" }>
+            {is_meeting.then(|| view! {
+                <SelectField label="Priority" options=priority_options
+                    current=task.priority.to_string() on_change=save_priority
+                    tint=PRIORITY_TINT />
+            })}
             {move || {
                 type_epoch.track();
                 let current = type_now.get_untracked();
@@ -237,17 +326,15 @@ fn TaskFields(
                         current=current.unwrap_or_default() on_change=save_type />
                 }
             }}
-        </div>
-        {move || making.get().then(|| view! {
-            <MakeMeeting task=id due=task.due_date on_cancel=cancel_making />
-        })}
-        <div class="mt-2 grid grid-cols-2 gap-3">
             <SelectField label="Project" options=project_options
                 current=task.project_id.map(|p| p.to_string()).unwrap_or_default() on_change=save_project />
             <SelectField label="Assignee" options=assignee_options
                 current=detail.assignee.as_ref().map(|a| a.node.id.to_string()).unwrap_or_default()
                 on_change=save_assignee />
         </div>
+        {move || making.get().then(|| view! {
+            <MakeMeeting task=id due=task.due_date on_cancel=cancel_making />
+        })}
         </div>
         <div class=FIELD_GROUP>
         {if is_meeting {
@@ -255,15 +342,12 @@ fn TaskFields(
             view! { <MeetingFields task=task.clone() /> }.into_any()
         } else {
             view! {
-                <div class="grid grid-cols-3 gap-3">
+                <div class="grid grid-cols-2 gap-3">
                     <TextField label="Estimate (3d, 4h)" placeholder="3d" value=estimate_text(task.estimate_days)
                         on_commit=save_estimate />
                     <TextField label="Start date" kind="date"
                         value=task.start_date.map(|d| d.to_string()).unwrap_or_default()
                         on_commit=move |v: String| save_date(v, false) />
-                    <TextField label="Due date" kind="date"
-                        value=task.due_date.map(|d| d.to_string()).unwrap_or_default()
-                        on_commit=move |v: String| save_date(v, true) />
                 </div>
             }.into_any()
         }}
@@ -272,6 +356,39 @@ fn TaskFields(
         <TaskTiming id=id />
         </div>
     }
+}
+
+/// What the dialog asks when a task's type changes away from one that owns something: the title,
+/// what is lost, and the button. None when nothing would be lost. A meeting loses its time (the
+/// day stays, as the due date); a Decision loses its record, with whatever was written in it.
+pub fn type_change_question(
+    record: Option<&minimap_types::Decision>,
+    leaving_meeting: bool,
+    meeting_time: Option<&str>,
+) -> Option<(String, String, String)> {
+    if leaving_meeting {
+        let time = meeting_time.map(|t| format!(" ({t})")).unwrap_or_default();
+        return Some((
+            "Change this meeting into a task?".to_owned(),
+            format!("Its time{time} is removed. The day stays as the due date."),
+            "Change type".to_owned(),
+        ));
+    }
+    let record = record?;
+    let written = !record.decision.trim().is_empty() || !record.rationale.trim().is_empty();
+    let what = if written {
+        format!("\"{}\", with what was decided and why,", record.title)
+    } else {
+        format!("\"{}\"", record.title)
+    };
+    Some((
+        "Remove the decision record?".to_owned(),
+        format!(
+            "Changing the type removes the decision record {what} from the Decisions log and from \
+             everything it is linked to. This can't be undone."
+        ),
+        "Remove record and change type".to_owned(),
+    ))
 }
 
 /// *Archive…* for a task, in the pinned header of the pane so it is there however far the pane

@@ -39,8 +39,28 @@ use crate::{
     state::{finish, finish_task, DataVersion, FinishDecision, ListNav, Selection, Toasts},
 };
 
-/// Finished tasks shown before "Show older"; a board of everything ever done is no board.
+/// Finished tasks shown before "Show older" when the clock can't be read (so there is no age to go
+/// by); a board of everything ever done is no board.
 const DONE_VISIBLE: usize = 15;
+
+/// Finished tasks fade with age, counted from the day they were finished: full cards for the first
+/// days, then dimmed and small, then folded into an "Earlier" group, then out of sight ("Show
+/// older"). Old ones are archived for good after longer still (Settings, `done_sweep`).
+const FADE_DAYS: i64 = 3;
+const FOLD_DAYS: i64 = 7;
+const HIDE_DAYS: i64 = 14;
+
+/// How many days ago a finished task was finished (0 when it has no time yet, like a card just
+/// dropped on Done, or a day in the future).
+fn done_age_days(task: &minimap_types::Task, today: Date) -> i64 {
+    task.completed_at
+        .map_or(0, |c| (today - c.date()).whole_days().max(0))
+}
+
+/// Whether a finished card is drawn small and dimmed.
+fn is_faded(task: &minimap_types::Task, today: Option<Date>) -> bool {
+    task.status == TaskStatus::Done && today.is_some_and(|t| done_age_days(task, t) >= FADE_DAYS)
+}
 
 /// What one column shows.
 #[derive(Clone, Debug, PartialEq)]
@@ -48,7 +68,10 @@ struct Column {
     status: TaskStatus,
     /// The cards on show, in order.
     rows: Vec<TaskRow>,
-    /// How many more cards the column has (older finished tasks).
+    /// Done only: finished a week or two ago, folded into one group that opens on a click.
+    earlier: Vec<TaskRow>,
+    /// How many more cards the column has (finished longer ago; "Show older" brings them into
+    /// the Earlier group).
     hidden: usize,
 }
 
@@ -119,6 +142,7 @@ fn columns(
     show_cancelled: bool,
     all_done: bool,
     sort: BoardSort,
+    today: Option<Date>,
 ) -> Vec<Column> {
     statuses(show_cancelled)
         .into_iter()
@@ -134,13 +158,40 @@ fn columns(
                 .collect();
             sort_cards(&mut cards, sort, status);
             let mut hidden = 0;
-            if status == TaskStatus::Done && !all_done && cards.len() > DONE_VISIBLE {
-                hidden = cards.len() - DONE_VISIBLE;
-                cards.truncate(DONE_VISIBLE);
+            let mut earlier = Vec::new();
+            if status == TaskStatus::Done {
+                match today {
+                    // Newest first, so each card goes to the group its age says and the order
+                    // inside every group stays newest first.
+                    Some(today) => {
+                        let mut shown = Vec::new();
+                        for card in cards {
+                            let age = done_age_days(&card.task, today);
+                            if age >= HIDE_DAYS {
+                                if all_done {
+                                    earlier.push(card);
+                                } else {
+                                    hidden += 1;
+                                }
+                            } else if age >= FOLD_DAYS {
+                                earlier.push(card);
+                            } else {
+                                shown.push(card);
+                            }
+                        }
+                        cards = shown;
+                    }
+                    None if !all_done && cards.len() > DONE_VISIBLE => {
+                        hidden = cards.len() - DONE_VISIBLE;
+                        cards.truncate(DONE_VISIBLE);
+                    }
+                    None => {}
+                }
             }
             Column {
                 status,
                 rows: cards,
+                earlier,
                 hidden,
             }
         })
@@ -549,6 +600,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                         filters.show_closed.get(),
                         all_done.get(),
                         filters.board_sort.get(),
+                        today(),
                     )
                 })
             })
@@ -871,7 +923,13 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                 .and_then(|c| c.iter().find(|c| c.status == status).cloned())
         })
     };
-    let count = move || mine().map(|c| c.rows.len() + c.hidden).unwrap_or_default();
+    let count = move || {
+        mine()
+            .map(|c| c.rows.len() + c.earlier.len() + c.hidden)
+            .unwrap_or_default()
+    };
+    // The folded group of finished tasks from a week or two ago (Done only).
+    let earlier_open = RwSignal::new(false);
     // A card from another column is over this one: the drop would move it here.
     let target =
         move || over.get() == Some(status) && dragging.get().is_some_and(|d| d.1 != status);
@@ -952,8 +1010,30 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                         key=card_key
                         children=move |row| view! { <TaskCard row=row ctx=ctx /> }
                     />
+                    // Finished a week or two ago: one line that opens the cards (small and dimmed).
                     {move || {
-                        let empty = mine().is_some_and(|c| c.rows.is_empty());
+                        let n = mine().map(|c| c.earlier.len()).unwrap_or_default();
+                        (status == TaskStatus::Done && n > 0).then(|| view! {
+                            <button class="flex items-center gap-1.5 rounded-sm border border-dashed border-line px-2 py-1 text-left text-[11px] text-muted hover:bg-hover hover:text-fg"
+                                    aria-expanded=move || earlier_open.get().to_string()
+                                    on:click=move |_| earlier_open.update(|o| *o = !*o)>
+                                <span class=move || format!("transition-transform {}", if earlier_open.get() { "" } else { "-rotate-90" })>
+                                    <Icon name="chevron" size="h-3 w-3" />
+                                </span>
+                                {format!("Earlier · {n}")}
+                                <span class="ml-auto text-faint">{format!("finished {FOLD_DAYS}+ days ago")}</span>
+                            </button>
+                        })
+                    }}
+                    <Show when=move || status == TaskStatus::Done && earlier_open.get()>
+                        <For
+                            each=move || mine().map(|c| c.earlier).unwrap_or_default()
+                            key=card_key
+                            children=move |row| view! { <TaskCard row=row ctx=ctx /> }
+                        />
+                    </Show>
+                    {move || {
+                        let empty = mine().is_some_and(|c| c.rows.is_empty() && c.earlier.is_empty());
                         (empty && !target()).then(|| view! {
                             <p class="rounded-sm border border-dashed border-line px-3 py-6 text-center text-[11px] text-faint">
                                 {empty_hint(status)}
@@ -970,7 +1050,7 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                         (status == TaskStatus::Done && (hidden > 0 || all_done.get())).then(|| view! {
                             <button class="rounded-sm py-1 text-[11px] text-muted hover:bg-hover hover:text-accent"
                                     on:click=move |_| all_done.update(|a| *a = !*a)>
-                                {if all_done.get() { "Show fewer".to_owned() } else { format!("Show {hidden} older") }}
+                                {if all_done.get() { "Hide older".to_owned() } else { format!("Show {hidden} older") }}
                             </button>
                         })
                     }}
@@ -1091,6 +1171,8 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     let project_id = t.project_id;
     let hue = move || colours.first_hue(&colours.of_project(project_id));
     let closed = matches!(status, TaskStatus::Done | TaskStatus::Cancelled);
+    // Finished a few days ago: drawn small (title and project) and dimmed, so Done holds less.
+    let faded = is_faded(&t, today);
     let index = move || order.with(|o| o.iter().position(|x| *x == id));
     let is_open = move || selection.0.get() == Some(node);
     let on_cursor = move || list.cursor.get().is_some() && list.cursor.get() == index();
@@ -1163,7 +1245,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 else if on_cursor() { "bg-hover ring-1 ring-line-strong" }
                 else { "bg-canvas hover:bg-hover" },
                 if heat.is_some() && !is_open() && !on_cursor() { "heat" } else { "" },
-                if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else { "" },
+                if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else if faded { "opacity-60 hover:opacity-100" } else { "" },
                 // Gone quiet (spec 43): faded, with the chip at the top.
                 fog_class(mark_for(id).map(|m| m.level)))
             on:click=move |_| {
@@ -1197,7 +1279,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             {move || {
                 let objectives = colours.of_project(project_id);
                 let kind = task_type.clone();
-                (kind.is_some() || !objectives.is_empty()).then(|| view! {
+                (!faded && (kind.is_some() || !objectives.is_empty())).then(|| view! {
                     <div class="mb-1.5 flex flex-wrap items-center gap-1 pr-10">
                         <TypeChip id=kind />
                         <ObjectiveChips objectives=objectives />
@@ -1217,7 +1299,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                     <span class="truncate">{p}</span>
                 </div>
             })}
-            {marks.then(|| view! {
+            {(marks && !faded).then(|| view! {
                 <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                     {(link_count > 0).then(|| view! {
                         <span class="hue-chip" style=format!("--obj-h: {LINK_HUE}") title=link_hint(link_count)>
@@ -1251,6 +1333,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                     })}
                 </div>
             })}
+            {(!faded).then(|| view! {
             <div class="mt-2 flex items-center gap-1.5 text-[11px]">
                 <span class=priority_class title="Priority (1 is highest)">{priority_short(priority)}</span>
                 {due.map(|pill| view! { <span class=pill.class title=pill.hint>{pill.text}</span> })}
@@ -1275,6 +1358,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                     </span>
                 })}
             </div>
+            })}
         </article>
     }
 }
@@ -1366,7 +1450,7 @@ mod tests {
             ]);
         }
         let by = |sort: BoardSort, column: usize| {
-            let cols = columns(&rows, &HashMap::new(), false, false, sort);
+            let cols = columns(&rows, &HashMap::new(), false, false, sort, None);
             titles(&cols[column])
                 .into_iter()
                 .map(str::to_owned)
@@ -1398,7 +1482,7 @@ mod tests {
         b.task.due_date = Some(date("2027-03-02"));
         let rows = [a, b];
         let order = |sort| {
-            let cols = columns(&rows, &HashMap::new(), false, false, sort);
+            let cols = columns(&rows, &HashMap::new(), false, false, sort, None);
             titles(&cols[3])
                 .into_iter()
                 .map(str::to_owned)
@@ -1426,7 +1510,7 @@ mod tests {
             row("b", TaskStatus::InProgress),
             row("c", TaskStatus::Todo),
         ];
-        let cols = columns(&rows, &HashMap::new(), false, false, BoardSort::Default);
+        let cols = columns(&rows, &HashMap::new(), false, false, BoardSort::Default, None);
         assert_eq!(titles(&cols[0]), ["a", "c"]);
         assert_eq!(titles(&cols[1]), ["b"]);
         assert!(cols[2].rows.is_empty() && cols[3].rows.is_empty());
@@ -1436,7 +1520,7 @@ mod tests {
     fn a_saving_move_already_sits_in_its_new_column() {
         let rows = [row("a", TaskStatus::Todo), row("b", TaskStatus::Todo)];
         let pending = HashMap::from([(rows[0].task.id, TaskStatus::Blocked)]);
-        let cols = columns(&rows, &pending, false, false, BoardSort::Default);
+        let cols = columns(&rows, &pending, false, false, BoardSort::Default, None);
         assert_eq!(titles(&cols[0]), ["b"]);
         assert_eq!(titles(&cols[2]), ["a"]);
         assert_eq!(cols[2].rows[0].task.status, TaskStatus::Blocked);
@@ -1446,10 +1530,10 @@ mod tests {
     fn cancelled_tasks_show_only_when_asked_for() {
         let rows = [row("a", TaskStatus::Cancelled)];
         assert_eq!(
-            columns(&rows, &HashMap::new(), false, false, BoardSort::Default).len(),
+            columns(&rows, &HashMap::new(), false, false, BoardSort::Default, None).len(),
             4
         );
-        let shown = columns(&rows, &HashMap::new(), true, false, BoardSort::Default);
+        let shown = columns(&rows, &HashMap::new(), true, false, BoardSort::Default, None);
         assert_eq!(titles(&shown[4]), ["a"]);
     }
 
@@ -1463,12 +1547,77 @@ mod tests {
             })
             .collect();
         rows.reverse();
-        let done = &columns(&rows, &HashMap::new(), false, false, BoardSort::Default)[3];
+        let done = &columns(&rows, &HashMap::new(), false, false, BoardSort::Default, None)[3];
         assert_eq!(done.rows.len(), DONE_VISIBLE);
         assert_eq!(done.hidden, 3);
         assert_eq!(done.rows[0].task.title, format!("t{}", DONE_VISIBLE + 2));
-        let all = &columns(&rows, &HashMap::new(), false, true, BoardSort::Default)[3];
+        let all = &columns(&rows, &HashMap::new(), false, true, BoardSort::Default, None)[3];
         assert_eq!((all.rows.len(), all.hidden), (DONE_VISIBLE + 3, 0));
+    }
+
+    /// A finished task that was finished `days` days before 2027-03-20.
+    fn done_ago(title: &str, days: i64) -> TaskRow {
+        let mut r = row(title, TaskStatus::Done);
+        let day = date("2027-03-20") - Duration::days(days);
+        r.task.completed_at = Some(
+            OffsetDateTime::UNIX_EPOCH
+                + Duration::days((day - date("1970-01-01")).whole_days())
+                + Duration::hours(12),
+        );
+        r
+    }
+
+    #[test]
+    fn finished_tasks_fade_then_fold_then_hide_by_age() {
+        let today = Some(date("2027-03-20"));
+        let rows = [
+            done_ago("today", 0),
+            done_ago("two", 2),
+            done_ago("three", 3),
+            done_ago("six", 6),
+            done_ago("seven", 7),
+            done_ago("thirteen", 13),
+            done_ago("fourteen", 14),
+            done_ago("old", 60),
+        ];
+        let done = &columns(&rows, &HashMap::new(), false, false, BoardSort::Default, today)[3];
+        // Full cards and small, dimmed ones stay in the column; a week or two folds away.
+        assert_eq!(titles(done), ["today", "two", "three", "six"]);
+        let earlier: Vec<&str> = done.earlier.iter().map(|r| r.task.title.as_str()).collect();
+        assert_eq!(earlier, ["seven", "thirteen"]);
+        assert_eq!(done.hidden, 2);
+        // "Show older" brings the rest into the folded group, newest first.
+        let all = &columns(&rows, &HashMap::new(), false, true, BoardSort::Default, today)[3];
+        let earlier: Vec<&str> = all.earlier.iter().map(|r| r.task.title.as_str()).collect();
+        assert_eq!(earlier, ["seven", "thirteen", "fourteen", "old"]);
+        assert_eq!(all.hidden, 0);
+    }
+
+    #[test]
+    fn a_card_is_faded_from_the_third_day_and_only_when_it_is_done() {
+        let today = Some(date("2027-03-20"));
+        assert!(!is_faded(&done_ago("a", 2).task, today));
+        assert!(is_faded(&done_ago("b", 3).task, today));
+        assert!(is_faded(&done_ago("c", 10).task, today));
+        // Not done, no completion time yet (just dropped), or no clock: never faded.
+        let mut open = done_ago("d", 9);
+        open.task.status = TaskStatus::InProgress;
+        assert!(!is_faded(&open.task, today));
+        let mut dropped = row("e", TaskStatus::Done);
+        dropped.task.completed_at = None;
+        assert!(!is_faded(&dropped.task, today));
+        assert!(!is_faded(&done_ago("f", 9).task, None));
+    }
+
+    #[test]
+    fn a_card_just_dropped_on_done_stays_fresh_with_a_clock() {
+        let old = done_ago("old", 30);
+        let fresh = row("fresh", TaskStatus::InProgress);
+        let pending = HashMap::from([(fresh.task.id, TaskStatus::Done)]);
+        let today = Some(date("2027-03-20"));
+        let done = &columns(&[old, fresh], &pending, false, false, BoardSort::Default, today)[3];
+        assert_eq!(titles(done), ["fresh"]);
+        assert_eq!(done.hidden, 1);
     }
 
     #[test]
@@ -1477,7 +1626,7 @@ mod tests {
         old.task.completed_at = Some(OffsetDateTime::UNIX_EPOCH + Duration::days(9));
         let fresh = row("fresh", TaskStatus::InProgress);
         let pending = HashMap::from([(fresh.task.id, TaskStatus::Done)]);
-        let done = &columns(&[old, fresh], &pending, false, false, BoardSort::Default)[3];
+        let done = &columns(&[old, fresh], &pending, false, false, BoardSort::Default, None)[3];
         assert_eq!(titles(done), ["fresh", "old"]);
     }
 
