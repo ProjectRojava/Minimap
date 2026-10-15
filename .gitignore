@@ -24,5 +24,8 @@ target
 ui/dist/
 src-tauri/gen/
 
+# Failing cases saved by proptest (regenerated on demand)
+proptest-regressions/
+
 # Local secrets (copy .env.example to .env)
 .env
