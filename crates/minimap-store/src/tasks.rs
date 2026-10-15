@@ -97,8 +97,29 @@ pub fn create_many(conn: &mut Connection, inputs: Vec<CreateTask>) -> Result<Vec
     Ok(tasks)
 }
 
+/// What a task without a project is told.
+pub const NEEDS_PROJECT: &str = "A task needs a project. Choose one before creating it.";
+
+/// A task belongs to a project. A meeting (it has a start time) is the exception: a 1:1 or a
+/// stand-up is not part of any project's work.
+fn ensure_project(project_id: Option<Uuid>, start_minute: Option<u16>) -> Result<()> {
+    if project_id.is_none() && start_minute.is_none() {
+        return Err(StoreError::Invalid(NEEDS_PROJECT.into()));
+    }
+    Ok(())
+}
+
 /// The task, its assignee link (`Me` = the self person, if there is one) and their activity rows.
+/// Refused without a project, unless it is a meeting.
 pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> {
+    ensure_project(input.project_id, input.start_minute)?;
+    create_unchecked_in_tx(tx, input)
+}
+
+/// [`create_in_tx`] for a task made *from* another, which takes whatever project that one had: the
+/// next of a repeating task, one linked to a task. A task from before projects were required, or
+/// whose project has been archived since, must still be able to carry on.
+pub(crate) fn create_unchecked_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> {
     let assignee = match input.assignee {
         AssigneeChoice::Me => people::get_self(tx)?.map(|p| p.id),
         AssigneeChoice::Nobody => None,
@@ -266,7 +287,7 @@ pub fn create_linked(
             "an archived task can't be linked to a new one".into(),
         ));
     }
-    let created = create_in_tx(
+    let created = create_unchecked_in_tx(
         &tx,
         CreateTask {
             links: Vec::new(),
@@ -359,12 +380,29 @@ fn update_core(
 ) -> Result<Task> {
     let old = get(tx, id)?;
     let mut new = old.clone();
+    let start_untouched = patch.start_date == minimap_types::Patch::Keep;
     patch.apply(&mut new);
+    // Starting work starts the task: moving it from To do to In progress makes today its start
+    // date, whatever date was planned. A start date set in the same change is the person's own
+    // word and stays, and it can be changed by hand at any time after. (Undo and redo put things
+    // back as they were; a meeting starts at its time, not when it is opened.)
+    if make_record
+        && start_untouched
+        && old.status == TaskStatus::Todo
+        && new.status == TaskStatus::InProgress
+        && !new.is_meeting()
+    {
+        new.start_date = Some(today());
+    }
     new.links = minimap_core::links::clean(new.links).map_err(StoreError::Invalid)?;
     // The time of a meeting goes when the task stops being one.
     if !new.is_meeting() {
         new.start_minute = None;
         new.length_minutes = None;
+    }
+    // A project can be changed but not taken away. (Undo and redo put things back as they were.)
+    if make_record && old.project_id.is_some() {
+        ensure_project(new.project_id, new.start_minute)?;
     }
     // completed_at follows status: set on entering `done`, cleared on leaving it.
     let at = now();
@@ -462,7 +500,7 @@ fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
         Some(p) if nodes::archived_at(tx, NodeRef::new(NodeType::Project, p))?.is_none() => Some(p),
         _ => None,
     };
-    let next = create_in_tx(
+    let next = create_unchecked_in_tx(
         tx,
         CreateTask {
             links: done.links.clone(),

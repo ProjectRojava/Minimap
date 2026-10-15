@@ -161,6 +161,18 @@ pub async fn archive_person(id: Uuid) -> Result<(), AppError> {
     invoke("archive_person", &IdArg { id }).await
 }
 
+#[derive(Serialize)]
+struct MergePeopleArg {
+    from: Uuid,
+    into: Uuid,
+}
+
+/// Merges `from` into `into`: what pointed at the first moves to the second, and the first is
+/// deleted (on every computer).
+pub async fn merge_people(from: Uuid, into: Uuid) -> Result<Person, AppError> {
+    invoke("merge_people", &MergePeopleArg { from, into }).await
+}
+
 pub async fn list_teams() -> Result<Vec<TeamRow>, AppError> {
     invoke("list_teams", &NoArgs {}).await
 }

@@ -213,6 +213,7 @@ mod tests {
     }
 
     fn new_task(conn: &mut Connection, title: &str) {
+        let __p = minimap_store::fixtures::project(conn);
         minimap_store::tasks::create(
             conn,
             CreateTask {
@@ -224,7 +225,7 @@ mod tests {
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,

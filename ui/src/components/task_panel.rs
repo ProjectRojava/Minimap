@@ -72,7 +72,6 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
         <ReferenceLinks task=id />
         <ItemNotes node=NodeRef::new(NodeType::Task, id) />
         <WhatIfButton node=NodeRef::new(NodeType::Task, id) />
-        <ArchiveTask id=id />
     }
 }
 
@@ -191,14 +190,18 @@ fn TaskFields(
     let priority_options: Vec<(String, String)> = (1..=5u8)
         .map(|p| (p.to_string(), priority_option(p)))
         .collect();
-    let project_options: Vec<(String, String)> =
-        std::iter::once((String::new(), "No project (inbox)".to_owned()))
-            .chain(
-                projects
-                    .iter()
-                    .map(|p| (p.node.id.to_string(), p.label.clone())),
-            )
-            .collect();
+    // A project can be changed but not taken away; "No project" is only there for a meeting or a
+    // task from before projects were required, which have none.
+    let can_clear_project = is_meeting || task.project_id.is_none();
+    let project_options: Vec<(String, String)> = can_clear_project
+        .then(|| (String::new(), "No project (inbox)".to_owned()))
+        .into_iter()
+        .chain(
+            projects
+                .iter()
+                .map(|p| (p.node.id.to_string(), p.label.clone())),
+        )
+        .collect();
     let assignee_options: Vec<(String, String)> =
         std::iter::once((String::new(), "Unassigned".to_owned()))
             .chain(people.iter().map(|p| {
@@ -271,8 +274,10 @@ fn TaskFields(
     }
 }
 
+/// *Archive…* for a task, in the pinned header of the pane so it is there however far the pane
+/// has been scrolled. Asks first; Ctrl/Cmd+Z brings the task back.
 #[component]
-fn ArchiveTask(id: Uuid) -> impl IntoView {
+pub fn ArchiveTaskButton(id: Uuid) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
@@ -286,11 +291,9 @@ fn ArchiveTask(id: Uuid) -> impl IntoView {
         });
     };
     view! {
-        <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            <button class=BUTTON_DANGER
-                on:click=move |_| confirm.ask("Archive this task?", format!("Its links (assignee, blocks) are archived with it. {UNDO_HINT}"), archive)>
-                "Archive task…"
-            </button>
-        </Section>
+        <button class=format!("shrink-0 {BUTTON_DANGER}") title="Archive this task (Ctrl/Cmd+Z undoes)"
+            on:click=move |_| confirm.ask("Archive this task?", format!("Its links (assignee, blocks) are archived with it. {UNDO_HINT}"), archive)>
+            "Archive…"
+        </button>
     }
 }

@@ -71,6 +71,7 @@ mod tests {
     }
 
     fn task(conn: &mut Connection, title: &str, description: &str) -> Uuid {
+        let __p = minimap_store::fixtures::project(conn);
         minimap_store::tasks::create(
             conn,
             CreateTask {
@@ -81,7 +82,7 @@ mod tests {
                 length_minutes: None,
                 title: title.into(),
                 description: description.into(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,

@@ -963,7 +963,9 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     // ------------------------------------------------------------------- tasks
     for spec in task_table() {
         let assignee = s.people[spec.who];
-        let task = tasks::create_in_tx(
+        // A few demo tasks have no project, as tasks from before projects were required do (they
+        // are what the Inbox shows), so these are made without the check.
+        let task = tasks::create_unchecked_in_tx(
             &tx,
             CreateTask {
                 title: spec.title.into(),

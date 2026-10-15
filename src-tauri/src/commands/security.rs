@@ -392,6 +392,7 @@ mod tests {
     }
 
     fn task(vault: &mut Vault, title: &str) {
+        let project = minimap_store::fixtures::project(vault.conn.as_ref().unwrap());
         minimap_store::tasks::create(
             vault.conn.as_mut().unwrap(),
             CreateTask {
@@ -403,7 +404,7 @@ mod tests {
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(project),
                 status: None,
                 estimate_days: None,
                 start_date: None,

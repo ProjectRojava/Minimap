@@ -3,8 +3,11 @@ use minimap_types::*;
 use serde_json::json;
 use uuid::Uuid;
 
+/// A fresh database that already holds the project `new_task` puts its tasks in (a task needs one).
 fn db() -> Connection {
-    open_in_memory().unwrap()
+    let conn = open_in_memory().unwrap();
+    fixtures::project(&conn);
+    conn
 }
 
 fn history(conn: &Connection, id: Uuid) -> Vec<Activity> {
@@ -33,6 +36,7 @@ fn person(conn: &mut Connection, name: &str) -> Person {
 }
 
 fn task(conn: &mut Connection, title: &str) -> Task {
+    let __p = minimap_store::fixtures::project(conn);
     tasks::create(
         conn,
         CreateTask {
@@ -44,7 +48,7 @@ fn task(conn: &mut Connection, title: &str) -> Task {
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: None,
             start_date: None,
@@ -1249,7 +1253,8 @@ fn list_summaries_are_active_only_and_sorted_by_label() {
     let list = nodes::list_summaries(&conn, NodeType::Project).unwrap();
     assert_eq!(
         list.iter().map(|s| s.label.as_str()).collect::<Vec<_>>(),
-        vec!["Alpha", "beta"]
+        // (and the project `db()` makes for `new_task`)
+        vec!["Alpha", "beta", "Test project"]
     );
     assert_eq!(list[0].node, NodeRef::new(NodeType::Project, a.id));
     let _ = b;
@@ -1315,7 +1320,8 @@ fn project_handles_are_generated_unique_and_validated() {
         "fallback"
     );
     // A rejected create writes nothing.
-    assert_eq!(projects::list(&conn, false).unwrap().len(), 4);
+    // (four made here, and the project `db()` makes for `new_task`)
+    assert_eq!(projects::list(&conn, false).unwrap().len(), 5);
 }
 
 #[test]
@@ -1561,7 +1567,8 @@ fn project_rows_and_detail() {
     assert_eq!(preview.tasks.len(), 2);
     // Archived projects drop out of the rows.
     projects::archive(&mut conn, dep.id, TaskDisposition::Inbox).unwrap();
-    assert_eq!(views::project_rows(&conn).unwrap().len(), 1);
+    // (and the project `db()` makes for `new_task`)
+    assert_eq!(views::project_rows(&conn).unwrap().len(), 2);
 }
 
 // --------------------------------------------------------------------- tasks
@@ -1576,7 +1583,7 @@ fn new_task(title: &str, assignee: AssigneeChoice) -> CreateTask {
         title: title.into(),
         assignee,
         description: String::new(),
-        project_id: None,
+        project_id: Some(fixtures::TEST_PROJECT),
         status: None,
         estimate_days: None,
         start_date: None,
@@ -1711,7 +1718,7 @@ fn task_rows_and_detail_include_project_and_assignee() {
     assert_eq!(row.project.as_ref().unwrap().label, "API Launch");
     assert_eq!(row.assignee.as_ref().unwrap().label, "Raj");
     let row = rows.iter().find(|r| r.task.id == loose.id).unwrap();
-    assert!(row.project.is_none() && row.assignee.is_none());
+    assert!(row.assignee.is_none());
 
     let d = views::task_detail(&conn, t.id).unwrap();
     assert_eq!(
@@ -2395,12 +2402,14 @@ fn checklist_lines_convert_to_tasks_atomically() {
     assert_eq!(t2.project_id, Some(project.id));
     assert_eq!(assignee_of(&conn, t2.id), Some(me.id));
 
-    // No mentions: default assignee, no project.
-    let t3 = notes::convert_checklist_item(&mut conn, n.id, 3, "Plain item").unwrap();
-    assert_eq!(
-        (t3.project_id, assignee_of(&conn, t3.id)),
-        (None, Some(me.id))
-    );
+    // No project on the line, and none left elsewhere in the note (that line is a task now): a
+    // task needs a project, so nothing is made.
+    let before = tasks::list(&conn, true).unwrap().len();
+    assert!(matches!(
+        notes::convert_checklist_item(&mut conn, n.id, 3, "Plain item"),
+        Err(StoreError::Invalid(m)) if m.contains("needs a project")
+    ));
+    assert_eq!(tasks::list(&conn, true).unwrap().len(), before);
 
     // A converted line is no longer an item; nor are checked or missing lines.
     for line in [1usize, 4, 99] {
@@ -2459,23 +2468,27 @@ fn note_items_carry_their_mentions() {
 #[test]
 fn a_changed_line_is_not_converted_by_a_stale_request() {
     let mut conn = db();
-    let n = make_note(&mut conn, "n", "[ ] Send budget\n[ ] Book room");
-    // The user inserted a line above after the checklist was loaded: line 1 is now different.
+    // (A task needs a project, so the note mentions one.)
+    let project = project_with(&mut conn, "API Launch", None).unwrap();
+    let tag = token("API Launch", project.id);
+    let n = make_note(&mut conn, "n", &format!("{tag}\n[ ] Send budget\n[ ] Book room"));
+    // The user inserted a line above after the checklist was loaded: line 2 is now different.
     notes::update(
         &mut conn,
         n.id,
         UpdateNote {
-            body: Some("intro\n[ ] Send budget\n[ ] Book room".into()),
+            body: Some(format!("{tag}\nintro\n[ ] Send budget\n[ ] Book room")),
             ..Default::default()
         },
     )
     .unwrap();
-    let stale = notes::convert_checklist_item(&mut conn, n.id, 1, "Book room");
+    let stale = notes::convert_checklist_item(&mut conn, n.id, 2, "Book room");
     assert!(matches!(stale, Err(StoreError::Invalid(m)) if m.contains("changed")));
     assert!(tasks::list(&conn, true).unwrap().is_empty());
     // With the current text it works.
-    let ok = notes::convert_checklist_item(&mut conn, n.id, 2, "Book room").unwrap();
+    let ok = notes::convert_checklist_item(&mut conn, n.id, 3, "Book room").unwrap();
     assert_eq!(ok.title, "Book room");
+    assert_eq!(ok.project_id, Some(project.id));
 }
 
 fn make_decision(conn: &mut Connection, title: &str, status: Option<DecisionStatus>) -> Decision {

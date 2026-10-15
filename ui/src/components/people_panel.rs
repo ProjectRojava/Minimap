@@ -13,6 +13,7 @@ use crate::{
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER},
         markdown_box::{saver, MarkdownField},
+        page::Tone,
     },
     state::{finish, DataVersion, Selection, Toasts},
 };
@@ -66,14 +67,23 @@ pub fn PersonPanel(id: Uuid) -> impl IntoView {
             {move || match person.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
-                Some(Ok(p)) => view! { <PersonFields person=p /> }.into_any(),
+                Some(Ok(p)) => view! {
+                    {p.is_self.then(|| view! {
+                        <p class="flex items-center gap-2 rounded-sm border border-accent/40 bg-accent/10 px-2 py-1 text-[12px]">
+                            <span class=Tone::Accent.chip()>"ME"</span>
+                            "This is you, the same person on every computer."
+                        </p>
+                    })}
+                    <PersonFields person=p />
+                }.into_any(),
             }}
         </Section>
         {move || match (detail.get(), people.get(), teams.get()) {
             (Some(Ok(d)), Some(Ok(ps)), Some(Ok(ts))) => view! {
-                <Organization detail=d.clone() people=ps teams=ts />
+                <Organization detail=d.clone() people=ps.clone() teams=ts />
                 <WaitingOnList detail=d.clone() />
                 <PersonNotes detail=d.clone() />
+                <MergePerson detail=d.clone() people=ps.clone() />
                 <ArchivePerson detail=d />
             }.into_any(),
             (Some(Err(e)), _, _) | (_, Some(Err(e)), _) | (_, _, Some(Err(e))) => view! {
@@ -354,6 +364,85 @@ fn WaitingOnList(detail: PersonDetail) -> impl IntoView {
     }
 }
 
+/// What the dialog says when this person is merged into another.
+pub fn merge_message(name: &str, into: &str, is_self: bool) -> String {
+    let mut text = format!(
+        "Everything that points at \"{name}\" (their tasks, projects, waiting-on items, mentions in \
+         notes, links and files) moves to \"{into}\", and \"{name}\" is deleted, on every computer. \
+         This can't be undone."
+    );
+    if is_self {
+        text.push_str(&format!(" \"{into}\" becomes you."));
+    }
+    text
+}
+
+/// For two records of the same person (typically a second "Me", made by another computer): moves
+/// everything onto the one you pick and deletes this one. Merging your own record into another
+/// makes that one "you" on every computer.
+#[component]
+fn MergePerson(detail: PersonDetail, people: Vec<PersonRow>) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
+    let id = detail.person.id;
+    let name = detail.person.name.clone();
+    let is_self = detail.person.is_self;
+    let others: Vec<(String, String)> = people
+        .iter()
+        .filter(|p| p.person.id != id && p.person.archived_at.is_none())
+        .map(|p| (p.person.id.to_string(), p.person.name.clone()))
+        .collect();
+    let chosen = RwSignal::new(String::new());
+    let labels = others.clone();
+    let mut options = vec![(String::new(), "Choose a person…".to_owned())];
+    options.extend(others);
+
+    let start = move |_| {
+        let target = chosen.get_untracked();
+        let Some(into) = target.parse::<Uuid>().ok() else {
+            return;
+        };
+        let into_name = labels
+            .iter()
+            .find(|(v, _)| *v == target)
+            .map(|(_, n)| n.clone())
+            .unwrap_or_default();
+        let run = Callback::new(move |()| {
+            spawn_local(async move {
+                if finish(api::merge_people(id, into).await, toasts, version).is_some() {
+                    // This person no longer exists; show who they became.
+                    selection.open(NodeRef::new(NodeType::Person, into));
+                }
+            });
+        });
+        confirm.ask_with(ArchiveRequest {
+            title: format!("Merge \"{name}\" into \"{into_name}\"?"),
+            message: merge_message(&name, &into_name, is_self),
+            body: None,
+            choices: vec![ArchiveChoice {
+                label: "Merge".to_owned(),
+                run,
+            }],
+        });
+    };
+
+    view! {
+        <Section title="Merge into another person" collapsed=true>
+            <p class="text-muted">
+                "Is this the same person as someone else in the list, for example a second \"Me\" "
+                "from another computer? Merge them into one."
+            </p>
+            <SelectField options=options current=String::new()
+                on_change=move |v: String| chosen.set(v) />
+            <button class=BUTTON disabled=move || chosen.get().is_empty() on:click=start>
+                "Merge…"
+            </button>
+        </Section>
+    }
+}
+
 #[component]
 fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
@@ -449,5 +538,13 @@ mod tests {
     fn tree_labels_are_indented() {
         assert_eq!(indented(0, "Eng"), "Eng");
         assert_eq!(indented(2, "Infra"), "· · Infra");
+    }
+
+    #[test]
+    fn merging_says_who_becomes_you() {
+        let plain = merge_message("P. Nair", "Priya Nair", false);
+        assert!(plain.contains("moves to \"Priya Nair\""));
+        assert!(!plain.contains("becomes you"));
+        assert!(merge_message("Me", "Udit", true).ends_with("\"Udit\" becomes you."));
     }
 }

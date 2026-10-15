@@ -1,18 +1,27 @@
 use leptos::{prelude::*, task::spawn_local};
+use leptos_router::hooks::use_navigate;
 
 use crate::{
     api,
-    components::form::{BUTTON_PRIMARY, INPUT},
+    components::form::{BUTTON, BUTTON_PRIMARY, INPUT},
+    settings_tab::Tab,
     state::{finish, DataVersion, Toasts},
 };
 
 /// Asks for the user's name the first time the app runs, then creates the "me" person.
+///
+/// A computer that joins data from another one must not make a "me" of its own: it would be a
+/// second person, merged in later. So the way out is offered here: connect Google Drive first,
+/// and this computer takes the "me" that is already there.
 #[component]
 pub fn FirstRun() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let version = expect_context::<DataVersion>();
+    let navigate = use_navigate();
     let me = LocalResource::new(api::get_self_person);
     let created = RwSignal::new(false);
+    // Said "I use Minimap on another computer": no "me" is made now; asked again at next start.
+    let elsewhere = RwSignal::new(false);
     let name = RwSignal::new("Me".to_owned());
 
     Effect::new(move |_| {
@@ -29,7 +38,12 @@ pub fn FirstRun() -> impl IntoView {
             }
         });
     };
-    let needs_setup = move || matches!(me.get(), Some(Ok(None))) && !created.get();
+    let connect_first = Callback::new(move |()| {
+        elsewhere.set(true);
+        navigate(&Tab::Data.path(), Default::default());
+    });
+    let needs_setup =
+        move || matches!(me.get(), Some(Ok(None))) && !created.get() && !elsewhere.get();
 
     view! {
         <Show when=needs_setup>
@@ -47,6 +61,15 @@ pub fn FirstRun() -> impl IntoView {
                     <input class=INPUT autofocus prop:value=move || name.get()
                            on:input=move |ev| name.set(event_target_value(&ev)) />
                     <button class=BUTTON_PRIMARY type="submit">"Continue"</button>
+                    <div class="space-y-1 border-t border-line pt-3">
+                        <p class="text-[12px] text-muted">
+                            "Already use Minimap on another computer? Connect Google Drive first: "
+                            "this computer then takes your data, and you, from there."
+                        </p>
+                        <button class=BUTTON type="button" on:click=move |_| connect_first.run(())>
+                            "I use Minimap on another computer"
+                        </button>
+                    </div>
                 </form>
             </div>
         </Show>

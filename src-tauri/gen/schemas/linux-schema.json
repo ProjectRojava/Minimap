@@ -759,6 +759,12 @@
           "markdownDescription": "Enables the list_teams command without any pre-configured scope."
         },
         {
+          "description": "Enables the merge_people command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-merge-people",
+          "markdownDescription": "Enables the merge_people command without any pre-configured scope."
+        },
+        {
           "description": "Enables the open_attachment command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open-attachment",
@@ -1663,6 +1669,12 @@
           "type": "string",
           "const": "deny-list-teams",
           "markdownDescription": "Denies the list_teams command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the merge_people command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-merge-people",
+          "markdownDescription": "Denies the merge_people command without any pre-configured scope."
         },
         {
           "description": "Denies the open_attachment command without any pre-configured scope.",

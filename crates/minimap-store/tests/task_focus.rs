@@ -11,6 +11,7 @@ fn db() -> Connection {
 }
 
 fn task(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
+    let project = fixtures::project(conn);
     let mut input = CreateTask {
         links: Vec::new(),
         task_type: None,
@@ -20,7 +21,7 @@ fn task(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
         title: "Renew the licence".into(),
         assignee: AssigneeChoice::Nobody,
         description: String::new(),
-        project_id: None,
+        project_id: Some(project),
         status: None,
         estimate_days: None,
         start_date: None,

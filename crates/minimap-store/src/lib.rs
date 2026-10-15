@@ -10,6 +10,8 @@ pub mod demo_remove;
 pub mod edges;
 mod error;
 pub mod export;
+#[doc(hidden)]
+pub mod fixtures;
 pub mod fog;
 pub mod meetings;
 pub mod merge;
@@ -24,6 +26,7 @@ pub mod quick_add;
 mod repo;
 pub mod search;
 pub mod security;
+mod self_person;
 pub mod settings;
 pub mod snapshot;
 pub mod tasks;

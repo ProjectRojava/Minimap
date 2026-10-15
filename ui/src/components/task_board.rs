@@ -9,7 +9,7 @@ use std::{
 
 use leptos::{ev, prelude::*, task::spawn_local, web_sys};
 use minimap_types::{
-    AssigneeChoice, CreateTask, Date, EdgeLink, EdgeType, NodeRef, NodeType, TaskRow, TaskStatus,
+    AppError, AssigneeChoice, CreateTask, Date, EdgeLink, EdgeType, NodeRef, NodeType, TaskRow, TaskStatus,
     UpdateTask, Uuid,
 };
 use wasm_bindgen::JsCast;
@@ -23,7 +23,7 @@ use crate::{
         date_field::today_ymd,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
         fog::{confirm_row, fog_class, mark_for, FogLine},
-        form::BUTTON_SOFT,
+        form::{SelectField, BUTTON_SOFT},
         objective_colour::{assign, use_objective_colours, ObjectiveChips},
         orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{Hints, Icon, PageHeader, Tone, CHIP},
@@ -994,12 +994,25 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             let _ = el.focus();
         }
     });
+    // A task needs a project: the one the board is filtered to, else one picked in the card.
+    let picked = RwSignal::new(String::new());
+    let projects = LocalResource::new(move || api::list_node_summaries(NodeType::Project));
     let submit = move || {
         let t = title.get_untracked();
         let t = t.trim();
         if t.is_empty() {
             return;
         }
+        let Some(project_id) = Uuid::parse_str(&project.get_untracked())
+            .ok()
+            .or_else(|| Uuid::parse_str(&picked.get_untracked()).ok())
+        else {
+            toasts.error(&AppError {
+                code: "invalid".into(),
+                message: "Choose a project for the new task first.".into(),
+            });
+            return;
+        };
         let new = CreateTask {
             links: Vec::new(),
             focus: None,
@@ -1010,8 +1023,7 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             title: t.to_owned(),
             assignee: AssigneeChoice::Me,
             description: String::new(),
-            // A board filtered to a project adds into it.
-            project_id: Uuid::parse_str(&project.get_untracked()).ok(),
+            project_id: Some(project_id),
             status: Some(status),
             estimate_days: None,
             start_date: None,
@@ -1036,6 +1048,21 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                        "Escape" => { ev.stop_propagation(); adding.set(None); }
                        _ => {}
                    } />
+            // A board filtered to a project adds into it; otherwise the project is asked.
+            {move || project.get().is_empty().then(|| {
+                let options: Vec<(String, String)> = std::iter::once((String::new(), "Choose a project…".to_owned()))
+                    .chain(match projects.get() {
+                        Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
+                        _ => Vec::new(),
+                    })
+                    .collect();
+                view! {
+                    <div class="mt-1">
+                        <SelectField compact=true options=options current=picked.get_untracked()
+                                     on_change=move |v: String| picked.set(v) />
+                    </div>
+                }
+            })}
             <p class="mt-1 text-[10px] text-faint">"Enter adds and keeps going · Esc closes"</p>
         </div>
     }

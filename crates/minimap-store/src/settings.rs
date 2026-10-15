@@ -36,6 +36,22 @@ pub const LOCAL_ONLY: [&str; 7] = [
     RADAR_RINGS,
 ];
 
+/// Who "me" is, as the id of a person, once someone has chosen. Synced like the work settings, so
+/// the newest choice wins on every device; until then the oldest person each device made for
+/// itself is "me" (`self_person`). `people.is_self` is a copy of the answer on each device.
+const SELF_PERSON: &str = "self_person_id";
+
+/// The person this setting names as "me", if it is set to an id.
+pub(crate) fn self_person_id(conn: &Connection) -> Result<Option<uuid::Uuid>> {
+    Ok(read(conn, SELF_PERSON)?
+        .and_then(|v| v.as_str().and_then(|s| uuid::Uuid::parse_str(s).ok())))
+}
+
+/// Chooses `id` as "me", as of now.
+pub(crate) fn set_self_person_id(conn: &Connection, id: uuid::Uuid) -> Result<()> {
+    write(conn, SELF_PERSON, &serde_json::json!(id.to_string()))
+}
+
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
         "INSERT INTO settings (key, value) VALUES (?1, ?2)

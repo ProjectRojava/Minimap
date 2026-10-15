@@ -27,6 +27,7 @@ fn project(conn: &mut Connection) -> Project {
 }
 
 fn task(conn: &mut Connection, task_type: Option<&str>, project_id: Option<uuid::Uuid>) -> Task {
+    let project_id = Some(project_id.unwrap_or_else(|| minimap_store::fixtures::project(conn)));
     tasks::create(
         conn,
         CreateTask {

@@ -21,6 +21,7 @@ const COMMANDS: &[&str] = &[
     "update_person",
     "preview_archive_person",
     "archive_person",
+    "merge_people",
     "list_teams",
     "get_team",
     "get_team_detail",

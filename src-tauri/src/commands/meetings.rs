@@ -226,6 +226,7 @@ mod tests {
             (TaskStatus::Todo, Some(900))
         );
         // A plain task is made a meeting by giving it a time.
+        let project = minimap_store::fixtures::project(&conn);
         let task = minimap_store::tasks::create(
             &mut conn,
             minimap_types::CreateTask {
@@ -237,7 +238,7 @@ mod tests {
                 title: "Plain".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(project),
                 status: None,
                 estimate_days: None,
                 start_date: None,

@@ -34,6 +34,7 @@ fn person(conn: &mut Connection, name: &str) -> Person {
 }
 
 fn task_with(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
+    let project = minimap_store::fixtures::project(conn);
     let mut input = CreateTask {
         links: Vec::new(),
         task_type: None,
@@ -43,7 +44,7 @@ fn task_with(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
         title: "Board update".into(),
         assignee: AssigneeChoice::Nobody,
         description: "Numbers and risks".into(),
-        project_id: None,
+        project_id: Some(project),
         status: None,
         estimate_days: Some(1.5),
         start_date: None,
@@ -556,7 +557,22 @@ fn quick(conn: &mut Connection, text: &str) -> QuickResult {
 fn quick_add_every_makes_repeating_tasks_and_notes() {
     let mut conn = db();
     person(&mut conn, "Priya");
-    let made = quick(&mut conn, "task Board update every:mon");
+    // (A task needs a project.)
+    projects::create(
+        &mut conn,
+        CreateProject {
+            title: "Board".into(),
+            slug: None,
+            description: String::new(),
+            owner_person_id: None,
+            start_date: None,
+            target_date: None,
+            status: None,
+            priority: None,
+        },
+    )
+    .unwrap();
+    let made = quick(&mut conn, "task Board update #board every:mon");
     let task = tasks::get(&conn, made.node.node.id).unwrap();
     assert_eq!(task.due_date, Some(date!(2027 - 03 - 08)));
     assert_eq!(task.recurrence, Some(weekly_monday()));

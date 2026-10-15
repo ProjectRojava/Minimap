@@ -228,6 +228,7 @@ Error codes: `offline`, `drive_auth`, `drive`, `corrupt`, `newer_data`, `not_con
 | create_person | people.rs | people::create (forces is_self=false) | ui:People form |
 | update_person | people.rs | people::update | ui:PersonFields |
 | preview_archive_person / archive_person | people.rs | views::person_archive_preview / nodes::archive | ui:ArchivePerson |
+| merge_people | people.rs | people::merge_into (`self_person::fold`; merge.rs `settle_self` folds duplicate "me"s the same way) | ui:MergePerson |
 | list_teams / get_team / get_team_detail | teams.rs | views::team_rows / teams::get / views::team_detail | ui:Teams, team panel |
 | create_team | teams.rs | check_parent_active, teams::create | ui:Teams form |
 | update_team | teams.rs | `fn:check_new_parent` (core::cycles) then teams::update | ui:TeamFields, Structure |

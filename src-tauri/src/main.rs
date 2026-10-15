@@ -116,6 +116,7 @@ fn main() {
             commands::people::update_person,
             commands::people::preview_archive_person,
             commands::people::archive_person,
+            commands::people::merge_people,
             commands::teams::list_teams,
             commands::teams::get_team,
             commands::teams::get_team_detail,

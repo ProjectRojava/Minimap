@@ -165,6 +165,7 @@ fn it_only_fills_an_empty_database_and_a_refusal_changes_nothing() {
 
     // A database with a single task is not empty either.
     let mut other = open_in_memory().unwrap();
+    let __p = minimap_store::fixtures::project(&other);
     tasks::create(
         &mut other,
         CreateTask {
@@ -176,7 +177,7 @@ fn it_only_fills_an_empty_database_and_a_refusal_changes_nothing() {
             title: "Mine".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: None,
             start_date: None,

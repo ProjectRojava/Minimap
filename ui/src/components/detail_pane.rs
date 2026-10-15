@@ -13,7 +13,8 @@ use crate::{
         people_panel::PersonPanel,
         ping::{PanePing, PingButton},
         project_panel::ProjectPanel,
-        task_panel::TaskPanel,
+        task_panel::{ArchiveTaskButton, TaskPanel},
+        task_pinned::TaskPinned,
         team_panel::TeamPanel,
         waiting_panel::WaitingPanel,
     },
@@ -79,7 +80,11 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
     });
 
     view! {
-        <header class="flex items-start gap-2 px-4 py-3 border-b border-line">
+        // Pinned: the close button, breadcrumbs and title stay in view while the rest of the pane
+        // scrolls, and on a task so do Archive, its status, priority and due date, Done, and what
+        // is wrong with it.
+        <header class="sticky top-0 z-10 shrink-0 border-b border-line bg-panel px-4 py-3 shadow-sm">
+          <div class="flex items-start gap-2">
             <div class="flex-1 min-w-0">
                 <div class="mb-1">
                     <crate::components::zoom::Crumbs
@@ -101,9 +106,16 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
                 </h2>
             </div>
             <PingButton node=node />
+            {(node.node_type == NodeType::Task).then(|| view! {
+                // Not offered once archived (there is nothing left to archive).
+                {move || matches!(summary.get(), Some(Ok(s)) if !s.archived)
+                    .then(|| view! { <ArchiveTaskButton id=node.id /> })}
+            })}
             <button class="rounded px-1.5 text-muted hover:bg-hover"
                     aria-label="Close details (Esc)" title="Close (Esc)"
                     on:click=move |_| selection.close()>"✕"</button>
+          </div>
+          {(node.node_type == NodeType::Task).then(|| view! { <TaskPinned id=node.id /> })}
         </header>
 
         // A ping on this item (ADR-0020), with Clear and Change…
