@@ -7,6 +7,18 @@ All notable changes to Minimap are documented here, organized by release. Format
 **Current work toward the next release.** Add entries as you complete specs and fix issues, then move them under a version number when you tag a release.
 
 ### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## [0.5.0] - 2026-10-16
+
+**The Gantt screen, the radar, zoom, save points, and a map of your world: fog, safe zone, pings and My view.**
+
+### Added
 - **Gantt: the plan on a calendar**: a new *Gantt* screen (`g j`, under Plan) draws objectives, their projects and their tasks as bars, and every row opens and folds. A bar's look says where the task stands (to do, in progress, **blocked** in amber stripes, done faded); the critical chain is underlined, work past what the target allows is red, the due date is a tick, and a project shows the **room** between its work and its target flag. Arrows show which task waits for which: quiet for all of them, lit for the whole chain of the task you point at (or *All*, *Critical*, *Off*). **Drag a bar** to change its dates: the middle moves the task, its left or right edge changes its start or end (and its estimate); a task stops where what blocks it, its project or today stops it, and **the tasks that follow get their due dates pushed later** by exactly as much as they moved, in one undo step. Drag a project's or objective's **flag** to give its work more room (or less). `Alt+←/→` moves the open task from the keyboard. Spec 57, ADR-0022.
 - **Keep Minimap running in the system tray**: closing the window can now hide Minimap to the tray instead of quitting (it asks the first time, and remembers if you ask it to). The tray icon opens the window on a click and has a menu: *Open Minimap*, *Quick add…*, *Show or hide the radar*, *Sync now* and *Quit Minimap*. Its tooltip and a red dot say what is waiting (*3 overdue · 2 pings waiting*), the radar stays on screen while the window is hidden, and starting Minimap a second time brings the first one forward instead of opening a second copy. *Settings → General → Window and tray* (this computer only) also has: minimising to the tray, starting Minimap with the computer (in the tray, with no window or start screen), a notification a few minutes before a meeting, one notification a day when pings are waiting, and locking a passphrase-protected database after the window has been hidden for a time you choose (Spec 56).
 - **A start screen**: Minimap now shows its mark, *Starting up*, its version and who made it while it opens, instead of an empty dark window. It is **a small window in the middle of the screen** (not the whole screen), and the main window appears when the app is ready. It stays for five seconds, or until the app is ready if that takes longer (it says so if the start is slow, and it holds still if your system is set to reduce motion). The radar window only shows it briefly.
