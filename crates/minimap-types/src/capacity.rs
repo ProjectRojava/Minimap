@@ -53,6 +53,10 @@ pub struct PersonCapacity {
     pub over_task_limit: bool,
     /// Open assigned tasks without an estimate; the load figures treat each as one day.
     pub unestimated_tasks: u32,
+    /// My view only (spec 50): not you or one of your reports but someone on your projects, shown
+    /// under a heading of their own.
+    #[serde(default)]
+    pub on_my_projects: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -75,4 +79,7 @@ pub struct Capacity {
     pub hours_per_day: f64,
     /// Things that limited the picture (e.g. a loop in `blocks` links).
     pub warnings: Vec<String>,
+    /// This is My view (spec 50): only you, your reports and those on your projects.
+    #[serde(default)]
+    pub mine: bool,
 }

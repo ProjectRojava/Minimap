@@ -45,9 +45,13 @@ pub(crate) fn review_at(
     Ok(build(ReviewInput {
         // Meetings (spec 38) start and end on their own: they are not work that slipped, got
         // blocked or was done, so the review leaves them out.
+        // (Tasks finished that week and archived since, by hand or by the sweep, still count.)
         tasks: minimap_store::views::task_rows(conn)
             .map_err(store_error)?
             .into_iter()
+            .chain(
+                minimap_store::archive::done_rows_between(conn, from, to).map_err(store_error)?,
+            )
             .filter(|r| !r.task.is_meeting())
             .collect(),
         blockers: minimap_store::views::open_blockers(conn).map_err(store_error)?,
@@ -182,6 +186,7 @@ mod tests {
     }
 
     fn task(conn: &mut Connection, title: &str, due: Option<Date>) -> minimap_types::Task {
+        let __p = minimap_store::fixtures::project(conn);
         minimap_store::tasks::create(
             conn,
             CreateTask {
@@ -193,7 +198,7 @@ mod tests {
                 title: title.into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,

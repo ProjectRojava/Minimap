@@ -159,6 +159,8 @@ struct Plan {
     owners_cleared: Vec<Uuid>,
     teams_unparented: Vec<Uuid>,
     people_kept: u32,
+    /// Pings on demo items; they go with the item they are on.
+    pings: u32,
     links: u32,
     your_links: u32,
 }
@@ -223,6 +225,7 @@ fn plan(conn: &Connection) -> Result<Plan> {
         owners_cleared,
         teams_unparented,
         people_kept: kept.len() as u32,
+        pings: crate::pings::count_on(conn, &set)?,
         links,
         your_links,
     })
@@ -240,6 +243,7 @@ impl Plan {
             notes: n(NodeType::Note),
             decisions: n(NodeType::Decision),
             waiting_ons: n(NodeType::WaitingOn),
+            pings: self.pings,
             links: self.links,
         }
     }
@@ -312,7 +316,9 @@ fn detach(tx: &Transaction, plan: &Plan) -> Result<()> {
             project_id: Patch::Clear,
             ..Default::default()
         };
-        tasks::update_in_tx(tx, *id, patch)?;
+        // Their project is going: the one place a task is let go of its project (like archiving a
+        // project and sending its tasks to the Inbox), so it goes round the rule.
+        tasks::restore_in_tx(tx, *id, patch)?;
     }
     for id in &plan.owners_cleared {
         let patch = UpdateProject {

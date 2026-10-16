@@ -1,7 +1,7 @@
 use leptos::{ev, prelude::*, task::spawn_local};
 use leptos_router::{hooks::query_signal_with_options, NavigateOptions};
 use minimap_types::{
-    AppError, HealthThresholds, Settings as AppSettings, UpdateSettings, WorkWeek,
+    AppError, FogThresholds, HealthThresholds, Settings as AppSettings, UpdateSettings, WorkWeek,
     REPORT_PLACEHOLDERS, WEEKDAY_NAMES,
 };
 use wasm_bindgen::JsCast;
@@ -146,16 +146,22 @@ pub fn Settings() -> impl IntoView {
                     <TimeSettings settings=settings />
                     <TaskTypeSettings />
                     <Appearance />
+                    <RadarSettings settings=settings />
+                    <crate::components::device_settings::DeviceSettingsCard />
                 }.into_any())}
                 {panel(Tab::Thresholds, view! {
                     <WaitingSettings settings=settings />
+                    <FinishedSettings settings=settings />
                     <CapacitySettings settings=settings />
                     <HealthSettings />
+                    <FogSettings />
+                    <PeopleSettings />
                 }.into_any())}
                 {panel(Tab::Reports, view! { <ReportSettings /> }.into_any())}
                 {panel(Tab::Data, view! {
                     <DemoDataSettings />
                     <DataLocation />
+                    <crate::components::save_points::SavePointsCard />
                     <DriveSettings />
                     <BackupSettings />
                     <ExportSettings />
@@ -329,6 +335,144 @@ fn TimeSettings(settings: Loaded) -> impl IntoView {
     }
 }
 
+/// The three rings typed into their boxes, as working days: whole numbers from 1 to 260, each
+/// farther out than the one before. The refusal is a sentence for the person.
+pub fn parse_rings(first: &str, second: &str, third: &str) -> Result<[u32; 3], String> {
+    let one = |text: &str| {
+        text.trim()
+            .parse::<u32>()
+            .map_err(|_| "A ring is a whole number of working days.".to_owned())
+    };
+    let rings = [one(first)?, one(second)?, one(third)?];
+    minimap_types::validate_radar_rings(rings)?;
+    Ok(rings)
+}
+
+/// The radar window (spec 53): staying on top, opening with Minimap and the three rings. All of it
+/// is about this computer, like the theme.
+#[component]
+fn RadarSettings(settings: Loaded) -> impl IntoView {
+    let body = when_loaded(settings, |s| {
+        view! { <RadarFields on_top=s.radar_on_top at_start=s.radar_open_at_start rings=s.radar_rings /> }
+            .into_any()
+    });
+    view! {
+        <Card title="Radar" description="The small window you glance at. These are about this computer only.">
+            {body}
+        </Card>
+    }
+}
+
+#[component]
+fn RadarFields(on_top: bool, at_start: bool, rings: [u32; 3]) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let last = StoredValue::new(rings);
+    let texts = rings.map(|d| RwSignal::new(d.to_string()));
+    let save_rings = move || {
+        let parsed = parse_rings(
+            &texts[0].get_untracked(),
+            &texts[1].get_untracked(),
+            &texts[2].get_untracked(),
+        );
+        let back = move || {
+            for (t, d) in texts.iter().zip(last.get_value()) {
+                t.set(d.to_string());
+            }
+        };
+        match parsed {
+            Err(message) => {
+                toasts.error(&AppError {
+                    code: "invalid".into(),
+                    message,
+                });
+                back();
+            }
+            Ok(rings) if rings == last.get_value() => {}
+            Ok(rings) => {
+                spawn_local(async move {
+                    let patch = UpdateSettings {
+                        radar_rings: Some(rings),
+                        ..Default::default()
+                    };
+                    match api::update_settings(patch).await {
+                        Ok(saved) => {
+                            last.set_value(saved.radar_rings);
+                            for (t, d) in texts.iter().zip(saved.radar_rings) {
+                                t.set(d.to_string());
+                            }
+                        }
+                        Err(e) => {
+                            toasts.error(&e);
+                            back();
+                        }
+                    }
+                });
+            }
+        }
+    };
+    let labels = ["Inner ring", "Middle ring", "Outer ring"];
+    let boxes = texts
+        .iter()
+        .zip(labels)
+        .map(|(text, label)| {
+            let text = *text;
+            view! {
+                <label class="block w-24">
+                    <span class="mb-0.5 block text-[11px] text-muted">{label}</span>
+                    <input class=INPUT type="number" min="1" max="260" prop:value=move || text.get()
+                        on:input=move |ev| text.set(event_target_value(&ev))
+                        on:change=move |_| save_rings() />
+                </label>
+            }
+        })
+        .collect_view();
+    view! {
+        <label class="flex items-start gap-2">
+            <input type="checkbox" class="mt-0.5" prop:checked=on_top
+                on:change=move |ev| {
+                    let on = event_target_checked(&ev);
+                    spawn_local(async move {
+                        if let Err(e) = api::set_radar_on_top(on).await {
+                            toasts.error(&e);
+                        }
+                    });
+                } />
+            <span>
+                <span class="block font-medium">"Keep on top of other windows"</span>
+                <span class="block text-[11px] text-muted">
+                    "The radar stays in view over a video call or a browser. You can also switch it with the pin in the radar's own top bar."
+                </span>
+            </span>
+        </label>
+        <label class="flex items-start gap-2">
+            <input type="checkbox" class="mt-0.5" prop:checked=at_start
+                on:change=move |ev| {
+                    let on = event_target_checked(&ev);
+                    spawn_local(async move {
+                        let patch = UpdateSettings {
+                            radar_open_at_start: Some(on),
+                            ..Default::default()
+                        };
+                        if let Err(e) = api::update_settings(patch).await {
+                            toasts.error(&e);
+                        }
+                    });
+                } />
+            <span>
+                <span class="block font-medium">"Open with Minimap"</span>
+                <span class="block text-[11px] text-muted">"Show the radar whenever Minimap starts."</span>
+            </span>
+        </label>
+        <div>
+            <span class="mb-0.5 block text-[11px] text-muted">"Rings (working days from today)"</span>
+            <div class="flex flex-wrap gap-2">{boxes}</div>
+            <p class="mt-1 text-[11px] text-muted">
+                "How far out each ring is, counted in working days. Each must be farther out than the one before, from 1 to 260. A change shows in the radar within a minute."
+            </p>
+        </div>
+    }
+}
+
 /// When an open waiting-on counts as stale.
 #[component]
 fn WaitingSettings(settings: Loaded) -> impl IntoView {
@@ -346,6 +490,30 @@ fn WaitingSettings(settings: Loaded) -> impl IntoView {
         .into_any()
     });
     view! { <Card title="Waiting on" description="When an open waiting-on counts as stale.">{body}</Card> }
+}
+
+/// How long a finished task stays before it is archived on its own.
+#[component]
+fn FinishedSettings(settings: Loaded) -> impl IntoView {
+    let body = when_loaded(settings, |s| {
+        view! {
+            <NumberSetting label="Archive finished tasks after (days)" stored=f64::from(s.done_archive_days) whole=true
+                invalid="Archive after must be a whole number of days (0 = never)"
+                patch=|n| UpdateSettings { done_archive_days: Some(n as u32), ..Default::default() }
+                read=|s| f64::from(s.done_archive_days) />
+            <NumberSetting label="Archive finished meetings after (days)" stored=f64::from(s.done_archive_meeting_days) whole=true
+                invalid="Archive after must be a whole number of days (0 = never)"
+                patch=|n| UpdateSettings { done_archive_meeting_days: Some(n as u32), ..Default::default() }
+                read=|s| f64::from(s.done_archive_meeting_days) />
+            <p class="text-[11px] text-muted">
+                "0 means never, up to 365. Counted from the day the task was finished. Archived tasks are "
+                "kept in the Archive and can be restored. A finished task that something open still depends "
+                "on (a sub-task of an open task, a blocker of open work, one with a live ping) is kept."
+            </p>
+        }
+        .into_any()
+    });
+    view! { <Card title="Finished tasks" description="When a done task is archived by itself.">{body}</Card> }
 }
 
 /// When someone has too much on, whatever the estimates say.
@@ -514,11 +682,161 @@ fn HealthSettings() -> impl IntoView {
     view! {
         <Card title="Project health" description="When a project turns amber or red on the Overview.">
             {move || match settings.get() {
-                Some(Ok(s)) => view! { <HealthRows current=s.health on_save=save /> }.into_any(),
+                Some(Ok(s)) => view! {
+                    <HealthRows current=s.health on_save=save />
+                    <NumberSetting label="Safe zone is narrow at (days of room or fewer)"
+                        stored=f64::from(s.zone_narrow_days) whole=true
+                        invalid="The narrow zone is a whole number of days"
+                        patch=|n| UpdateSettings { zone_narrow_days: Some(n as u32), ..Default::default() }
+                        read=|s| f64::from(s.zone_narrow_days) />
+                    <p class="text-[11px] text-muted">
+                        "The safe zone is the working days between when a project should finish and its target. "
+                        "At this many days of room or fewer it turns amber; none left is amber too, past the target is red. 0 to 30."
+                    </p>
+                }.into_any(),
                 Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
         </Card>
+    }
+}
+
+/// How often you meet your direct reports, and whether *Your people* goes one level deeper
+/// (spec 49).
+#[component]
+fn PeopleSettings() -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let settings = LocalResource::new(move || {
+        version.track();
+        api::get_settings()
+    });
+    view! {
+        <Card title="Your people"
+              description="The frames for you and your direct reports on This week and People.">
+            {move || match settings.get() {
+                Some(Ok(s)) => view! {
+                    <NumberSetting label="1:1 is due after (days since the last one)"
+                        stored=f64::from(s.one_on_one_every_days) whole=true
+                        invalid="The 1:1 rhythm is a whole number of days, 1 to 180"
+                        patch=|n| UpdateSettings { one_on_one_every_days: Some(n as u32), ..Default::default() }
+                        read=|s| f64::from(s.one_on_one_every_days) />
+                    <p class="text-[11px] text-muted">
+                        "A direct report's frame says a 1:1 is due once it has been longer than this since the last 1:1 note that names them. 1 to 180 days."
+                    </p>
+                    <label class="flex cursor-pointer items-start gap-2">
+                        <input type="checkbox" class="mt-0.5"
+                            prop:checked=s.frames_all_levels
+                            on:change=move |ev| {
+                                let on = event_target_checked(&ev);
+                                spawn_local(async move {
+                                    let patch = UpdateSettings {
+                                        frames_all_levels: Some(on),
+                                        ..Default::default()
+                                    };
+                                    finish(api::update_settings(patch).await, toasts, version);
+                                });
+                            } />
+                        <span>
+                            <span class="block font-medium">"Also show everyone below my reports"</span>
+                            <span class="block text-[11px] text-muted">
+                                "The people who report to my reports, and theirs, and so on, each group under its manager. On by default."
+                            </span>
+                        </span>
+                    </label>
+                }.into_any(),
+                Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+            }}
+        </Card>
+    }
+}
+
+/// When something in play that nobody has touched starts to fade (spec 43).
+#[component]
+fn FogSettings() -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let settings = LocalResource::new(move || {
+        version.track();
+        api::get_settings()
+    });
+    let save = move |new: FogThresholds| {
+        spawn_local(async move {
+            finish(
+                api::update_settings(UpdateSettings {
+                    fog: Some(new),
+                    ..Default::default()
+                })
+                .await,
+                toasts,
+                version,
+            );
+        });
+    };
+    view! {
+        <Card title="Fog"
+              description="Items in play fade after this many days without a change. Confirming clears them.">
+            {move || match settings.get() {
+                Some(Ok(s)) => view! { <FogRows current=s.fog on_save=save /> }.into_any(),
+                Some(Err(_)) => view! { <p class="text-muted">"Couldn't load settings."</p> }.into_any(),
+                None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
+            }}
+        </Card>
+    }
+}
+
+#[component]
+fn FogRows(
+    current: FogThresholds,
+    #[prop(into)] on_save: Callback<FogThresholds>,
+) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    // One edited number: save it, or say it isn't a number and put the stored value back.
+    let edit = move |apply: fn(&mut FogThresholds, u32)| {
+        move |v: String| match v.trim().parse::<u32>() {
+            Ok(n) => {
+                let mut t = current;
+                apply(&mut t, n);
+                on_save.run(t);
+            }
+            Err(_) => {
+                toasts.error(&AppError {
+                    code: "invalid".into(),
+                    message: "Thresholds are whole numbers".into(),
+                });
+                version.bump();
+            }
+        }
+    };
+    let task_haze = edit(|t, n| t.task_haze = n);
+    let task_fog = edit(|t, n| t.task_fog = n);
+    let project_haze = edit(|t, n| t.project_haze = n);
+    let project_fog = edit(|t, n| t.project_fog = n);
+    let objective_haze = edit(|t, n| t.objective_haze = n);
+    let objective_fog = edit(|t, n| t.objective_fog = n);
+    let reset = move |_| on_save.run(FogThresholds::default());
+    view! {
+        <div class="grid max-w-xl grid-cols-[1fr_5rem_5rem] items-center gap-x-3 gap-y-1">
+            <span></span>
+            <span class="text-[11px] text-muted">"Haze after"</span>
+            <span class="text-[11px] text-muted">"Fog after"</span>
+            <span>"Tasks (days without a change)"</span>
+            <NumberCell value=current.task_haze on_commit=task_haze />
+            <NumberCell value=current.task_fog on_commit=task_fog />
+            <span>"Projects (days without a change)"</span>
+            <NumberCell value=current.project_haze on_commit=project_haze />
+            <NumberCell value=current.project_fog on_commit=project_fog />
+            <span>"Objectives (days without a change)"</span>
+            <NumberCell value=current.objective_haze on_commit=objective_haze />
+            <NumberCell value=current.objective_fog on_commit=objective_fog />
+        </div>
+        <p class="text-[11px] text-muted">
+            "Haze must come before fog, and both are 1 to 365 days. Only work that is in play fades: "
+            "active projects, and tasks that are in progress, blocked, due within 14 days or in focus."
+        </p>
+        <button class=BUTTON on:click=reset>"Reset to defaults"</button>
     }
 }
 
@@ -672,5 +990,19 @@ mod tests {
             work_week_text(WorkWeek::from_days(&[0, 1, 2, 3]).unwrap()),
             "Mon-Thu · 4 working days a week"
         );
+    }
+
+    #[test]
+    fn rings_are_whole_working_days_that_grow() {
+        assert_eq!(parse_rings("5", " 10 ", "60"), Ok([5, 10, 60]));
+        assert_eq!(parse_rings("1", "2", "260"), Ok([1, 2, 260]));
+        assert!(parse_rings("5", "five", "60")
+            .unwrap_err()
+            .contains("whole number"));
+        assert!(parse_rings("5", "2.5", "60").is_err());
+        assert!(parse_rings("-1", "10", "60").is_err());
+        assert!(parse_rings("10", "5", "60").unwrap_err().contains("larger"));
+        assert!(parse_rings("5", "10", "261").is_err());
+        assert!(parse_rings("0", "10", "60").is_err());
     }
 }

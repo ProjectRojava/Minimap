@@ -11,6 +11,8 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M9 9h4.5v4.5H9z",
         ],
         "inbox" => &["M2 9.5 4 3h8l2 6.5V13H2z", "M2 9.5h3.2l.8 1.5h4l.8-1.5H14"],
+        // A lidded box: what was put away.
+        "archive" => &["M2 3.5h12v3H2z", "M3 6.5V13h10V6.5", "M6.5 9.5h3"],
         "week" => &[
             "M2.5 3.5h11v10h-11z",
             "M2.5 6.5h11",
@@ -71,6 +73,28 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
         "chevron" => &["M4.5 6.5 8 10l3.5-3.5"],
         "edit" => &["M2.5 13.5l.7-3L10.8 3a1.4 1.4 0 0 1 2 2l-7.6 7.6z", "M9.6 4.2l2.2 2.2"],
         "check" => &["M3 8.5l3.2 3.2L13 4.5"],
+        // The two views (spec 50): north-up is an arrow with its N, player-up the marker that
+        // points where you are going.
+        "north" => &["M6 13.5V3", "M3 6l3-3 3 3", "M11 14V9l3 5V9"],
+        "me" => &["M8 2.5l4.5 10.5L8 10.5 3.5 13z"],
+        // A save point: a floppy disk, the old sign for "kept".
+        "save" => &[
+            "M3 2.5h8.5L13.5 4.5v9h-10.5z",
+            "M5.5 2.5v3.5h5v-3.5",
+            "M5.5 13.5v-4h5v4",
+        ],
+        "ping" => &[
+            "M8 14.2S3.5 10 3.5 6.6a4.5 4.5 0 0 1 9 0C12.5 10 8 14.2 8 14.2z",
+            "M8 5.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z",
+        ],
+        // The radar (spec 53): rings and the line that sweeps them.
+        "radar" => &[
+            "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z",
+            "M8 5.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z",
+            "M8 8l3.6-3.6",
+        ],
+        // Keep a window on top of the others.
+        "pin-top" => &["M5 2.5h6", "M6.2 2.5v4L4 9.5h8L9.8 6.5v-4", "M8 9.5v4"],
         "star" => &["M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"],
         "attach" => &["M12.6 7.6 7.5 12.7a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8L6.2 11.3a1 1 0 0 1-1.4-1.4l4.9-4.9"],
         "lock" => &[
@@ -111,6 +135,17 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 8l2.5 3",
         ],
         "search" => &["M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M10.8 10.8 14 14"],
+        // An arrow pointing up and to the right: something coming at you from elsewhere (spec 45).
+        "approach" => &["M4.5 11.5 11.5 4.5", "M5.5 4.5h6v6"],
+        // The steps of a recalculated route (spec 46): where it starts, goes on, is absorbed, joins or
+        // leaves the route, arrives, and the steps left out.
+        "step-start" => &["M8 5.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z"],
+        "step-arrow" => &["M3 8h9", "M9 5l3 3-3 3"],
+        "step-absorb" => &["M6 3.5H4v9h2", "M8 8h5"],
+        "step-join" => &["M8 3v10", "M3 8h10"],
+        "step-leave" => &["M3 8h10"],
+        "step-flag" => &["M4 14V2", "M4 3h8l-2 3 2 3H4"],
+        "step-more" => &["M3.5 8h.1", "M8 8h.1", "M12.5 8h.1"],
         "command" => &[
             "M5.5 5.5h5v5h-5z",
             "M5.5 5.5V4a1.5 1.5 0 1 0-1.5 1.5z",
@@ -151,8 +186,17 @@ mod tests {
             "review",
             "settings",
             "command",
+            "approach",
+            "step-start",
+            "step-arrow",
+            "step-absorb",
+            "step-join",
+            "step-leave",
+            "step-flag",
+            "step-more",
             "search",
             "capacity",
+            "archive",
             "graph",
             "chain",
             "subtasks",
@@ -161,6 +205,12 @@ mod tests {
             "check",
             "attach",
             "star",
+            "ping",
+            "radar",
+            "pin-top",
+            "save",
+            "north",
+            "me",
             "about",
         ] {
             for d in paths(name).unwrap() {

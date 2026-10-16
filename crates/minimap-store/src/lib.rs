@@ -1,15 +1,20 @@
 //! SQLite persistence: connection setup, migrations and repositories.
 
 pub mod activity;
+pub mod archive;
 pub mod attachments;
 pub mod backup;
 mod convert;
 pub mod decisions;
 pub mod demo;
 pub mod demo_remove;
+pub mod done_sweep;
 pub mod edges;
 mod error;
 pub mod export;
+#[doc(hidden)]
+pub mod fixtures;
+pub mod fog;
 pub mod meetings;
 pub mod merge;
 pub mod meta;
@@ -17,11 +22,13 @@ pub mod nodes;
 pub mod notes;
 pub mod objectives;
 pub mod people;
+pub mod pings;
 pub mod projects;
 pub mod quick_add;
 mod repo;
 pub mod search;
 pub mod security;
+mod self_person;
 pub mod settings;
 pub mod snapshot;
 pub mod tasks;
@@ -68,6 +75,9 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!("../migrations/0013_task_types.sql")),
         M::up(include_str!("../migrations/0014_task_focus.sql")),
         M::up(include_str!("../migrations/0015_meetings.sql")),
+        M::up(include_str!("../migrations/0016_decision_provenance.sql")),
+        M::up(include_str!("../migrations/0017_fog.sql")),
+        M::up(include_str!("../migrations/0018_pings.sql")),
     ])
 }
 
@@ -92,7 +102,7 @@ fn backfill_project_slugs(tx: &rusqlite::Transaction) -> rusqlite_migration::Hoo
 
 /// The schema version after the last migration (`PRAGMA user_version`); a test keeps it equal
 /// to the migration list.
-pub const LATEST_SCHEMA: u32 = 15;
+pub const LATEST_SCHEMA: u32 = 18;
 
 /// Opens (creating if needed) the unencrypted database at `path`, applies pragmas and migrations.
 /// An existing database that needs upgrading is first copied to `backups/` next to it (spec 20);

@@ -30,3 +30,14 @@ PEOPLE
   Sam Okafor | worst delay 5.0 | Beta customer onboarding (+5.0)
   Tomás Alvarez | worst delay 5.0 | EU CDN and DNS (+5.0); Provision EU network and clusters (+5.0); Replicate the customer data pipeline (+5.0)
   Raj Patel | worst delay 2.0 | Security review sign-off (+2.0)
+
+ROUTES
+  EU Region | unchanged | finish 2027-03-31 -> 2027-04-07 | +5.0 | late 7 | route 4 -> 4
+    1. Slips Provision EU network and clusters (in 5.0, absorbed 0.0, delay 5.0, also 0) finishes 2027-03-17
+    2. PassesOn EU CDN and DNS (in 5.0, absorbed 0.0, delay 5.0, also 2) finishes 2027-03-22
+    3. PartlyAbsorbs Regional auth and tenancy (in 5.0, absorbed 3.0, delay 2.0, also 0) finishes 2027-03-24
+    4. PassesOn Replicate the customer data pipeline (in 5.0, absorbed 0.0, delay 5.0, also 2) finishes 2027-04-07
+    5. Arrives Beta customer onboarding (in 5.0, absorbed 0.0, delay 5.0, also 0) finishes 2027-04-07
+  Security and Compliance | unchanged | finish 2027-03-30 -> 2027-03-30 | +0.0 | late - | route 1 -> 1
+    1. PassesOn Security review sign-off (in 2.0, absorbed 0.0, delay 2.0, also 0) finishes 2027-03-26
+    2. Arrives SOC 2 gap assessment (in 0.0, absorbed 0.0, delay 0.0, also 0) finishes 2027-03-30

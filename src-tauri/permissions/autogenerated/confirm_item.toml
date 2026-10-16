@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-confirm-item"
+description = "Enables the confirm_item command without any pre-configured scope."
+commands.allow = ["confirm_item"]
+
+[[permission]]
+identifier = "deny-confirm-item"
+description = "Denies the confirm_item command without any pre-configured scope."
+commands.deny = ["confirm_item"]

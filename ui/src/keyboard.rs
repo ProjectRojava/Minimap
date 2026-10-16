@@ -1,4 +1,4 @@
-//! Global keyboard shortcuts: `g` chords, `/` search, `?`/F1 help, Ctrl/Cmd+K palette, Ctrl/Cmd+Z undo, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
+//! Global keyboard shortcuts: `g` chords, `/` search, `?`/F1 help, Ctrl/Cmd+K palette, Ctrl/Cmd+Shift+M radar, Ctrl/Cmd+Z undo, Alt+Up/Down zoom, `j`/`k`/`Enter` on lists, `Esc` to close the pane.
 
 use leptos::{ev, prelude::*, web_sys};
 use leptos_router::hooks::use_navigate;
@@ -7,9 +7,11 @@ use wasm_bindgen::JsCast;
 use crate::{
     components::search_box::focus_search,
     nav::{
-        chord_target, is_help_key, is_row_key, is_typing_target, undo_key, UndoKey, CHORD_WINDOW_MS,
+        chord_target, is_help_key, is_row_key, is_typing_target, radar_key, undo_key, UndoKey,
+        CHORD_WINDOW_MS,
     },
     state::{undo_or_redo, DataVersion, ListNav, PaletteOpen, Selection, Toasts},
+    zoom::{zoom_key, ZoomKey},
 };
 
 /// Whether a right-click on this element may show the webview's own menu. Only text boxes keep
@@ -43,6 +45,11 @@ pub fn use_global_shortcuts() {
     let palette = expect_context::<PaletteOpen>();
     let toasts = expect_context::<Toasts>();
     let version = expect_context::<DataVersion>();
+    let ping_box = expect_context::<crate::components::ping::PingBoxState>();
+    let orientation = expect_context::<crate::components::orientation::Orientation>();
+    let save_box = expect_context::<crate::components::save_points::SaveBoxState>();
+    let zoom = expect_context::<crate::state::ZoomCtx>();
+    let theme = expect_context::<crate::theme::ThemeCtx>();
     // When `g` was pressed, in ms since the epoch (0 = no chord pending).
     let chord_started = StoredValue::new(0.0_f64);
 
@@ -53,12 +60,31 @@ pub fn use_global_shortcuts() {
             palette.toggle();
             return;
         }
+        // Ctrl/Cmd+S makes a save point (spec 51), from anywhere, even a text box; the browser's
+        // own "save page" is never wanted.
+        if (e.ctrl_key() || e.meta_key())
+            && !e.alt_key()
+            && !e.shift_key()
+            && e.key().eq_ignore_ascii_case("s")
+        {
+            e.prevent_default();
+            save_box.open();
+            return;
+        }
         let (tag, editable) = e
             .target()
             .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
             .map(|el| (el.tag_name(), el.is_content_editable()))
             .unwrap_or_default();
         let key = e.key();
+
+        // Ctrl/Cmd+Shift+M opens or closes the radar window (spec 53), from anywhere. Before the
+        // Ctrl/Cmd early return below.
+        if radar_key(&key, e.ctrl_key(), e.meta_key(), e.shift_key(), e.alt_key()) {
+            e.prevent_default();
+            crate::components::radar::toggle(theme, toasts);
+            return;
+        }
 
         // F1 opens the help from anywhere, even a text box.
         if key == "F1" && is_help_key(&key) {
@@ -74,6 +100,19 @@ pub fn use_global_shortcuts() {
             if !is_typing_target(&tag, editable) {
                 e.prevent_default();
                 undo_or_redo(which == UndoKey::Redo, toasts, version);
+            }
+            return;
+        }
+        // Alt+Up zooms out and Alt+Down zooms in (spec 52), except in a text box, where the
+        // arrows keep their text meaning.
+        if let Some(which) = zoom_key(&key, e.ctrl_key(), e.meta_key(), e.shift_key(), e.alt_key())
+        {
+            if !is_typing_target(&tag, editable) {
+                e.prevent_default();
+                match which {
+                    ZoomKey::Out => zoom.out(),
+                    ZoomKey::In => zoom.inn(),
+                }
             }
             return;
         }
@@ -121,6 +160,20 @@ pub fn use_global_shortcuts() {
             "n" => {
                 e.prevent_default();
                 list.request_new();
+            }
+            // Portfolio view <-> My view (spec 50).
+            "v" => {
+                e.prevent_default();
+                if !orientation.toggle() {
+                    toasts.info("Set who you are in People first.".to_owned());
+                }
+            }
+            // Ping the item under the cursor: the box asks for a day and a note (ADR-0020).
+            "m" if list.current().is_some() => {
+                e.prevent_default();
+                if let Some(node) = list.current() {
+                    ping_box.open(node);
+                }
             }
             k if is_row_key(k) && list.current().is_some() => {
                 e.prevent_default();

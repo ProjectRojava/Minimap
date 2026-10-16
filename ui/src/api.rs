@@ -1,8 +1,10 @@
 //! Typed wrappers over `window.__TAURI__.core.invoke`: one async fn per command.
 
 use minimap_types::{
-    Activity, AddAttachment, AdvanceResult, AppError, ApplyPreview, ApplyResult, AssigneeChoice,
-    Attachment, BackupEntry, BackupStatus, Capacity, CheckpointInfo, Clock, ConnectOutcome,
+    Activity, AddAttachment, AdvanceResult, AppError, ApplyPreview, ApplyResult, ArchivedItem,
+    AssigneeChoice,
+    Attachment, BackupEntry, BackupStatus, Capacity, CheckpointInfo, Clock, CloseChoice,
+    ConnectOutcome, DeviceSettings, DeviceView,
     CreateDecision, CreateMeeting, CreateNote, CreateObjective, CreatePerson, CreateProject,
     CreateTask, CreateTeam, CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow,
     DemoRemoval, DemoStatus, DemoSummary, DependencyGraph, Edge, EdgeLink, EncryptionResult,
@@ -64,8 +66,7 @@ struct NodeIdArg {
     node_id: Uuid,
 }
 
-// The Overview used to show this; kept for the `ping` command's own smoke test.
-#[allow(dead_code)]
+/// Asks the backend to answer (the M0 `ping`): the palette shows it for the exact text `ping`.
 pub async fn ping() -> Result<PingResponse, AppError> {
     invoke("ping", &NoArgs {}).await
 }
@@ -160,6 +161,80 @@ pub async fn preview_archive_person(id: Uuid) -> Result<PersonArchivePreview, Ap
 
 pub async fn archive_person(id: Uuid) -> Result<(), AppError> {
     invoke("archive_person", &IdArg { id }).await
+}
+
+#[derive(Serialize)]
+struct SchemeArg {
+    scheme: &'static str,
+}
+
+/// Tells the shell which kind of theme the app draws (`dark`, `light`, or `system`), so the next
+/// start's splash screen matches it.
+pub async fn remember_splash_scheme(scheme: &'static str) -> Result<(), AppError> {
+    invoke("remember_splash_scheme", &SchemeArg { scheme }).await
+}
+
+/// Tells the shell the app is on the page, so it shows the main window and closes the splash.
+pub async fn app_ready() -> Result<(), AppError> {
+    invoke("app_ready", &NoArgs {}).await
+}
+
+/// What closing the window does, the tray, starting with the computer, reminders and locking:
+/// this computer's own settings, and what it can do.
+pub async fn get_device_settings() -> Result<DeviceView, AppError> {
+    invoke("get_device_settings", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct DeviceArg {
+    settings: DeviceSettings,
+}
+
+pub async fn update_device_settings(settings: DeviceSettings) -> Result<DeviceView, AppError> {
+    invoke("update_device_settings", &DeviceArg { settings }).await
+}
+
+#[derive(Serialize)]
+struct CloseArg {
+    choice: CloseChoice,
+    remember: bool,
+}
+
+/// The answer from the "keep running in the tray?" box.
+pub async fn answer_close(choice: CloseChoice, remember: bool) -> Result<(), AppError> {
+    invoke("answer_close", &CloseArg { choice, remember }).await
+}
+
+/// The title bar's minimise button: to the tray or the task bar, as Settings says.
+pub async fn minimize_main() -> Result<(), AppError> {
+    invoke("minimize_main", &NoArgs {}).await
+}
+
+/// Closes Minimap for good, whatever closing the window does.
+pub async fn quit_app() -> Result<(), AppError> {
+    invoke("quit_app", &NoArgs {}).await
+}
+
+/// Everything that has been archived, newest first.
+pub async fn list_archived() -> Result<Vec<ArchivedItem>, AppError> {
+    invoke("list_archived", &NoArgs {}).await
+}
+
+/// Brings an archived item back, with the links archived along with it.
+pub async fn restore_archived(node: NodeRef) -> Result<(), AppError> {
+    invoke("restore_archived", &NodeArg { node }).await
+}
+
+#[derive(Serialize)]
+struct MergePeopleArg {
+    from: Uuid,
+    into: Uuid,
+}
+
+/// Merges `from` into `into`: what pointed at the first moves to the second, and the first is
+/// deleted (on every computer).
+pub async fn merge_people(from: Uuid, into: Uuid) -> Result<Person, AppError> {
+    invoke("merge_people", &MergePeopleArg { from, into }).await
 }
 
 pub async fn list_teams() -> Result<Vec<TeamRow>, AppError> {
@@ -453,6 +528,40 @@ pub async fn create_linked_task(
     .await
 }
 
+/// The decision record of a Decision task, made if it has none (spec 41).
+pub async fn ensure_task_decision(task_id: Uuid) -> Result<Decision, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+    }
+    invoke("ensure_task_decision", &Arg { task_id }).await
+}
+
+/// Writes the decision and the reason and finishes a Decision task, in one step (spec 42).
+pub async fn finish_decision_task(
+    task_id: Uuid,
+    decision: String,
+    rationale: String,
+) -> Result<Task, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+        decision: String,
+        rationale: String,
+    }
+    invoke(
+        "finish_decision_task",
+        &Arg {
+            task_id,
+            decision,
+            rationale,
+        },
+    )
+    .await
+}
+
 pub async fn archive_task(id: Uuid) -> Result<(), AppError> {
     invoke("archive_task", &IdArg { id }).await
 }
@@ -640,14 +749,26 @@ struct CapacityArg {
     from: Option<minimap_types::Date>,
     to: Option<minimap_types::Date>,
     weeks: Option<u32>,
+    view: Option<minimap_types::View>,
 }
 
+/// Capacity; in My view (spec 50) only you, your reports and the people on your projects.
 pub async fn get_capacity(
     from: Option<minimap_types::Date>,
     to: Option<minimap_types::Date>,
     weeks: Option<u32>,
+    view: minimap_types::View,
 ) -> Result<Capacity, AppError> {
-    invoke("get_capacity", &CapacityArg { from, to, weeks }).await
+    invoke(
+        "get_capacity",
+        &CapacityArg {
+            from,
+            to,
+            weeks,
+            view: Some(view),
+        },
+    )
+    .await
 }
 
 #[derive(Serialize)]
@@ -669,6 +790,106 @@ pub async fn get_this_week(
     as_of: Option<minimap_types::Date>,
 ) -> Result<ThisWeek, AppError> {
     invoke("get_this_week", &ThisWeekArg { week_start, as_of }).await
+}
+
+/// You and your direct reports at a glance (spec 49); `None` before first run.
+pub async fn get_people_frames() -> Result<Option<minimap_types::PeopleFrames>, AppError> {
+    invoke("get_people_frames", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct ApproachArg {
+    scope: minimap_types::ApproachScope,
+}
+
+/// Trouble elsewhere that will reach what is being looked at (spec 45).
+pub async fn get_approaching(
+    scope: minimap_types::ApproachScope,
+) -> Result<minimap_types::ApproachReport, AppError> {
+    invoke("get_approaching", &ApproachArg { scope }).await
+}
+
+/// The items in play that have gone quiet, and the share of what is in play that is clear.
+pub async fn get_fog() -> Result<minimap_types::FogReport, AppError> {
+    invoke("get_fog", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct ConfirmArg {
+    node: NodeRef,
+}
+
+/// Says an item is still accurate: it clears its fog without changing anything.
+pub async fn confirm_item(node: NodeRef) -> Result<(), AppError> {
+    invoke("confirm_item", &ConfirmArg { node }).await
+}
+
+// ------------------------------------------------------------------ pings (ADR-0020)
+
+/// The live pings of items that are not archived: due ones and coming-up ones.
+pub async fn list_pings() -> Result<minimap_types::PingsView, AppError> {
+    invoke("list_pings", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct PingItemArg {
+    target: NodeRef,
+    note: String,
+    on: String,
+}
+
+/// Pings an item on a day (`today`, `tomorrow`, `fri`, `next-week`, an ISO date...). An item that
+/// has a live ping gets that one changed.
+pub async fn ping_item(
+    target: NodeRef,
+    note: String,
+    on: String,
+) -> Result<minimap_types::PingRow, AppError> {
+    invoke("ping_item", &PingItemArg { target, note, on }).await
+}
+
+#[derive(Serialize)]
+struct UpdatePingArg {
+    id: Uuid,
+    note: Option<String>,
+    on: Option<String>,
+}
+
+/// Changes a ping's note and/or day.
+pub async fn update_ping(
+    id: Uuid,
+    note: Option<String>,
+    on: Option<String>,
+) -> Result<minimap_types::PingRow, AppError> {
+    invoke("update_ping", &UpdatePingArg { id, note, on }).await
+}
+
+/// Clears a ping (it drops off This week).
+pub async fn clear_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("clear_ping", &IdArg { id }).await
+}
+
+/// Brings a cleared ping back.
+#[allow(dead_code)] // no screen needs it yet: undo brings a cleared ping back
+pub async fn reopen_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("reopen_ping", &IdArg { id }).await
+}
+
+/// Removes a ping.
+#[allow(dead_code)] // pings are cleared, not removed, on screen
+pub async fn archive_ping(id: Uuid) -> Result<(), AppError> {
+    invoke("archive_ping", &IdArg { id }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PingForArg {
+    target_id: Uuid,
+}
+
+/// The live ping on an item, for its pane.
+pub async fn get_ping_for(target_id: Uuid) -> Result<Option<minimap_types::Ping>, AppError> {
+    invoke("get_ping_for", &PingForArg { target_id }).await
 }
 
 #[derive(Serialize)]
@@ -735,13 +956,44 @@ pub async fn get_backup_status() -> Result<BackupStatus, AppError> {
 }
 
 #[derive(Serialize)]
-struct OptionalPathArg {
+struct BackupNowArg {
     path: Option<String>,
+    label: Option<String>,
 }
 
-/// Backs up into `folder` (the configured folder when `None`).
-pub async fn backup_now(folder: Option<String>) -> Result<BackupEntry, AppError> {
-    invoke("backup_now", &OptionalPathArg { path: folder }).await
+/// Backs up into `folder` (the configured folder when `None`). With a `label` it is a named
+/// save point (spec 51); a blank one means none.
+pub async fn backup_now(
+    folder: Option<String>,
+    label: Option<String>,
+) -> Result<BackupEntry, AppError> {
+    invoke(
+        "backup_now",
+        &BackupNowArg {
+            path: folder,
+            label,
+        },
+    )
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavePointsArg {
+    utc_offset_minutes: i32,
+}
+
+/// Every restorable copy on one timeline: the backups on this computer and, when connected,
+/// Google Drive's checkpoints. `utc_offset_minutes` is the offset of the person's clock.
+pub async fn list_save_points(
+    utc_offset_minutes: i32,
+) -> Result<minimap_types::SaveTimeline, AppError> {
+    invoke("list_save_points", &SavePointsArg { utc_offset_minutes }).await
+}
+
+/// The newest save point and whether it is too old, for the status bar (no network).
+pub async fn get_last_save_point() -> Result<minimap_types::SaveSummary, AppError> {
+    invoke("get_last_save_point", &NoArgs {}).await
 }
 
 #[derive(Serialize)]
@@ -892,7 +1144,79 @@ pub async fn copy_text(text: &str) -> Result<(), AppError> {
 }
 
 pub async fn get_portfolio_overview() -> Result<PortfolioOverview, AppError> {
-    invoke("get_portfolio_overview", &NoArgs {}).await
+    invoke("get_portfolio_overview", &OverviewArg { view: None }).await
+}
+
+#[derive(Serialize)]
+struct OverviewArg {
+    view: Option<minimap_types::View>,
+}
+
+/// The overview in a view (spec 50): in My view only what touches you, with the top risks chosen
+/// among it. The health sections of the panes use [`get_portfolio_overview`].
+pub async fn get_portfolio_overview_in(
+    view: minimap_types::View,
+) -> Result<PortfolioOverview, AppError> {
+    invoke("get_portfolio_overview", &OverviewArg { view: Some(view) }).await
+}
+
+/// Everything that touches you, and why (spec 50).
+pub async fn get_my_scope() -> Result<minimap_types::MyScope, AppError> {
+    invoke("get_my_scope", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct ViewArg {
+    view: minimap_types::View,
+}
+
+/// The radar's layout for a view (spec 53).
+pub async fn get_radar(view: minimap_types::View) -> Result<minimap_types::Radar, AppError> {
+    invoke("get_radar", &ViewArg { view }).await
+}
+
+/// A number that moves when anything the radar shows may have changed (spec 53).
+pub async fn get_data_revision() -> Result<i64, AppError> {
+    invoke("get_data_revision", &NoArgs {}).await
+}
+
+#[derive(Serialize)]
+struct DarkArg {
+    dark: bool,
+}
+
+/// Opens the radar window, or brings it forward. `dark` is the colour it shows first.
+pub async fn open_radar(dark: bool) -> Result<(), AppError> {
+    invoke("open_radar", &DarkArg { dark }).await
+}
+
+pub async fn close_radar() -> Result<(), AppError> {
+    invoke("close_radar", &NoArgs {}).await
+}
+
+/// Opens the radar when it is closed and closes it when it is open; true when it is open now.
+pub async fn toggle_radar(dark: bool) -> Result<bool, AppError> {
+    invoke("toggle_radar", &DarkArg { dark }).await
+}
+
+#[derive(Serialize)]
+struct OnArg {
+    on: bool,
+}
+
+/// Keeps the radar on top of other windows, or lets it go behind them.
+pub async fn set_radar_on_top(on: bool) -> Result<(), AppError> {
+    invoke("set_radar_on_top", &OnArg { on }).await
+}
+
+/// Brings the main window forward with the item open (the radar's only action).
+pub async fn open_in_main(node: NodeRef) -> Result<(), AppError> {
+    invoke("open_in_main", &NodeArg { node }).await
+}
+
+/// The way from the whole portfolio down to an item: World first, the item last (spec 52).
+pub async fn get_zoom_path(node: NodeRef) -> Result<Vec<minimap_types::ZoomStep>, AppError> {
+    invoke("get_zoom_path", &NodeArg { node }).await
 }
 
 #[derive(Serialize)]

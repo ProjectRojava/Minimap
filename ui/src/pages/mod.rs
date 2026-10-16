@@ -1,4 +1,5 @@
 pub mod about;
+pub mod archive;
 pub mod capacity;
 pub mod decisions;
 pub mod deep_link;
@@ -9,6 +10,7 @@ pub mod objectives;
 pub mod overview;
 pub mod people;
 pub mod projects;
+pub mod radar;
 pub mod settings;
 pub mod tasks;
 pub mod teams;

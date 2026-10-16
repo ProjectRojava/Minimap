@@ -2,7 +2,7 @@
 //! (`window.__TAURI__.window`). Permissions are listed in `capabilities/default.json`.
 
 use minimap_types::AppError;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{prelude::*, JsCast};
 
 #[wasm_bindgen]
 extern "C" {
@@ -10,9 +10,6 @@ extern "C" {
 
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "window"], js_name = getCurrentWindow)]
     fn current_window() -> TauriWindow;
-
-    #[wasm_bindgen(method, catch, js_name = minimize)]
-    async fn minimize_raw(this: &TauriWindow) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(method, catch, js_name = toggleMaximize)]
     async fn toggle_maximize_raw(this: &TauriWindow) -> Result<JsValue, JsValue>;
@@ -25,6 +22,73 @@ extern "C" {
 
     #[wasm_bindgen(method, catch, js_name = startResizeDragging)]
     async fn start_resize_raw(this: &TauriWindow, direction: &str) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(method, catch, js_name = startDragging)]
+    async fn start_dragging_raw(this: &TauriWindow) -> Result<JsValue, JsValue>;
+
+    /// `window.__TAURI__.event.listen(event, handler)`: resolves to the function that stops
+    /// listening.
+    #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "event"], js_name = listen)]
+    async fn listen_raw(event: &str, handler: &js_sys::Function) -> Result<JsValue, JsValue>;
+}
+
+/// The name of the window this page is in (`main`, `radar`), read without failing when the page
+/// runs outside Tauri (a plain browser).
+pub fn label() -> Option<String> {
+    let tauri = js_sys::Reflect::get(&js_sys::global(), &"__TAURI__".into()).ok()?;
+    let window = js_sys::Reflect::get(&tauri, &"window".into()).ok()?;
+    let get: js_sys::Function = js_sys::Reflect::get(&window, &"getCurrentWindow".into())
+        .ok()?
+        .dyn_into()
+        .ok()?;
+    let current = get.call0(&window).ok()?;
+    js_sys::Reflect::get(&current, &"label".into())
+        .ok()?
+        .as_string()
+}
+
+/// Whether this page is the radar window (spec 53): by the window's name, else by the address
+/// (a browser pointed at `/radar`).
+pub fn is_radar_window() -> bool {
+    if let Some(label) = label() {
+        return label == "radar";
+    }
+    leptos::web_sys::window()
+        .and_then(|w| w.location().pathname().ok())
+        .is_some_and(|path| path == "/radar")
+}
+
+/// Starts moving the window with the pointer (the radar has no title bar).
+pub async fn start_dragging() -> Result<(), AppError> {
+    current_window()
+        .start_dragging_raw()
+        .await
+        .map(drop)
+        .map_err(|e| window_error("move the window", e))
+}
+
+/// Calls `handler` with the payload of every `event` the backend sends to this window, for as
+/// long as the page lives (needs `core:event:allow-listen`, which only the main window has).
+pub fn listen<T, F>(event: &'static str, handler: F)
+where
+    T: serde::de::DeserializeOwned + 'static,
+    F: Fn(T) + 'static,
+{
+    let callback = Closure::<dyn FnMut(JsValue)>::new(move |envelope: JsValue| {
+        let payload = js_sys::Reflect::get(&envelope, &"payload".into()).unwrap_or(JsValue::NULL);
+        if let Ok(value) = serde_wasm_bindgen::from_value::<T>(payload) {
+            handler(value);
+        }
+    });
+    let function: js_sys::Function = callback
+        .as_ref()
+        .unchecked_ref::<js_sys::Function>()
+        .clone();
+    // The listener lives as long as the page does.
+    callback.forget();
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = listen_raw(event, &function).await;
+    });
 }
 
 fn window_error(what: &str, e: JsValue) -> AppError {
@@ -35,14 +99,6 @@ fn window_error(what: &str, e: JsValue) -> AppError {
             e.as_string().unwrap_or_else(|| format!("{e:?}"))
         ),
     }
-}
-
-pub async fn minimize() -> Result<(), AppError> {
-    current_window()
-        .minimize_raw()
-        .await
-        .map(drop)
-        .map_err(|e| window_error("minimize", e))
 }
 
 pub async fn toggle_maximize() -> Result<(), AppError> {

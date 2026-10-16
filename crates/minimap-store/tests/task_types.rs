@@ -9,6 +9,7 @@ fn db() -> Connection {
 }
 
 fn task(conn: &mut Connection, task_type: Option<&str>) -> Result<Task> {
+    let __p = minimap_store::fixtures::project(conn);
     tasks::create(
         conn,
         CreateTask {
@@ -20,7 +21,7 @@ fn task(conn: &mut Connection, task_type: Option<&str>) -> Result<Task> {
             title: "Pick the data store".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: None,
             start_date: None,
@@ -174,6 +175,7 @@ fn a_stored_list_that_no_longer_reads_falls_back_to_the_defaults() {
 #[test]
 fn a_repeating_task_hands_its_type_on() {
     let mut conn = db();
+    let __p = minimap_store::fixtures::project(&conn);
     let t = tasks::create(
         &mut conn,
         CreateTask {
@@ -185,7 +187,7 @@ fn a_repeating_task_hands_its_type_on() {
             title: "Access review".into(),
             assignee: AssigneeChoice::Nobody,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: None,
             start_date: None,

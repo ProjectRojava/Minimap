@@ -44,6 +44,18 @@ The schedule only uses working days, so a weekend start becomes the next working
 
 The preview card says why: an unreadable date, a bad estimate, an unclosed quote, or a question still waiting for your answer (pick, *Create* or *Skip*). See [Quick-add and the palette](help:quick-add).
 
+## Minimap shows its start screen for a long time
+
+While Minimap opens it shows its mark, the line *Starting up*, its version and who made it. It stays for at least five seconds, even when the app is ready sooner, and for as long as the app needs if that is longer. If it takes more than nine seconds the line changes to *Still starting. This can take a moment after an update.* Give it a little longer; if it never goes away, close Minimap and open it again, then see [*Is Minimap itself answering?*](help:faq) below. Your data is not touched while it starts.
+
+## I closed the window and Minimap is still running
+
+If you chose *Keep running in the tray*, closing the window only hides it. Click the Minimap icon in the tray (by the clock) to open it again, or right-click it and choose **Quit Minimap** to close it for good. To change what the close button does, see *Settings → General → Window and tray* and [Tray, reminders and starting with your computer](help:tray). When the system refuses Minimap a tray icon, closing the window closes Minimap. On Linux, Minimap asks the desktop whether anything shows tray icons and, if nothing does (WSL, or GNOME without an AppIndicator extension), closing the window closes Minimap and *Settings → General → Window and tray* says why. On Windows a new tray icon may first sit behind the **^** arrow next to the clock: drag it out to keep it visible.
+
+## Is Minimap itself answering?
+
+If something looks stuck, type `ping` in the command palette (`Ctrl/Cmd+K`). A single row answers *pong*, with the version of Minimap and the version of the database it runs. If the row says *no answer*, close Minimap and open it again.
+
 ## Google Drive says it needs attention
 
 - **Sign in again**: your access expired or was revoked. Press *Sign in with Google*.
@@ -90,13 +102,17 @@ Afterwards the database is empty again, apart from you.
 | **Capacity** | A person's weekly hours; load is scheduled work ÷ capacity |
 | **Checkpoint** | An hourly or daily copy kept on Google Drive |
 | **Critical path** | The chain of tasks that decides a project's finish date |
+| **Fog**, **haze** | Work in play that nobody has changed, written about or confirmed for a while: *haze* first, then *fog* ([Fog](help:fog)) |
 | **Handle** | A project's short unique name, such as `api-launch` |
 | **Item** | Anything you record: objective, project, task, person, team, note, decision, waiting-on |
 | **Lag** | Extra waiting working days on a *blocks* link |
+| **Ping** | A marker on any item with a day to come back to it; shows on This week that day ([Pings](help:pings)) |
 | **Recovery key** | A one-time key that opens your encrypted data or your Drive data on a new computer |
 | **Slack** | Working days a task can slip without moving the finish |
 | **Snooze** | Hide a waiting-on until a date |
 | **Stale** | An open waiting-on that is old or past its expected date |
+| **Still accurate** | Saying an item is fine as it is, which clears its fog without changing it |
 | **Superseded** | A decision replaced by a newer one |
 | **Unestimated** | A task with no estimate, scheduled as one day |
+| **Visibility** | The share of what is in play that is clear of fog, shown on the Overview |
 | **Working day** | A day counted by the schedule (Monday–Friday by default) |

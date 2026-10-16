@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>Minimap – small mark (dark)</title>
+  <!-- The small mark for 16 to 32 px: no grid, no gradient, a 2px box, one link, three nodes. Brand asset. -->
+  <rect width="32" height="32" rx="7" fill="#12233A"/>
+  <path d="M4.5 26.5 L17 17.5 L27.5 5.5" fill="none" stroke="#3FC7B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.6"/>
+  <rect x="8" y="10.5" width="14" height="11" rx="2" fill="none" stroke="#F7F4EC" stroke-width="2"/>
+  <g fill="#3FC7B8" fill-opacity="0.6"><circle cx="4.5" cy="26.5" r="2"/><circle cx="27.5" cy="5.5" r="2"/></g>
+  <circle cx="17" cy="17.5" r="3.4" fill="#3FC7B8"/>
+</svg>

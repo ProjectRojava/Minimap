@@ -1,6 +1,6 @@
 use minimap_core::dependency_graph::{build, GraphError, GraphInput};
 use minimap_store::Connection;
-use minimap_types::{AppError, DependencyGraph, GraphFilter};
+use minimap_types::{AppError, DependencyGraph, GraphFilter, GraphLevel};
 use tauri::State;
 
 use crate::{
@@ -23,21 +23,52 @@ pub(crate) fn graph_impl(
     conn: &Connection,
     filter: &GraphFilter,
 ) -> Result<DependencyGraph, AppError> {
+    graph_at(conn, filter, minimap_store::today())
+}
+
+/// [`graph_impl`] as of `today` (the demo-data snapshot tests fix it).
+pub(crate) fn graph_at(
+    conn: &Connection,
+    filter: &GraphFilter,
+    today: minimap_types::Date,
+) -> Result<DependencyGraph, AppError> {
     let tasks = minimap_store::tasks::list_planned(conn).map_err(store_error)?;
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let teams = minimap_store::teams::list(conn, false).map_err(store_error)?;
-    let work_week = minimap_store::settings::get(conn)
-        .map_err(store_error)?
-        .work_week;
+    let people = minimap_store::people::list(conn, false).map_err(store_error)?;
+    let settings = minimap_store::settings::get(conn).map_err(store_error)?;
+    // My view (spec 50): the work that touches you.
+    let scope = if filter.mine {
+        Some(crate::commands::orientation::my_scope_at(conn, today)?)
+    } else {
+        None
+    };
+    // The projects' health is the Overview's; only the Projects level shows it.
+    let project_health: std::collections::HashMap<_, _> = if filter.level == GraphLevel::Projects {
+        let overview = crate::commands::overview::overview_at(conn, today)?;
+        overview
+            .objectives
+            .iter()
+            .flat_map(|o| o.projects.iter())
+            .chain(overview.unlinked_projects.iter())
+            .map(|p| (p.project.node.id, p.health.level))
+            .collect()
+    } else {
+        Default::default()
+    };
     build(
         &GraphInput {
             tasks: &tasks,
             edges: &edges,
             projects: &projects,
             teams: &teams,
-            today: minimap_store::today(),
-            work_week,
+            people: &people,
+            project_health: &project_health,
+            zone_narrow_days: settings.zone_narrow_days,
+            today,
+            work_week: settings.work_week,
+            scope: scope.as_ref(),
         },
         filter,
     )
@@ -112,6 +143,68 @@ mod tests {
             },
         )
         .unwrap();
+    }
+
+    #[test]
+    fn an_unlinked_task_dropped_onto_a_box_is_linked_everywhere() {
+        use minimap_types::GraphFilter;
+        let today = time::macros::date!(2027 - 03 - 01);
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let p = project(&mut conn, "P");
+        let (a, b, c) = (
+            task(&mut conn, "Anchor", 1.0, p),
+            task(&mut conn, "Next", 1.0, p),
+            task(&mut conn, "Loose", 1.0, p),
+        );
+        link(&mut conn, EdgeType::Blocks, NodeType::Task, a, b);
+        // "Loose" is in the unlinked list, not in the drawing, and has no link on the board.
+        let before = graph_at(&conn, &GraphFilter::default(), today).unwrap();
+        assert_eq!(
+            before
+                .unlinked
+                .iter()
+                .map(|u| u.node.id)
+                .collect::<Vec<_>>(),
+            [c]
+        );
+        assert!(before.nodes.iter().all(|n| n.node.id != c));
+        let rows = minimap_store::views::task_rows(&conn).unwrap();
+        assert_eq!(rows.iter().find(|r| r.task.id == c).unwrap().link_count, 0);
+
+        // The UI drops it on "Next": the link the drag makes is `Loose blocks Next`, through the
+        // same command as every other link.
+        crate::commands::edges::add_edge_impl(
+            &mut conn,
+            NewEdge {
+                edge_type: EdgeType::Blocks,
+                from: NodeRef::new(NodeType::Task, c),
+                to: NodeRef::new(NodeType::Task, b),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .unwrap();
+
+        // The next graph draws it and the list no longer has it (so it stays gone after switching
+        // screens), and the Tasks board counts the link on both cards.
+        let after = graph_at(&conn, &GraphFilter::default(), today).unwrap();
+        assert!(after.unlinked.is_empty() && after.hidden_unlinked == 0);
+        assert!(after.nodes.iter().any(|n| n.node.id == c));
+        assert!(after.edges.iter().any(|e| e.from == c && e.to == b));
+        let rows = minimap_store::views::task_rows(&conn).unwrap();
+        let links = |id| rows.iter().find(|r| r.task.id == id).unwrap().link_count;
+        assert_eq!((links(c), links(b), links(a)), (1, 2, 1));
+        // A drop that would make a loop is refused and links nothing.
+        let err = crate::commands::edges::add_edge_impl(
+            &mut conn,
+            NewEdge {
+                edge_type: EdgeType::Blocks,
+                from: NodeRef::new(NodeType::Task, b),
+                to: NodeRef::new(NodeType::Task, c),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "cycle");
     }
 
     #[test]

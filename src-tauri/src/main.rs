@@ -4,9 +4,12 @@
 mod commands;
 mod error;
 mod keystore;
+mod shell;
 mod state;
 mod sync;
+mod tray;
 mod undo;
+mod watch;
 
 #[cfg(test)]
 mod csp_tests;
@@ -48,6 +51,19 @@ fn spawn_recurring_notes(state: AppState) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Archives finished tasks that have come of age (Settings, `store::done_sweep`): at start, then
+/// every hour.
+fn spawn_done_sweep(state: AppState) -> anyhow::Result<()> {
+    std::thread::Builder::new()
+        .name("done-sweep".into())
+        .spawn(move || loop {
+            commands::archive::archive_old_done_tick(&state);
+            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+        })
+        .context("start the finished-task archiving timer")?;
+    Ok(())
+}
+
 fn spawn_auto_backup(state: AppState) -> anyhow::Result<()> {
     std::thread::Builder::new()
         .name("auto-backup".into())
@@ -61,7 +77,17 @@ fn spawn_auto_backup(state: AppState) -> anyhow::Result<()> {
 
 fn main() {
     let result = tauri::Builder::default()
+        // First, as its documentation asks: a second Minimap (started by hand, by a shortcut or by
+        // the computer) must not open the same database again. It brings the first one forward.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![shell::AUTOSTART_ARG]),
+        ))
         // Attached pictures are shown through this protocol, never through a network address.
         .register_asynchronous_uri_scheme_protocol("minimap-media", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
@@ -74,23 +100,77 @@ fn main() {
             });
         })
         .setup(|app| {
+            let started = std::time::Instant::now();
+            app.manage(commands::splash::SplashClock(started));
             let dir = app.path().app_data_dir().context("resolve app data dir")?;
             fs::create_dir_all(&dir).context("create app data dir")?;
             init_logging(&dir)?;
+            // This computer's own settings and the tray, before anything is shown: whether the
+            // window opens at all depends on them.
+            app.manage(shell::Shell::new(dir.clone()));
+            let shell = app.state::<shell::Shell>();
+            shell.set_tray_available(tray::create(app.handle()));
+            let args: Vec<String> = std::env::args().collect();
+            let hidden = shell::starts_hidden(&args, &shell.settings(), shell.tray_available());
+            shell.set_hidden_start(hidden);
+            if hidden {
+                // Started by the computer and kept in the tray: no splash and no window until
+                // the tray icon is clicked.
+                tracing::info!("started in the tray");
+            } else {
+                // The small splash window, while the main window stays hidden. The app shows
+                // the main window when it is ready (`commands::splash::app_ready`), and the
+                // failsafe does it anyway after thirty seconds. In the look that matches the
+                // app's theme, as it was told at the last start.
+                commands::splash::open(app.handle(), commands::splash::read_scheme(&dir));
+                commands::splash::spawn_failsafe(app.handle().clone(), started);
+            }
+            if shell.settings().start_at_login {
+                // Written again at every start, so a program that was moved or reinstalled is
+                // the one the computer starts.
+                if let Err(e) = commands::device::apply_autostart(app.handle(), true) {
+                    tracing::warn!(error = %e, "could not register starting with the computer");
+                }
+            }
             commands::attachments::clean_opened(&dir);
             let keys: Arc<dyn keystore::KeyStore> = Arc::new(keystore::OsKeyStore);
             let vault = commands::security::boot(&dir, keys.as_ref())
                 .map_err(|e| anyhow::anyhow!("open the database: {e}"))?;
             tracing::info!(locked = vault.conn.is_none(), "database ready");
             let state = AppState::new(vault, dir, keys);
+            // The time zone the screen last gave, so reminders work before it has said it again.
+            if let Some(minutes) = shell.notes().utc_offset_minutes {
+                state.clock.note(minutes);
+            }
             app.manage(state.clone());
+            app.manage(
+                commands::radar::RadarSaver::start(state.clone())
+                    .context("start the radar's place keeper")?,
+            );
             spawn_auto_backup(state.clone())?;
             spawn_recurring_notes(state.clone())?;
-            sync::spawn(state)?;
+            spawn_done_sweep(state.clone())?;
+            sync::spawn(state.clone())?;
+            watch::spawn(app.handle().clone())?;
+            commands::radar::open_at_start(app.handle(), &state);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // The close button may be held back (hide to the tray, or ask); otherwise the radar
+            // goes with the main window.
+            if !tray::on_window_event(window, event) {
+                commands::radar::on_window_event(window, event);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::system::ping,
+            commands::splash::app_ready,
+            commands::splash::remember_splash_scheme,
+            commands::device::get_device_settings,
+            commands::device::update_device_settings,
+            commands::device::answer_close,
+            commands::device::minimize_main,
+            commands::device::quit_app,
             commands::nodes::get_node_summary,
             commands::nodes::list_edges_for,
             commands::nodes::list_activity_for,
@@ -110,6 +190,9 @@ fn main() {
             commands::people::update_person,
             commands::people::preview_archive_person,
             commands::people::archive_person,
+            commands::archive::list_archived,
+            commands::archive::restore_archived,
+            commands::people::merge_people,
             commands::teams::list_teams,
             commands::teams::get_team,
             commands::teams::get_team_detail,
@@ -167,14 +250,36 @@ fn main() {
             commands::quick_add::commit_quick_add,
             commands::graph::get_dependency_graph,
             commands::capacity::get_capacity,
+            commands::orientation::get_my_scope,
+            commands::zoom::get_zoom_path,
+            commands::radar::get_radar,
+            commands::radar::get_data_revision,
+            commands::radar::open_radar,
+            commands::radar::close_radar,
+            commands::radar::toggle_radar,
+            commands::radar::set_radar_on_top,
+            commands::radar::open_in_main,
+            commands::people_frames::get_people_frames,
             commands::security::get_security_status,
             commands::security::unlock_database,
             commands::security::set_encryption,
             commands::security::delete_unencrypted_backups,
             commands::backup::get_backup_status,
+            commands::backup::list_save_points,
+            commands::backup::get_last_save_point,
             commands::backup::backup_now,
             commands::backup::preview_restore,
             commands::backup::restore_backup,
+            commands::approach::get_approaching,
+            commands::fog::get_fog,
+            commands::fog::confirm_item,
+            commands::pings::list_pings,
+            commands::pings::ping_item,
+            commands::pings::update_ping,
+            commands::pings::clear_ping,
+            commands::pings::reopen_ping,
+            commands::pings::archive_ping,
+            commands::pings::get_ping_for,
             commands::this_week::get_this_week,
             commands::this_week::reschedule_task,
             commands::overview::get_portfolio_overview,
@@ -217,6 +322,8 @@ fn main() {
             commands::attachments::open_attachment,
             commands::links::open_link,
             commands::tasks::create_linked_task,
+            commands::tasks::ensure_task_decision,
+            commands::tasks::finish_decision_task,
         ])
         .build(tauri::generate_context!());
     let app = match result {
@@ -229,7 +336,16 @@ fn main() {
     app.run(|handle, event| {
         // On quit, save what is unsaved to Drive (waiting at most ten seconds; anything left
         // stays marked and goes up at the next start).
-        if let tauri::RunEvent::ExitRequested { .. } = event {
+        if let tauri::RunEvent::ExitRequested { code, api, .. } = &event {
+            // The last window closing (the splash, say) is not a reason to leave while the tray
+            // is there; only Quit is (it sets the flag and asks for exit with a code).
+            let staying = handle
+                .try_state::<shell::Shell>()
+                .is_some_and(|s| s.tray_available() && !s.quitting());
+            if code.is_none() && staying {
+                api.prevent_exit();
+                return;
+            }
             let state = handle.state::<AppState>();
             let engine = state.sync.engine.clone();
             let (done, wait) = std::sync::mpsc::channel();

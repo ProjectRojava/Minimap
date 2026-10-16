@@ -129,6 +129,14 @@ pub const NAV: &[NavItem] = &[
         enabled: true,
     },
     NavItem {
+        label: "Archive",
+        icon: "archive",
+        group: "Log",
+        path: "/archive",
+        chord: 'v',
+        enabled: true,
+    },
+    NavItem {
         label: "Weekly review",
         icon: "review",
         group: "Review",
@@ -241,11 +249,13 @@ pub fn move_cursor(cursor: Option<usize>, len: usize, delta: isize) -> Option<us
 }
 
 /// Keys that act on the row under the list cursor: `x` toggle done, `s` next status,
-/// `f` focus, `d` due date, `a` assignee, `1`-`5` priority. Screens that don't use them ignore them.
+/// `f` focus, `c` still accurate (clears fog, spec 43), `m` ping it (ADR-0020; handled for every
+/// screen by `keyboard.rs`), `d` due date, `a` assignee, `1`-`5` priority. Screens that don't use
+/// them ignore them.
 pub fn is_row_key(key: &str) -> bool {
     matches!(
         key,
-        "x" | "s" | "f" | "d" | "a" | "1" | "2" | "3" | "4" | "5"
+        "x" | "s" | "f" | "c" | "m" | "d" | "a" | "1" | "2" | "3" | "4" | "5"
     )
 }
 
@@ -273,6 +283,12 @@ pub fn undo_key(key: &str, ctrl: bool, meta: bool, shift: bool, alt: bool) -> Op
     (key.eq_ignore_ascii_case("y") && ctrl && !meta && !shift).then_some(UndoKey::Redo)
 }
 
+/// Ctrl/Cmd+Shift+M opens or closes the radar (spec 53). Not Alt; not without Shift (that is
+/// nothing of ours); from anywhere, even a text box.
+pub fn radar_key(key: &str, ctrl: bool, meta: bool, shift: bool, alt: bool) -> bool {
+    (ctrl || meta) && shift && !alt && key.eq_ignore_ascii_case("m")
+}
+
 /// Keys must not trigger shortcuts while the user is typing.
 pub fn is_typing_target(tag: &str, editable: bool) -> bool {
     editable
@@ -285,6 +301,18 @@ pub fn is_typing_target(tag: &str, editable: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_radar_shortcut_is_ctrl_or_cmd_shift_m_and_nothing_else() {
+        assert!(radar_key("M", true, false, true, false));
+        assert!(radar_key("m", false, true, true, false));
+        assert!(!radar_key("m", true, false, false, false));
+        assert!(!radar_key("m", false, false, true, false));
+        assert!(!radar_key("m", true, false, true, true));
+        assert!(!radar_key("z", true, false, true, false));
+        // It does not collide with undo and redo.
+        assert_eq!(undo_key("M", true, false, true, false), None);
+    }
 
     #[test]
     fn help_keys() {
@@ -365,7 +393,7 @@ mod tests {
 
     #[test]
     fn row_keys() {
-        for k in ["x", "s", "f", "d", "a", "1", "5"] {
+        for k in ["x", "s", "f", "c", "m", "d", "a", "1", "5"] {
             assert!(is_row_key(k), "{k}");
         }
         for k in ["g", "j", "k", "n", "0", "6", "Enter", "xx", ""] {

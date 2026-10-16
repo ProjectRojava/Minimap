@@ -4,8 +4,8 @@ use minimap_core::{
 };
 use minimap_store::Connection;
 use minimap_types::{
-    AppError, AssigneeChoice, CreateTask, Date, FocusChoice, LinkRelation, NodeRef, NodeType,
-    Patch, Task, TaskDetail, TaskFilter, TaskRow, UpdateTask, Uuid,
+    AppError, AssigneeChoice, CreateTask, Date, Decision, FocusChoice, LinkRelation, NodeRef,
+    NodeType, Patch, Task, TaskDetail, TaskFilter, TaskRow, UpdateTask, Uuid,
 };
 use tauri::State;
 
@@ -189,6 +189,37 @@ pub(crate) fn create_linked_task_impl(
         .map_err(store_error)
 }
 
+/// The decision record of a task of type Decision (spec 41), made if the task has none yet (a
+/// task typed Decision before records existed, or whose record was archived).
+#[tauri::command]
+pub async fn ensure_task_decision(
+    state: State<'_, AppState>,
+    task_id: Uuid,
+) -> Result<Decision, AppError> {
+    state
+        .run(move |conn| {
+            minimap_store::decisions::ensure_for_task(conn, task_id).map_err(store_error)
+        })
+        .await
+}
+
+/// The *Finish decision* dialog (spec 42): writes what was decided and why on the task's record
+/// and finishes the task, which decides the record, in one step.
+#[tauri::command]
+pub async fn finish_decision_task(
+    state: State<'_, AppState>,
+    task_id: Uuid,
+    decision: String,
+    rationale: String,
+) -> Result<Task, AppError> {
+    state
+        .run(move |conn| {
+            minimap_store::decisions::finish_task(conn, task_id, decision, rationale)
+                .map_err(store_error)
+        })
+        .await
+}
+
 /// Archives the task and its links.
 #[tauri::command]
 pub async fn archive_task(state: State<'_, AppState>, id: Uuid) -> Result<(), AppError> {
@@ -266,9 +297,34 @@ mod tests {
     }
 
     fn task(conn: &mut Connection, title: &str) -> Task {
-        create_tasks_bulk_impl(conn, vec![title.into()], None, AssigneeChoice::Nobody)
+        let project = minimap_store::fixtures::project(conn);
+        create_tasks_bulk_impl(conn, vec![title.into()], Some(project), AssigneeChoice::Nobody)
             .unwrap()
             .remove(0)
+    }
+
+    #[test]
+    fn finishing_an_unwritten_decision_task_has_its_own_error_code() {
+        let mut conn = conn();
+        let source = task(&mut conn, "Source");
+        let made = create_linked_task_impl(
+            &mut conn,
+            source.id,
+            LinkRelation::RelatesTo,
+            "Pick the store".into(),
+            Some("decision".into()),
+        )
+        .unwrap();
+        let done = UpdateTask {
+            status: Some(minimap_types::TaskStatus::Done),
+            ..Default::default()
+        };
+        let err = minimap_store::tasks::update(&mut conn, made.id, done)
+            .map_err(store_error)
+            .unwrap_err();
+        // The UI opens the *Finish decision* dialog on this code (`state::DECISION_INCOMPLETE`).
+        assert_eq!(err.code, "decision_incomplete");
+        assert!(err.message.contains("Pick the store"));
     }
 
     #[test]

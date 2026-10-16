@@ -1,5 +1,6 @@
 //! Domain logic and graph algorithms. Pure: no IO, no SQLite.
 
+pub mod approach;
 pub mod attachments;
 pub mod backup;
 pub mod capacity;
@@ -9,6 +10,7 @@ pub mod dependency_graph;
 pub mod edge_rules;
 pub mod export_md;
 pub mod focus;
+pub mod fog;
 pub mod health;
 pub mod impact;
 pub mod layout;
@@ -16,11 +18,16 @@ pub mod links;
 pub mod meeting;
 pub mod notes;
 pub mod objectives;
+pub mod orientation;
 pub mod overview;
+pub mod people_frames;
+pub mod pings;
 pub mod projects;
 pub mod quick_add;
+pub mod radar;
 pub mod recurrence;
 pub mod report;
+pub mod save_points;
 pub mod schedule;
 pub mod search;
 pub mod slug;
@@ -32,6 +39,8 @@ pub mod this_week;
 pub mod undo;
 pub mod waiting_on;
 pub mod weekly_review;
+pub mod zone;
+pub mod zoom;
 
 use minimap_types::PingResponse;
 

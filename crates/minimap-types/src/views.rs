@@ -150,6 +150,9 @@ pub struct ProjectRow {
     /// Active tasks in the project, and how many of them are done.
     pub task_count: u32,
     pub done_task_count: u32,
+    /// The room before its target (spec 44), filled by the command; `None` from the store.
+    #[serde(default)]
+    pub zone: crate::Zone,
 }
 
 /// A list section (one objective, or "No objective") or a board column (one status).
@@ -179,6 +182,9 @@ pub struct ProjectDetail {
     /// Projects that depend on this one.
     pub needed_by: Vec<NodeSummary>,
     pub tasks: Vec<ProjectTask>,
+    /// The room before its target (spec 44), filled by the command; `None` from the store.
+    #[serde(default)]
+    pub zone: crate::Zone,
 }
 
 /// What to do with a project's tasks when it is archived.
@@ -239,11 +245,27 @@ pub struct TaskRow {
     pub subtasks_done: u32,
 }
 
+/// One thing in the Archive: what it is, when it was archived, and for a task the state it was
+/// left in and its project.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArchivedItem {
+    pub node: NodeSummary,
+    /// The day it was archived (UTC).
+    pub archived_on: time::Date,
+    /// The exact time, as stored; newest first sorts by it.
+    pub archived_at: String,
+    /// "done · Small Bonds Portal" for a task; empty for the rest.
+    pub detail: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TaskDetail {
     pub task: Task,
     pub project: Option<NodeSummary>,
     pub assignee: Option<NodeSummary>,
+    /// The decision record of a task of type Decision (spec 41); it outlives the task.
+    #[serde(default)]
+    pub decision: Option<crate::Decision>,
 }
 
 pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
@@ -251,6 +273,15 @@ pub const DEFAULT_HOURS_PER_DAY: f64 = 8.0;
 pub const DEFAULT_STALE_WAITING_DAYS: u32 = 7;
 /// More open tasks than this flags a person as overloaded (the simple, estimate-free signal).
 pub const DEFAULT_CAPACITY_TASK_LIMIT: u32 = 10;
+/// The safe zone is narrow at this many working days of room or fewer.
+pub const DEFAULT_ZONE_NARROW_DAYS: u32 = 3;
+/// The most days of room the narrow setting can be.
+pub const MAX_ZONE_NARROW_DAYS: u32 = 30;
+/// You meet each direct report at least this often; later than this their frame says a 1:1 is due
+/// (the *Your people* frames, spec 49).
+pub const DEFAULT_ONE_ON_ONE_EVERY_DAYS: u32 = 14;
+/// The most days the 1:1 rhythm can be.
+pub const MAX_ONE_ON_ONE_EVERY_DAYS: u32 = 180;
 /// Dark is the default look. The UI owns the list of themes; the backend only stores the id.
 pub const DEFAULT_THEME: &str = "minimap-dark";
 
@@ -270,9 +301,19 @@ pub struct Settings {
     pub stale_waiting_days: u32,
     /// A person with more open tasks than this is flagged on Capacity and the Overview.
     pub capacity_task_limit: u32,
+    /// A project's safe zone is *narrow* at this many working days of room or fewer (spec 44).
+    pub zone_narrow_days: u32,
+    /// How many days you go between 1:1s with a direct report; past that the *Your people* frame
+    /// says one is due (spec 49).
+    pub one_on_one_every_days: u32,
+    /// Show everyone below your direct reports in *Your people* too, not only the people who
+    /// report to you (spec 49). On by default.
+    pub frames_all_levels: bool,
     /// When a project's lateness, blocked/overdue share or unestimated share turns its health
     /// amber or red.
     pub health: crate::HealthThresholds,
+    /// When an item in play counts as hazy or fogged for lack of a change (spec 43).
+    pub fog: crate::FogThresholds,
     /// The Markdown template of the weekly status report (`{{placeholders}}`, see
     /// `REPORT_PLACEHOLDERS`); the built-in default until edited.
     pub report_template: String,
@@ -285,7 +326,24 @@ pub struct Settings {
     /// Frame a board card in the line style and colour of its task type (spec 39). This device
     /// only, like the theme.
     pub type_borders: bool,
+    /// The radar window stays on top of other windows (spec 53, ADR-0021). This device only.
+    pub radar_on_top: bool,
+    /// Open the radar when Minimap starts. This device only.
+    pub radar_open_at_start: bool,
+    /// The radar's three rings, in working days from today. This device only.
+    pub radar_rings: [u32; 3],
+    /// A finished task is archived on its own this many days after it was finished; 0 = never.
+    pub done_archive_days: u32,
+    /// The same for a finished meeting (they pile up fastest); 0 = never.
+    pub done_archive_meeting_days: u32,
 }
+
+/// Finished tasks are archived after a month by default.
+pub const DEFAULT_DONE_ARCHIVE_DAYS: u32 = 30;
+/// Finished meetings after two days.
+pub const DEFAULT_DONE_ARCHIVE_MEETING_DAYS: u32 = 2;
+/// The most days either setting can be (a year).
+pub const MAX_DONE_ARCHIVE_DAYS: u32 = 365;
 
 impl Default for Settings {
     fn default() -> Self {
@@ -296,12 +354,21 @@ impl Default for Settings {
             theme: DEFAULT_THEME.to_owned(),
             stale_waiting_days: DEFAULT_STALE_WAITING_DAYS,
             capacity_task_limit: DEFAULT_CAPACITY_TASK_LIMIT,
+            zone_narrow_days: DEFAULT_ZONE_NARROW_DAYS,
+            one_on_one_every_days: DEFAULT_ONE_ON_ONE_EVERY_DAYS,
+            frames_all_levels: true,
             health: crate::HealthThresholds::default(),
+            fog: crate::FogThresholds::default(),
             report_template: crate::DEFAULT_REPORT_TEMPLATE.to_owned(),
             backup_folder: None,
             auto_backup: true,
             task_types: crate::default_task_types(),
             type_borders: true,
+            radar_on_top: true,
+            radar_open_at_start: false,
+            radar_rings: crate::DEFAULT_RADAR_RINGS,
+            done_archive_days: DEFAULT_DONE_ARCHIVE_DAYS,
+            done_archive_meeting_days: DEFAULT_DONE_ARCHIVE_MEETING_DAYS,
         }
     }
 }
@@ -315,7 +382,11 @@ pub struct UpdateSettings {
     pub theme: Option<String>,
     pub stale_waiting_days: Option<u32>,
     pub capacity_task_limit: Option<u32>,
+    pub zone_narrow_days: Option<u32>,
+    pub one_on_one_every_days: Option<u32>,
+    pub frames_all_levels: Option<bool>,
     pub health: Option<crate::HealthThresholds>,
+    pub fog: Option<crate::FogThresholds>,
     /// A new report template; an empty text restores the built-in one.
     pub report_template: Option<String>,
     /// A new backup folder (an absolute path); an empty text goes back to the default.
@@ -325,6 +396,11 @@ pub struct UpdateSettings {
     /// a type cannot be removed, only archived.
     pub task_types: Option<Vec<crate::TaskType>>,
     pub type_borders: Option<bool>,
+    pub radar_on_top: Option<bool>,
+    pub radar_open_at_start: Option<bool>,
+    pub radar_rings: Option<[u32; 3]>,
+    pub done_archive_days: Option<u32>,
+    pub done_archive_meeting_days: Option<u32>,
 }
 
 // ---------------------------------------------------------------- waiting-on

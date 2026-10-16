@@ -84,6 +84,12 @@ fn steps_of(rows: &[Activity]) -> Vec<minimap_core::undo::Inverse> {
     }
 }
 
+/// A project of the demo data for a new task to be in (a task needs one). Made by the seed, so
+/// an undo that leaves the project alone still gives back exactly what was there.
+fn first_project(conn: &Connection) -> uuid::Uuid {
+    projects::list(conn, false).unwrap()[0].id
+}
+
 /// Undoes `rows` and returns the rows the undo wrote (what redo works from).
 fn undo(conn: &mut Connection, rows: &[Activity]) -> Vec<Activity> {
     undo::apply(conn, &steps_of(rows)).unwrap()
@@ -145,6 +151,7 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
     let mut conn = demo();
     let priya = person(&conn, "Priya Nair").id;
     round_trip(&mut conn, |c| {
+        let __p = first_project(c);
         tasks::create(
             c,
             CreateTask {
@@ -156,7 +163,7 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
                 title: "Write the runbook".into(),
                 assignee: AssigneeChoice::Person(priya),
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: Some(2.0),
                 start_date: None,
@@ -173,6 +180,7 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
 fn creating_many_tasks_is_one_step() {
     let mut conn = demo();
     let before = fingerprint(&conn);
+    let project = first_project(&conn);
     let rows = wrote(&mut conn, |c| {
         tasks::create_many(
             c,
@@ -187,7 +195,7 @@ fn creating_many_tasks_is_one_step() {
                     title: (*t).into(),
                     assignee: AssigneeChoice::Me,
                     description: String::new(),
-                    project_id: None,
+                    project_id: Some(project),
                     status: None,
                     estimate_days: None,
                     start_date: None,
@@ -264,6 +272,59 @@ fn changing_and_clearing_a_task_type_is_undone() {
     typed(&mut conn, Patch::Set("review".into()));
     round_trip(&mut conn, |c| typed(c, Patch::Set("bug".into())));
     round_trip(&mut conn, |c| typed(c, Patch::Clear));
+}
+
+#[test]
+fn making_a_task_a_decision_and_its_record_are_one_undo_step() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    round_trip(&mut conn, |c| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                task_type: Patch::Set("decision".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    // Redo must bring the same record back, not make a second one.
+    let before = decisions::list(&conn, false).unwrap().len();
+    let rows = wrote(&mut conn, |c| {
+        tasks::update(
+            c,
+            t.id,
+            UpdateTask {
+                task_type: Patch::Set("decision".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    assert_eq!(decisions::list(&conn, false).unwrap().len(), before + 1);
+    let undone = undo(&mut conn, &rows);
+    assert_eq!(decisions::list(&conn, false).unwrap().len(), before);
+    undo(&mut conn, &undone);
+    assert_eq!(decisions::list(&conn, false).unwrap().len(), before + 1);
+}
+
+#[test]
+fn finishing_a_decision_task_with_the_dialog_is_one_undo_step() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    tasks::update(
+        &mut conn,
+        t.id,
+        UpdateTask {
+            task_type: Patch::Set("decision".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    round_trip(&mut conn, |c| {
+        decisions::finish_task(c, t.id, "Rotate monthly".into(), "Audit finding".into()).unwrap();
+    });
 }
 
 #[test]
@@ -671,6 +732,7 @@ fn what_is_not_part_of_undo_is_told_apart() {
 fn undoing_a_creation_never_deletes_anything() {
     let mut conn = demo();
     let rows = wrote(&mut conn, |c| {
+        let __p = first_project(c);
         tasks::create(
             c,
             CreateTask {
@@ -682,7 +744,7 @@ fn undoing_a_creation_never_deletes_anything() {
                 title: "Temp".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(__p),
                 status: None,
                 estimate_days: None,
                 start_date: None,

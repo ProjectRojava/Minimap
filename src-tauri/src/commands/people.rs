@@ -10,7 +10,11 @@ use crate::{error::store_error, state::AppState};
 #[tauri::command]
 pub async fn get_self_person(state: State<'_, AppState>) -> Result<Option<Person>, AppError> {
     state
-        .run(|conn| minimap_store::people::get_self(conn).map_err(store_error))
+        .run(|conn| {
+            // Asked at every start: the moment to put right a "me" that was archived by mistake.
+            minimap_store::people::repair_self(conn).map_err(store_error)?;
+            minimap_store::people::get_self(conn).map_err(store_error)
+        })
         .await
 }
 
@@ -85,6 +89,19 @@ pub async fn preview_archive_person(
         .run(move |conn| {
             minimap_store::views::person_archive_preview(conn, id).map_err(store_error)
         })
+        .await
+}
+
+/// Merges `from` into `into`: what pointed at `from` moves to `into` and `from` is deleted. If
+/// `from` was "me", `into` is "me" on every computer from now on.
+#[tauri::command]
+pub async fn merge_people(
+    state: State<'_, AppState>,
+    from: Uuid,
+    into: Uuid,
+) -> Result<Person, AppError> {
+    state
+        .run(move |conn| minimap_store::people::merge_into(conn, from, into).map_err(store_error))
         .await
 }
 

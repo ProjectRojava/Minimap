@@ -9,10 +9,13 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        fog::{confirm_row, fog_class, mark_for, FogLine},
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         objective_colour::{use_objective_colours, ObjectiveChips},
+        orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{column_head, EmptyState, GroupLabel, PageHeader, FILTER_BAR, FORM_BAR},
+        zone::ZoneBar,
     },
     labels::{priority_short, project_status_label, project_status_tone},
     state::{finish, DataVersion, ListNav, Selection, Toasts},
@@ -22,7 +25,7 @@ use crate::{
 /// 46rem (a container query), e.g. beside the open detail pane, so the title never collapses.
 const COLS: &str = "grid w-full items-center gap-3 \
     grid-cols-[2rem_minmax(8rem,1fr)_10rem_5.5rem_3.5rem] \
-    @[46rem]:grid-cols-[2rem_minmax(8rem,1fr)_13rem_8rem_5.5rem_6.5rem_3.5rem]";
+    @[46rem]:grid-cols-[2rem_minmax(8rem,1fr)_13rem_8rem_5.5rem_6.5rem_7.5rem_3.5rem]";
 /// Cell classes for the columns that only show when there is room.
 const WIDE_ONLY: &str = "hidden @[46rem]:block";
 
@@ -74,8 +77,27 @@ pub fn Projects() -> impl IntoView {
         api::list_node_summaries(NodeType::Objective)
     });
 
+    // In My view (spec 50) only the projects you own, hold your tasks in, or that reach you. The
+    // board keeps all its columns.
+    let orientation = expect_context::<Orientation>();
+    let shown = move || {
+        groups.get().map(|r| {
+            r.map(|mut g| {
+                for group in &mut g {
+                    group
+                        .rows
+                        .retain(|row| orientation.shows(Kind::Project, row.project.id));
+                }
+                if !board.get() {
+                    g.retain(|group| !group.rows.is_empty());
+                }
+                g
+            })
+        })
+    };
+
     // Keyboard rows follow the screen: top to bottom (list) or column by column (board).
-    Effect::new(move |_| match groups.get() {
+    Effect::new(move |_| match shown() {
         Some(Ok(g)) => list.set_items(g.iter().flat_map(|g| g.rows.iter()).map(node_of).collect()),
         Some(Err(e)) => toasts.error(&e),
         None => {}
@@ -83,6 +105,12 @@ pub fn Projects() -> impl IntoView {
 
     let adding = RwSignal::new(false);
     list.on_new(move || adding.set(true));
+    // `c`: the project under the cursor is still accurate (clears its fog, spec 43).
+    list.on_row_key(move |key, node| {
+        if key == "c" {
+            confirm_row(node);
+        }
+    });
     let title = RwSignal::new(String::new());
     let new_owner = RwSignal::new(String::new());
     let new_objective = RwSignal::new(String::new());
@@ -137,6 +165,7 @@ pub fn Projects() -> impl IntoView {
                             on:click=move |_| board.set(true)>"Board"</button>
                 </div>
             </PageHeader>
+            <MineBanner />
             <div class=FILTER_BAR>
                 <span class="text-[11px] uppercase tracking-wide text-muted">"Filter"</span>
                 {move || view! {
@@ -192,12 +221,12 @@ pub fn Projects() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
-            {move || match groups.get() {
+            {move || match shown() {
                 None => view! { <p class="p-4 text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(_)) => view! { <p class="p-4 text-muted">"Couldn't load projects."</p> }.into_any(),
                 Some(Ok(g)) if !board.get() && g.is_empty() => view! {
                     <EmptyState icon="projects" title="No projects match"
-                        hint="Add one with New project, or clear the filters." />
+                        hint="Clear the filters to see all projects, or add one with New project." />
                 }.into_any(),
                 Some(Ok(g)) if board.get() => view! { <Board groups=g /> }.into_any(),
                 Some(Ok(g)) => view! { <ListView groups=g /> }.into_any(),
@@ -238,7 +267,7 @@ fn ListView(groups: Vec<ProjectGroup>) -> impl IntoView {
         <div class="@container flex min-h-0 flex-1 flex-col">
         <div class=column_head(COLS)>
             <span>"Pri"</span><span>"Project"</span><span>"Objective"</span><span class=WIDE_ONLY>"Owner"</span>
-            <span>"Status"</span><span class=WIDE_ONLY>"Target"</span><span class="text-right">"Tasks"</span>
+            <span>"Status"</span><span class=WIDE_ONLY>"Target"</span><span class=WIDE_ONLY>"Room"</span><span class="text-right">"Tasks"</span>
         </div>
         <div class="flex-1 overflow-y-auto" role="table">{out}</div>
         </div>
@@ -255,6 +284,7 @@ fn project_row(row: ProjectRow, index: usize, edge: Option<Signal<Option<u16>>>)
         Signal::derive(move || colours.first_hue(&objectives))
     });
     let objectives = row.objectives.clone();
+    let zone = row.zone;
     let p = row.project;
     view! {
         <NodeRow node=node index=index hue=edge>
@@ -263,11 +293,13 @@ fn project_row(row: ProjectRow, index: usize, edge: Option<Signal<Option<u16>>>)
                 <span class="truncate">
                     <span class="font-medium">{p.title}</span>
                     <span class="ml-2 font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</span>
+                    <span class="ml-2"><WhyChip kind=Kind::Project id=p.id /></span>
                 </span>
                 <ObjectiveChips objectives=objectives max=1 />
                 <span class=format!("{WIDE_ONLY} truncate text-muted")>{row.owner.map(|o| o.label).unwrap_or_default()}</span>
                 <span><span class=project_status_tone(p.status).chip()>{project_status_label(p.status)}</span></span>
                 <span class=format!("{WIDE_ONLY} text-muted tabular-nums")>{p.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
+                <span class=WIDE_ONLY><ZoneBar zone=zone compact=true /></span>
                 <span class="text-right tabular-nums text-muted">{tasks}</span>
             </div>
         </NodeRow>
@@ -362,7 +394,8 @@ fn BoardCard(
             draggable="true"
             style=move || hue.get().map(|h| format!("--obj-h: {h}")).unwrap_or_default()
             class=move || format!(
-                "cursor-default select-none rounded-sm border border-line p-2 {} {} {}",
+                "cursor-default select-none rounded-sm border border-line p-2 {} {} {} {}",
+                fog_class(mark_for(id).map(|m| m.level)),
                 if hue.get().is_some() { "obj-bar" } else { "" },
                 if is_open() { "bg-active" }
                 else if on_cursor() { "bg-hover shadow-[inset_2px_0_0_var(--color-muted)]" }
@@ -384,11 +417,17 @@ fn BoardCard(
                 over.set(None);
             }
         >
+            <FogLine id=id />
             <div class="flex items-start gap-2">
                 <span class="flex-1 break-words font-medium">{p.title}</span>
+                <crate::components::ping::PingMarkFor id=id />
                 <span class="text-[11px] tabular-nums text-muted">{priority_short(p.priority)}</span>
             </div>
-            <div class="font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</div>
+            <div class="flex items-center gap-2">
+                <span class="font-mono text-[11px] text-faint">{format!("#{}", p.slug)}</span>
+                <WhyChip kind=Kind::Project id=id />
+            </div>
+            <div class="mt-1"><ZoneBar zone=row.zone compact=true /></div>
             {(!objectives.is_empty()).then(|| view! {
                 <div class="mt-1"><ObjectiveChips objectives=objectives /></div>
             })}

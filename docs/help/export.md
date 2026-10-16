@@ -17,6 +17,7 @@ You are never locked in. **Export your data**, under *Settings → Data & backup
 | `objectives.json`, `projects.json`, `tasks.json`, `people.json`, `teams.json`, `notes.json`, `decisions.json`, `waiting_on.json` | One list per kind of item |
 | `edges.json` | Every link between items, with the ids it joins |
 | `attachments.json` | The attached files (which item, name, size, checksum) |
+| `pings.json` | Your pings: which item (`target`), the day (`on_date`), the note, and `cleared_on` for the ones you cleared; removed ones have `archived_at` ([Pings](help:pings)) |
 | `task_types.json` | Your list of task types; a task's `task_type` is the `id` of one of them |
 | `activity.json` | The full history of changes, oldest first |
 | `manifest.json` | What this export is: format and version, app and database version, when it was made, how many records each file holds |

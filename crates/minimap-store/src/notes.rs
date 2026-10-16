@@ -256,7 +256,8 @@ fn update_in_tx(tx: &Transaction, id: Uuid, patch: UpdateNote) -> Result<Note> {
 
 /// Turns an unchecked `[ ]` line of the note into a task, in one transaction: the task is
 /// assigned to the first person mentioned on the line (otherwise to me) and filed in the first
-/// project mentioned, and the line becomes `- [x] @[title](node:task)`, which also links the
+/// project mentioned on it (else the first the note mentions; a task needs a project, so a note
+/// that mentions none refuses), and the line becomes `- [x] @[title](node:task)`, which also links the
 /// note to the task. `expected_text` must match the line's current text.
 pub fn convert_checklist_item(
     conn: &mut Connection,
@@ -293,6 +294,25 @@ pub fn convert_checklist_item(
             NodeType::Project if project_id.is_none() => project_id = Some(m.id),
             _ => {}
         }
+    }
+    // A task needs a project: with none on the line, the first one the note mentions elsewhere.
+    if project_id.is_none() {
+        for id in rules::mention_ids(&body) {
+            let Some(target) = nodes::find(&tx, id)? else {
+                continue;
+            };
+            if target.node_type == NodeType::Project
+                && nodes::archived_at(&tx, target)?.is_none()
+            {
+                project_id = Some(id);
+                break;
+            }
+        }
+    }
+    if project_id.is_none() {
+        return Err(StoreError::Invalid(
+            "A task needs a project. Mention one on the line or elsewhere in the note (type @).".into(),
+        ));
     }
     let task = tasks::create_in_tx(
         &tx,

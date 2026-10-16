@@ -4,18 +4,20 @@
 //! without going through the fields.
 
 use leptos::prelude::*;
-use minimap_types::{Date, Uuid};
+use minimap_types::{Date, NodeRef, NodeType, Uuid};
 
 use crate::{
     api,
     components::{
+        fog::FogPill,
         objective_colour::{use_objective_colours, ObjectiveChips},
         page::Tone,
         task_board::today,
+        zone::{zone_text, zone_tone},
     },
     labels::{
         date_tone, objective_status_label, objective_status_tone, priority_short, priority_tone,
-        project_status_label, project_status_tone, task_status_label, task_status_tone,
+        project_status_label, project_status_tone,
     },
     state::DataVersion,
 };
@@ -70,18 +72,12 @@ pub fn TaskSummary(id: Uuid) -> impl IntoView {
                 t.status,
                 minimap_types::TaskStatus::Done | minimap_types::TaskStatus::Cancelled
             );
-            let due = t.due_date.map(|d| {
-                let today = today();
-                let tone = date_tone(d, today, open);
-                (tone, date_text("due", d, tone, today))
-            });
             let in_focus = open && crate::components::focus::is_on(t.focus.as_ref(), today());
+            // Status, priority and the due date are controls in the pinned header (`task_pinned`).
             view! {
                 <div class="mb-3 flex flex-wrap items-center gap-1.5">
-                    <Pill tone=task_status_tone(t.status)>{task_status_label(t.status)}</Pill>
-                    <Pill tone=priority_tone(t.priority)>{priority_short(t.priority)}</Pill>
-                    {due.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
                     {in_focus.then(|| view! { <Pill tone=Tone::Accent>"★ In focus"</Pill> })}
+                    <FogPill node=NodeRef::new(NodeType::Task, id) />
                     <crate::components::task_type::TypeChip id=t.task_type.clone() />
                     <ServedObjectives project=t.project_id />
                 </div>
@@ -95,10 +91,11 @@ pub fn ProjectSummary(id: Uuid) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let project = LocalResource::new(move || {
         version.track();
-        api::get_project(id)
+        api::get_project_detail(id)
     });
     move || {
-        project.get().and_then(|r| r.ok()).map(|p| {
+        project.get().and_then(|r| r.ok()).map(|detail| {
+            let (p, zone) = (detail.project, detail.zone);
             let open = matches!(
                 p.status,
                 minimap_types::ProjectStatus::Planned
@@ -115,6 +112,8 @@ pub fn ProjectSummary(id: Uuid) -> impl IntoView {
                     <Pill tone=project_status_tone(p.status)>{project_status_label(p.status)}</Pill>
                     <Pill tone=priority_tone(p.priority)>{priority_short(p.priority)}</Pill>
                     {target.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    {zone_text(zone).map(|text| view! { <Pill tone=zone_tone(zone)>{text}</Pill> })}
+                    <FogPill node=NodeRef::new(NodeType::Project, id) />
                     <ServedObjectives project=Some(p.id) />
                 </div>
             }
@@ -150,6 +149,7 @@ pub fn ObjectiveSummary(id: Uuid) -> impl IntoView {
                     {ongoing.then(|| view! { <Pill tone=Tone::Accent>"ongoing"</Pill> })}
                     {target.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
                     {review.map(|(tone, text)| view! { <Pill tone=tone>{text}</Pill> })}
+                    <FogPill node=NodeRef::new(NodeType::Objective, id) />
                 </div>
             }
         })

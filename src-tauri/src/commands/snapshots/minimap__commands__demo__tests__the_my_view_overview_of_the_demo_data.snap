@@ -1,0 +1,18 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: report
+---
+PORTFOLIO
+  Launch in the EU [EU Region, Security and Compliance]
+  Cut platform costs by 20% [Platform Cost Reduction]
+  Keep internal systems healthy []
+  unlinked []
+  risks [EU Region, Customer communications plan] +0
+  overloaded [Tomás Alvarez]
+  counts 0/1/2/0
+MINE
+  Cut platform costs by 20% [Platform Cost Reduction]
+  unlinked []
+  risks [EU Region] +0
+  overloaded [Tomás Alvarez]
+  counts 0/1/1/0

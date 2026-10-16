@@ -21,6 +21,10 @@ pub enum StoreError {
     DuplicateEdge,
     #[error("invalid value: {0}")]
     Invalid(String),
+    /// A task of type Decision can't be finished until its record says what was decided and why
+    /// (spec 42). The message names the task.
+    #[error("{0}")]
+    DecisionIncomplete(String),
     /// A database constraint (foreign key, unique, check) rejected the write.
     #[error("constraint violated: {0}")]
     Constraint(String),

@@ -207,6 +207,18 @@
           "markdownDescription": "Enables the advance_meetings command without any pre-configured scope."
         },
         {
+          "description": "Enables the answer_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-answer-close",
+          "markdownDescription": "Enables the answer_close command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the app_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-app-ready",
+          "markdownDescription": "Enables the app_ready command without any pre-configured scope."
+        },
+        {
           "description": "Enables the apply_slips command without any pre-configured scope.",
           "type": "string",
           "const": "allow-apply-slips",
@@ -235,6 +247,12 @@
           "type": "string",
           "const": "allow-archive-person",
           "markdownDescription": "Enables the archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the archive_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-archive-ping",
+          "markdownDescription": "Enables the archive_ping command without any pre-configured scope."
         },
         {
           "description": "Enables the archive_project command without any pre-configured scope.",
@@ -273,10 +291,28 @@
           "markdownDescription": "Enables the cancel_drive_connect command without any pre-configured scope."
         },
         {
+          "description": "Enables the clear_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-clear-ping",
+          "markdownDescription": "Enables the clear_ping command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the close_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-close-radar",
+          "markdownDescription": "Enables the close_radar command without any pre-configured scope."
+        },
+        {
           "description": "Enables the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "allow-commit-quick-add",
           "markdownDescription": "Enables the commit_quick_add command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the confirm_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-confirm-item",
+          "markdownDescription": "Enables the confirm_item command without any pre-configured scope."
         },
         {
           "description": "Enables the connect_drive command without any pre-configured scope.",
@@ -375,6 +411,12 @@
           "markdownDescription": "Enables the disconnect_drive command without any pre-configured scope."
         },
         {
+          "description": "Enables the ensure_task_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ensure-task-decision",
+          "markdownDescription": "Enables the ensure_task_decision command without any pre-configured scope."
+        },
+        {
           "description": "Enables the export_all command without any pre-configured scope.",
           "type": "string",
           "const": "allow-export-all",
@@ -387,10 +429,22 @@
           "markdownDescription": "Enables the export_markdown command without any pre-configured scope."
         },
         {
+          "description": "Enables the finish_decision_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-finish-decision-task",
+          "markdownDescription": "Enables the finish_decision_task command without any pre-configured scope."
+        },
+        {
           "description": "Enables the finish_drive_connect command without any pre-configured scope.",
           "type": "string",
           "const": "allow-finish-drive-connect",
           "markdownDescription": "Enables the finish_drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_approaching command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-approaching",
+          "markdownDescription": "Enables the get_approaching command without any pre-configured scope."
         },
         {
           "description": "Enables the get_backup_status command without any pre-configured scope.",
@@ -417,6 +471,12 @@
           "markdownDescription": "Enables the get_data_info command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_data_revision command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-data-revision",
+          "markdownDescription": "Enables the get_data_revision command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_decision command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-decision",
@@ -433,6 +493,30 @@
           "type": "string",
           "const": "allow-get-dependency-graph",
           "markdownDescription": "Enables the get_dependency_graph command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_device_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-device-settings",
+          "markdownDescription": "Enables the get_device_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_fog command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-fog",
+          "markdownDescription": "Enables the get_fog command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_last_save_point command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-last-save-point",
+          "markdownDescription": "Enables the get_last_save_point command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_my_scope command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-my-scope",
+          "markdownDescription": "Enables the get_my_scope command without any pre-configured scope."
         },
         {
           "description": "Enables the get_node_summary command without any pre-configured scope.",
@@ -465,6 +549,12 @@
           "markdownDescription": "Enables the get_objective_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_people_frames command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-people-frames",
+          "markdownDescription": "Enables the get_people_frames command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_person command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-person",
@@ -475,6 +565,12 @@
           "type": "string",
           "const": "allow-get-person-detail",
           "markdownDescription": "Enables the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_ping_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-ping-for",
+          "markdownDescription": "Enables the get_ping_for command without any pre-configured scope."
         },
         {
           "description": "Enables the get_portfolio_overview command without any pre-configured scope.",
@@ -493,6 +589,12 @@
           "type": "string",
           "const": "allow-get-project-detail",
           "markdownDescription": "Enables the get_project_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-radar",
+          "markdownDescription": "Enables the get_radar command without any pre-configured scope."
         },
         {
           "description": "Enables the get_recovery_key command without any pre-configured scope.",
@@ -579,10 +681,22 @@
           "markdownDescription": "Enables the get_weekly_review command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_zoom_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-zoom-path",
+          "markdownDescription": "Enables the get_zoom_path command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_activity_for command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-activity-for",
           "markdownDescription": "Enables the list_activity_for command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-archived",
+          "markdownDescription": "Enables the list_archived command without any pre-configured scope."
         },
         {
           "description": "Enables the list_attachments command without any pre-configured scope.",
@@ -639,10 +753,22 @@
           "markdownDescription": "Enables the list_people command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_pings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-pings",
+          "markdownDescription": "Enables the list_pings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_projects command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-projects",
           "markdownDescription": "Enables the list_projects command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_save_points command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-save-points",
+          "markdownDescription": "Enables the list_save_points command without any pre-configured scope."
         },
         {
           "description": "Enables the list_tasks command without any pre-configured scope.",
@@ -657,16 +783,40 @@
           "markdownDescription": "Enables the list_teams command without any pre-configured scope."
         },
         {
+          "description": "Enables the merge_people command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-merge-people",
+          "markdownDescription": "Enables the merge_people command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the minimize_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-minimize-main",
+          "markdownDescription": "Enables the minimize_main command without any pre-configured scope."
+        },
+        {
           "description": "Enables the open_attachment command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open-attachment",
           "markdownDescription": "Enables the open_attachment command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_in_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-in-main",
+          "markdownDescription": "Enables the open_in_main command without any pre-configured scope."
+        },
+        {
           "description": "Enables the open_link command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open-link",
           "markdownDescription": "Enables the open_link command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-radar",
+          "markdownDescription": "Enables the open_radar command without any pre-configured scope."
         },
         {
           "description": "Enables the parse_quick_add command without any pre-configured scope.",
@@ -685,6 +835,12 @@
           "type": "string",
           "const": "allow-ping",
           "markdownDescription": "Enables the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ping_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ping-item",
+          "markdownDescription": "Enables the ping_item command without any pre-configured scope."
         },
         {
           "description": "Enables the preview_apply_slips command without any pre-configured scope.",
@@ -711,6 +867,12 @@
           "markdownDescription": "Enables the preview_restore command without any pre-configured scope."
         },
         {
+          "description": "Enables the quit_app command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quit-app",
+          "markdownDescription": "Enables the quit_app command without any pre-configured scope."
+        },
+        {
           "description": "Enables the recover_checkpoint command without any pre-configured scope.",
           "type": "string",
           "const": "allow-recover-checkpoint",
@@ -721,6 +883,12 @@
           "type": "string",
           "const": "allow-redo-last",
           "markdownDescription": "Enables the redo_last command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remember_splash_scheme command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remember-splash-scheme",
+          "markdownDescription": "Enables the remember_splash_scheme command without any pre-configured scope."
         },
         {
           "description": "Enables the remove_attachment command without any pre-configured scope.",
@@ -753,6 +921,12 @@
           "markdownDescription": "Enables the render_report command without any pre-configured scope."
         },
         {
+          "description": "Enables the reopen_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-reopen-ping",
+          "markdownDescription": "Enables the reopen_ping command without any pre-configured scope."
+        },
+        {
           "description": "Enables the reopen_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "allow-reopen-waiting-on",
@@ -769,6 +943,12 @@
           "type": "string",
           "const": "allow-resolve-waiting-on",
           "markdownDescription": "Enables the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the restore_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-restore-archived",
+          "markdownDescription": "Enables the restore_archived command without any pre-configured scope."
         },
         {
           "description": "Enables the restore_backup command without any pre-configured scope.",
@@ -825,6 +1005,12 @@
           "markdownDescription": "Enables the set_meeting command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_radar_on_top command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-radar-on-top",
+          "markdownDescription": "Enables the set_radar_on_top command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_recurrence command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-recurrence",
@@ -861,6 +1047,12 @@
           "markdownDescription": "Enables the sync_now command without any pre-configured scope."
         },
         {
+          "description": "Enables the toggle_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-toggle-radar",
+          "markdownDescription": "Enables the toggle_radar command without any pre-configured scope."
+        },
+        {
           "description": "Enables the undo_last command without any pre-configured scope.",
           "type": "string",
           "const": "allow-undo-last",
@@ -877,6 +1069,12 @@
           "type": "string",
           "const": "allow-update-decision",
           "markdownDescription": "Enables the update_decision command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_device_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-device-settings",
+          "markdownDescription": "Enables the update_device_settings command without any pre-configured scope."
         },
         {
           "description": "Enables the update_edge_attrs command without any pre-configured scope.",
@@ -901,6 +1099,12 @@
           "type": "string",
           "const": "allow-update-person",
           "markdownDescription": "Enables the update_person command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-ping",
+          "markdownDescription": "Enables the update_ping command without any pre-configured scope."
         },
         {
           "description": "Enables the update_project command without any pre-configured scope.",
@@ -969,6 +1173,18 @@
           "markdownDescription": "Denies the advance_meetings command without any pre-configured scope."
         },
         {
+          "description": "Denies the answer_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-answer-close",
+          "markdownDescription": "Denies the answer_close command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the app_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-app-ready",
+          "markdownDescription": "Denies the app_ready command without any pre-configured scope."
+        },
+        {
           "description": "Denies the apply_slips command without any pre-configured scope.",
           "type": "string",
           "const": "deny-apply-slips",
@@ -997,6 +1213,12 @@
           "type": "string",
           "const": "deny-archive-person",
           "markdownDescription": "Denies the archive_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the archive_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-archive-ping",
+          "markdownDescription": "Denies the archive_ping command without any pre-configured scope."
         },
         {
           "description": "Denies the archive_project command without any pre-configured scope.",
@@ -1035,10 +1257,28 @@
           "markdownDescription": "Denies the cancel_drive_connect command without any pre-configured scope."
         },
         {
+          "description": "Denies the clear_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-clear-ping",
+          "markdownDescription": "Denies the clear_ping command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the close_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-close-radar",
+          "markdownDescription": "Denies the close_radar command without any pre-configured scope."
+        },
+        {
           "description": "Denies the commit_quick_add command without any pre-configured scope.",
           "type": "string",
           "const": "deny-commit-quick-add",
           "markdownDescription": "Denies the commit_quick_add command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the confirm_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-confirm-item",
+          "markdownDescription": "Denies the confirm_item command without any pre-configured scope."
         },
         {
           "description": "Denies the connect_drive command without any pre-configured scope.",
@@ -1137,6 +1377,12 @@
           "markdownDescription": "Denies the disconnect_drive command without any pre-configured scope."
         },
         {
+          "description": "Denies the ensure_task_decision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ensure-task-decision",
+          "markdownDescription": "Denies the ensure_task_decision command without any pre-configured scope."
+        },
+        {
           "description": "Denies the export_all command without any pre-configured scope.",
           "type": "string",
           "const": "deny-export-all",
@@ -1149,10 +1395,22 @@
           "markdownDescription": "Denies the export_markdown command without any pre-configured scope."
         },
         {
+          "description": "Denies the finish_decision_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-finish-decision-task",
+          "markdownDescription": "Denies the finish_decision_task command without any pre-configured scope."
+        },
+        {
           "description": "Denies the finish_drive_connect command without any pre-configured scope.",
           "type": "string",
           "const": "deny-finish-drive-connect",
           "markdownDescription": "Denies the finish_drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_approaching command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-approaching",
+          "markdownDescription": "Denies the get_approaching command without any pre-configured scope."
         },
         {
           "description": "Denies the get_backup_status command without any pre-configured scope.",
@@ -1179,6 +1437,12 @@
           "markdownDescription": "Denies the get_data_info command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_data_revision command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-data-revision",
+          "markdownDescription": "Denies the get_data_revision command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_decision command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-decision",
@@ -1195,6 +1459,30 @@
           "type": "string",
           "const": "deny-get-dependency-graph",
           "markdownDescription": "Denies the get_dependency_graph command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_device_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-device-settings",
+          "markdownDescription": "Denies the get_device_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_fog command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-fog",
+          "markdownDescription": "Denies the get_fog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_last_save_point command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-last-save-point",
+          "markdownDescription": "Denies the get_last_save_point command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_my_scope command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-my-scope",
+          "markdownDescription": "Denies the get_my_scope command without any pre-configured scope."
         },
         {
           "description": "Denies the get_node_summary command without any pre-configured scope.",
@@ -1227,6 +1515,12 @@
           "markdownDescription": "Denies the get_objective_detail command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_people_frames command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-people-frames",
+          "markdownDescription": "Denies the get_people_frames command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_person command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-person",
@@ -1237,6 +1531,12 @@
           "type": "string",
           "const": "deny-get-person-detail",
           "markdownDescription": "Denies the get_person_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_ping_for command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-ping-for",
+          "markdownDescription": "Denies the get_ping_for command without any pre-configured scope."
         },
         {
           "description": "Denies the get_portfolio_overview command without any pre-configured scope.",
@@ -1255,6 +1555,12 @@
           "type": "string",
           "const": "deny-get-project-detail",
           "markdownDescription": "Denies the get_project_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-radar",
+          "markdownDescription": "Denies the get_radar command without any pre-configured scope."
         },
         {
           "description": "Denies the get_recovery_key command without any pre-configured scope.",
@@ -1341,10 +1647,22 @@
           "markdownDescription": "Denies the get_weekly_review command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_zoom_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-zoom-path",
+          "markdownDescription": "Denies the get_zoom_path command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_activity_for command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-activity-for",
           "markdownDescription": "Denies the list_activity_for command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-archived",
+          "markdownDescription": "Denies the list_archived command without any pre-configured scope."
         },
         {
           "description": "Denies the list_attachments command without any pre-configured scope.",
@@ -1401,10 +1719,22 @@
           "markdownDescription": "Denies the list_people command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_pings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-pings",
+          "markdownDescription": "Denies the list_pings command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_projects command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-projects",
           "markdownDescription": "Denies the list_projects command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_save_points command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-save-points",
+          "markdownDescription": "Denies the list_save_points command without any pre-configured scope."
         },
         {
           "description": "Denies the list_tasks command without any pre-configured scope.",
@@ -1419,16 +1749,40 @@
           "markdownDescription": "Denies the list_teams command without any pre-configured scope."
         },
         {
+          "description": "Denies the merge_people command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-merge-people",
+          "markdownDescription": "Denies the merge_people command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the minimize_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-minimize-main",
+          "markdownDescription": "Denies the minimize_main command without any pre-configured scope."
+        },
+        {
           "description": "Denies the open_attachment command without any pre-configured scope.",
           "type": "string",
           "const": "deny-open-attachment",
           "markdownDescription": "Denies the open_attachment command without any pre-configured scope."
         },
         {
+          "description": "Denies the open_in_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-in-main",
+          "markdownDescription": "Denies the open_in_main command without any pre-configured scope."
+        },
+        {
           "description": "Denies the open_link command without any pre-configured scope.",
           "type": "string",
           "const": "deny-open-link",
           "markdownDescription": "Denies the open_link command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-radar",
+          "markdownDescription": "Denies the open_radar command without any pre-configured scope."
         },
         {
           "description": "Denies the parse_quick_add command without any pre-configured scope.",
@@ -1447,6 +1801,12 @@
           "type": "string",
           "const": "deny-ping",
           "markdownDescription": "Denies the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ping_item command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ping-item",
+          "markdownDescription": "Denies the ping_item command without any pre-configured scope."
         },
         {
           "description": "Denies the preview_apply_slips command without any pre-configured scope.",
@@ -1473,6 +1833,12 @@
           "markdownDescription": "Denies the preview_restore command without any pre-configured scope."
         },
         {
+          "description": "Denies the quit_app command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quit-app",
+          "markdownDescription": "Denies the quit_app command without any pre-configured scope."
+        },
+        {
           "description": "Denies the recover_checkpoint command without any pre-configured scope.",
           "type": "string",
           "const": "deny-recover-checkpoint",
@@ -1483,6 +1849,12 @@
           "type": "string",
           "const": "deny-redo-last",
           "markdownDescription": "Denies the redo_last command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remember_splash_scheme command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remember-splash-scheme",
+          "markdownDescription": "Denies the remember_splash_scheme command without any pre-configured scope."
         },
         {
           "description": "Denies the remove_attachment command without any pre-configured scope.",
@@ -1515,6 +1887,12 @@
           "markdownDescription": "Denies the render_report command without any pre-configured scope."
         },
         {
+          "description": "Denies the reopen_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-reopen-ping",
+          "markdownDescription": "Denies the reopen_ping command without any pre-configured scope."
+        },
+        {
           "description": "Denies the reopen_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "deny-reopen-waiting-on",
@@ -1531,6 +1909,12 @@
           "type": "string",
           "const": "deny-resolve-waiting-on",
           "markdownDescription": "Denies the resolve_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the restore_archived command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-restore-archived",
+          "markdownDescription": "Denies the restore_archived command without any pre-configured scope."
         },
         {
           "description": "Denies the restore_backup command without any pre-configured scope.",
@@ -1587,6 +1971,12 @@
           "markdownDescription": "Denies the set_meeting command without any pre-configured scope."
         },
         {
+          "description": "Denies the set_radar_on_top command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-radar-on-top",
+          "markdownDescription": "Denies the set_radar_on_top command without any pre-configured scope."
+        },
+        {
           "description": "Denies the set_recurrence command without any pre-configured scope.",
           "type": "string",
           "const": "deny-set-recurrence",
@@ -1623,6 +2013,12 @@
           "markdownDescription": "Denies the sync_now command without any pre-configured scope."
         },
         {
+          "description": "Denies the toggle_radar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-toggle-radar",
+          "markdownDescription": "Denies the toggle_radar command without any pre-configured scope."
+        },
+        {
           "description": "Denies the undo_last command without any pre-configured scope.",
           "type": "string",
           "const": "deny-undo-last",
@@ -1639,6 +2035,12 @@
           "type": "string",
           "const": "deny-update-decision",
           "markdownDescription": "Denies the update_decision command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_device_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-device-settings",
+          "markdownDescription": "Denies the update_device_settings command without any pre-configured scope."
         },
         {
           "description": "Denies the update_edge_attrs command without any pre-configured scope.",
@@ -1663,6 +2065,12 @@
           "type": "string",
           "const": "deny-update-person",
           "markdownDescription": "Denies the update_person command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-ping",
+          "markdownDescription": "Denies the update_ping command without any pre-configured scope."
         },
         {
           "description": "Denies the update_project command without any pre-configured scope.",
@@ -1699,6 +2107,48 @@
           "type": "string",
           "const": "deny-update-waiting-on",
           "markdownDescription": "Denies the update_waiting_on command without any pre-configured scope."
+        },
+        {
+          "description": "This permission set configures if your\napplication can enable or disable auto\nstarting the application on boot.\n\n#### Granted Permissions\n\nIt allows all to check, enable and\ndisable the automatic start on boot.\n\n\n#### This default permission set includes:\n\n- `allow-enable`\n- `allow-disable`\n- `allow-is-enabled`",
+          "type": "string",
+          "const": "autostart:default",
+          "markdownDescription": "This permission set configures if your\napplication can enable or disable auto\nstarting the application on boot.\n\n#### Granted Permissions\n\nIt allows all to check, enable and\ndisable the automatic start on boot.\n\n\n#### This default permission set includes:\n\n- `allow-enable`\n- `allow-disable`\n- `allow-is-enabled`"
+        },
+        {
+          "description": "Enables the disable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:allow-disable",
+          "markdownDescription": "Enables the disable command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the enable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:allow-enable",
+          "markdownDescription": "Enables the enable command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:allow-is-enabled",
+          "markdownDescription": "Enables the is_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the disable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:deny-disable",
+          "markdownDescription": "Denies the disable command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the enable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:deny-enable",
+          "markdownDescription": "Denies the enable command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:deny-is-enabled",
+          "markdownDescription": "Denies the is_enabled command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
@@ -3805,6 +4255,216 @@
           "type": "string",
           "const": "dialog:deny-save",
           "markdownDescription": "Denies the save command without any pre-configured scope."
+        },
+        {
+          "description": "This permission set configures which\nnotification features are by default exposed.\n\n#### Granted Permissions\n\nIt allows all notification related features.\n\n\n#### This default permission set includes:\n\n- `allow-is-permission-granted`\n- `allow-request-permission`\n- `allow-notify`\n- `allow-register-action-types`\n- `allow-register-listener`\n- `allow-remove-listener`\n- `allow-cancel`\n- `allow-get-pending`\n- `allow-remove-active`\n- `allow-get-active`\n- `allow-check-permissions`\n- `allow-show`\n- `allow-batch`\n- `allow-list-channels`\n- `allow-delete-channel`\n- `allow-create-channel`\n- `allow-permission-state`",
+          "type": "string",
+          "const": "notification:default",
+          "markdownDescription": "This permission set configures which\nnotification features are by default exposed.\n\n#### Granted Permissions\n\nIt allows all notification related features.\n\n\n#### This default permission set includes:\n\n- `allow-is-permission-granted`\n- `allow-request-permission`\n- `allow-notify`\n- `allow-register-action-types`\n- `allow-register-listener`\n- `allow-remove-listener`\n- `allow-cancel`\n- `allow-get-pending`\n- `allow-remove-active`\n- `allow-get-active`\n- `allow-check-permissions`\n- `allow-show`\n- `allow-batch`\n- `allow-list-channels`\n- `allow-delete-channel`\n- `allow-create-channel`\n- `allow-permission-state`"
+        },
+        {
+          "description": "Enables the batch command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-batch",
+          "markdownDescription": "Enables the batch command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-cancel",
+          "markdownDescription": "Enables the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the check_permissions command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-check-permissions",
+          "markdownDescription": "Enables the check_permissions command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-create-channel",
+          "markdownDescription": "Enables the create_channel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the delete_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-delete-channel",
+          "markdownDescription": "Enables the delete_channel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_active command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-get-active",
+          "markdownDescription": "Enables the get_active command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_pending command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-get-pending",
+          "markdownDescription": "Enables the get_pending command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_permission_granted command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-is-permission-granted",
+          "markdownDescription": "Enables the is_permission_granted command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_channels command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-list-channels",
+          "markdownDescription": "Enables the list_channels command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the notify command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-notify",
+          "markdownDescription": "Enables the notify command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the permission_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-permission-state",
+          "markdownDescription": "Enables the permission_state command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register_action_types command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-register-action-types",
+          "markdownDescription": "Enables the register_action_types command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-register-listener",
+          "markdownDescription": "Enables the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_active command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-remove-active",
+          "markdownDescription": "Enables the remove_active command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-remove-listener",
+          "markdownDescription": "Enables the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the request_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-request-permission",
+          "markdownDescription": "Enables the request_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:allow-show",
+          "markdownDescription": "Enables the show command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the batch command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-batch",
+          "markdownDescription": "Denies the batch command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-cancel",
+          "markdownDescription": "Denies the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the check_permissions command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-check-permissions",
+          "markdownDescription": "Denies the check_permissions command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-create-channel",
+          "markdownDescription": "Denies the create_channel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the delete_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-delete-channel",
+          "markdownDescription": "Denies the delete_channel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_active command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-get-active",
+          "markdownDescription": "Denies the get_active command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_pending command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-get-pending",
+          "markdownDescription": "Denies the get_pending command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_permission_granted command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-is-permission-granted",
+          "markdownDescription": "Denies the is_permission_granted command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_channels command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-list-channels",
+          "markdownDescription": "Denies the list_channels command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the notify command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-notify",
+          "markdownDescription": "Denies the notify command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the permission_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-permission-state",
+          "markdownDescription": "Denies the permission_state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register_action_types command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-register-action-types",
+          "markdownDescription": "Denies the register_action_types command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-register-listener",
+          "markdownDescription": "Denies the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_active command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-remove-active",
+          "markdownDescription": "Denies the remove_active command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-remove-listener",
+          "markdownDescription": "Denies the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-request-permission",
+          "markdownDescription": "Denies the request_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show command without any pre-configured scope.",
+          "type": "string",
+          "const": "notification:deny-show",
+          "markdownDescription": "Denies the show command without any pre-configured scope."
         }
       ]
     },

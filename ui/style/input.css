@@ -131,7 +131,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
    theme. The two pairs below are mirrored by DARK_SL / LIGHT_SL (a test keeps them in step). */
 :root { --obj-s: 55%; --obj-l: 70%; }
 :root[data-kind="light"] { --obj-s: 55%; --obj-l: 32%; }
-.obj-dot, .obj-chip, .obj-edge, .obj-bar { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
+.obj-dot, .obj-chip, .obj-edge, .obj-bar, .radar-rim, .dep .node, .dep .stripe, .dep .person { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
 .obj-dot { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 9999px; background: var(--obj); }
 .obj-chip {
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0; height: 18px;
@@ -185,6 +185,29 @@ article.card-frame {
   }
 }
 
+/* Route recalculation (spec 46, components/route.rs): the old route faded and dashed, the new one in
+   the accent. Theme tokens only. */
+.route-svg { display: block; }
+.route-svg text { fill: var(--muted); font-size: 10px; font-family: inherit; }
+.route-svg .week-line { stroke: var(--line-strong); stroke-width: 1; }
+.route-svg .head-line { stroke: var(--line); stroke-width: 1; }
+.route-svg .today { stroke: var(--accent); stroke-width: 1; }
+.route-svg .target { stroke: var(--danger); stroke-width: 1; stroke-dasharray: 4 3; }
+.route-svg .old-bar { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 2; }
+.route-svg .new-bar { fill: var(--muted); cursor: pointer; }
+.route-svg .new-bar.on-route { fill: var(--accent); }
+.route-svg .old-line { fill: none; stroke: var(--faint); stroke-width: 2; stroke-dasharray: 4 3; }
+.route-svg .new-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+
+/* Fog of war (spec 43, ADR-0019): items in play that nobody has touched lately look their age.
+   Haze mutes the text; fog also fades what is read on the row or card. Buttons, inputs and the
+   chip (`.fog-keep`) keep full contrast so they stay usable, and a chip always says it in words,
+   so fog is never colour alone. Theme tokens only. */
+.fog-haze, .fog-fog { color: var(--muted); }
+.fog-fog.fog-content > :not(button):not(input):not(.fog-keep),
+.fog-fog .fog-content > :not(button):not(input):not(.fog-keep),
+article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
+
 /* Schedule timeline (components/schedule_panel.rs). Theme tokens only. */
 .gantt { display: block; }
 .gantt text { fill: var(--muted); font-size: 10px; font-family: inherit; }
@@ -223,4 +246,55 @@ article.card-frame {
 .dep .edge.critical { stroke: var(--accent); stroke-width: 2; }
 .dep .arrow { fill: var(--line-strong); }
 .dep .arrow.critical { fill: var(--accent); }
+.dep .arrow.risk { fill: var(--danger); }
 .dep .lag { fill: var(--muted); font-size: 10px; }
+
+/* Dependencies, richer (spec 47): the owner's colour, the objective stripe, priority pills, ports,
+   links to click, and a trace that dims what is not on the chain. Theme tokens only. */
+.dep .node.owned:not(.late):not(.blocked):not(.held-up) .box { stroke: var(--obj); stroke-width: 1.6; }
+.dep .node.selected .box { stroke: var(--fg); stroke-width: 2; }
+.dep .node.dim { opacity: 0.25; }
+.dep .stripe { fill: var(--obj); }
+.dep .person { fill: var(--obj); }
+.dep .initials { fill: var(--canvas); font-size: 8px; font-weight: 700; text-anchor: middle; }
+.dep .p1 rect { fill: var(--warning); }
+.dep .p1 text { fill: var(--canvas); font-size: 9px; font-weight: 700; text-anchor: middle; }
+.dep .p2 rect { fill: color-mix(in srgb, var(--warning) 14%, var(--panel)); stroke: var(--warning); stroke-width: 1; }
+.dep .p2 text { fill: var(--warning); font-size: 9px; font-weight: 600; text-anchor: middle; }
+.dep .fog { fill: var(--fg); font-size: 9px; text-anchor: end; }
+.dep .port { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; opacity: 0; cursor: crosshair; }
+.dep .node:hover .port, .dep .node.selected .port { opacity: 1; }
+.dep .edge.cross { stroke-dasharray: 6 3; }
+.dep .edge.risk { stroke: var(--danger); stroke-width: 1.8; }
+.dep .edge.selected { stroke: var(--fg); stroke-width: 2.4; }
+.dep .edge.dim { opacity: 0.2; }
+.dep .edge-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+.dep .rubber { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 4 3; pointer-events: none; }
+/* An owner's initials as a round badge (the list of unlinked work, like the one in a box). */
+.person-badge { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 9999px; font-size: 9px; font-weight: 600; color: var(--obj); background: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.2); border: 1px solid var(--obj); }
+.dep .node.waiting .box { stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 6 4; }
+.dep .unstage circle { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
+.dep .unstage path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; }
+.dep .unstage { cursor: pointer; }
+.dep .unstage:hover circle { fill: var(--hover); stroke: var(--accent); }
+.dep .unstage:hover path { stroke: var(--fg); }
+.dep .node.drop .box { stroke: var(--accent); stroke-width: 2.4; fill: var(--hover); }
+.dep .node.expanded { cursor: default; }
+.dep .node.expanded .box { fill: var(--panel); stroke: var(--accent); stroke-width: 1.6; }
+.dep .node.expanded:hover .box { fill: var(--panel); }
+.dep .node.expanded foreignObject { user-select: text; cursor: default; }
+
+/*
+ * The radar window (spec 53). A sector's rim wears its objective's colour like every other
+ * objective mark (ADR-0012); an edge mark pulses twice when it first appears, then holds still,
+ * and not at all when the system asks for less motion.
+ */
+.radar-rim { fill: none; stroke: var(--obj); }
+.radar-pulse { animation: radar-pulse 600ms ease-in-out 2; }
+@keyframes radar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .radar-pulse { animation: none; }
+}

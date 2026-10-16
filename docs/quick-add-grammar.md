@@ -1,6 +1,6 @@
 # Quick-add grammar
 
-One line of text creates a task, project, waiting-on, note or decision. Parsing is pure and lives in `minimap-core::quick_add`; the command palette (`Ctrl/Cmd+K`) always shows a preview and asks about anything unclear before `Enter` adds it.
+One line of text creates a task, project, waiting-on, note or decision, or leaves a ping on an item. Parsing is pure and lives in `minimap-core::quick_add`; the command palette (`Ctrl/Cmd+K`) always shows a preview and asks about anything unclear before `Enter` adds it.
 
 ```
 task Fix login timeout @priya #api-launch !2 due:fri est:3d blocks:"Release 1.2"
@@ -11,10 +11,13 @@ decision "Postgres over Mongo" affects:#api-launch
 task Board update every:mon
 note 1:1 @priya every:wed
 task Pick the data store type:decision due:fri
+ping #eu-region check data residency by:fri
+ping @raj ask about the SOC 2 auditor by:tomorrow
+ping task:"Release 1.2" chase the owner
 ```
 
 ## Shape of a line
-- **Keyword first** (case-insensitive): `task`, `project`, `wait` (or `waiting`), `note`, `decision`. **No keyword means a task**, so `Fix login timeout !1` is a task. A task whose title starts with a keyword needs the keyword: `task note taking policy`.
+- **Keyword first** (case-insensitive): `task`, `project`, `wait` (or `waiting`), `note`, `decision`, `ping`. **No keyword means a task**, so `Fix login timeout !1` is a task. A task whose title starts with a keyword needs the keyword: `task note taking policy`.
 - The rest is **title words** mixed with markers. Words keep their order and are joined with spaces; markers can go anywhere. Quote text to keep spaces together: `"Release 1.2"`, `due:"..."`, `@"Priya Shah"`.
 - **Quoting also switches markers off**: a token that *starts* inside quotes is plain text (`"#123 is a bug"`, `"@home"`). Anything unrecognised (`10:30`, `re:`, `!wow`) is just a word.
 - An unclosed quote is reported and nothing is added until it is closed.
@@ -22,10 +25,10 @@ task Pick the data store type:decision due:fri
 ## Markers
 | marker | meaning | where |
 |---|---|---|
-| `@name` | a person; `@me` is you | task: assignee (default: you), project: owner, wait: who you wait on (required), note: mentioned |
-| `#handle` | a project, by handle (`api-launch`) or name | task: its project (default: inbox), wait: what it is about, note: mentioned, decision: affected |
+| `@name` | a person; `@me` is you | task: assignee (default: you), project: owner, wait: who you wait on (required), note: mentioned, ping: the person to ping (`@me` is refused) |
+| `#handle` | a project, by handle (`api-launch`) or name | task: its project (default: inbox), wait: what it is about, note: mentioned, decision: affected, ping: the project to ping |
 | `!1`..`!5` | priority, 1 highest | task, project |
-| `due:` / `by:` | due date | task; `by:` is also a wait's expected date |
+| `due:` / `by:` | due date | task; `by:` is also a wait's expected date and a ping's day (default: today) |
 | `start:` | start date | task, project |
 | `target:` | target date (`due:`/`by:` also work) | project |
 | `est:` | estimate: `3d`, `1.5d`, `4h` (hours use the hours-per-day setting) | task |
@@ -39,6 +42,7 @@ task Pick the data store type:decision due:fri
 | `date:` | the note's date / the decision's date | note, decision |
 | `kind:` | `1:1`, `meeting`, `general` | note |
 | `status:` | `proposed` or `decided` | decision |
+| `task:` / `objective:` / `decision:` | the item a ping is on, by name (`task:"Release 1.2"`); read as keys **only on a `ping` line** | ping |
 | `1:1` | bare word: makes the note a 1:1 | note |
 
 A marker not used by the kind is reported ("`est:` isn't used for a project"), never silently dropped. A second assignee/project/etc. is an error; the same reference twice counts once.
@@ -49,6 +53,7 @@ A marker not used by the kind is reported ("`est:` isn't used for a project"), n
 - **wait**: needs a description and an `@person`. The linking word `on` right after the person is dropped: `wait @raj on "Sign-off"` and `wait @raj Sign-off` are the same.
 - **note**: a 1:1 needs a person and is titled `1:1 with <name>` unless you give a title; `kind:meeting` with no title is titled "Meeting"; a general note needs a title. Mentioned people/projects become `@[Name](node:id)` in the body, so they link automatically.
 - **decision**: needs a title; created as proposed unless `status:decided`.
+- **ping** (ADR-0020): `ping <item> [note words…] [by:<when>]`. Exactly one item: `#project`, `@person`, `task:"…"`, `objective:"…"` or `decision:"…"` (else "Say what to ping: #project, @person or task:\"…\"" or "Ping one thing at a time"); it is never created from the line (an unmatched name is asked about with no Create). `@me` is refused ("You can't ping yourself; use a task"). The day defaults to today and a past day is refused ("Pick today or later"); the note is the remaining words, up to 200 characters. An item that already has a live ping gets that ping changed. The preview shows the item, the day and the note.
 
 ### Repeating
 Finishing a repeating task makes the next one (same title, description, project, estimate, priority, assignee and objectives) due on the rule's next date after the one it was due on, never in the past. A repeating note makes its next one on each date (see spec 27). The preview shows "Repeats: every Monday".

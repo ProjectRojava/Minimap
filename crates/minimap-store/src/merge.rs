@@ -27,6 +27,7 @@ use crate::{
     error::Result,
     meta, nodes,
     repo::table,
+    self_person,
     settings::LOCAL_ONLY,
 };
 
@@ -69,12 +70,21 @@ const ATTACHMENTS: Spec = Spec {
     local_cols: &[],
 };
 
+/// Pings (ADR-0020): by id, the newest write wins, hard deletes through tombstones.
+const PINGS: Spec = Spec {
+    table: "pings",
+    tombstone_kind: Some("ping"),
+    key: &["id"],
+    local_cols: &[],
+};
+
 fn node_spec(node_type: NodeType) -> Spec {
     Spec {
         table: table(node_type),
         tombstone_kind: Some(node_type.as_str()),
         key: &["id"],
-        // Who is "me" is a fact about this device, not about the item.
+        // `is_self` is a copy of the synced `self_person_id` setting, kept by `settle_self`; it is
+        // never copied from the other device's row.
         local_cols: if node_type == NodeType::Person {
             &["is_self"]
         } else {
@@ -92,8 +102,8 @@ struct Cx<'a> {
     recovered_at: String,
     summary: MergeSummary,
     tombstoned: HashSet<(String, String)>,
-    /// This database already has its "me".
-    has_self: bool,
+    /// The people the other device has as "me" (ids), for settling who "me" is afterwards.
+    remote_selves: Vec<String>,
 }
 
 fn q(name: &str) -> String {
@@ -220,11 +230,6 @@ pub fn merge(
         "INSERT OR REPLACE INTO app_meta (key, value) VALUES (?1, '1')",
         [meta::MERGING],
     )?;
-    let has_self: bool = tx.query_row(
-        "SELECT EXISTS (SELECT 1 FROM people WHERE is_self = 1)",
-        [],
-        |r| r.get(0),
-    )?;
     let at = now();
     let mut cx = Cx {
         tx: &tx,
@@ -238,7 +243,7 @@ pub fn merge(
             ..Default::default()
         },
         tombstoned: HashSet::new(),
-        has_self,
+        remote_selves: Vec::new(),
     };
 
     if mode != MergeMode::Recover {
@@ -249,6 +254,7 @@ pub fn merge(
         merge_table(&mut cx, &node_spec(*node_type))?;
     }
     merge_table(&mut cx, &ATTACHMENTS)?;
+    merge_table(&mut cx, &PINGS)?;
     merge_table(&mut cx, &EDGES)?;
     merge_activity(&mut cx)?;
     if mode != MergeMode::Recover {
@@ -291,6 +297,7 @@ fn apply_tombstones(cx: &mut Cx) -> Result<()> {
         let table_name = match kind.parse::<NodeType>() {
             Ok(nt) => Some(table(nt)),
             Err(_) if kind == "attachment" => Some("attachments"),
+            Err(_) if kind == "ping" => Some("pings"),
             Err(_) => None,
         };
         let Some(table_name) = table_name else {
@@ -335,9 +342,17 @@ fn apply_tombstones(cx: &mut Cx) -> Result<()> {
         if !existed {
             continue;
         }
-        if table_name != "attachments" {
+        if table_name != "attachments" && table_name != "pings" {
             cx.tx
                 .execute("DELETE FROM edges WHERE from_id = ?1 OR to_id = ?1", [&id])?;
+            cx.tx.execute(
+                "INSERT INTO tombstones (kind, id, deleted_at)
+                 SELECT 'ping', id, ?2 FROM pings WHERE target_id = ?1 AND true
+                 ON CONFLICT(kind, id) DO UPDATE SET deleted_at = MAX(deleted_at, excluded.deleted_at)",
+                rusqlite::params![&id, &deleted_at],
+            )?;
+            cx.tx
+                .execute("DELETE FROM pings WHERE target_id = ?1", [&id])?;
             cx.tx.execute(
                 "INSERT INTO tombstones (kind, id, deleted_at)
                  SELECT 'attachment', id, ?2 FROM attachments WHERE node_id = ?1 AND true
@@ -392,7 +407,13 @@ fn merge_table(cx: &mut Cx, spec: &Spec) -> Result<()> {
                 continue;
             }
         }
+        if spec.table == "people" && matches!(row.get("is_self"), Some(Value::Integer(1))) {
+            cx.remote_selves.push(text(&row, "id"));
+        }
         if spec.table == "edges" && edge_endpoint_missing(cx, &row)? {
+            continue;
+        }
+        if spec.table == "pings" && ping_target_missing(cx, &row) {
             continue;
         }
         normalise(cx, spec, &mut row)?;
@@ -515,23 +536,23 @@ fn conflict_slug(tx: &Transaction, wanted: &str, id: &str) -> Result<String> {
     }))
 }
 
-/// Last changes to a row about to be inserted: who is "me", and a handle held by an older
-/// project here.
+/// Last changes to a row about to be inserted: who is "me" (settled after all the rows are in,
+/// so everyone arrives as an ordinary person), and a handle held by an older project here.
 fn prepare_insert(cx: &mut Cx, spec: &Spec, row: &mut RowMap) -> Result<()> {
     if spec.table == "people" {
-        let remote_self = matches!(row.get("is_self"), Some(Value::Integer(1)));
-        let become_self = remote_self && !cx.has_self;
-        if remote_self && cx.has_self {
-            cx.summary.repairs.push(format!(
-                "{} was the \"me\" of {}; here it is an ordinary person (this device already has its own \"me\")",
-                text(row, "name"),
-                cx.device
-            ));
+        row.insert("is_self".into(), Value::Integer(0));
+    }
+    // An edge's id belongs to the device; its key is what matches. Folding a person into
+    // another moves an edge to a new key and keeps its id, so the id may be taken here.
+    if spec.table == "edges" {
+        let taken: bool = cx.tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM edges WHERE id = ?1)",
+            [text(row, "id")],
+            |r| r.get(0),
+        )?;
+        if taken {
+            row.insert("id".into(), Value::Text(Uuid::now_v7().to_string()));
         }
-        if become_self {
-            cx.has_self = true;
-        }
-        row.insert("is_self".into(), Value::Integer(i64::from(become_self)));
     }
     if spec.table == "projects" {
         displace_slug_holder(cx, row)?;
@@ -584,6 +605,15 @@ fn edge_endpoint_missing(cx: &Cx, row: &RowMap) -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+/// Is the item a ping is on deleted for good?
+fn ping_target_missing(cx: &Cx, row: &RowMap) -> bool {
+    let Ok(node_type) = text(row, "target_type").parse::<NodeType>() else {
+        return true;
+    };
+    cx.tombstoned
+        .contains(&(node_type.as_str().to_owned(), text(row, "target_id")))
 }
 
 // ------------------------------------------------------------------ activity and settings
@@ -705,10 +735,85 @@ fn merge_settings(cx: &mut Cx) -> Result<()> {
 /// Re-checks what the schema cannot express. Each repair is deterministic (it depends only on
 /// the data), so every device makes the same one, and none of them stamps a new `updated_at`.
 fn repair(cx: &mut Cx) -> Result<()> {
+    settle_self(cx)?;
     clear_dangling_pointers(cx)?;
     drop_dangling_edges(cx)?;
     break_loops(cx)?;
     break_team_loops(cx)?;
+    drop_dangling_pings(cx)?;
+    settle_double_pings(cx)?;
+    Ok(())
+}
+
+/// One "me" on every device: the setting names them, else the oldest of the people each device
+/// made for itself. Any other "me" is folded into theirs (see `self_person`), and a "me" that
+/// another device archived is restored.
+fn settle_self(cx: &mut Cx) -> Result<()> {
+    let settled = self_person::settle(cx.tx, &cx.remote_selves)?;
+    for f in settled.folded {
+        cx.summary.repairs.push(format!(
+            "\"{}\" was a second \"me\" (from {}); it was merged into your \"me\" and {} links, \
+             owners and notes were moved across",
+            f.name, cx.device, f.moved
+        ));
+    }
+    if settled.restored {
+        cx.summary.repairs.push(format!(
+            "Your \"me\" had been archived on {}; it is restored",
+            cx.device
+        ));
+    }
+    Ok(())
+}
+
+/// A ping on an item that was deleted for good on another device goes with it.
+fn drop_dangling_pings(cx: &mut Cx) -> Result<()> {
+    let mut removed = 0;
+    for node_type in NodeType::ALL {
+        let t = table(*node_type);
+        removed += cx.tx.execute(
+            &format!("DELETE FROM pings WHERE target_type = ?1 AND target_id NOT IN (SELECT id FROM {t})"),
+            [node_type.as_str()],
+        )?;
+    }
+    if removed > 0 {
+        cx.summary.repairs.push(format!(
+            "{removed} pings were on items that were deleted on another device and were removed"
+        ));
+    }
+    Ok(())
+}
+
+/// One live ping per item: when two devices each pinged the same item, the newer ping is kept and
+/// the older one is cleared (on the day it was last written, so every device makes the same
+/// repair).
+fn settle_double_pings(cx: &mut Cx) -> Result<()> {
+    let rows: Vec<(String, String, String, String)> = {
+        let mut stmt = cx.tx.prepare(
+            "SELECT id, target_type, target_id, updated_at FROM pings
+             WHERE archived_at IS NULL AND cleared_on IS NULL
+             ORDER BY target_id, updated_at, id",
+        )?;
+        let mapped = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
+        mapped.collect::<rusqlite::Result<_>>()?
+    };
+    for (i, (id, target_type, target_id, updated_at)) in rows.iter().enumerate() {
+        // Sorted, so a later row for the same item is the newer ping.
+        if rows.get(i + 1).is_none_or(|next| next.2 != *target_id) {
+            continue;
+        }
+        let day: String = updated_at.chars().take(10).collect();
+        cx.tx.execute(
+            "UPDATE pings SET cleared_on = ?2 WHERE id = ?1",
+            rusqlite::params![id, day],
+        )?;
+        let name = target_type
+            .parse::<NodeType>()
+            .map_or_else(|_| target_id.clone(), |t| label(cx.tx, t, target_id));
+        cx.summary.repairs.push(format!(
+            "Two devices each pinged \"{name}\"; the newer ping was kept and the older one cleared"
+        ));
+    }
     Ok(())
 }
 

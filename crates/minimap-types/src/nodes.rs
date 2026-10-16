@@ -55,6 +55,9 @@ pub struct Objective {
     pub review_every_days: Option<u32>,
     #[serde(default)]
     pub last_reviewed_on: Option<Date>,
+    /// The day someone said "still accurate" without changing anything (spec 43, fog of war).
+    #[serde(default)]
+    pub confirmed_on: Option<Date>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -114,6 +117,7 @@ pub struct UpdateObjective {
     pub ongoing: Option<bool>,
     pub review_every_days: Patch<u32>,
     pub last_reviewed_on: Patch<Date>,
+    pub confirmed_on: Patch<Date>,
 }
 
 impl UpdateObjective {
@@ -126,6 +130,7 @@ impl UpdateObjective {
         set(&mut o.ongoing, self.ongoing);
         self.review_every_days.apply(&mut o.review_every_days);
         self.last_reviewed_on.apply(&mut o.last_reviewed_on);
+        self.confirmed_on.apply(&mut o.confirmed_on);
     }
 }
 
@@ -143,6 +148,9 @@ pub struct Project {
     pub target_date: Option<Date>,
     pub status: ProjectStatus,
     pub priority: u8,
+    /// The day someone said "still accurate" without changing anything (spec 43, fog of war).
+    #[serde(default)]
+    pub confirmed_on: Option<Date>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -182,6 +190,7 @@ pub struct UpdateProject {
     pub target_date: Patch<Date>,
     pub status: Option<ProjectStatus>,
     pub priority: Option<u8>,
+    pub confirmed_on: Patch<Date>,
 }
 
 impl UpdateProject {
@@ -194,6 +203,7 @@ impl UpdateProject {
         self.target_date.apply(&mut p.target_date);
         set(&mut p.status, self.status);
         set(&mut p.priority, self.priority);
+        self.confirmed_on.apply(&mut p.confirmed_on);
     }
 }
 
@@ -232,6 +242,9 @@ pub struct Task {
     /// How long the meeting lasts in minutes; none means the default (`DEFAULT_MEETING_MINUTES`).
     #[serde(default)]
     pub length_minutes: Option<u32>,
+    /// The day someone said "still accurate" without changing anything (spec 43, fog of war).
+    #[serde(default)]
+    pub confirmed_on: Option<Date>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -302,6 +315,7 @@ pub struct UpdateTask {
     pub focus: Patch<Focus>,
     pub start_minute: Patch<u16>,
     pub length_minutes: Patch<u32>,
+    pub confirmed_on: Patch<Date>,
 }
 
 impl UpdateTask {
@@ -320,6 +334,7 @@ impl UpdateTask {
         self.focus.apply(&mut t.focus);
         self.start_minute.apply(&mut t.start_minute);
         self.length_minutes.apply(&mut t.length_minutes);
+        self.confirmed_on.apply(&mut t.confirmed_on);
     }
 }
 
@@ -485,6 +500,14 @@ pub struct Decision {
     pub rationale: String,
     pub decided_on: Option<Date>,
     pub status: DecisionStatus,
+    /// The status was set by Minimap, not by the user: finishing the task of type Decision decided
+    /// it (spec 42). Setting the status by hand clears it.
+    #[serde(default)]
+    pub auto_status: bool,
+    /// The decided-on date was filled in by Minimap (stamped when decided without one, or by
+    /// finishing the task), not typed by the user. Setting the date by hand clears it.
+    #[serde(default)]
+    pub auto_decided_on: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -517,6 +540,10 @@ pub struct UpdateDecision {
     pub rationale: Option<String>,
     pub decided_on: Patch<Date>,
     pub status: Option<DecisionStatus>,
+    /// Not sent by the UI. Minimap sets these when it fills the status or date in itself, and undo
+    /// puts them back; a status or date changed without them is the user's, which clears the flag.
+    pub auto_status: Option<bool>,
+    pub auto_decided_on: Option<bool>,
 }
 
 impl UpdateDecision {
@@ -527,6 +554,8 @@ impl UpdateDecision {
         set(&mut d.rationale, self.rationale);
         self.decided_on.apply(&mut d.decided_on);
         set(&mut d.status, self.status);
+        set(&mut d.auto_status, self.auto_status);
+        set(&mut d.auto_decided_on, self.auto_decided_on);
     }
 }
 

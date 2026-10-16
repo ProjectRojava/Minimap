@@ -54,6 +54,35 @@ pub(crate) fn schedule_at(
         .map_err(|e| app_error("cycle", e.to_string()))
 }
 
+/// The safe zone (spec 44) of every project that has one, from one run of the portfolio schedule
+/// (the same run health reads, so the dates agree). A schedule that can't be worked out (a
+/// loop that sync should have repaired) leaves the zones out rather than failing the screen.
+pub(crate) fn zones_at(
+    conn: &Connection,
+    today: Date,
+) -> Result<std::collections::HashMap<minimap_types::Uuid, minimap_types::Zone>, AppError> {
+    let Ok(schedule) = schedule_at(conn, today, ScheduleScope::Portfolio) else {
+        return Ok(Default::default());
+    };
+    let settings = minimap_store::settings::get(conn).map_err(store_error)?;
+    let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
+    Ok(schedule
+        .projects
+        .iter()
+        .filter_map(|f| {
+            let project = projects.iter().find(|p| p.id == f.project_id)?;
+            let zone = minimap_core::zone::of(
+                f,
+                project.status,
+                today,
+                settings.work_week,
+                settings.zone_narrow_days,
+            );
+            Some((f.project_id, zone))
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -9,6 +9,7 @@ use minimap_types::{
 use time::{Date, Duration, Weekday};
 
 use crate::{
+    pings,
     recurrence::{first_on_or_after, parse_every},
     search::{distance, typo_budget},
     task_types,
@@ -185,6 +186,7 @@ fn kind_of(word: &str) -> Option<QuickKind> {
         "wait" | "waiting" => QuickKind::Wait,
         "note" => QuickKind::Note,
         "decision" => QuickKind::Decision,
+        "ping" => QuickKind::Ping,
         _ => return None,
     })
 }
@@ -196,6 +198,7 @@ fn kind_name(k: QuickKind) -> &'static str {
         QuickKind::Wait => "wait",
         QuickKind::Note => "note",
         QuickKind::Decision => "decision",
+        QuickKind::Ping => "ping",
     }
 }
 
@@ -213,6 +216,25 @@ enum Slot {
     About,
     WaitPerson,
     Mention,
+    PingPerson,
+    PingProject,
+    PingTask,
+    PingObjective,
+    PingDecision,
+}
+
+impl Slot {
+    /// A reference that says what a ping is on.
+    fn is_ping(self) -> bool {
+        matches!(
+            self,
+            Slot::PingPerson
+                | Slot::PingProject
+                | Slot::PingTask
+                | Slot::PingObjective
+                | Slot::PingDecision
+        )
+    }
 }
 
 struct Request {
@@ -303,6 +325,11 @@ fn request(slot: Slot, raw: &str) -> Request {
                 Some(NodeType::Person),
                 None,
             ),
+            Slot::PingPerson => ("Ping", vec![NodeType::Person], None, None),
+            Slot::PingProject => ("Ping", vec![NodeType::Project], None, None),
+            Slot::PingTask => ("Ping", vec![NodeType::Task], None, None),
+            Slot::PingObjective => ("Ping", vec![NodeType::Objective], None, None),
+            Slot::PingDecision => ("Ping", vec![NodeType::Decision], None, None),
             Slot::Mention => {
                 if sigil == Some('#') {
                     (
@@ -321,9 +348,18 @@ fn request(slot: Slot, raw: &str) -> Request {
                 }
             }
         };
+    // A ping can name a project and a task alike, so its key says which.
+    let key_label = match slot {
+        Slot::PingPerson => "Ping person",
+        Slot::PingProject => "Ping project",
+        Slot::PingTask => "Ping task",
+        Slot::PingObjective => "Ping objective",
+        Slot::PingDecision => "Ping decision",
+        _ => label,
+    };
     Request {
         slot,
-        key: format!("{label}:{}", query.to_lowercase()),
+        key: format!("{key_label}:{}", query.to_lowercase()),
         label,
         query,
         types,
@@ -589,13 +625,44 @@ struct Parsed {
     priority: Option<u8>,
     values: Vec<(String, String)>,
     note_kind: Option<NoteKind>,
+    /// A ping line had `@me` for its target.
+    ping_me: bool,
     problems: Vec<String>,
+}
+
+const YOURSELF: &str = "You can't ping yourself; use a task";
+
+/// `task:"…"`, `objective:"…"`, `decision:"…"` on a ping line: what it is on. (Only a ping line
+/// reads these as keys, so a title elsewhere can still say "decision: …".)
+fn ping_target_key(token: &Token) -> Option<(String, Slot, &str)> {
+    if token.literal {
+        return None;
+    }
+    let (k, v) = token.text.split_once(':')?;
+    let key = k.to_lowercase();
+    let slot = match key.as_str() {
+        "task" => Slot::PingTask,
+        "objective" => Slot::PingObjective,
+        "decision" => Slot::PingDecision,
+        _ => return None,
+    };
+    Some((key, slot, v))
 }
 
 fn parse_tokens(kind: QuickKind, tokens: &[Token]) -> Parsed {
     let mut p = Parsed::default();
     let mut person_seen = false;
     for t in tokens {
+        if kind == QuickKind::Ping {
+            if let Some((key, slot, value)) = ping_target_key(t) {
+                if value.trim().is_empty() {
+                    p.problems.push(format!("{key}: needs a value"));
+                } else {
+                    p.requests.push(request(slot, value));
+                }
+                continue;
+            }
+        }
         if let Some((key, value)) = keyed(t) {
             if value.trim().is_empty() {
                 p.problems.push(format!("{key}: needs a value"));
@@ -619,6 +686,7 @@ fn parse_tokens(kind: QuickKind, tokens: &[Token]) -> Parsed {
                 QuickKind::Wait => ["by", "due"].as_slice(),
                 QuickKind::Note => ["date", "kind", "every"].as_slice(),
                 QuickKind::Decision => ["date", "status"].as_slice(),
+                QuickKind::Ping => ["by", "due"].as_slice(),
             };
             if allowed.contains(&key.as_str()) {
                 p.values.push((key, value.trim().to_owned()));
@@ -637,13 +705,26 @@ fn parse_tokens(kind: QuickKind, tokens: &[Token]) -> Parsed {
                         .push(format!("Name missing after {}", first.unwrap_or('@')));
                     continue;
                 }
+                Some('@') if kind == QuickKind::Ping => {
+                    if rest.trim().eq_ignore_ascii_case("me") {
+                        p.ping_me = true;
+                        p.problems.push(YOURSELF.into());
+                    } else {
+                        p.requests.push(request(Slot::PingPerson, &t.text));
+                    }
+                    continue;
+                }
+                Some('#') if kind == QuickKind::Ping => {
+                    p.requests.push(request(Slot::PingProject, &t.text));
+                    continue;
+                }
                 Some('@') => {
                     let slot = match kind {
                         QuickKind::Task => Some(Slot::Assignee),
                         QuickKind::Project => Some(Slot::Owner),
                         QuickKind::Wait => Some(Slot::WaitPerson),
                         QuickKind::Note => Some(Slot::Mention),
-                        QuickKind::Decision => None,
+                        QuickKind::Decision | QuickKind::Ping => None,
                     };
                     match slot {
                         Some(s @ (Slot::Assignee | Slot::Owner | Slot::WaitPerson)) => {
@@ -670,7 +751,7 @@ fn parse_tokens(kind: QuickKind, tokens: &[Token]) -> Parsed {
                         QuickKind::Wait => Some(Slot::About),
                         QuickKind::Note => Some(Slot::Mention),
                         QuickKind::Decision => Some(Slot::Affects),
-                        QuickKind::Project => None,
+                        QuickKind::Project | QuickKind::Ping => None,
                     };
                     match slot {
                         Some(s) => p.requests.push(request(s, &t.text)),
@@ -1025,6 +1106,45 @@ pub fn plan(text: &str, cx: &Context) -> Outcome {
                 recurrence,
             });
         }
+        QuickKind::Ping => {
+            let given = date_value(&mut p, &["by", "due"], "On", cx.today, &mut details);
+            let on = given.unwrap_or_else(|| {
+                details.push(detail("On", day_text(cx.today)));
+                cx.today
+            });
+            let note = match pings::validate(&title, on, cx.today, None) {
+                Ok(note) => note,
+                Err(e) => {
+                    p.problems.push(e.to_string());
+                    title.clone()
+                }
+            };
+            title = note.clone();
+            let wanted = resolved.iter().filter(|(s, _, _)| s.is_ping()).count();
+            if wanted == 0 && !p.ping_me {
+                p.problems
+                    .push("Say what to ping: #project, @person or task:\"…\"".into());
+            }
+            if wanted > 1 {
+                p.problems.push("Ping one thing at a time".into());
+            }
+            let target = resolved
+                .iter()
+                .find(|(s, r, _)| s.is_ping() && r.is_some())
+                .and_then(|(_, r, _)| *r);
+            if let Some(Ref::Existing(n)) = target {
+                if cx.directory.iter().any(|e| e.node == n && e.is_self) {
+                    p.problems.push(YOURSELF.into());
+                }
+            }
+            if let (Some(target), 1) = (target, wanted) {
+                main = Some(QuickMain::Ping {
+                    target,
+                    note,
+                    on_date: on,
+                });
+            }
+        }
         QuickKind::Decision => {
             if title.is_empty() {
                 p.problems.push("A decision needs a title".into());
@@ -1149,6 +1269,7 @@ mod tests {
             entry(Project, 11, "Billing", Some("billing"), false),
             entry(Objective, 20, "Launch EU", None, false),
             entry(Task, 30, "Release 1.2", None, false),
+            entry(Decision, 40, "Postgres over Mongo", None, false),
         ]
     }
 
@@ -1168,6 +1289,7 @@ mod tests {
             include_str!("../../../docs/help/tasks.md"),
             include_str!("../../../docs/help/notes.md"),
             include_str!("../../../docs/help/waiting-on.md"),
+            include_str!("../../../docs/help/pings.md"),
         ];
         let mut checked = 0;
         for page in pages {
@@ -1181,7 +1303,7 @@ mod tests {
                 let is_example = in_block
                     && matches!(
                         first,
-                        "task" | "project" | "wait" | "waiting" | "note" | "decision"
+                        "task" | "project" | "wait" | "waiting" | "note" | "decision" | "ping"
                     );
                 if is_example {
                     let out = run(line.trim());
@@ -2053,5 +2175,149 @@ mod tests {
         fn dates_never_panic(text in "\\PC{0,20}") {
             let _ = parse_when(&text, TODAY);
         }
+    }
+
+    // ------------------------------------------------------------------- ping
+
+    fn ping(out: &Outcome) -> (Ref, String, Date) {
+        match &out.plan.as_ref().expect("a plan").main {
+            QuickMain::Ping {
+                target,
+                note,
+                on_date,
+            } => (*target, note.clone(), *on_date),
+            other => panic!("not a ping: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_ping_on_a_project_has_a_note_and_a_day() {
+        let out = run("ping #api-launch check data residency by:fri");
+        assert!(out.preview.ready, "{:?}", out.preview.problems);
+        assert_eq!(out.preview.kind, QuickKind::Ping);
+        let (target, note, on) = ping(&out);
+        assert_eq!(target, existing(NodeType::Project, 10));
+        assert_eq!(note, "check data residency");
+        assert_eq!(on, date!(2027 - 03 - 05));
+        assert_eq!(out.preview.title, "check data residency");
+        assert!(out
+            .preview
+            .details
+            .iter()
+            .any(|d| d.label == "On" && d.value == "Fri 2027-03-05"));
+    }
+
+    #[test]
+    fn a_ping_without_a_day_is_for_today_and_a_note_is_optional() {
+        let out = run("ping #billing");
+        let (target, note, on) = ping(&out);
+        assert_eq!(target, existing(NodeType::Project, 11));
+        assert_eq!(note, "");
+        assert_eq!(on, TODAY);
+        assert!(out
+            .preview
+            .details
+            .iter()
+            .any(|d| d.label == "On" && d.value == "Wed 2027-03-03"));
+    }
+
+    #[test]
+    fn a_ping_can_be_on_a_person_or_a_named_task_objective_or_decision() {
+        let (target, note, on) = ping(&run("ping @raj ask about the SOC 2 auditor by:tomorrow"));
+        assert_eq!(target, existing(NodeType::Person, 4));
+        assert_eq!(note, "ask about the SOC 2 auditor");
+        assert_eq!(on, date!(2027 - 03 - 04));
+        for (line, node_type, n) in [
+            (r#"ping task:"Release 1.2" chase it"#, NodeType::Task, 30),
+            (
+                r#"ping objective:"Launch EU" by:+3d"#,
+                NodeType::Objective,
+                20,
+            ),
+            (
+                r#"ping decision:"Postgres over Mongo" revisit"#,
+                NodeType::Decision,
+                40,
+            ),
+        ] {
+            let out = run(line);
+            assert!(out.preview.ready, "{line}: {:?}", out.preview.problems);
+            assert_eq!(ping(&out).0, existing(node_type, n), "{line}");
+        }
+    }
+
+    #[test]
+    fn a_ping_needs_exactly_one_target() {
+        let none = run("ping check the contract by:fri");
+        assert!(!none.preview.ready);
+        assert_eq!(
+            none.preview.problems,
+            ["Say what to ping: #project, @person or task:\"…\""]
+        );
+        let two = run("ping #billing @raj");
+        assert!(!two.preview.ready);
+        assert!(two.preview.problems.iter().any(|p| p.contains("one thing")));
+        assert!(two.plan.is_none());
+    }
+
+    #[test]
+    fn you_cannot_ping_yourself() {
+        for line in ["ping @me call back", "ping @uday call back"] {
+            let out = run(line);
+            assert!(!out.preview.ready, "{line}");
+            assert_eq!(
+                out.preview.problems,
+                ["You can't ping yourself; use a task"],
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_ping_checks_its_day_and_note_and_its_keys() {
+        let past = run("ping #billing by:2027-01-01");
+        assert_eq!(past.preview.problems, ["Pick today or later"]);
+        let long = run(&format!("ping #billing {}", "x ".repeat(120)));
+        assert!(long.preview.problems.iter().any(|p| p.contains("200")));
+        let wrong = run("ping #billing blocks:\"Release 1.2\"");
+        assert!(wrong
+            .preview
+            .problems
+            .iter()
+            .any(|p| p.contains("isn't used for a ping")));
+        let bad_day = run("ping #billing by:someday");
+        assert!(!bad_day.preview.ready);
+    }
+
+    #[test]
+    fn a_ping_target_that_is_not_found_is_asked_about_and_never_created() {
+        let out = run("ping #nothing-like-it check");
+        assert!(!out.preview.ready);
+        match &out.preview.refs[0].state {
+            RefState::Pending {
+                can_create, skip, ..
+            } => {
+                assert!(!can_create);
+                assert!(skip.is_none());
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn task_decision_and_objective_are_only_keys_on_a_ping_line() {
+        // On other lines the words stay part of the title, as before.
+        let out = run("note decision: what next");
+        assert!(
+            out.preview.problems.is_empty(),
+            "{:?}",
+            out.preview.problems
+        );
+        let out = run("task review task: the plan");
+        assert!(
+            out.preview.problems.is_empty(),
+            "{:?}",
+            out.preview.problems
+        );
     }
 }

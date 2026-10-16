@@ -175,6 +175,7 @@ pub(crate) fn delete_in_tx(tx: &rusqlite::Transaction, node: NodeRef) -> Result<
         [id_s(node.id)],
     )?;
     crate::attachments::delete_for_node(tx, node.id)?;
+    crate::pings::delete_for_node(tx, node.id)?;
     tx.execute(
         &format!("DELETE FROM {} WHERE id = ?1", table(node.node_type)),
         [id_s(node.id)],

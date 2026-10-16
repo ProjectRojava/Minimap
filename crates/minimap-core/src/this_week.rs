@@ -12,9 +12,9 @@
 use std::collections::HashMap;
 
 use minimap_types::{
-    Date, Flag, FlaggedTask, FocusTask, NodeSummary, NoteFilter, NoteItem, NoteKind, TaskNote,
-    TaskNotes, TaskRow, TaskStatus, ThisWeek, Uuid, WaitingOnFilter, WaitingOnItem, WaitingOnRow,
-    WeekDay, WeekTask, PREVIEW_CHARS, RECENT_NOTES,
+    Date, Flag, FlaggedTask, FocusTask, FogReport, NodeSummary, NodeType, NoteFilter, NoteItem,
+    NoteKind, QuietTask, TaskNote, TaskNotes, TaskRow, TaskStatus, ThisWeek, Uuid, WaitingOnFilter,
+    WaitingOnItem, WaitingOnRow, WeekDay, WeekTask, PREVIEW_CHARS, QUIET_LIMIT, RECENT_NOTES,
 };
 use time::Duration;
 
@@ -34,6 +34,9 @@ pub struct WeekInput {
     /// Any date in the week to show; today's week when `None`.
     pub week_of: Option<Date>,
     pub stale_days: u32,
+    /// The fog over what is in play (spec 43), for the *Gone quiet* section. `None` when looking
+    /// back at a past day or when it was not asked for.
+    pub fog: Option<FogReport>,
 }
 
 /// Re-dates the data to how it stood at the end of `day` as far as the records allow: tasks made
@@ -254,6 +257,14 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
         .chain(priorities.iter().map(WeekTask::id))
         .chain(meetings.iter().map(WeekTask::id))
         .collect();
+    let (quiet, quiet_more) = match (&input.fog, as_of) {
+        (Some(fog), None) => quiet_tasks(fog, &input.tasks, &listed, &wrap),
+        _ => (Vec::new(), 0),
+    };
+    let listed: Vec<Uuid> = listed
+        .into_iter()
+        .chain(quiet.iter().map(|q| q.task.id()))
+        .collect();
     let task_notes = recent_notes(&input.notes, &listed, today);
     let focus = focus
         .into_iter()
@@ -284,6 +295,8 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
         focus,
         focus_count,
         meetings,
+        quiet,
+        quiet_more,
         week_start,
         week_end,
         prev_week_start: week_start - Duration::days(7),
@@ -300,6 +313,34 @@ pub fn build_at(input: WeekInput, as_of: Option<Date>, real_today: Date) -> This
         one_on_ones,
         reviews: crate::objectives::reviews_due(&input.objectives, today, week_end),
     }
+}
+
+/// The fogged tasks (spec 43) that This week shows nowhere else: open, not a meeting, not in
+/// `listed`. Fog first, then the oldest first (the order of `fog.marks`), at most `QUIET_LIMIT`;
+/// the second number is how many more there are.
+fn quiet_tasks(
+    fog: &FogReport,
+    tasks: &[TaskRow],
+    listed: &[Uuid],
+    wrap: &dyn Fn(&TaskRow) -> WeekTask,
+) -> (Vec<QuietTask>, u32) {
+    let mut found: Vec<QuietTask> = fog
+        .marks
+        .iter()
+        .filter(|m| m.node.node_type == NodeType::Task && !listed.contains(&m.node.id))
+        .filter_map(|m| {
+            let row = tasks
+                .iter()
+                .find(|r| r.task.id == m.node.id && is_open(r) && !r.task.is_meeting())?;
+            Some(QuietTask {
+                task: wrap(row),
+                mark: m.clone(),
+            })
+        })
+        .collect();
+    let more = found.len().saturating_sub(QUIET_LIMIT) as u32;
+    found.truncate(QUIET_LIMIT);
+    (found, more)
 }
 
 /// The latest `RECENT_NOTES` notes that mention each of `tasks` (newest first by note date, then
@@ -446,6 +487,8 @@ mod tests {
     fn row(n: u128, title: &str, status: TaskStatus, due: Option<Date>, priority: u8) -> TaskRow {
         TaskRow {
             task: Task {
+                confirmed_on: None,
+
                 links: Vec::new(),
                 task_type: None,
                 focus: None,
@@ -487,6 +530,8 @@ mod tests {
 
     fn week(tasks: Vec<TaskRow>) -> ThisWeek {
         build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks,
             blockers: HashMap::new(),
@@ -506,6 +551,8 @@ mod tests {
         last: Option<Date>,
     ) -> minimap_types::Objective {
         minimap_types::Objective {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             description: String::new(),
@@ -525,6 +572,8 @@ mod tests {
     fn the_week_lists_ongoing_objectives_whose_review_is_overdue_or_due_by_sunday() {
         let weeks = |week_of: Option<Date>| {
             build(WeekInput {
+                fog: None,
+
                 objectives: vec![
                     ongoing_objective(1, "Overdue", Some(30), Some(date!(2027 - 01 - 20))),
                     ongoing_objective(2, "Friday", Some(30), Some(date!(2027 - 02 - 05))),
@@ -639,6 +688,8 @@ mod tests {
             note(8, "loose", NoteKind::General, day(1)),
         ];
         let w = build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![late, doing, idle],
             blockers: HashMap::new(),
@@ -687,6 +738,8 @@ mod tests {
             ),
         ];
         let w = build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![late],
             blockers: HashMap::new(),
@@ -712,6 +765,8 @@ mod tests {
 
     fn week_with_notes(tasks: Vec<TaskRow>, notes: Vec<NoteItem>) -> ThisWeek {
         build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks,
             blockers: HashMap::new(),
@@ -880,6 +935,8 @@ mod tests {
             .unwrap()
             .assume_utc();
         let mut input = WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![r],
             blockers: HashMap::new(),
@@ -1003,6 +1060,8 @@ mod tests {
         assert_eq!(monday_of(date!(2027 - 03 - 08)), date!(2027 - 03 - 08));
         // Another week.
         let next = build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![],
             blockers: HashMap::new(),
@@ -1155,6 +1214,8 @@ mod tests {
         ];
         let of = |d| {
             build(WeekInput {
+                fog: None,
+
                 objectives: Vec::new(),
                 tasks: tasks.clone(),
                 blockers: HashMap::new(),
@@ -1188,6 +1249,8 @@ mod tests {
         let mut blockers = HashMap::new();
         blockers.insert(id(1), vec![blocker.clone()]);
         let w = build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![
                 row(1, "Stuck", TaskStatus::Blocked, None, 2),
@@ -1226,6 +1289,8 @@ mod tests {
         assert!(mine.has_self);
         // Without a "me" person there is no "mine": show everything in progress.
         let anyone = build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks,
             blockers: HashMap::new(),
@@ -1342,6 +1407,8 @@ mod tests {
         made_later.task.created_at = at(date!(2027 - 03 - 03));
         let still_open = row(4, "Open", TaskStatus::Todo, Some(date!(2027 - 03 - 02)), 3);
         let mut input = WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![finished_later, finished_before, made_later, still_open],
             blockers: HashMap::new(),
@@ -1403,6 +1470,8 @@ mod tests {
         let mut resolved = waiting_item(6, date!(2027 - 02 - 01), None);
         resolved.waiting.resolved_on = Some(date!(2027 - 02 - 10));
         let w = build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![],
             blockers: HashMap::new(),
@@ -1436,6 +1505,8 @@ mod tests {
     #[test]
     fn one_on_ones_are_this_weeks_notes_of_that_kind_earliest_first() {
         let w = build(WeekInput {
+            fog: None,
+
             objectives: Vec::new(),
             tasks: vec![],
             blockers: HashMap::new(),
@@ -1479,45 +1550,186 @@ mod tests {
     }
 
     proptest! {
-           /// Sections are exactly filters of the data: nothing closed, every date inside its
-           /// bounds, and the strip adds up to the tasks due inside the week.
-           #[test]
-           fn sections_match_the_underlying_data(
-               specs in proptest::collection::vec((0u8..5, proptest::option::of(-20i64..20), 1u8..6), 0..25),
-               offset in -10i64..10,
-           ) {
-               let tasks: Vec<TaskRow> = specs.iter().enumerate().map(|(i, (s, due, p))| {
-                   let status = [TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Blocked, TaskStatus::Done, TaskStatus::Cancelled][*s as usize];
-                   row(i as u128 + 100, &format!("T{i}"), status, due.map(|d| TODAY + Duration::days(d)), *p)
-               }).collect();
-               let w = build(WeekInput {
-    objectives: Vec::new(),
-                   tasks: tasks.clone(), blockers: HashMap::new(), waiting: vec![], notes: vec![],
-                   self_id: None, today: TODAY, week_of: Some(TODAY + Duration::days(offset)), stale_days: 7,
-               });
-               let open = |t: &WeekTask| !matches!(t.row.task.status, TaskStatus::Done | TaskStatus::Cancelled);
-               for t in w.overdue.iter().chain(&w.due_this_week).chain(&w.blocked).chain(&w.in_progress) {
-                   prop_assert!(open(t));
+               /// Sections are exactly filters of the data: nothing closed, every date inside its
+               /// bounds, and the strip adds up to the tasks due inside the week.
+               #[test]
+               fn sections_match_the_underlying_data(
+                   specs in proptest::collection::vec((0u8..5, proptest::option::of(-20i64..20), 1u8..6), 0..25),
+                   offset in -10i64..10,
+               ) {
+                   let tasks: Vec<TaskRow> = specs.iter().enumerate().map(|(i, (s, due, p))| {
+                       let status = [TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Blocked, TaskStatus::Done, TaskStatus::Cancelled][*s as usize];
+                       row(i as u128 + 100, &format!("T{i}"), status, due.map(|d| TODAY + Duration::days(d)), *p)
+                   }).collect();
+                   let w = build(WeekInput {
+    fog: None,
+
+        objectives: Vec::new(),
+                       tasks: tasks.clone(), blockers: HashMap::new(), waiting: vec![], notes: vec![],
+                       self_id: None, today: TODAY, week_of: Some(TODAY + Duration::days(offset)), stale_days: 7,
+                   });
+                   let open = |t: &WeekTask| !matches!(t.row.task.status, TaskStatus::Done | TaskStatus::Cancelled);
+                   for t in w.overdue.iter().chain(&w.due_this_week).chain(&w.blocked).chain(&w.in_progress) {
+                       prop_assert!(open(t));
+                   }
+                   let overdue_ok = w.overdue.iter().all(|t| t.row.task.due_date.unwrap() < TODAY && t.overdue_days.unwrap() >= 1);
+                   prop_assert!(overdue_ok);
+                   let due_ok = w.due_this_week.iter().all(|t| {
+                       let d = t.row.task.due_date.unwrap();
+                       d >= TODAY && d >= w.week_start && d <= w.week_end && t.overdue_days.is_none()
+                   });
+                   prop_assert!(due_ok);
+                   // Completeness: every open task with a due date in [today, Sunday] ∩ week is listed.
+                   let expect = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
+                       .filter(|r| r.task.due_date.is_some_and(|d| d >= TODAY.max(w.week_start) && d <= w.week_end)).count();
+                   prop_assert_eq!(w.due_this_week.len(), expect);
+                   prop_assert_eq!(w.blocked.len(), tasks.iter().filter(|r| r.task.status == TaskStatus::Blocked).count());
+                   prop_assert!(w.overdue.windows(2).all(|p| p[0].row.task.due_date <= p[1].row.task.due_date));
+                   prop_assert_eq!(w.week_start.weekday(), time::Weekday::Monday);
+                   prop_assert_eq!((w.week_end - w.week_start).whole_days(), 6);
+                   let strip: u32 = w.days.iter().map(|d| d.tasks_due).sum();
+                   let in_week = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
+                       .filter(|r| r.task.due_date.is_some_and(|d| d >= w.week_start && d <= w.week_end)).count() as u32;
+                   prop_assert_eq!(strip, in_week);
                }
-               let overdue_ok = w.overdue.iter().all(|t| t.row.task.due_date.unwrap() < TODAY && t.overdue_days.unwrap() >= 1);
-               prop_assert!(overdue_ok);
-               let due_ok = w.due_this_week.iter().all(|t| {
-                   let d = t.row.task.due_date.unwrap();
-                   d >= TODAY && d >= w.week_start && d <= w.week_end && t.overdue_days.is_none()
-               });
-               prop_assert!(due_ok);
-               // Completeness: every open task with a due date in [today, Sunday] ∩ week is listed.
-               let expect = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
-                   .filter(|r| r.task.due_date.is_some_and(|d| d >= TODAY.max(w.week_start) && d <= w.week_end)).count();
-               prop_assert_eq!(w.due_this_week.len(), expect);
-               prop_assert_eq!(w.blocked.len(), tasks.iter().filter(|r| r.task.status == TaskStatus::Blocked).count());
-               prop_assert!(w.overdue.windows(2).all(|p| p[0].row.task.due_date <= p[1].row.task.due_date));
-               prop_assert_eq!(w.week_start.weekday(), time::Weekday::Monday);
-               prop_assert_eq!((w.week_end - w.week_start).whole_days(), 6);
-               let strip: u32 = w.days.iter().map(|d| d.tasks_due).sum();
-               let in_week = tasks.iter().filter(|r| !matches!(r.task.status, TaskStatus::Done | TaskStatus::Cancelled))
-                   .filter(|r| r.task.due_date.is_some_and(|d| d >= w.week_start && d <= w.week_end)).count() as u32;
-               prop_assert_eq!(strip, in_week);
            }
-       }
+
+    fn mark(n: u128, level: minimap_types::FogLevel, age: u32) -> minimap_types::FogMark {
+        minimap_types::FogMark {
+            node: NodeRef::new(NodeType::Task, id(n)),
+            label: format!("task {n}"),
+            level,
+            age_days: age,
+            last_seen: TODAY - time::Duration::days(i64::from(age)),
+            reason: minimap_types::FogReason::NoChange,
+        }
+    }
+
+    fn week_with_fog(
+        tasks: Vec<TaskRow>,
+        marks: Vec<minimap_types::FogMark>,
+        as_of: Option<Date>,
+    ) -> ThisWeek {
+        build_at(
+            WeekInput {
+                fog: Some(FogReport {
+                    today: TODAY,
+                    marks,
+                    visibility: Some(40),
+                    in_play: 5,
+                    clear: 2,
+                }),
+                objectives: Vec::new(),
+                tasks,
+                blockers: HashMap::new(),
+                waiting: vec![],
+                notes: vec![],
+                self_id: Some(id(1)),
+                today: TODAY,
+                week_of: None,
+                stale_days: 7,
+            },
+            as_of,
+            TODAY,
+        )
+    }
+
+    #[test]
+    fn fogged_tasks_that_are_nowhere_else_are_gone_quiet() {
+        use minimap_types::FogLevel::{Fog, Haze};
+        let tasks = vec![
+            // Overdue: already in Needs attention, so not repeated.
+            row(1, "late", TaskStatus::Todo, Some(date!(2027 - 03 - 01)), 3),
+            // In progress, mine: in the plan.
+            assigned(row(2, "mine", TaskStatus::InProgress, None, 3), 1),
+            // In progress, someone else's, due next month: nowhere on the page.
+            assigned(
+                row(
+                    3,
+                    "theirs",
+                    TaskStatus::InProgress,
+                    Some(date!(2027 - 04 - 10)),
+                    3,
+                ),
+                9,
+            ),
+            // Done: never listed even if a stale mark names it.
+            row(4, "finished", TaskStatus::Done, None, 3),
+        ];
+        let w = week_with_fog(
+            tasks,
+            vec![
+                mark(1, Fog, 20),
+                mark(2, Haze, 9),
+                mark(3, Haze, 10),
+                mark(4, Haze, 12),
+            ],
+            None,
+        );
+        assert_eq!(w.attention.len(), 1);
+        let quiet: Vec<(Uuid, u32)> = w
+            .quiet
+            .iter()
+            .map(|q| (q.task.id(), q.mark.age_days))
+            .collect();
+        assert_eq!(quiet, [(id(3), 10)]);
+        assert_eq!(w.quiet_more, 0);
+    }
+
+    #[test]
+    fn gone_quiet_is_capped_and_says_how_many_more() {
+        use minimap_types::FogLevel::Haze;
+        let tasks: Vec<TaskRow> = (1..=11)
+            .map(|n| {
+                row(
+                    n,
+                    "t",
+                    TaskStatus::InProgress,
+                    Some(date!(2027 - 05 - 01)),
+                    3,
+                )
+            })
+            .collect();
+        // Nobody is "me", so none of these is in the plan.
+        let marks: Vec<_> = (1..=11).map(|n| mark(n, Haze, 8 + n as u32)).collect();
+        let w = build_at(
+            WeekInput {
+                fog: Some(FogReport {
+                    today: TODAY,
+                    marks,
+                    visibility: None,
+                    in_play: 11,
+                    clear: 0,
+                }),
+                objectives: Vec::new(),
+                tasks,
+                blockers: HashMap::new(),
+                waiting: vec![],
+                notes: vec![],
+                self_id: Some(id(99)),
+                today: TODAY,
+                week_of: None,
+                stale_days: 7,
+            },
+            None,
+            TODAY,
+        );
+        assert_eq!(w.quiet.len(), minimap_types::QUIET_LIMIT);
+        assert_eq!(w.quiet_more as usize, 11 - minimap_types::QUIET_LIMIT);
+    }
+
+    #[test]
+    fn looking_back_shows_no_fog() {
+        use minimap_types::FogLevel::Fog;
+        let tasks = vec![row(
+            3,
+            "t",
+            TaskStatus::InProgress,
+            Some(date!(2027 - 04 - 10)),
+            3,
+        )];
+        let w = week_with_fog(tasks, vec![mark(3, Fog, 20)], Some(date!(2027 - 03 - 02)));
+        assert!(w.quiet.is_empty());
+        assert_eq!(w.quiet_more, 0);
+    }
 }

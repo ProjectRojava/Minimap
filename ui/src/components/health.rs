@@ -269,6 +269,8 @@ mod tests {
     #[test]
     fn finish_text_shows_the_target_when_there_is_one() {
         let row = |f, t| ProjectHealthRow {
+            zone: Default::default(),
+
             project: NodeSummary {
                 node: NodeRef::new(NodeType::Project, Uuid::nil()),
                 label: "P".into(),

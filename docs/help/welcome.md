@@ -9,6 +9,10 @@ Minimap is a private command center for running a team or an organisation. It ke
 - **It works things out for you.** Dates, the critical path, project health, workload and the effect of a slip are all computed from your tasks and the links between them. You rarely have to maintain a status by hand.
 - **Keyboard first.** Almost everything has a shortcut, and `Ctrl/Cmd+K` opens a command palette that can add things from one line of text. See [Keyboard shortcuts](help:keyboard) and [Quick-add and the palette](help:quick-add).
 
+## Why the name
+
+In a game, the minimap is the small map in the corner: you don't play on it, you glance at it and get back to the game. Minimap is meant to be used the same way, as a quick look at where things stand, what is coming and what you have not looked at lately. The ideas show up as [the radar](help:radar), [fog](help:fog) and [My view](help:views).
+
 ## Your first ten minutes
 
 1. **Say who you are.** On the first launch Minimap asks for your name. You become the person marked *you* in People.
@@ -22,7 +26,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 
    Press `Enter` to see a preview and `Enter` again to add it. Tasks without a project go to the *Inbox*.
 5. **Say what depends on what.** Open a task and, under *Links*, add a *blocks* link to the task that has to wait for it. See [Links between items](help:links).
-6. **Look around.** [This week](help:this-week) shows what needs you now. [Overview](help:overview) shows health across everything. [Schedule](help:schedule) shows when things will really finish.
+6. **Look around.** [This week](help:this-week) shows what needs you now. [Overview](help:overview) shows health across everything (press `v` for [My view](help:views): everything as it touches you). [Schedule](help:schedule) shows when things will really finish. `Alt+↑` and `Alt+↓` [zoom](help:zoom) between the whole portfolio, an objective, a project and one task. The [radar](help:radar) (`Ctrl/Cmd+Shift+M`) is a small window you can leave on top of other apps and glance at.
 7. **Protect your data.** Turn on [automatic backups](help:backup-restore), consider [encryption](help:encryption), and optionally connect [Google Drive](help:google-drive).
 
 > **Tip:** the quickest way to see everything working is the demo data. In a development build, *Settings → Developer → Add demo data* fills an empty database with a realistic company. It is not offered in the released app. To get rid of it again, see [the FAQ](help:faq).
@@ -33,6 +37,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 |---|---|---|
 | | [This week](help:this-week) | Your landing screen: overdue, due, blocked, the tasks you keep in focus, in progress, waiting, 1:1s |
 | | [Overview](help:overview) | Health of objectives and projects, top risks, overloaded people |
+| | [Radar](help:radar) | A small window, opened from the title bar, with your world centred on you |
 | | Inbox | Tasks that belong to no project (the Tasks screen, filtered) |
 | Plan | [Objectives](help:objectives) | The outcomes you are after, and what contributes to them |
 | Plan | [Projects](help:projects) | Work with an owner, a target date and tasks; list and board |
@@ -44,6 +49,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 | Log | [Notes](help:notes) | Meeting notes and 1:1s, with `@` mentions and checklists |
 | Log | [Decisions](help:decisions) | What was decided, why, and what replaced it |
 | Log | [Waiting on](help:waiting-on) | What you are waiting for from others, and how long |
+| Log | [Archive](help:archive) | Everything you archived, and finished tasks that archive themselves; restore anything |
 | Review | [Weekly review](help:weekly-review) | A guided look back, ending in a status report |
 | | [Settings](help:settings) | Appearance, working time, thresholds, backups, encryption, Drive |
 | | About | Who made Minimap (name and email, click the email to write to them) and the version you are running. In the sidebar footer, or `g u` |

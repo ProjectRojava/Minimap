@@ -98,6 +98,18 @@ pub const PAGES: &[Page] = &[
         "Track what you are waiting for, and chase the stale"
     ),
     page!(
+        "archive",
+        "Daily work",
+        "Archive",
+        "Everything archived in one place, and finished tasks that archive themselves"
+    ),
+    page!(
+        "pings",
+        "Daily work",
+        "Pings: come back to anything on a day",
+        "Leave a marker on any item and see it again on the day"
+    ),
+    page!(
         "recurring",
         "Daily work",
         "Recurring items",
@@ -128,6 +140,12 @@ pub const PAGES: &[Page] = &[
         "See what a delay would push back, then apply it"
     ),
     page!(
+        "approaching",
+        "Planning and insight",
+        "Approaching: trouble elsewhere that reaches you",
+        "A strip that warns when blocked or late work elsewhere will hit yours"
+    ),
+    page!(
         "capacity",
         "Planning and insight",
         "Capacity",
@@ -138,6 +156,30 @@ pub const PAGES: &[Page] = &[
         "Planning and insight",
         "Overview and health",
         "Health, risks, and how they are decided"
+    ),
+    page!(
+        "views",
+        "Planning and insight",
+        "Portfolio view and My view",
+        "Everything, or everything as it touches you (v)"
+    ),
+    page!(
+        "zoom",
+        "Planning and insight",
+        "Zoom: from the whole portfolio to one task",
+        "Move between the portfolio, an objective, a project and an item (Alt+Up / Alt+Down)"
+    ),
+    page!(
+        "radar",
+        "Planning and insight",
+        "The radar",
+        "A small window to glance at: your world centred on you (Ctrl/Cmd+Shift+M)"
+    ),
+    page!(
+        "fog",
+        "Planning and insight",
+        "Fog: how fresh your information is",
+        "Work that has gone quiet fades, until you confirm it"
     ),
     page!(
         "weekly-review",
@@ -174,6 +216,12 @@ pub const PAGES: &[Page] = &[
         "Your data",
         "Settings",
         "Every setting, tab by tab"
+    ),
+    page!(
+        "tray",
+        "Your data",
+        "Tray, reminders and starting with your computer",
+        "Keep Minimap running when the window is closed, with reminders and a lock"
     ),
     page!(
         "backup-restore",
@@ -371,7 +419,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 29);
+        assert_eq!(PAGES.len(), 37);
     }
 
     #[test]
@@ -570,6 +618,21 @@ mod tests {
         )));
         assert!(settings.contains(&format!("(default {})", defaults.stale_waiting_days)));
         assert!(settings.contains(&format!("(default {})", defaults.capacity_task_limit)));
+        assert!(settings.contains(&format!("(default {})", defaults.zone_narrow_days)));
+        assert!(settings.contains(&format!("(default {})", defaults.one_on_one_every_days)));
+        // The radar's rings, on the settings page and the radar's own.
+        let rings = defaults.radar_rings;
+        let quoted = format!(
+            "default {}, {} and {} working days",
+            rings[0], rings[1], rings[2]
+        );
+        assert!(settings.contains(&quoted), "settings: {quoted}");
+        assert!(page("radar").body.contains(&quoted), "radar: {quoted}");
+        // The projects page says where it turns narrow.
+        assert!(page("projects").body.contains(&format!(
+            "narrow at {} days of room or fewer",
+            defaults.zone_narrow_days
+        )));
         let t = defaults.health;
         let overview = page("overview").body;
         assert!(overview.contains(&format!(
@@ -580,6 +643,37 @@ mod tests {
         assert!(overview.contains(&format!(
             "{}% | {}%",
             t.unestimated_amber_pct, t.unestimated_red_pct
+        )));
+    }
+
+    #[test]
+    fn the_approaching_limits_quoted_are_the_real_ones() {
+        let page = page("approaching").body;
+        assert!(page.contains(&format!("up to {} links", minimap_types::MAX_HOPS)));
+        assert!(page.contains(&format!(
+            "has {} working days of slack or less",
+            minimap_types::THREAT_SLACK
+        )));
+    }
+
+    #[test]
+    fn the_fog_defaults_quoted_are_the_real_ones() {
+        let t = minimap_types::FogThresholds::default();
+        let fog = page("fog").body;
+        for (kind, haze, fog_after) in [
+            ("Tasks", t.task_haze, t.task_fog),
+            ("Projects", t.project_haze, t.project_fog),
+            ("Objectives", t.objective_haze, t.objective_fog),
+        ] {
+            assert!(
+                fog.contains(&format!("| {kind} | {haze} days | {fog_after} days |")),
+                "the fog page lacks the {kind} thresholds"
+            );
+        }
+        // The confirmation stays clear for the haze number of days.
+        assert!(fog.contains(&format!(
+            "({} days for a task, {} for a project, {} for an objective",
+            t.task_haze, t.project_haze, t.objective_haze
         )));
     }
 

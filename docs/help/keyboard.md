@@ -12,8 +12,13 @@ Minimap is built to be used without the mouse. Shortcuts that are single keys wo
 | `Ctrl/Cmd+Z` | Undo the last change ([Undo and redo](help:undo)) |
 | `Ctrl/Cmd+Shift+Z` or `Ctrl+Y` | Redo |
 | `Esc` | Close the detail pane, or leave a text box |
+| `Ctrl/Cmd+S` | Make a save point: a copy of everything, with a name if you like ([Backup and restore](help:backup-restore)) |
+| `Ctrl/Cmd+Shift+M` | Open or close the [radar](help:radar), the small always-on-top window |
+| `v` | Switch between Portfolio view and My view ([Portfolio view and My view](help:views)) |
+| `Alt+↑` | Zoom out one level: from a task to its project, objective and the Overview ([Zoom](help:zoom)) |
+| `Alt+↓` | Zoom back in to where you came from, or into the highlighted row |
 
-Inside a text box `Ctrl/Cmd+Z` undoes the typing, as usual.
+Inside a text box `Ctrl/Cmd+Z` undoes the typing, as usual, and `Alt+↑` / `Alt+↓` do not zoom.
 
 ## Go to a screen: press `g`, then a letter
 
@@ -35,6 +40,7 @@ Press `g`, then the letter within a second.
 | `g n` | Notes |
 | `g d` | Decisions |
 | `g a` | Waiting on |
+| `g v` | Archive |
 | `g r` | Weekly review |
 | `g s` | Settings |
 | `g h` | Help |
@@ -50,13 +56,15 @@ Hover over a sidebar entry to see its keys.
 | `Enter` | Open the highlighted row in the detail pane |
 | `n` | New item, on screens that have a "new" box or form (Tasks, Projects, Notes and so on). On the task board it opens the box in the To do column |
 
-### On the highlighted task row or card (Tasks, board and list, and Inbox; `x` and `f` also on This week)
+### On the highlighted task row or card (Tasks, board and list, and Inbox; `x`, `f` and `c` also on This week; `m` on every list)
 
 | Keys | Does |
 |---|---|
 | `x` | Mark done; again to reopen |
 | `s` | Move to the next status |
 | `f` | Put in focus, or take out of focus ([Tasks](help:tasks), *Focus*) |
+| `m` | Leave a [ping](help:pings) on it: a box asks for a day and a note. Works on any list, the board and This week. On a row of This week's Pings card, `x` clears the ping |
+| `c` | Say it is still accurate: clears its fog without changing it ([Fog](help:fog)). Also on projects, objectives, This week and the weekly review's Fog step |
 | `1`–`5` | Set the priority |
 | `d` | Focus the due date (list only) |
 | `a` | Focus the assignee (list only) |

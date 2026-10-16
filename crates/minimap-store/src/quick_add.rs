@@ -3,8 +3,8 @@
 
 use minimap_types::{
     mention_token, AssigneeChoice, CreateDecision, CreateNote, CreateObjective, CreatePerson,
-    CreateProject, CreateTask, CreateWaitingOn, DirectoryEntry, EdgeType, NewEdge, NodeRef,
-    NodeType, QuickAssignee, QuickMain, QuickPlan, QuickResult, Ref, TaskStatus,
+    CreatePing, CreateProject, CreateTask, CreateWaitingOn, DirectoryEntry, EdgeType, NewEdge,
+    NodeRef, NodeType, QuickAssignee, QuickMain, QuickPlan, QuickResult, Ref, TaskStatus,
 };
 use rusqlite::{Connection, Transaction};
 use serde_json::json;
@@ -13,11 +13,11 @@ use uuid::Uuid;
 use crate::{
     decisions, edges,
     error::{Result, StoreError},
-    nodes, notes, objectives, people, projects, tasks, waiting_on,
+    nodes, notes, objectives, people, pings, projects, tasks, waiting_on,
 };
 
-/// Active nodes a quick-add line may refer to: people, projects (with handles), objectives and
-/// open tasks.
+/// Active nodes a quick-add line may refer to: people, projects (with handles), objectives,
+/// open tasks and decisions (a ping can be on one).
 pub fn directory(conn: &Connection) -> Result<Vec<DirectoryEntry>> {
     let mut out = Vec::new();
     for p in people::list(conn, false)? {
@@ -56,6 +56,14 @@ pub fn directory(conn: &Connection) -> Result<Vec<DirectoryEntry>> {
                 is_self: false,
             });
         }
+    }
+    for d in decisions::list(conn, false)? {
+        out.push(DirectoryEntry {
+            node: NodeRef::new(NodeType::Decision, d.id),
+            label: d.title,
+            handle: None,
+            is_self: false,
+        });
     }
     Ok(out)
 }
@@ -218,6 +226,23 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
                 },
             )?;
             NodeRef::new(NodeType::Note, n.id)
+        }
+        QuickMain::Ping {
+            target,
+            note,
+            on_date,
+        } => {
+            let target = resolve(&target)?;
+            pings::create_in_tx(
+                &tx,
+                crate::today(),
+                CreatePing {
+                    target,
+                    note,
+                    on_date,
+                },
+            )?;
+            target
         }
         QuickMain::Decision {
             title,

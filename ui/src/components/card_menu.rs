@@ -6,6 +6,7 @@ use minimap_types::{LinkRelation, NodeRef, NodeType, Uuid};
 
 use crate::{
     api,
+    components::confirm_archive::{question, ConfirmArchive, UNDO_HINT},
     components::overlay::{anchor_of, place, viewport, Anchor},
     state::{finish, CardMenuState, DataVersion, LinkDialog, MenuRequest, Selection, Toasts},
 };
@@ -91,6 +92,7 @@ pub fn CardMenuHost() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
     let dialog = expect_context::<LinkDialog>();
+    let confirm = expect_context::<ConfirmArchive>();
 
     let choose = move |request: MenuRequest, item: Item| {
         state.0.set(None);
@@ -100,14 +102,23 @@ pub fn CardMenuHost() -> impl IntoView {
             Item::SubTask => dialog.open_as(task, name, false, LinkRelation::Subtask),
             Item::LinkNew => dialog.open(task, name, false),
             Item::LinkExisting => dialog.open(task, name, true),
-            Item::Archive => spawn_local(async move {
-                if finish(api::archive_task(task).await, toasts, version).is_some() {
-                    if selection.0.get_untracked() == Some(NodeRef::new(NodeType::Task, task)) {
-                        selection.close();
-                    }
-                    toasts.info(archived_message(&name));
-                }
-            }),
+            Item::Archive => confirm.ask(
+                question(&name),
+                format!("Its links (assignee, blocks) are archived with it. {UNDO_HINT}"),
+                move || {
+                    let name = name.clone();
+                    spawn_local(async move {
+                        if finish(api::archive_task(task).await, toasts, version).is_some() {
+                            if selection.0.get_untracked()
+                                == Some(NodeRef::new(NodeType::Task, task))
+                            {
+                                selection.close();
+                            }
+                            toasts.info(archived_message(&name));
+                        }
+                    });
+                },
+            ),
         }
     };
     // Escape closes it.

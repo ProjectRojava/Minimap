@@ -9,9 +9,11 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        confirm_archive::{question, ArchiveChoice, ArchiveRequest, ConfirmArchive, UNDO_HINT},
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER},
         markdown_box::{saver, MarkdownField},
+        page::Tone,
     },
     state::{finish, DataVersion, Selection, Toasts},
 };
@@ -65,14 +67,23 @@ pub fn PersonPanel(id: Uuid) -> impl IntoView {
             {move || match person.get() {
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
                 Some(Err(e)) => error_line(e),
-                Some(Ok(p)) => view! { <PersonFields person=p /> }.into_any(),
+                Some(Ok(p)) => view! {
+                    {p.is_self.then(|| view! {
+                        <p class="flex items-center gap-2 rounded-sm border border-accent/40 bg-accent/10 px-2 py-1 text-[12px]">
+                            <span class=Tone::Accent.chip()>"ME"</span>
+                            "This is you, the same person on every computer."
+                        </p>
+                    })}
+                    <PersonFields person=p />
+                }.into_any(),
             }}
         </Section>
         {move || match (detail.get(), people.get(), teams.get()) {
             (Some(Ok(d)), Some(Ok(ps)), Some(Ok(ts))) => view! {
-                <Organization detail=d.clone() people=ps teams=ts />
+                <Organization detail=d.clone() people=ps.clone() teams=ts />
                 <WaitingOnList detail=d.clone() />
                 <PersonNotes detail=d.clone() />
+                <MergePerson detail=d.clone() people=ps.clone() />
                 <ArchivePerson detail=d />
             }.into_any(),
             (Some(Err(e)), _, _) | (_, Some(Err(e)), _) | (_, _, Some(Err(e))) => view! {
@@ -251,6 +262,29 @@ pub fn NodeButtons(nodes: Vec<NodeSummary>) -> impl IntoView {
 
 /// Notes that mention this person (their 1:1s first among equals: newest first), and a
 /// shortcut to start a new 1:1 that already mentions them.
+/// Makes a 1:1 note with this person (titled "1:1 with Name", mentioning them) and opens it.
+/// The *New 1:1* button here and on a *Your people* frame both do this.
+pub fn new_one_on_one(
+    id: minimap_types::Uuid,
+    name: String,
+    toasts: Toasts,
+    version: DataVersion,
+    selection: Selection,
+) {
+    let input = CreateNote {
+        title: format!("1:1 with {name}"),
+        body: format!("{}\n\n", mention_token(&name, id)),
+        note_date: None,
+        kind: Some(NoteKind::OneOnOne),
+        recurrence: None,
+    };
+    spawn_local(async move {
+        if let Some(n) = finish(api::create_note(input).await, toasts, version) {
+            selection.open(NodeRef::new(NodeType::Note, n.id));
+        }
+    });
+}
+
 #[component]
 fn PersonNotes(detail: PersonDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
@@ -267,20 +301,7 @@ fn PersonNotes(detail: PersonDetail) -> impl IntoView {
             ..Default::default()
         })
     });
-    let new_one_on_one = move |_| {
-        let input = CreateNote {
-            title: format!("1:1 with {name}"),
-            body: format!("{}\n\n", mention_token(&name, id)),
-            note_date: None,
-            kind: Some(NoteKind::OneOnOne),
-            recurrence: None,
-        };
-        spawn_local(async move {
-            if let Some(n) = finish(api::create_note(input).await, toasts, version) {
-                selection.open(NodeRef::new(NodeType::Note, n.id));
-            }
-        });
-    };
+    let new_one_on_one = move |_| new_one_on_one(id, name.clone(), toasts, version, selection);
 
     view! {
         <Section title="Notes">
@@ -343,32 +364,94 @@ fn WaitingOnList(detail: PersonDetail) -> impl IntoView {
     }
 }
 
+/// What the dialog says when this person is merged into another.
+pub fn merge_message(name: &str, into: &str, is_self: bool) -> String {
+    let mut text = format!(
+        "Everything that points at \"{name}\" (their tasks, projects, waiting-on items, mentions in \
+         notes, links and files) moves to \"{into}\", and \"{name}\" is deleted, on every computer. \
+         This can't be undone."
+    );
+    if is_self {
+        text.push_str(&format!(" \"{into}\" becomes you."));
+    }
+    text
+}
+
+/// For two records of the same person (typically a second "Me", made by another computer): moves
+/// everything onto the one you pick and deletes this one. Merging your own record into another
+/// makes that one "you" on every computer.
+#[component]
+fn MergePerson(detail: PersonDetail, people: Vec<PersonRow>) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
+    let id = detail.person.id;
+    let name = detail.person.name.clone();
+    let is_self = detail.person.is_self;
+    let others: Vec<(String, String)> = people
+        .iter()
+        .filter(|p| p.person.id != id && p.person.archived_at.is_none())
+        .map(|p| (p.person.id.to_string(), p.person.name.clone()))
+        .collect();
+    let chosen = RwSignal::new(String::new());
+    let labels = others.clone();
+    let mut options = vec![(String::new(), "Choose a person…".to_owned())];
+    options.extend(others);
+
+    let start = move |_| {
+        let target = chosen.get_untracked();
+        let Some(into) = target.parse::<Uuid>().ok() else {
+            return;
+        };
+        let into_name = labels
+            .iter()
+            .find(|(v, _)| *v == target)
+            .map(|(_, n)| n.clone())
+            .unwrap_or_default();
+        let run = Callback::new(move |()| {
+            spawn_local(async move {
+                if finish(api::merge_people(id, into).await, toasts, version).is_some() {
+                    // This person no longer exists; show who they became.
+                    selection.open(NodeRef::new(NodeType::Person, into));
+                }
+            });
+        });
+        confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
+            title: format!("Merge \"{name}\" into \"{into_name}\"?"),
+            message: merge_message(&name, &into_name, is_self),
+            body: None,
+            choices: vec![ArchiveChoice {
+                label: "Merge".to_owned(),
+                run,
+            }],
+        });
+    };
+
+    view! {
+        <Section title="Merge into another person" collapsed=true>
+            <p class="text-muted">
+                "Is this the same person as someone else in the list, for example a second \"Me\" "
+                "from another computer? Merge them into one."
+            </p>
+            <SelectField options=options current=String::new()
+                on_change=move |v: String| chosen.set(v) />
+            <button class=BUTTON disabled=move || chosen.get().is_empty() on:click=start>
+                "Merge…"
+            </button>
+        </Section>
+    }
+}
+
 #[component]
 fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
     let id = detail.person.id;
     let name = detail.person.name.clone();
-    // `Some(tasks)` = confirmation showing, listing the tasks that lose their assignee.
-    let confirming = RwSignal::new(None::<Vec<NodeSummary>>);
-
-    let start = move |_| {
-        spawn_local(async move {
-            match api::preview_archive_person(id).await {
-                Ok(p) => confirming.set(Some(p.assigned_tasks)),
-                Err(e) => toasts.error(&e),
-            }
-        });
-    };
-    let confirm = move |_| {
-        spawn_local(async move {
-            if finish(api::archive_person(id).await, toasts, version).is_some() {
-                confirming.set(None);
-                selection.close();
-            }
-        });
-    };
 
     if detail.person.is_self {
         return view! {
@@ -377,29 +460,76 @@ fn ArchivePerson(detail: PersonDetail) -> impl IntoView {
         .into_any();
     }
 
+    let start = move |_| ask_archive_person(id, name.clone(), toasts, version, selection, confirm);
+
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            {move || match confirming.get() {
-                None => view! { <button class=BUTTON on:click=start>"Archive person…"</button> }.into_any(),
-                Some(tasks) => view! {
-                    <div class="space-y-2">
-                        <p>
-                            "Archive " <strong>{name.clone()}</strong> "? Their links are archived with them"
-                            {if tasks.is_empty() { ".".to_owned() } else {
-                                format!(", so {} active task{} will become unassigned:", tasks.len(), if tasks.len() == 1 { "" } else { "s" })
-                            }}
-                        </p>
-                        <NodeButtons nodes=tasks />
-                        <div class="flex gap-2">
-                            <button class=BUTTON_DANGER on:click=confirm>"Archive"</button>
-                            <button class=BUTTON on:click=move |_| confirming.set(None)>"Cancel"</button>
-                        </div>
-                    </div>
-                }.into_any(),
-            }}
+            <button class=BUTTON_DANGER on:click=start>"Archive person…"</button>
         </Section>
     }
     .into_any()
+}
+
+/// Asks first, in the shared dialog, then archives the person (their links go with them). The
+/// tasks that lose their assignee are looked up when asked and listed in the dialog. Used by the
+/// pane's *Archive person…* and by the *Archive* button on a People row; Ctrl/Cmd+Z brings the
+/// person back.
+pub fn ask_archive_person(
+    id: minimap_types::Uuid,
+    name: String,
+    toasts: Toasts,
+    version: DataVersion,
+    selection: Selection,
+    confirm: ConfirmArchive,
+) {
+    let archive = Callback::new(move |()| {
+        spawn_local(async move {
+            if finish(api::archive_person(id).await, toasts, version).is_some() {
+                // The pane may be showing this person.
+                if selection.0.get_untracked() == Some(NodeRef::new(NodeType::Person, id)) {
+                    selection.close();
+                }
+            }
+        });
+    });
+    spawn_local(async move {
+        match api::preview_archive_person(id).await {
+            Ok(p) => {
+                let tasks = p.assigned_tasks;
+                let message = if tasks.is_empty() {
+                    format!("Their links are archived with them. {UNDO_HINT}")
+                } else {
+                    format!(
+                        "Their links are archived with them, so {} active task{} will become unassigned. {UNDO_HINT}",
+                        tasks.len(),
+                        if tasks.len() == 1 { "" } else { "s" }
+                    )
+                };
+                confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
+                    title: question(&name),
+                    message,
+                    body: (!tasks.is_empty()).then(|| task_lines(tasks)),
+                    choices: vec![ArchiveChoice {
+                        label: "Archive".to_owned(),
+                        run: archive,
+                    }],
+                });
+            }
+            Err(e) => toasts.error(&e),
+        }
+    });
+}
+
+/// The tasks an archive touches, as plain lines in the dialog.
+fn task_lines(tasks: Vec<NodeSummary>) -> ViewFn {
+    ViewFn::from(move || {
+        view! {
+            <ul class="max-h-40 space-y-px overflow-y-auto text-[12px]">
+                {tasks.iter().map(|t| view! { <li class="truncate">"· " {t.label.clone()}</li> }).collect_view()}
+            </ul>
+        }
+    })
 }
 
 #[cfg(test)]
@@ -410,5 +540,13 @@ mod tests {
     fn tree_labels_are_indented() {
         assert_eq!(indented(0, "Eng"), "Eng");
         assert_eq!(indented(2, "Infra"), "· · Infra");
+    }
+
+    #[test]
+    fn merging_says_who_becomes_you() {
+        let plain = merge_message("P. Nair", "Priya Nair", false);
+        assert!(plain.contains("moves to \"Priya Nair\""));
+        assert!(!plain.contains("becomes you"));
+        assert!(merge_message("Me", "Udit", true).ends_with("\"Udit\" becomes you."));
     }
 }

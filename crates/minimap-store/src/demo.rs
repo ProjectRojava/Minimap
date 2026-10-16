@@ -9,7 +9,7 @@
 //! Contents: 3 objectives (one ongoing), 3 projects (EU Region is at risk), 40 tasks (cross-project `blocks`) and
 //! 5 meetings (one today, one tomorrow with a follow-up, a weekly sync held on Monday and its next),
 //! 8 people (me and 7 others, one overloaded) in 2 nested teams with reporting lines, 3 notes
-//! (one 1:1 with mentions and a checklist), 5 decisions (one replaced by another) and 3
+//! (one 1:1 with mentions and a checklist), 7 decisions (three are the records of Decision tasks; one replaced by another) and 3
 //! waiting-ons (one stale, one resolved this week).
 //!
 //! The history is made to read like a real week: the creation activity is dated three weeks
@@ -21,10 +21,10 @@ use std::collections::HashMap;
 use minimap_core::{recurrence::parse_every, this_week::monday_of};
 use minimap_types::{
     mention_token, AssigneeChoice, Cadence, CreateDecision, CreateNote, CreateObjective,
-    CreatePerson, CreateProject, CreateTask, CreateTeam, CreateWaitingOn, DecisionStatus,
-    DemoSummary, EdgeType, Focus, NewEdge, NodeRef, NodeType, NoteKind, ObjectiveStatus, Patch,
-    ProjectStatus, Recurrence, RefLink, TaskStatus, UpdateObjective, UpdateTask, UpdateWaitingOn,
-    MEETING_TYPE,
+    CreatePerson, CreatePing, CreateProject, CreateTask, CreateTeam, CreateWaitingOn,
+    DecisionStatus, DemoSummary, EdgeType, Focus, NewEdge, NodeRef, NodeType, NoteKind,
+    ObjectiveStatus, Patch, ProjectStatus, Recurrence, RefLink, TaskStatus, UpdateDecision,
+    UpdateObjective, UpdateTask, UpdateWaitingOn, MEETING_TYPE,
 };
 use rusqlite::{params, Connection, Transaction};
 use time::{Date, Duration, OffsetDateTime, Time};
@@ -34,7 +34,7 @@ use crate::{
     convert::{id_s, ts_s},
     decisions, edges,
     error::{Result, StoreError},
-    notes, objectives, people, projects, snapshot, tasks, teams, waiting_on,
+    notes, objectives, people, pings, projects, snapshot, tasks, teams, waiting_on,
 };
 
 /// A weekday `n` calendar days from `today`: a date that falls on a weekend moves to the next
@@ -830,8 +830,9 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
         ("priya", "me"),
         ("raj", "me"),
         ("sam", "me"),
+        // Tomás carries the most work, so he reports to you directly: his frame is on your card.
+        ("tomas", "me"),
         ("maya", "priya"),
-        ("tomas", "priya"),
         ("elena", "priya"),
         ("jin", "maya"),
     ] {
@@ -909,7 +910,8 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             PF,
             "Platform Cost Reduction",
             "Right-size, consolidate and put an API gateway in front of the services.",
-            "maya",
+            // You own it, so My view (spec 50) has a project of its own to show.
+            "me",
             -35,
             60,
             2,
@@ -961,7 +963,9 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     // ------------------------------------------------------------------- tasks
     for spec in task_table() {
         let assignee = s.people[spec.who];
-        let task = tasks::create_in_tx(
+        // A few demo tasks have no project, as tasks from before projects were required do (they
+        // are what the Inbox shows), so these are made without the check.
+        let task = tasks::create_unchecked_in_tx(
             &tx,
             CreateTask {
                 title: spec.title.into(),
@@ -1121,7 +1125,8 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     let eu = s.project_ref(EU);
     let sec = s.project_ref(SEC);
     let one_on_one = format!(
-        "## Agenda\n\n- {eu} is about two days behind: the data pipeline waits on the clusters.\n- {tomas} has too much on; move the CDN and DNS work to {elena}?\n- Go-live date: hold or move?\n\n## Next\n\n- [ ] Rebalance {tomas}'s tasks\n- [ ] Ask {raj} for a sign-off date\n- [x] Share the cost baseline with finance\n",
+        "With {priya}\n\n## Agenda\n\n- {eu} is about two days behind: the data pipeline waits on the clusters.\n- {tomas} has too much on; move the CDN and DNS work to {elena}?\n- Go-live date: hold or move?\n\n## Next\n\n- [ ] Rebalance {tomas}'s tasks\n- [ ] Ask {raj} for a sign-off date\n- [x] Share the cost baseline with finance\n",
+        priya = s.mention("Priya Nair", priya),
         eu = s.mention("EU Region", eu),
         tomas = s.mention("Tomás Alvarez", tomas),
         elena = s.mention("Elena Rossi", elena),
@@ -1183,16 +1188,30 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             status: Some(status),
         }
     };
-    let frankfurt = decisions::create_in_tx(
+    // The done task "Choose the EU cloud region" (type Decision) already has its record in the
+    // log (spec 41): this is what was decided, and it stays now that the task is done.
+    let region_task = s.tasks["e1"];
+    let region = decisions::for_task(&tx, region_task)?.ok_or_else(|| {
+        StoreError::Invalid("the region decision task has no decision record".into())
+    })?;
+    decisions::update_in_tx(
         &tx,
-        decision(
-            "Frankfurt as the primary EU region",
-            "Customers want their data in the EU; two regions were short-listed.",
-            "Use Frankfurt as the primary region and Dublin as the later second one.",
-            "Lowest latency to most of the customers we are talking to, and the services we need are all available there.",
-            Some(-20),
-            DecisionStatus::Decided,
-        ),
+        region.id,
+        UpdateDecision {
+            title: Some("Frankfurt as the primary EU region".into()),
+            context: Some(
+                "Customers want their data in the EU; two regions were short-listed.".into(),
+            ),
+            decision: Some(
+                "Use Frankfurt as the primary region and Dublin as the later second one.".into(),
+            ),
+            rationale: Some("Lowest latency to most of the customers we are talking to, and the services we need are all available there.".into()),
+            decided_on: Patch::Set(d(-14)),
+            status: Some(DecisionStatus::Decided),
+            // Decided by finishing the task, so the pane shows what was filled in automatically.
+            auto_status: Some(true),
+            auto_decided_on: Some(true),
+        },
     )?;
     let gateway = decisions::create_in_tx(
         &tx,
@@ -1228,7 +1247,6 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
         ),
     )?;
     for (decision_id, target) in [
-        (frankfurt.id, eu),
         (gateway.id, s.project_ref(PF)),
         (managed.id, eu),
         (pause.id, s.project_ref(PF)),
@@ -1281,8 +1299,10 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
 
     // ------------------------------------------------------------- this week
     this_week(&s, monday, managed.id, assets.id)?;
+    seed_pings(&s, monday, managed.id)?;
 
     backdate(&tx, today, monday, split)?;
+    fog_story(&tx, &s, today)?;
     for (key, when) in FINISHED {
         let finished = match when {
             Some(n) => at(d(*n), 17),
@@ -1320,6 +1340,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
         notes: count("notes")?,
         decisions: count("decisions")?,
         waiting_ons: count("waiting_on")?,
+        pings: count("pings")?,
         links: count("edges")?,
     };
     // Everything in the database except "me" is demo data (the database was empty): write the
@@ -1327,6 +1348,52 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
     crate::demo_remove::record(&tx)?;
     tx.commit()?;
     Ok(summary)
+}
+
+/// Three pings (pings spec, ADR-0020): one that is due today on the project in the fog, one on a
+/// person that was due yesterday (so *Pings* on This week has an older one first), and one on a
+/// decision that is still four days off (so *Coming up* has something).
+fn seed_pings(s: &Seeder, monday: Date, managed_postgres: Uuid) -> Result<()> {
+    let (tx, today) = (s.tx, s.today);
+    let d = |n: i64| day(today, n);
+    // (what it is on, note, the day, the day it was made)
+    let pings = [
+        (
+            s.project_ref(PF),
+            "check the vendor contract",
+            d(0),
+            at(monday, 10),
+        ),
+        (
+            s.person_ref("raj"),
+            "ask about the auditor",
+            d(-1),
+            at(d(-3), 15),
+        ),
+        (
+            NodeRef::new(NodeType::Decision, managed_postgres),
+            "revisit once the EU pricing is approved",
+            d(4),
+            at(d(-1), 16),
+        ),
+    ];
+    for (target, note, on_date, made) in pings {
+        // Checked against the day it was made, so a ping for a day already gone can be shown.
+        let ping = pings::create_in_tx(
+            tx,
+            made.date(),
+            CreatePing {
+                target,
+                note: note.into(),
+                on_date,
+            },
+        )?;
+        tx.execute(
+            "UPDATE pings SET created_at = ?2, updated_at = ?2 WHERE id = ?1",
+            params![id_s(ping.id), ts_s(made)],
+        )?;
+    }
+    Ok(())
 }
 
 /// What happened this week: a task finished, due dates moved later, a task newly blocked, a
@@ -1395,6 +1462,43 @@ fn this_week(s: &Seeder, monday: Date, managed_postgres: Uuid, assets: Uuid) -> 
             ..Default::default()
         },
     )?;
+    Ok(())
+}
+
+/// How long ago the demo's items were last touched (spec 43), so the fog has a story: the
+/// Platform Cost Reduction project and everything in play under it were last touched 22 days ago
+/// (fog), two Security tasks 9 days ago (haze), one Security task a long time ago but confirmed
+/// 3 days ago (clear), and everything else in play in the last few days (clear; EU Region is the
+/// busy one).
+fn fog_story(tx: &Transaction, s: &Seeder, today: Date) -> Result<()> {
+    let touch = |id: Uuid, days_ago: i64| -> Result<()> {
+        tx.execute(
+            "UPDATE tasks SET updated_at = ?2 WHERE id = ?1",
+            params![id_s(id), ts_s(at(today - Duration::days(days_ago), 9))],
+        )?;
+        Ok(())
+    };
+    let hazy = [s.tasks["s2"], s.tasks["s7"]];
+    let confirmed = s.tasks["s8"];
+    for (i, task) in tasks::list(tx, false)?.iter().enumerate() {
+        if !minimap_core::fog::task_in_play(task, today) {
+            continue;
+        }
+        if task.project_id == Some(s.projects[PF]) {
+            touch(task.id, 22)?;
+        } else if hazy.contains(&task.id) {
+            touch(task.id, 9)?;
+        } else if task.id == confirmed {
+            touch(task.id, 20)?;
+            tx.execute(
+                "UPDATE tasks SET confirmed_on = ?2 WHERE id = ?1",
+                params![id_s(task.id), (today - Duration::days(3)).to_string()],
+            )?;
+        } else {
+            // A few days ago, varied.
+            touch(task.id, 1 + (i as i64 % 4))?;
+        }
+    }
     Ok(())
 }
 

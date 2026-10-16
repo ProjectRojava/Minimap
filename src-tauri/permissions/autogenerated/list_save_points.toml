@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-save-points"
+description = "Enables the list_save_points command without any pre-configured scope."
+commands.allow = ["list_save_points"]
+
+[[permission]]
+identifier = "deny-list-save-points"
+description = "Denies the list_save_points command without any pre-configured scope."
+commands.deny = ["list_save_points"]

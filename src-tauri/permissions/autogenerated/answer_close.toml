@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-answer-close"
+description = "Enables the answer_close command without any pre-configured scope."
+commands.allow = ["answer_close"]
+
+[[permission]]
+identifier = "deny-answer-close"
+description = "Denies the answer_close command without any pre-configured scope."
+commands.deny = ["answer_close"]

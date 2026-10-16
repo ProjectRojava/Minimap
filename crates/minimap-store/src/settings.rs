@@ -11,15 +11,48 @@ const DEFAULT_WEEKLY_CAPACITY: &str = "default_weekly_capacity_hours";
 const THEME: &str = "theme";
 const STALE_WAITING_DAYS: &str = "stale_waiting_days";
 const HEALTH: &str = "health";
+const FOG: &str = "fog";
 const CAPACITY_TASK_LIMIT: &str = "capacity_task_limit";
+const ZONE_NARROW_DAYS: &str = "zone_narrow_days";
+const ONE_ON_ONE_EVERY_DAYS: &str = "one_on_one_every_days";
+const FRAMES_ALL_LEVELS: &str = "frames_all_levels";
 const REPORT_TEMPLATE: &str = "report_template";
 const BACKUP_FOLDER: &str = "backup_folder";
 const AUTO_BACKUP: &str = "auto_backup";
 const TASK_TYPES: &str = "task_types";
 const TYPE_BORDERS: &str = "type_borders";
+const RADAR_ON_TOP: &str = "radar_on_top";
+const RADAR_OPEN_AT_START: &str = "radar_open_at_start";
+const RADAR_RINGS: &str = "radar_rings";
+const DONE_ARCHIVE_DAYS: &str = "done_archive_days";
+const DONE_ARCHIVE_MEETING_DAYS: &str = "done_archive_meeting_days";
 
 /// Settings that belong to this device and are never synced (or put in a snapshot).
-pub const LOCAL_ONLY: [&str; 4] = [THEME, BACKUP_FOLDER, AUTO_BACKUP, TYPE_BORDERS];
+pub const LOCAL_ONLY: [&str; 7] = [
+    THEME,
+    BACKUP_FOLDER,
+    AUTO_BACKUP,
+    TYPE_BORDERS,
+    RADAR_ON_TOP,
+    RADAR_OPEN_AT_START,
+    RADAR_RINGS,
+];
+
+/// Who "me" is, as the id of a person, once someone has chosen. Synced like the work settings, so
+/// the newest choice wins on every device; until then the oldest person each device made for
+/// itself is "me" (`self_person`). `people.is_self` is a copy of the answer on each device.
+const SELF_PERSON: &str = "self_person_id";
+
+/// The person this setting names as "me", if it is set to an id.
+pub(crate) fn self_person_id(conn: &Connection) -> Result<Option<uuid::Uuid>> {
+    Ok(read(conn, SELF_PERSON)?
+        .and_then(|v| v.as_str().and_then(|s| uuid::Uuid::parse_str(s).ok())))
+}
+
+/// Chooses `id` as "me", as of now.
+pub(crate) fn set_self_person_id(conn: &Connection, id: uuid::Uuid) -> Result<()> {
+    write(conn, SELF_PERSON, &serde_json::json!(id.to_string()))
+}
 
 fn write(conn: &Connection, key: &str, value: &serde_json::Value) -> Result<()> {
     conn.execute(
@@ -107,12 +140,52 @@ pub fn get(conn: &Connection) -> Result<Settings> {
             s.capacity_task_limit = n;
         }
     }
+    if let Some(n) = read(conn, ZONE_NARROW_DAYS)?
+        .and_then(|v| v.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
+    {
+        if n <= minimap_types::MAX_ZONE_NARROW_DAYS {
+            s.zone_narrow_days = n;
+        }
+    }
+    if let Some(n) = read(conn, ONE_ON_ONE_EVERY_DAYS)?
+        .and_then(|v| v.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
+    {
+        if (1..=minimap_types::MAX_ONE_ON_ONE_EVERY_DAYS).contains(&n) {
+            s.one_on_one_every_days = n;
+        }
+    }
+    if let Some(b) = read(conn, FRAMES_ALL_LEVELS)?.and_then(|v| v.as_bool()) {
+        s.frames_all_levels = b;
+    }
     if let Some(h) = read(conn, HEALTH)?
         .and_then(|v| serde_json::from_value::<minimap_types::HealthThresholds>(v).ok())
     {
         // A stored value that is no longer valid falls back to the defaults.
         if h.validate().is_ok() {
             s.health = h;
+        }
+    }
+    for (key, slot) in [
+        (DONE_ARCHIVE_DAYS, &mut s.done_archive_days),
+        (DONE_ARCHIVE_MEETING_DAYS, &mut s.done_archive_meeting_days),
+    ] {
+        if let Some(n) = read(conn, key)?
+            .and_then(|v| v.as_u64())
+            .and_then(|n| u32::try_from(n).ok())
+        {
+            if n <= minimap_types::MAX_DONE_ARCHIVE_DAYS {
+                *slot = n;
+            }
+        }
+    }
+    if let Some(f) = read(conn, FOG)?
+        .and_then(|v| serde_json::from_value::<minimap_types::FogThresholds>(v).ok())
+    {
+        // A stored value that is no longer valid falls back to the defaults.
+        if f.validate().is_ok() {
+            s.fog = f;
         }
     }
     if let Some(t) = read(conn, REPORT_TEMPLATE)?.and_then(|v| v.as_str().map(str::to_owned)) {
@@ -138,6 +211,20 @@ pub fn get(conn: &Connection) -> Result<Settings> {
     if let Some(on) = read(conn, TYPE_BORDERS)?.and_then(|v| v.as_bool()) {
         s.type_borders = on;
     }
+    if let Some(on) = read(conn, RADAR_ON_TOP)?.and_then(|v| v.as_bool()) {
+        s.radar_on_top = on;
+    }
+    if let Some(on) = read(conn, RADAR_OPEN_AT_START)?.and_then(|v| v.as_bool()) {
+        s.radar_open_at_start = on;
+    }
+    if let Some(rings) =
+        read(conn, RADAR_RINGS)?.and_then(|v| serde_json::from_value::<[u32; 3]>(v).ok())
+    {
+        // Stored rings that are no longer valid fall back to the defaults.
+        if minimap_types::validate_radar_rings(rings).is_ok() {
+            s.radar_rings = rings;
+        }
+    }
     Ok(s)
 }
 
@@ -157,6 +244,9 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             ));
         }
     }
+    if let Some(rings) = patch.radar_rings {
+        minimap_types::validate_radar_rings(rings).map_err(StoreError::Invalid)?;
+    }
     if let Some(t) = &patch.theme {
         if !valid_theme_id(t) {
             return Err(StoreError::Invalid(
@@ -171,8 +261,38 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
             ));
         }
     }
+    for n in [patch.done_archive_days, patch.done_archive_meeting_days]
+        .into_iter()
+        .flatten()
+    {
+        if n > minimap_types::MAX_DONE_ARCHIVE_DAYS {
+            return Err(StoreError::Invalid(format!(
+                "finished tasks can be archived after at most {} days (0 = never)",
+                minimap_types::MAX_DONE_ARCHIVE_DAYS
+            )));
+        }
+    }
     if let Some(h) = &patch.health {
         h.validate().map_err(StoreError::Invalid)?;
+    }
+    if let Some(f) = &patch.fog {
+        f.validate().map_err(StoreError::Invalid)?;
+    }
+    if let Some(n) = patch.zone_narrow_days {
+        if n > minimap_types::MAX_ZONE_NARROW_DAYS {
+            return Err(StoreError::Invalid(format!(
+                "the safe zone is narrow at 0 to {} days of room",
+                minimap_types::MAX_ZONE_NARROW_DAYS
+            )));
+        }
+    }
+    if let Some(n) = patch.one_on_one_every_days {
+        if !(1..=minimap_types::MAX_ONE_ON_ONE_EVERY_DAYS).contains(&n) {
+            return Err(StoreError::Invalid(format!(
+                "the 1:1 rhythm must be between 1 and {} days",
+                minimap_types::MAX_ONE_ON_ONE_EVERY_DAYS
+            )));
+        }
     }
     if let Some(n) = patch.capacity_task_limit {
         if !(1..=500).contains(&n) {
@@ -224,6 +344,15 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     if let Some(on) = patch.type_borders {
         write(&tx, TYPE_BORDERS, &serde_json::json!(on))?;
     }
+    if let Some(on) = patch.radar_on_top {
+        write(&tx, RADAR_ON_TOP, &serde_json::json!(on))?;
+    }
+    if let Some(on) = patch.radar_open_at_start {
+        write(&tx, RADAR_OPEN_AT_START, &serde_json::json!(on))?;
+    }
+    if let Some(rings) = patch.radar_rings {
+        write(&tx, RADAR_RINGS, &serde_json::json!(rings))?;
+    }
     match (template, &patch.report_template) {
         (Some(""), _) => {
             tx.execute("DELETE FROM settings WHERE key = ?1", [REPORT_TEMPLATE])?;
@@ -233,6 +362,24 @@ pub fn update(conn: &mut Connection, patch: UpdateSettings) -> Result<Settings> 
     }
     if let Some(h) = patch.health {
         write(&tx, HEALTH, &serde_json::to_value(h)?)?;
+    }
+    if let Some(f) = patch.fog {
+        write(&tx, FOG, &serde_json::to_value(f)?)?;
+    }
+    if let Some(n) = patch.done_archive_days {
+        write(&tx, DONE_ARCHIVE_DAYS, &serde_json::json!(n))?;
+    }
+    if let Some(n) = patch.done_archive_meeting_days {
+        write(&tx, DONE_ARCHIVE_MEETING_DAYS, &serde_json::json!(n))?;
+    }
+    if let Some(n) = patch.zone_narrow_days {
+        write(&tx, ZONE_NARROW_DAYS, &serde_json::json!(n))?;
+    }
+    if let Some(n) = patch.one_on_one_every_days {
+        write(&tx, ONE_ON_ONE_EVERY_DAYS, &serde_json::json!(n))?;
+    }
+    if let Some(b) = patch.frames_all_levels {
+        write(&tx, FRAMES_ALL_LEVELS, &serde_json::json!(b))?;
     }
     if let Some(n) = patch.capacity_task_limit {
         write(&tx, CAPACITY_TASK_LIMIT, &serde_json::json!(n))?;

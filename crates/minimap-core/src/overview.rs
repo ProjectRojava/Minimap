@@ -5,10 +5,10 @@
 use std::collections::{BTreeMap, HashMap};
 
 use minimap_types::{
-    Date, Edge, EdgeType, Health, HealthLevel, HealthThresholds, NodeRef, NodeSummary, NodeType,
-    Objective, ObjectiveHealthRow, ObjectiveStatus, OverloadedPerson, OverviewCounts, Person,
-    PortfolioOverview, Project, ProjectHealthRow, ProjectStatus, RiskItem, RiskKind, Schedule,
-    ScheduleScope, Task, TaskStatus, Uuid, WorkWeek,
+    Date, Edge, EdgeType, Health, HealthLevel, HealthThresholds, MyScope, NodeRef, NodeSummary,
+    NodeType, Objective, ObjectiveHealthRow, ObjectiveStatus, OverloadedPerson, OverviewCounts,
+    Person, PortfolioOverview, Project, ProjectHealthRow, ProjectStatus, RiskItem, RiskKind,
+    Schedule, ScheduleScope, Task, TaskStatus, Uuid, WorkWeek,
 };
 
 use crate::{
@@ -39,6 +39,12 @@ pub struct OverviewWorld<'a> {
     pub thresholds: HealthThresholds,
     /// More open tasks than this flags a person as overloaded.
     pub task_limit: u32,
+    /// A project's safe zone is narrow at this many working days of room or fewer (spec 44).
+    pub zone_narrow_days: u32,
+    /// My view (spec 50): show only what touches you. Health is still worked out from everything
+    /// (an objective is as healthy as all its work), but what is listed, the risks and the
+    /// overloaded people are the ones in scope, and the top five are chosen among them.
+    pub scope: Option<&'a MyScope>,
 }
 
 fn is_open(t: &Task) -> bool {
@@ -152,6 +158,9 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
                 blocked_tasks: n_blocked,
                 unestimated_tasks: unestimated,
                 weight: None,
+                zone: f.map_or(minimap_types::Zone::None, |f| {
+                    crate::zone::of(f, p.status, w.today, w.work_week, w.zone_narrow_days)
+                }),
             },
         );
     }
@@ -173,9 +182,18 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
         }
     }
     let task_by_id: HashMap<Uuid, &Task> = w.tasks.iter().map(|t| (t.id, t)).collect();
+    // My view: what is listed is what is in scope (everything, in Portfolio view).
+    let project_shown = |id: &Uuid| w.scope.is_none_or(|s| s.projects.contains_key(id));
+    let task_shown = |id: &Uuid| w.scope.is_none_or(|s| s.tasks.contains_key(id));
+    let person_shown = |id: &Uuid| w.scope.is_none_or(|s| s.people.contains_key(id));
 
     let mut objectives: Vec<ObjectiveHealthRow> = Vec::new();
-    for o in w.objectives.iter().filter(|o| o.archived_at.is_none()) {
+    for o in w
+        .objectives
+        .iter()
+        .filter(|o| o.archived_at.is_none())
+        .filter(|o| w.scope.is_none_or(|s| s.objectives.contains_key(&o.id)))
+    {
         let mut contributions: Vec<Contribution> = Vec::new();
         let mut nested: Vec<ProjectHealthRow> = Vec::new();
         // The latest finish among what feeds the objective (offset, date).
@@ -187,9 +205,11 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
                     let Some(row) = rows.get(&feed.edge.from_id) else {
                         continue;
                     };
-                    let mut shown = row.clone();
-                    shown.weight = Some(weight);
-                    nested.push(shown);
+                    if project_shown(&feed.edge.from_id) {
+                        let mut shown = row.clone();
+                        shown.weight = Some(weight);
+                        nested.push(shown);
+                    }
                     let score = match (row.status, row.health.level) {
                         (ProjectStatus::Done, _) => Some(100),
                         (ProjectStatus::Cancelled | ProjectStatus::Paused, _) => None,
@@ -315,6 +335,7 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
     let mut unlinked: Vec<ProjectHealthRow> = rows
         .values()
         .filter(|r| !feeds_objective.contains_key(&r.project.node.id))
+        .filter(|r| project_shown(&r.project.node.id))
         .filter(|r| !matches!(r.status, ProjectStatus::Done | ProjectStatus::Cancelled))
         .cloned()
         .collect();
@@ -330,7 +351,7 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
     let objective_by_id: HashMap<Uuid, &Objective> =
         w.objectives.iter().map(|o| (o.id, o)).collect();
     let mut risks: Vec<RiskItem> = Vec::new();
-    for r in rows.values() {
+    for r in rows.values().filter(|r| project_shown(&r.project.node.id)) {
         if !matches!(r.health.level, HealthLevel::Amber | HealthLevel::Red) {
             continue;
         }
@@ -361,7 +382,11 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
             via_objective: via,
         });
     }
-    for t in w.tasks.iter().filter(|t| is_open(t) && t.priority <= 2) {
+    for t in w
+        .tasks
+        .iter()
+        .filter(|t| is_open(t) && t.priority <= 2 && task_shown(&t.id))
+    {
         let (is_overdue, is_blocked) = (overdue(t), blocked(t));
         if !is_overdue && !is_blocked {
             continue;
@@ -406,6 +431,7 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
         .people
         .iter()
         .filter(|p| p.peak_pct > 100.0 + EPS || p.over_task_limit)
+        .filter(|p| person_shown(&p.person.node.id))
         .map(|p| OverloadedPerson {
             person: p.person.clone(),
             load_pct: p.peak_pct,
@@ -416,7 +442,11 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
         .collect();
     overloaded.truncate(MAX_OVERLOADED);
 
-    let count = |l: HealthLevel| rows.values().filter(|r| r.health.level == l).count() as u32;
+    let count = |l: HealthLevel| {
+        rows.values()
+            .filter(|r| project_shown(&r.project.node.id) && r.health.level == l)
+            .count() as u32
+    };
     PortfolioOverview {
         today: w.today,
         counts: OverviewCounts {
@@ -440,7 +470,7 @@ pub fn build(w: &OverviewWorld) -> PortfolioOverview {
 mod tests {
     use super::*;
     use crate::health::{level_of_score, signal_score};
-    use minimap_types::ProjectStatus;
+    use minimap_types::{MyScope, ProjectStatus, Why};
     use proptest::prelude::*;
     use time::{macros::date, OffsetDateTime};
 
@@ -453,6 +483,8 @@ mod tests {
 
     fn task(n: u128, title: &str, days: Option<f64>, project: Option<u128>) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -477,6 +509,8 @@ mod tests {
 
     fn project(n: u128, title: &str, target: Option<Date>, priority: u8) -> Project {
         Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: title.to_lowercase(),
@@ -494,6 +528,8 @@ mod tests {
 
     fn objective(n: u128, title: &str, target: Option<Date>, priority: u8) -> Objective {
         Objective {
+            confirmed_on: None,
+
             ongoing: false,
             review_every_days: None,
             last_reviewed_on: None,
@@ -594,12 +630,33 @@ mod tests {
     }
 
     impl World_ {
+        /// The overview in My view: only what is in `scope` is listed.
+        fn overview_in(&self, scope: &MyScope) -> PortfolioOverview {
+            build(&OverviewWorld {
+                zone_narrow_days: 3,
+                scope: Some(scope),
+                tasks: &self.tasks,
+                edges: &self.edges,
+                projects: &self.projects,
+                objectives: &self.objectives,
+                people: &self.people,
+                today: MON,
+                hours_per_day: 8.0,
+                work_week: WorkWeek::MON_FRI,
+                thresholds: HealthThresholds::default(),
+                task_limit: 10,
+            })
+        }
+
         fn overview(&self) -> PortfolioOverview {
             self.overview_with(HealthThresholds::default())
         }
 
         fn overview_with(&self, thresholds: HealthThresholds) -> PortfolioOverview {
             build(&OverviewWorld {
+                zone_narrow_days: 3,
+                scope: None,
+
                 tasks: &self.tasks,
                 edges: &self.edges,
                 projects: &self.projects,
@@ -640,6 +697,72 @@ mod tests {
             objectives: vec![],
             people: vec![],
         }
+    }
+
+    #[test]
+    fn my_view_lists_only_what_is_in_scope_and_picks_the_top_risks_among_it() {
+        let mut w = at_risk();
+        w.projects
+            .push(project(11, "Elsewhere", Some(date!(2027 - 03 - 05)), 1));
+        w.objectives.push(objective(20, "Grow", None, 3));
+        w.edges.push(feeds(10, 20, None));
+        w.edges.push(feeds(11, 20, None));
+        // A priority-1 task nobody has touched, in a project that is not mine: a top risk in
+        // Portfolio view, absent from mine.
+        let mut stuck = task(5, "Elsewhere stuck", Some(1.0), Some(11));
+        stuck.priority = 1;
+        stuck.due_date = Some(date!(2027 - 02 - 26));
+        w.tasks.push(stuck);
+        let everything = w.overview();
+        assert!(everything
+            .risks
+            .iter()
+            .any(|r| r.node.label == "Elsewhere stuck"));
+        assert_eq!(
+            everything.counts.red
+                + everything.counts.amber
+                + everything.counts.green
+                + everything.counts.idle,
+            2
+        );
+
+        let scope = MyScope {
+            tasks: [1, 2, 3, 4]
+                .iter()
+                .map(|n| (id(*n), vec![Why::Assigned]))
+                .collect(),
+            projects: [(id(10), vec![Why::Owner])].into_iter().collect(),
+            objectives: [(id(20), vec![Why::Serves])].into_iter().collect(),
+            people: Default::default(),
+            project_tasks: Default::default(),
+        };
+        let mine = w.overview_in(&scope);
+        assert!(mine.risks.iter().all(|r| r.node.label != "Elsewhere stuck"));
+        assert!(mine.risks.iter().any(|r| r.node.label == "Launch"));
+        // The objective is still judged by all its work, but lists only my project.
+        assert_eq!(mine.objectives.len(), 1);
+        let names: Vec<&str> = mine.objectives[0]
+            .projects
+            .iter()
+            .map(|p| p.project.label.as_str())
+            .collect();
+        assert_eq!(names, ["Launch"]);
+        assert_eq!(
+            mine.objectives[0].health,
+            everything.objective_health(id(20)).unwrap().health
+        );
+        assert_eq!(
+            mine.counts.red + mine.counts.amber + mine.counts.green + mine.counts.idle,
+            1
+        );
+    }
+
+    #[test]
+    fn an_empty_scope_lists_nothing() {
+        let w = at_risk();
+        let mine = w.overview_in(&MyScope::default());
+        assert!(mine.objectives.is_empty() && mine.unlinked_projects.is_empty());
+        assert!(mine.risks.is_empty() && mine.overloaded.is_empty());
     }
 
     #[test]

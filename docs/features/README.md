@@ -52,5 +52,22 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 38 | [Meetings](38-meetings.md) | — | Should | 06, 27, 31, 32, 33 |
 | 39 | [Card borders by task type](39-type-borders.md) | — | Could | 06, 32 |
 | 40 | [About](40-about.md) | — | Could | — |
+| 41 | [Decision tasks and the decision log](41-decision-tasks.md) | — | Should | 10, 24, 25, 32 |
+| 42 | [Finishing decisions, what is automatic, and confirming every archive](42-decision-gate-and-archive-confirm.md) | — | Should | 10, 25, 32, 41 |
+| 43 | [Fog of war: show how old what you know is](../product-design/01-fog-of-war.md) | — | Should | 13, 15, 16, 19, 30, 36, 37 |
+| 44 | [Safe zone: the room left before a project's target](../product-design/02-safe-zone.md) | — | Should | 05, 13, 15 |
+| 45 | [Approaching: trouble elsewhere that will reach you](../product-design/03-off-screen-indicators.md) | — | Should | 07, 13, 14, 16 |
+| 47 | [Dependencies, richer: see why, trace a chain, edit the links](../product-design/12-dependency-graph.md) | — | Should | 07, 13, 18, 33, 43, 44, 45 |
+| 55 | [Splash screen: the mark while Minimap starts](../product-design/13-splash-screen.md) | — | Could | 54 |
+| 54 | [Brand and voice: the name, the mark and the words](../product-design/11-brand-and-voice.md) | — | Could | 40, Help wiki |
+| 53 | [Radar: the minimap itself, a small window you glance at](../product-design/10-radar-window.md) | — | Should | 43, 44, 45, 48, 50 |
+| 52 | [Zoom: from the whole portfolio to one task](../product-design/09-semantic-zoom.md) | — | Could | 02, 04, 05, 06, 18, 35 |
+| 51 | [Save points: every restorable copy on one timeline](../product-design/08-save-points.md) | — | Could | 20, 21, 22, 23 |
+| 50 | [Portfolio view and My view: north-up or player-up](../product-design/07-orientation.md) | — | Should | 15, 17, 18, 45 |
+| 49 | [Your people: compact frames for you and your reports](../product-design/06-your-people.md) | — | Should | 03, 08, 09, 16, 17 |
+| 48 | [Pings: come back to anything on a day](../product-design/05-pings.md) | — | Should | 01, 12, 16, 22, 24, 25, 26 |
+| 46 | [Route recalculation: a slip shown as the new route to the finish](../product-design/04-route-recalculation.md) | — | Should | 13, 14, 45 |
+
+Design docs for the minimap features (fog of war, safe zone, approaching, route, pings, your people, views, save points, zoom, radar, brand) are in [`docs/product-design/`](../product-design/README.md); each becomes a numbered row here when it is set to Ready.
 
 `Must`/`Should`/`Later` follow the MVP brainstorm and are suggestions; change them freely. Where a spec disagrees with `CLAUDE.md`, the spec wins once you mark it Ready, and Claude records the deviation as an ADR.

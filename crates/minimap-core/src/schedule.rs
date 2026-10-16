@@ -74,6 +74,8 @@ struct Node<'a> {
     ls: f64,
     lf: f64,
     in_scope: bool,
+    /// The open predecessor that sets the start (see `ScheduledTask::driver`).
+    driver: Option<Uuid>,
 }
 
 fn lag_of(e: &Edge) -> f64 {
@@ -140,6 +142,7 @@ pub fn compute_with(
             ef: 0.0,
             ls: 0.0,
             lf: 0.0,
+            driver: None,
             in_scope: match scope {
                 ScheduleScope::Portfolio => true,
                 ScheduleScope::Project(p) => t.project_id == Some(p),
@@ -169,9 +172,31 @@ pub fn compute_with(
         if let Some(nb) = not_before.get(&nodes[i].task.id) {
             es = es.max(*nb);
         }
+        // The open predecessor with the latest finish sets the start when it is at least as late
+        // as every other constraint (ties go to the lowest id, so the answer never wobbles).
+        let others = es;
+        let mut driver: Option<(f64, Uuid)> = None;
         for e in graph.edges_directed(n, Direction::Incoming) {
-            es = es.max(nodes[e.source().index()].ef + *e.weight());
+            let pred = &nodes[e.source().index()];
+            let reach = pred.ef + *e.weight();
+            es = es.max(reach);
+            if !pred.done && reach + EPS >= others {
+                let id = pred.task.id;
+                let better = match driver {
+                    None => true,
+                    Some((best, best_id)) => {
+                        reach > best + EPS || ((reach - best).abs() <= EPS && id < best_id)
+                    }
+                };
+                if better {
+                    driver = Some((reach, id));
+                }
+            }
         }
+        // Only a predecessor that really decides the start is the driver.
+        nodes[i].driver = driver
+            .filter(|(reach, _)| *reach + EPS >= es)
+            .map(|(_, id)| id);
         nodes[i].es = es;
         nodes[i].ef = es + nodes[i].duration;
     }
@@ -255,6 +280,7 @@ pub fn compute_with(
                 slack_days: slack,
                 critical: is_critical(n),
                 late_by_days: (slack < -EPS).then(|| (-slack - EPS).ceil().max(1.0) as u32),
+                driver: n.driver,
             }
         })
         .collect();
@@ -336,6 +362,39 @@ fn latest_finish<'a>(tasks: impl Iterator<Item = &'a ScheduledTask>) -> Option<&
     tasks.max_by(|a, b| a.ef.total_cmp(&b.ef))
 }
 
+/// The route to a project's finish (spec 46): its critical tasks ordered into one chain, from the
+/// start to the task that finishes last. The chain ends at the critical task with the latest
+/// finish (ties: the earlier title) and is walked back through each task's `driver`, the
+/// predecessor that sets its start, for as long as that is also critical in the project. Parallel
+/// critical branches are therefore dropped: only the chain that ends the project is returned.
+/// `schedule` must hold the project's tasks (a portfolio schedule, or the project's own).
+pub fn chain_of(schedule: &Schedule, project_id: Uuid) -> Vec<Uuid> {
+    let critical: HashMap<Uuid, &ScheduledTask> = schedule
+        .tasks
+        .iter()
+        .filter(|t| t.critical && !t.done && t.project_id == Some(project_id))
+        .map(|t| (t.id, t))
+        .collect();
+    let Some(last) = critical.values().max_by(|a, b| {
+        a.ef.total_cmp(&b.ef)
+            .then_with(|| b.title.cmp(&a.title))
+            .then_with(|| b.id.cmp(&a.id))
+    }) else {
+        return Vec::new();
+    };
+    let mut chain = vec![last.id];
+    let mut current = *last;
+    while let Some(before) = current.driver.and_then(|d| critical.get(&d).copied()) {
+        if chain.contains(&before.id) {
+            break;
+        }
+        chain.push(before.id);
+        current = before;
+    }
+    chain.reverse();
+    chain
+}
+
 /// The tasks that decide their project's finish, earliest first.
 pub fn critical_path(schedule: &Schedule) -> Vec<ScheduledTask> {
     schedule
@@ -382,6 +441,8 @@ mod tests {
 
     fn task(n: u128, title: &str, estimate: Option<f64>) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -434,6 +495,8 @@ mod tests {
 
     fn project(n: u128, title: &str, target: Option<Date>) -> Project {
         Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: title.to_lowercase(),
@@ -710,6 +773,116 @@ mod tests {
         let all = run(&tasks, &edges, &projects, ScheduleScope::Portfolio);
         assert_eq!(numbers(&all, "Design").3, 2.0);
         assert_eq!(numbers(&all, "Build"), (2.0, 5.0, 2.0, 5.0, true));
+    }
+
+    #[test]
+    fn a_task_names_the_predecessor_that_sets_its_start() {
+        // A(2) and B(5) both block C; B finishes later, so B drives C. D has no predecessor.
+        let tasks = [
+            in_project(task(1, "A", Some(2.0)), 10),
+            in_project(task(2, "B", Some(5.0)), 10),
+            in_project(task(3, "C", Some(1.0)), 10),
+            in_project(task(4, "D", Some(1.0)), 10),
+        ];
+        let edges = [blocks(1, 3, None), blocks(2, 3, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, Some(id(2)));
+        assert_eq!(get(&s, "A").driver, None);
+        assert_eq!(get(&s, "D").driver, None);
+        // A lag counts: A + 4 days of lag outlasts B.
+        let edges = [blocks(1, 3, Some(4)), blocks(2, 3, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, Some(id(1)));
+    }
+
+    #[test]
+    fn a_start_date_later_than_every_predecessor_means_nobody_drives_it() {
+        let mut c = in_project(task(3, "C", Some(1.0)), 10);
+        c.start_date = Some(date!(2027 - 03 - 12));
+        let tasks = [in_project(task(1, "A", Some(2.0)), 10), c];
+        let s = run(
+            &tasks,
+            &[blocks(1, 3, None)],
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, None);
+    }
+
+    #[test]
+    fn a_finished_predecessor_never_drives() {
+        let mut a = in_project(task(1, "A", Some(2.0)), 10);
+        a.status = TaskStatus::Done;
+        a.completed_at = Some(OffsetDateTime::UNIX_EPOCH);
+        let tasks = [a, in_project(task(3, "C", Some(1.0)), 10)];
+        let s = run(
+            &tasks,
+            &[blocks(1, 3, None)],
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "C").driver, None);
+    }
+
+    #[test]
+    fn the_route_is_the_critical_chain_ending_at_the_latest_finish() {
+        // A(2) -> B(3) -> D(1), with a short side branch C(1) -> D: the route is A, B, D.
+        let tasks = [
+            in_project(task(1, "A", Some(2.0)), 10),
+            in_project(task(2, "B", Some(3.0)), 10),
+            in_project(task(3, "C", Some(1.0)), 10),
+            in_project(task(4, "D", Some(1.0)), 10),
+        ];
+        let edges = [blocks(1, 2, None), blocks(2, 4, None), blocks(3, 4, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(chain_of(&s, id(10)), [id(1), id(2), id(4)]);
+        // A project nobody has tasks in has no route.
+        assert!(chain_of(&s, id(99)).is_empty());
+    }
+
+    #[test]
+    fn parallel_critical_branches_give_one_chain_and_finished_work_is_not_on_it() {
+        // A(2) and B(2) both lead to C(1): both are critical, the chain follows the driver (lowest id).
+        let tasks = [
+            in_project(task(1, "A", Some(2.0)), 10),
+            in_project(task(2, "B", Some(2.0)), 10),
+            in_project(task(3, "C", Some(1.0)), 10),
+        ];
+        let edges = [blocks(1, 3, None), blocks(2, 3, None)];
+        let s = run(
+            &tasks,
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        let chain = chain_of(&s, id(10));
+        assert_eq!(chain, [id(1), id(3)]);
+        // Finished work never counts.
+        let mut done = in_project(task(1, "A", Some(2.0)), 10);
+        done.status = TaskStatus::Done;
+        done.completed_at = Some(OffsetDateTime::UNIX_EPOCH);
+        let s = run(
+            &[done, tasks[1].clone(), tasks[2].clone()],
+            &edges,
+            &[project(10, "P", None)],
+            ScheduleScope::Portfolio,
+        );
+        assert!(!chain_of(&s, id(10)).contains(&id(1)));
     }
 
     #[test]

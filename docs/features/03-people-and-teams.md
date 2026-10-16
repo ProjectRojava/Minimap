@@ -20,6 +20,8 @@ Track the people the user works with (not app users) and group them into teams. 
 
 ## Rules and edge cases
 - The self person can't be archived or deleted.
+- **One "me" across devices** (spec 22): each device makes a "me" on first run, so a merge finds several. They are folded into one (the oldest, or the one chosen by a merge into another person) and the duplicates deleted. First run offers "I use Minimap on another computer" to connect Google Drive and take the "me" from there instead of making a second one.
+- **Merge into another person** (`merge_people`, `people::merge_into`): for two records of one person. Everything pointing at the first (assignee and other links, owned projects, waiting-on, mentions in notes and other text, files, pings) moves to the second and the first is deleted for good, on every device. Merging your own "me" into someone makes them "me" on every device (the synced `self_person_id` setting). Refused into an archived person or into oneself. Not undoable.
 - No cycles in `reports_to` or team nesting (uses cycle check from 07).
 - Archiving a person leaves their tasks unassigned (assigned_to edges archived) and shows a warning listing affected tasks first.
 

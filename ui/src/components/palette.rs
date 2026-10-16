@@ -1,13 +1,13 @@
 //! Command palette (Ctrl/Cmd+K): go to a screen, run an action, find a node, or capture work in
-//! one line. A line that starts with `task`, `project`, `wait`, `note` or `decision` and a space
+//! one line. A line that starts with `task`, `project`, `wait`, `note`, `decision` or `ping` and a space
 //! is quick-add: the palette shows what it understood, asks about names it can't place, and
 //! Enter adds it. Everything is keyboard driven. Grammar: `docs/quick-add-grammar.md`.
 
 use leptos::{ev, prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 use minimap_types::{
-    QuickChoice, QuickPick, QuickPreview, QuickRef, RefState, SearchFilter, SearchHit,
-    WaitingOnFilter, WaitingOnRow,
+    PingResponse, QuickChoice, QuickPick, QuickPreview, QuickRef, RefState, SearchFilter,
+    SearchHit, WaitingOnFilter, WaitingOnRow,
 };
 
 use crate::{
@@ -17,7 +17,9 @@ use crate::{
 };
 
 /// Words that turn the line into quick-add (when followed by a space).
-const KEYWORDS: [&str; 6] = ["task", "project", "wait", "waiting", "note", "decision"];
+const KEYWORDS: [&str; 7] = [
+    "task", "project", "wait", "waiting", "note", "decision", "ping",
+];
 const MAX_COMMANDS: usize = 8;
 const MAX_NODES: usize = 8;
 
@@ -41,6 +43,18 @@ pub enum Action {
     /// Undo or redo the last change (spec 25).
     Undo,
     Redo,
+    /// Ping the item open in the pane (ADR-0020).
+    PingOpen,
+    /// Scroll This week to its Pings card.
+    ShowPings,
+    /// Open the box that makes a named save point (spec 51).
+    MakeSavePoint,
+    /// Zoom out or in between the portfolio, an objective, a project and an item (spec 52).
+    ZoomOut,
+    ZoomIn,
+    /// Open or close the radar window (spec 53).
+    OpenRadar,
+    CloseRadar,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -65,6 +79,13 @@ pub fn commands() -> Vec<Command> {
         action("New decision", "decision …", Action::Prefill("decision ")),
         action("New meeting…", "a day and a time", Action::NewMeeting),
         action("Resolve waiting-on…", "", Action::ResolveWaiting),
+        action("Ping this…", "m", Action::PingOpen),
+        action("Show pings", "This week", Action::ShowPings),
+        action("Make a save point…", "Ctrl S", Action::MakeSavePoint),
+        action("Open radar", "Ctrl Shift M", Action::OpenRadar),
+        action("Close radar", "Ctrl Shift M", Action::CloseRadar),
+        action("Zoom out", "Alt ↑", Action::ZoomOut),
+        action("Zoom in", "Alt ↓", Action::ZoomIn),
         action("Undo last change", "Ctrl Z", Action::Undo),
         action("Redo", "Ctrl Shift Z", Action::Redo),
         action("What if this slips?", "g f", Action::Go("/what-if")),
@@ -95,14 +116,46 @@ pub enum Row {
     Node(SearchHit),
     /// "Add task: <text>": the way into quick-add for text without a keyword.
     AddTask(String),
+    /// The answer to the exact text `ping`: Minimap's backend says pong, with the version and
+    /// the schema it runs. A quick check that the backend answers (the FAQ mentions it).
+    Pong(String),
 }
 
-pub fn build_rows(query: &str, commands: &[Command], hits: &[SearchHit]) -> Vec<Row> {
-    let mut rows: Vec<Row> = matching(query, commands)
+/// Whether the text is exactly `ping` (and nothing else: `ping ` followed by words is quick-add,
+/// and `pin` or `pings` are searches).
+pub fn is_ping_check(query: &str) -> bool {
+    query.trim() == "ping"
+}
+
+/// "pong · Minimap 0.4.0 · schema v18".
+pub fn pong_text(answer: &PingResponse) -> String {
+    format!(
+        "{} \u{b7} Minimap {} \u{b7} schema v{}",
+        answer.message,
+        crate::pages::about::VERSION,
+        answer.schema_version
+    )
+}
+
+/// The rows for what was typed. `pong` is the backend's answer to the exact text `ping`; it is
+/// shown first, and for no other text.
+pub fn build_rows(
+    query: &str,
+    commands: &[Command],
+    hits: &[SearchHit],
+    pong: Option<&str>,
+) -> Vec<Row> {
+    let mut rows: Vec<Row> = pong
+        .filter(|_| is_ping_check(query))
+        .map(|text| Row::Pong(text.to_owned()))
         .into_iter()
-        .take(MAX_COMMANDS)
-        .map(Row::Command)
         .collect();
+    rows.extend(
+        matching(query, commands)
+            .into_iter()
+            .take(MAX_COMMANDS)
+            .map(Row::Command),
+    );
     rows.extend(hits.iter().take(MAX_NODES).cloned().map(Row::Node));
     if !query.trim().is_empty() {
         rows.push(Row::AddTask(query.trim().to_owned()));
@@ -195,6 +248,10 @@ struct Pal {
     toasts: Toasts,
     version: DataVersion,
     meetings: crate::state::MeetingDialog,
+    pings: crate::components::ping::PingBoxState,
+    save_box: crate::components::save_points::SaveBoxState,
+    zoom: crate::state::ZoomCtx,
+    theme: crate::theme::ThemeCtx,
 }
 
 impl Pal {
@@ -229,6 +286,40 @@ impl Pal {
                     self.input.set(String::new());
                     self.cursor.set(0);
                 }
+                Action::PingOpen => {
+                    self.close();
+                    match self.selection.0.get_untracked() {
+                        Some(node) => self.pings.open(node),
+                        None => self.toasts.info(
+                            "Open an item in the detail pane first, then ping it.".to_owned(),
+                        ),
+                    }
+                }
+                Action::MakeSavePoint => {
+                    self.close();
+                    self.save_box.open();
+                }
+                Action::ShowPings => {
+                    self.pings.show.set(true);
+                    self.go.set(Some("/"));
+                    self.close();
+                }
+                Action::OpenRadar => {
+                    self.close();
+                    crate::components::radar::open(self.theme, self.toasts);
+                }
+                Action::CloseRadar => {
+                    self.close();
+                    crate::components::radar::close(self.toasts);
+                }
+                Action::ZoomOut => {
+                    self.close();
+                    self.zoom.out();
+                }
+                Action::ZoomIn => {
+                    self.close();
+                    self.zoom.inn();
+                }
                 Action::Undo | Action::Redo => {
                     self.close();
                     undo_or_redo(c.action == Action::Redo, self.toasts, self.version);
@@ -242,6 +333,7 @@ impl Pal {
                 self.input.set(format!("task {text}"));
                 self.cursor.set(0);
             }
+            Row::Pong(_) => self.close(),
         }
     }
 
@@ -303,8 +395,14 @@ pub fn PaletteHost() -> impl IntoView {
         toasts: expect_context::<Toasts>(),
         version: expect_context::<DataVersion>(),
         meetings: expect_context::<crate::state::MeetingDialog>(),
+        pings: expect_context::<crate::components::ping::PingBoxState>(),
+        save_box: expect_context::<crate::components::save_points::SaveBoxState>(),
+        zoom: expect_context::<crate::state::ZoomCtx>(),
+        theme: expect_context::<crate::theme::ThemeCtx>(),
     };
     let hits = RwSignal::new(Vec::<SearchHit>::new());
+    // The backend's answer to the exact text `ping` (a quick check that it is there).
+    let pong = RwSignal::new(Option::<String>::None);
     let preview = RwSignal::new(Option::<QuickPreview>::None);
     let waits = RwSignal::new(Vec::<WaitingOnRow>::new());
     let all_commands = StoredValue::new(commands());
@@ -344,6 +442,19 @@ pub fn PaletteHost() -> impl IntoView {
         let choices = pal.choices.get();
         let ticket = latest.get_value() + 1;
         latest.set_value(ticket);
+        if is_ping_check(&text) {
+            spawn_local(async move {
+                let answer = match api::ping().await {
+                    Ok(a) => pong_text(&a),
+                    Err(e) => format!("no answer \u{b7} {}", e.message),
+                };
+                if latest.get_value() == ticket {
+                    pong.set(Some(answer));
+                }
+            });
+        } else {
+            pong.set(None);
+        }
         if resolving {
             spawn_local(async move {
                 if let Ok(rows) = api::get_waiting_on(WaitingOnFilter::default()).await {
@@ -383,7 +494,14 @@ pub fn PaletteHost() -> impl IntoView {
         }
     });
 
-    let rows = move || build_rows(&pal.input.get(), &all_commands.get_value(), &hits.get());
+    let rows = move || {
+        build_rows(
+            &pal.input.get(),
+            &all_commands.get_value(),
+            &hits.get(),
+            pong.get().as_deref(),
+        )
+    };
     let open_waits = move || -> Vec<WaitingOnRow> {
         let q = pal.input.get();
         waits
@@ -500,6 +618,7 @@ pub fn PaletteHost() -> impl IntoView {
                         if h.archived { "archived".to_owned() } else { h.snippet.clone() },
                     ),
                     Row::AddTask(t) => ("Add".to_owned(), format!("Add task \u{201c}{t}\u{201d}"), "task …".to_owned()),
+                    Row::Pong(text) => ("Check".to_owned(), text.clone(), String::new()),
                 };
                 view! {
                     <PaletteRow index=i cursor=pal.cursor on_pick=move || pal.run(picked.clone())>
@@ -568,6 +687,39 @@ fn PaletteRow(
     }
 }
 
+/// The card's headline: the line's title; for a ping the item it is on ("EU Region").
+pub fn card_title(preview: &QuickPreview) -> String {
+    if preview.kind == minimap_types::QuickKind::Ping {
+        return preview
+            .refs
+            .iter()
+            .find_map(|r| match &r.state {
+                RefState::Resolved { node } => Some(node.label.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| "…".to_owned());
+    }
+    if preview.title.is_empty() {
+        "…".to_owned()
+    } else {
+        preview.title.clone()
+    }
+}
+
+/// The line under the headline: "Due: Fri 2027-03-05 · Estimate: 3d"; a ping adds its note, so
+/// the card reads "EU Region · On: Fri 2027-03-05 · check data residency".
+pub fn card_details(preview: &QuickPreview) -> String {
+    let mut parts: Vec<String> = preview
+        .details
+        .iter()
+        .map(|d| format!("{}: {}", d.label, d.value))
+        .collect();
+    if preview.kind == minimap_types::QuickKind::Ping && !preview.title.is_empty() {
+        parts.push(preview.title.clone());
+    }
+    parts.join(" · ")
+}
+
 /// What the line means, what is wrong with it, and the question about the first unclear name.
 #[component]
 fn QuickCard(preview: QuickPreview, pal: Pal) -> impl IntoView {
@@ -577,18 +729,10 @@ fn QuickCard(preview: QuickPreview, pal: Pal) -> impl IntoView {
         minimap_types::QuickKind::Wait => "Waiting on",
         minimap_types::QuickKind::Note => "Note",
         minimap_types::QuickKind::Decision => "Decision",
+        minimap_types::QuickKind::Ping => "Ping",
     };
-    let title = if preview.title.is_empty() {
-        "…".to_owned()
-    } else {
-        preview.title.clone()
-    };
-    let details = preview
-        .details
-        .iter()
-        .map(|d| format!("{}: {}", d.label, d.value))
-        .collect::<Vec<_>>()
-        .join(" · ");
+    let title = card_title(&preview);
+    let details = card_details(&preview);
     let pending_key = first_pending(&preview).map(|r| r.key.clone());
     let refs = preview
         .refs
@@ -760,16 +904,55 @@ mod tests {
             archived: false,
             snippet: String::new(),
         };
-        let rows = build_rows("fix", &commands(), std::slice::from_ref(&hit));
+        let rows = build_rows("fix", &commands(), std::slice::from_ref(&hit), None);
         assert!(
             matches!(rows.first(), Some(Row::Node(h)) if *h == hit)
                 || matches!(rows.first(), Some(Row::Command(_)))
         );
         assert_eq!(rows.last(), Some(&Row::AddTask("fix".into())));
         // Empty query: just the commands, nothing to add.
-        let rows = build_rows("  ", &commands(), &[]);
+        let rows = build_rows("  ", &commands(), &[], None);
         assert!(rows.iter().all(|r| matches!(r, Row::Command(_))));
         assert!(rows.len() <= MAX_COMMANDS);
+    }
+
+    #[test]
+    fn the_exact_text_ping_is_answered_with_pong_and_nothing_else_is() {
+        let answer = PingResponse {
+            message: "pong".into(),
+            schema_version: 18,
+        };
+        let text = pong_text(&answer);
+        assert_eq!(
+            text,
+            format!(
+                "pong \u{b7} Minimap {} \u{b7} schema v18",
+                crate::pages::about::VERSION
+            )
+        );
+        let pong_rows = |q: &str| {
+            build_rows(q, &commands(), &[], Some(text.as_str()))
+                .into_iter()
+                .filter(|r| matches!(r, Row::Pong(_)))
+                .count()
+        };
+        // Exactly `ping`: one row, and it comes first.
+        assert_eq!(pong_rows("ping"), 1);
+        assert_eq!(pong_rows("  ping "), 1);
+        assert!(matches!(
+            build_rows("ping", &commands(), &[], Some(text.as_str())).first(),
+            Some(Row::Pong(t)) if *t == text
+        ));
+        // Anything else: no pong, even when an answer is waiting.
+        for q in ["", "pin", "pings", "Ping", "ping this", "pong", "p"] {
+            assert_eq!(pong_rows(q), 0, "{q:?}");
+        }
+        // No answer yet: no row.
+        assert!(build_rows("ping", &commands(), &[], None)
+            .iter()
+            .all(|r| !matches!(r, Row::Pong(_))));
+        // It is not a quick-add line either.
+        assert!(!is_quick_add("ping"));
     }
 
     #[test]

@@ -1,19 +1,24 @@
 use minimap_types::{
-    AssigneeChoice, CreatePerson, CreateProject, CreateTask, CreateTeam, EdgeType, NewEdge,
-    NodeRef, NodeType, Patch, UpdateSettings, UpdateTask,
+    AssigneeChoice, CreatePerson, CreatePing, CreateProject, CreateTask, CreateTeam, EdgeType,
+    NewEdge, NodeRef, NodeType, Patch, UpdateSettings, UpdateTask,
 };
 use proptest::prelude::*;
 use rusqlite::Connection;
 use uuid::Uuid;
 
 use super::*;
-use crate::{edges, nodes, people, projects, settings, tasks, teams};
+use crate::{edges, nodes, people, pings, projects, settings, tasks, teams};
 
 fn device() -> Connection {
     crate::open_in_memory().unwrap()
 }
 
 fn task(conn: &mut Connection, title: &str) -> Uuid {
+    task_for(conn, title, AssigneeChoice::Nobody)
+}
+
+fn task_for(conn: &mut Connection, title: &str, assignee: AssigneeChoice) -> Uuid {
+    let __p = crate::fixtures::project(conn);
     tasks::create(
         conn,
         CreateTask {
@@ -23,9 +28,9 @@ fn task(conn: &mut Connection, title: &str) -> Uuid {
             start_minute: None,
             length_minutes: None,
             title: title.into(),
-            assignee: AssigneeChoice::Nobody,
+            assignee,
             description: String::new(),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: None,
             start_date: None,
@@ -131,19 +136,20 @@ fn sync(a: &mut Connection, b: &mut Connection) {
 }
 
 /// Everything that should be the same on two devices that have synced: every row of every
-/// synced table (edges without their device-chosen ids; "me" is each device's own).
+/// synced table (edges without their device-chosen ids).
 fn view(conn: &Connection) -> String {
     let mut out = String::new();
     for (table, skip) in [
         ("objectives", ""),
         ("projects", ""),
         ("tasks", ""),
-        ("people", "is_self"),
+        ("people", ""),
         ("teams", ""),
         ("notes", ""),
         ("decisions", ""),
         ("waiting_on", ""),
         ("attachments", ""),
+        ("pings", ""),
         ("edges", "id"),
         ("activity", ""),
         ("tombstones", ""),
@@ -306,6 +312,101 @@ fn a_deleted_item_stays_deleted_everywhere() {
     assert_eq!(view(&c), view(&d));
 }
 
+fn ping(conn: &mut Connection, target: Uuid, note: &str) -> Uuid {
+    let today = crate::today();
+    pings::create(
+        conn,
+        today,
+        CreatePing {
+            target: NodeRef::new(NodeType::Project, target),
+            note: note.into(),
+            on_date: today,
+        },
+    )
+    .unwrap()
+    .id
+}
+
+fn live_pings(conn: &Connection, target: Uuid) -> Vec<String> {
+    conn.prepare(
+        "SELECT note FROM pings WHERE target_id = ?1 AND archived_at IS NULL AND cleared_on IS NULL",
+    )
+    .unwrap()
+    .query_map([target.to_string()], |r| r.get(0))
+    .unwrap()
+    .collect::<rusqlite::Result<_>>()
+    .unwrap()
+}
+
+#[test]
+fn pings_sync_and_the_newest_write_wins() {
+    let (mut a, mut b) = (device(), device());
+    let p = project(&mut a, "EU");
+    let id = ping(&mut a, p, "from A");
+    sync(&mut a, &mut b);
+    assert_eq!(live_pings(&b, p), ["from A"]);
+    // B clears it later: both devices end with it cleared.
+    pings::clear(&mut b, id, crate::today()).unwrap();
+    b.execute(
+        "UPDATE pings SET updated_at = '2999-01-01T00:00:00.000Z'",
+        [],
+    )
+    .unwrap();
+    sync(&mut a, &mut b);
+    assert!(live_pings(&a, p).is_empty() && live_pings(&b, p).is_empty());
+    assert_eq!(view(&a), view(&b));
+}
+
+#[test]
+fn two_live_pings_on_one_item_become_one_and_both_devices_agree() {
+    let (mut a, mut b) = (device(), device());
+    let p = project(&mut a, "EU");
+    m(&mut b, &a);
+    ping(&mut a, p, "older");
+    ping(&mut b, p, "newer");
+    b.execute(
+        "UPDATE pings SET updated_at = '2999-01-01T00:00:00.000Z'",
+        [],
+    )
+    .unwrap();
+    let summary = m(&mut a, &b);
+    assert!(
+        summary
+            .repairs
+            .iter()
+            .any(|r| r.contains("Two devices each pinged \"EU\"")),
+        "{:?}",
+        summary.repairs
+    );
+    sync(&mut a, &mut b);
+    assert_eq!(live_pings(&a, p), ["newer"]);
+    assert_eq!(live_pings(&b, p), ["newer"]);
+    assert_eq!(view(&a), view(&b));
+    // Merging again changes nothing and repairs nothing.
+    let again = m(&mut a, &b);
+    assert!(again.repairs.is_empty() && again.added == 0 && again.updated == 0);
+}
+
+#[test]
+fn deleting_an_item_for_good_takes_its_pings_with_it_everywhere() {
+    let (mut a, mut b) = (device(), device());
+    let p = project(&mut a, "EU");
+    ping(&mut a, p, "x");
+    m(&mut b, &a);
+    nodes::archive(&mut b, NodeRef::new(NodeType::Project, p)).unwrap();
+    nodes::delete(&mut b, NodeRef::new(NodeType::Project, p)).unwrap();
+    // A pings the item again before hearing about the delete.
+    let id = pings::live_for(&a, p).unwrap().unwrap().id;
+    pings::clear(&mut a, id, crate::today()).unwrap();
+    sync(&mut a, &mut b);
+    let count = |c: &Connection| -> i64 {
+        c.query_row("SELECT COUNT(*) FROM pings", [], |r| r.get(0))
+            .unwrap()
+    };
+    assert_eq!((count(&a), count(&b)), (0, 0));
+    assert_eq!(view(&a), view(&b));
+}
+
 #[test]
 fn links_follow_their_items_and_the_same_link_made_twice_is_one_link() {
     let (mut a, mut b) = (device(), device());
@@ -457,20 +558,236 @@ fn many_projects_with_the_same_handle_get_the_same_handles_whatever_the_order() 
     );
 }
 
+/// Who a task is assigned to.
+fn assignee_of(conn: &Connection, task: Uuid) -> Option<Uuid> {
+    edges::list_active_of_type(conn, EdgeType::AssignedTo)
+        .unwrap()
+        .into_iter()
+        .find(|e| e.from_id == task)
+        .map(|e| e.to_id)
+}
+
+/// A pause, so the next row is created later (people made in the same millisecond tie).
+fn later() {
+    std::thread::sleep(std::time::Duration::from_millis(5));
+}
+
 #[test]
-fn each_device_keeps_its_own_me() {
+fn two_devices_that_each_made_a_me_end_up_with_the_oldest_one() {
     let (mut a, mut b) = (device(), device());
     let me_a = person(&mut a, "Me (laptop)", true);
+    later();
     let me_b = person(&mut b, "Me (desktop)", true);
+    let on_a = task_for(&mut a, "A's task", AssigneeChoice::Me);
+    let on_b = task_for(&mut b, "B's task", AssigneeChoice::Me);
+
     let summary = m(&mut a, &b);
     assert!(summary
         .repairs
         .iter()
-        .any(|r| r.contains("ordinary person")));
+        .any(|r| r.contains("second \"me\"")));
     sync(&mut a, &mut b);
-    assert_eq!(people::get_self(&a).unwrap().unwrap().id, me_a);
-    assert_eq!(people::get_self(&b).unwrap().unwrap().id, me_b);
-    assert_eq!(people::list(&a, false).unwrap().len(), 2);
+
+    for device in [&a, &b] {
+        assert_eq!(people::get_self(device).unwrap().unwrap().id, me_a);
+        let everyone = people::list(device, true).unwrap();
+        assert_eq!(everyone.len(), 1, "the duplicate is gone: {everyone:?}");
+        assert_eq!(assignee_of(device, on_a), Some(me_a));
+        assert_eq!(assignee_of(device, on_b), Some(me_a));
+    }
+    assert!(people::get(&b, me_b).is_err());
+    assert_eq!(view(&a), view(&b));
+    // Nothing is left to settle, and the duplicate stays deleted.
+    assert!(!m(&mut a, &b).changed_anything());
+    assert!(!m(&mut b, &a).changed_anything());
+}
+
+#[test]
+fn which_device_merges_first_does_not_change_who_me_is() {
+    let (mut a, mut b) = (device(), device());
+    let me_a = person(&mut a, "Me", true);
+    later();
+    person(&mut b, "Me", true);
+    let (mut x, mut y) = (device(), device());
+    m(&mut x, &a);
+    m(&mut x, &b);
+    m(&mut y, &b);
+    m(&mut y, &a);
+    assert_eq!(people::get_self(&x).unwrap().unwrap().id, me_a);
+    assert_eq!(people::get_self(&y).unwrap().unwrap().id, me_a);
+    // Each folded the duplicate at its own moment; once they have met they agree on everything.
+    sync(&mut x, &mut y);
+    assert_eq!(view(&x), view(&y));
+}
+
+#[test]
+fn an_archived_me_with_a_twin_by_name_is_merged_into_the_twin() {
+    let mut a = device();
+    let old = person(&mut a, "Uditt", true);
+    let twin = person(&mut a, "uditt ", false);
+    let mine = task_for(&mut a, "Mine", AssigneeChoice::Person(twin));
+    a.execute(
+        "UPDATE people SET archived_at = '2026-10-13T00:00:00.000Z' WHERE id = ?1",
+        [old.to_string()],
+    )
+    .unwrap();
+
+    assert!(people::repair_self(&mut a).unwrap());
+    assert_eq!(people::get_self(&a).unwrap().unwrap().id, twin);
+    assert!(people::get(&a, old).is_err());
+    assert_eq!(assignee_of(&a, mine), Some(twin));
+    // Nothing more to do, and it reaches the other devices.
+    assert!(!people::repair_self(&mut a).unwrap());
+    let mut b = device();
+    sync(&mut a, &mut b);
+    assert_eq!(people::get_self(&b).unwrap().unwrap().id, twin);
+}
+
+#[test]
+fn an_archived_me_with_no_twin_is_just_restored() {
+    let mut a = device();
+    let me = person(&mut a, "Me", true);
+    a.execute(
+        "UPDATE people SET archived_at = '2026-10-13T00:00:00.000Z' WHERE id = ?1",
+        [me.to_string()],
+    )
+    .unwrap();
+    assert!(people::repair_self(&mut a).unwrap());
+    assert!(people::get(&a, me).unwrap().archived_at.is_none());
+    task_for(&mut a, "New", AssigneeChoice::Me);
+}
+
+#[test]
+fn an_archived_me_never_beats_one_that_is_not() {
+    // The shape of a real case: the older "me" had been archived, the newer one does the work.
+    let (mut a, mut b) = (device(), device());
+    let old = person(&mut a, "Me", true);
+    later();
+    let real = person(&mut b, "Me", true);
+    let mine = task_for(&mut b, "Mine", AssigneeChoice::Me);
+    a.execute(
+        "UPDATE people SET archived_at = '2026-10-13T00:00:00.000Z' WHERE id = ?1",
+        [old.to_string()],
+    )
+    .unwrap();
+    sync(&mut a, &mut b);
+    for device in [&a, &b] {
+        assert_eq!(people::get_self(device).unwrap().unwrap().id, real);
+        assert_eq!(assignee_of(device, mine), Some(real));
+        assert!(people::get(device, old).is_err());
+    }
+    assert_eq!(view(&a), view(&b));
+}
+
+#[test]
+fn a_me_that_another_device_archived_is_restored_with_its_links() {
+    let (mut a, mut b) = (device(), device());
+    let me = person(&mut a, "Me", true);
+    let mine = task_for(&mut a, "Mine", AssigneeChoice::Me);
+    sync(&mut a, &mut b);
+    // On B the copy of "me" is an ordinary person, so it can be archived there as a "duplicate".
+    let stamp = "2999-01-01T00:00:00.000Z";
+    b.execute(
+        "UPDATE people SET archived_at = ?2, updated_at = ?2, is_self = 0 WHERE id = ?1",
+        rusqlite::params![me.to_string(), stamp],
+    )
+    .unwrap();
+    b.execute(
+        "UPDATE edges SET archived_at = ?1, updated_at = ?1 WHERE to_id = ?2",
+        rusqlite::params![stamp, me.to_string()],
+    )
+    .unwrap();
+
+    let summary = m(&mut a, &b);
+    assert!(summary.repairs.iter().any(|r| r.contains("is restored")));
+    let back = people::get(&a, me).unwrap();
+    assert!(back.is_self);
+    assert!(back.archived_at.is_none());
+    assert_eq!(assignee_of(&a, mine), Some(me));
+    // New tasks can be assigned to me again.
+    task_for(&mut a, "New", AssigneeChoice::Me);
+
+    // The restoring is a new edit, so B follows.
+    m(&mut b, &a);
+    assert!(people::get(&b, me).unwrap().archived_at.is_none());
+}
+
+#[test]
+fn merging_a_person_into_another_moves_everything_that_pointed_at_them() {
+    let mut a = device();
+    person(&mut a, "Me", true);
+    let keep = person(&mut a, "Priya Nair", false);
+    let dupe = person(&mut a, "P. Nair", false);
+    let boss = person(&mut a, "Boss", false);
+    let assigned = task_for(&mut a, "Review", AssigneeChoice::Person(dupe));
+    let owned = project(&mut a, "Launch");
+    projects::update(
+        &mut a,
+        owned,
+        minimap_types::UpdateProject {
+            owner_person_id: Patch::Set(dupe),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let node = |id| NodeRef::new(NodeType::Person, id);
+    // Both report to the same boss: the second link would be a copy of the first.
+    link(&mut a, EdgeType::ReportsTo, node(keep), node(boss));
+    link(&mut a, EdgeType::ReportsTo, node(dupe), node(boss));
+    let note = crate::notes::create(
+        &mut a,
+        minimap_types::CreateNote {
+            title: "1:1".into(),
+            body: minimap_types::mention_token("P. Nair", dupe),
+            note_date: None,
+            kind: None,
+            recurrence: None,
+        },
+    )
+    .unwrap();
+
+    let merged = people::merge_into(&mut a, dupe, keep).unwrap();
+    assert_eq!(merged.id, keep);
+    assert!(people::get(&a, dupe).is_err());
+    assert_eq!(assignee_of(&a, assigned), Some(keep));
+    assert_eq!(projects::get(&a, owned).unwrap().owner_person_id, Some(keep));
+    let reports: Vec<_> = edges::list_active_of_type(&a, EdgeType::ReportsTo).unwrap();
+    assert_eq!(reports.len(), 1);
+    assert_eq!(reports[0].from_id, keep);
+    let body = crate::notes::get(&a, note.id).unwrap().body;
+    assert!(body.contains(&keep.to_string()) && !body.contains(&dupe.to_string()));
+    // Gone for good: the other devices are told.
+    let tombstoned: bool = a
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM tombstones WHERE kind = 'person' AND id = ?1)",
+            [dupe.to_string()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(tombstoned);
+    // Nobody merges into themselves, or into an archived person.
+    assert!(people::merge_into(&mut a, keep, keep).is_err());
+    nodes::archive(&mut a, node(boss)).unwrap();
+    assert!(people::merge_into(&mut a, keep, boss).is_err());
+}
+
+#[test]
+fn merging_my_duplicate_into_the_right_person_makes_them_me_on_every_device() {
+    let (mut a, mut b) = (device(), device());
+    let old_me = person(&mut a, "Me", true);
+    let real = person(&mut a, "Udit", false);
+    let mine = task_for(&mut a, "Mine", AssigneeChoice::Me);
+    sync(&mut a, &mut b);
+    assert_eq!(people::get_self(&b).unwrap().unwrap().id, old_me);
+
+    people::merge_into(&mut a, old_me, real).unwrap();
+    assert_eq!(people::get_self(&a).unwrap().unwrap().id, real);
+    assert_eq!(assignee_of(&a, mine), Some(real));
+
+    sync(&mut a, &mut b);
+    assert_eq!(people::get_self(&b).unwrap().unwrap().id, real);
+    assert!(people::get(&b, old_me).is_err());
+    assert_eq!(assignee_of(&b, mine), Some(real));
     assert_eq!(view(&a), view(&b));
 }
 
@@ -562,13 +879,10 @@ fn things_pointing_at_a_deleted_item_are_repaired() {
     );
     m(&mut b, &a);
     // B lets go of everything that used the project and the person, then deletes both for good.
-    tasks::update(
-        &mut b,
-        child,
-        UpdateTask {
-            project_id: Patch::Clear,
-            ..Default::default()
-        },
+    // (A task can't lose its project any more, so this goes round the rule.)
+    b.execute(
+        "UPDATE tasks SET project_id = NULL, updated_at = ?2 WHERE id = ?1",
+        rusqlite::params![child.to_string(), crate::convert::ts_s(crate::convert::now())],
     )
     .unwrap();
     projects::update(

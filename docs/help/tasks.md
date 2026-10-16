@@ -38,7 +38,7 @@ The board has a column for each status: **To do**, **In progress**, **Blocked** 
 - **Deadlines warm the card.** An open task with a due date starts to take on a red tint 14 days before it is due. The tint grows a little every day, is clearly red on the due day and a touch stronger once it is overdue, so what is closest to its deadline stands out as you scan the board. Done and cancelled tasks, and tasks with no due date, stay plain; the card you have open or selected shows the normal highlight instead. The list rows warm the same way.
 - **Drag a card onto another column** to change its status. The column lights up where it will land, the card moves at once, and the change is saved behind it (you can undo it with `Ctrl/Cmd+Z`).
 - **Click a card** to open it in the detail pane. The tasks it is linked to light up across all columns (a bright border), the other cards fade back, and lines join them: a solid arrow points from the task that blocks to the task that waits for it, a dashed line joins related tasks, and a dotted line joins a sub-task to its parent (no arrow: it is not an order). The top of the board counts the linked tasks. Click on any empty part of the board (blank space in a column, between the columns) and the board goes back to normal while the pane stays open; click the card again to light the links up again. Closing the pane, or opening a task with no links, also returns the board to normal. Linked tasks that the filters hide, or that are older finished tasks under *Show older*, are not drawn. See *Sub-tasks and links* below.
-- **The ⋯ menu** on a card (it appears when you point at the card) has: *Open*; *Add a sub-task…* (the dialog below, already set to a new sub-task of this card's task); *Link a new task…* and *Link an existing task…* (the dialog described under *Sub-tasks and links*, already pointed at this card's task); and *Archive*, which hides the task and its links. Archiving shows a message saying `Ctrl/Cmd+Z` brings it back.
+- **The ⋯ menu** on a card (it appears when you point at the card) has: *Open*; *Add a sub-task…* (the dialog below, already set to a new sub-task of this card's task); *Link a new task…* and *Link an existing task…* (the dialog described under *Sub-tasks and links*, already pointed at this card's task); and *Archive*, which asks "Archive …?" in a dialog and then hides the task and its links. A message says `Ctrl/Cmd+Z` brings it back.
 - **Add a task straight into a column** with the `+` in its heading (or `n` for the To do column). Type a title and press `Enter`; the box stays open for the next one. If you filtered by a project, new tasks join that project.
 - **Order inside a column** is chosen with the *Sort* dropdown in the filter bar, and applies to every column at once. *Default* puts the earliest deadline first (tasks with no deadline last, a tie going to the higher priority) and shows Done with the most recently finished first. *Deadline, soonest* and *Deadline, latest* order every column, Done included, by due date; *Priority* puts P1 first, then the earliest deadline. Your choice is remembered on this computer. Dragging changes the status, not the position. Done shows the 15 newest in its order; press *Show older* for the rest.
 - Dropping a repeating task on **Done** creates its next one, exactly as finishing it anywhere else does.
@@ -47,7 +47,9 @@ Keyboard: `j` / `k` move through the cards column by column, and `x`, `s`, `f` a
 
 ## Finding tasks
 
-The filters above the board or list combine: text (matches title, description, project and assignee), project, assignee, **type** and a due-date range. The list adds a status filter and *Show done*: finished and cancelled tasks are hidden there unless you ask for them or pick that status. Switching between board and list keeps your filters. A filter or sort that is set to something other than its default is **ringed in the accent colour** (and *Due* and *Show done / Show cancelled* turn the accent colour), so you can see at a glance why the list is shorter than you expect; *Reset (N changed)* appears at the right of the bar and puts everything, including the board's sort, back to its default.
+In **My view** (`v`) the board and the list show only your tasks, the tasks that reach them and the ones they block, each with a chip that says why (the Inbox is not filtered). See [Portfolio view and My view](help:views).
+
+The filters above the board or list combine: text (matches title, description, project and assignee), project, assignee, **type** and a due-date range. The list adds a status filter and *Show done*: finished and cancelled tasks are hidden there unless you ask for them or pick that status. Switching between board and list keeps your filters. When the screen is filtered to a project, the line under the title shows its path (*World › Launch in the EU › EU Region*) and `Alt+↑` zooms out to the objective: see [Zoom](help:zoom). A filter or sort that is set to something other than its default is **ringed in the accent colour** (and *Due* and *Show done / Show cancelled* turn the accent colour), so you can see at a glance why the list is shorter than you expect; *Reset (N changed)* appears at the right of the bar and puts everything, including the board's sort, back to its default.
 
 ## Working in the list
 
@@ -64,9 +66,15 @@ Every row has its own controls (status, priority, project, assignee, due date), 
 | `d` | Focus the due date |
 | `a` | Focus the assignee |
 
+## Fog
+
+A task that is in play (in progress, blocked, due within 14 days or in focus) but that nobody has touched for a while is faded and carries a `≋ 9d` chip, in the list and on the board, and the pane shows a *Fog* or *Haze* pill with **Still accurate**. Press `c` on a highlighted task to say it is fine as it is. See [Fog](help:fog).
+
 ## Focus
 
 Normally a task reaches [This week](help:this-week) by its date: late, due, blocked or in progress. **Focus** is the other way in: you pick tasks to see **every day**, however far off (or missing) their due date is. They get their own *Focus* section on This week.
+
+**Focus or ping?** Focus is for a *task* you want in view every day until you take it out. To see *anything* (a person, a project, a decision, a task) again **on a day**, leave a [ping](help:pings) instead. A task that is in focus and has a ping whose day has come shows the ping on its Focus row rather than twice.
 
 - **Put a task in focus** with the **star** on its card or row (hover to see it; click to light it), with `f` on the highlighted card or row, or with the **Focus** box in the pane:
   - *Every day, until I take it out*: stays until you remove it.
@@ -95,7 +103,7 @@ A type is a label. It does not change the schedule, capacity or health. (*Meetin
 
 ### Decisions that have a date
 
-For a decision you have to make by a certain day, make a task of type *Decision* and give it a **due date**: that is the day you planned to decide. When you mark it done, the pane and the board card say how it went against that date: *Done 2027-03-05, 2 days late*, *on time* or *1 day early*. If you push the due date, the pane also keeps the first one: *Originally planned for 2027-02-26, moved twice*, and for a finished task how it did against that first date. (The record of what you decided and why belongs on the [Decisions](help:decisions) screen; link it to the task.) Days are calendar days.
+For a decision you have to make by a certain day, make a task of type *Decision* and give it a **due date**: that is the day you planned to decide. When you mark it done, the pane and the board card say how it went against that date: *Done 2027-03-05, 2 days late*, *on time* or *1 day early*. If you push the due date, the pane also keeps the first one: *Originally planned for 2027-02-26, moved twice*, and for a finished task how it did against that first date. A Decision task **can't be marked done** until its record says what was decided and why: moving it to Done (the status box, dragging on the board, `x`, the tick on This week) opens a **Finish decision** dialog with the two boxes, and *Decide and mark done* saves them, finishes the task and marks the record decided, all as one step you can undo. Cancelling the task needs none of this. Setting the type to *Decision* also creates the task's **decision record** in the [Decisions](help:decisions) log: write what you decided and why under *Decision record* in the task's pane. The task can be finished and drop off your board; the record stays in the log. Days are calendar days.
 
 ## Reference links
 
@@ -114,7 +122,7 @@ Links travel with the task: they are saved with it, synced and backed up like th
 
 Below the reference links, **Notes and findings** is where you keep the record of a task: what you found out, what was decided with whom, what went wrong. It reads like the comments under a GitHub issue: the notes so far are listed **oldest first**, each as formatted text with its date, and the box for the next one is at the bottom. Write in the box (it has the same toolbar as every text box, see [Notes](help:notes), *The text box*) and press *Add note* or `Ctrl/Cmd+Enter`. The first line becomes the note's title, and the note is saved as an ordinary [note](help:notes) that mentions the task, so it also appears on the Notes screen and in search, and is part of backups and exports.
 
-On each note, the **pencil** edits it in place (*Save* or `Ctrl/Cmd+Enter`, *Cancel* to leave it as it was; the note's title follows its first line unless you changed the title yourself). The **⋯** menu has *Open in the pane* (to change its date or kind, or to see its checklist) and *Archive* (`Ctrl/Cmd+Z` brings it back). Only the newest ten are listed at first; *Show earlier notes* lists the rest. Projects and objectives have the same section.
+On each note, the **pencil** edits it in place (*Save* or `Ctrl/Cmd+Enter`, *Cancel* to leave it as it was; the note's title follows its first line unless you changed the title yourself). The **⋯** menu has *Open in the pane* (to change its date or kind, or to see its checklist) and *Archive* (asks first; `Ctrl/Cmd+Z` brings it back). Only the newest ten are listed at first; *Show earlier notes* lists the rest. Projects and objectives have the same section.
 
 ## Sub-tasks and links
 

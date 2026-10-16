@@ -12,6 +12,7 @@
 //! | updated | put the old values back, if the fields still hold what the row recorded |
 //! | edge added | remove the link |
 //! | edge removed | add the link back (rules and loops are checked again) |
+//! | ping made / changed / cleared / removed (a `ping` diff on the item it is on, ADR-0020) | put the ping back as it was (a new one is archived) |
 //!
 //! Links that touch a node created, archived or restored in the same step are not listed: the
 //! archive or restore of the node already takes them along.
@@ -46,6 +47,13 @@ pub enum Inverse {
         from: NodeRef,
         to: NodeRef,
         attrs: Value,
+    },
+    /// Put a ping back as it was (`old`: `null` = it did not exist, so it is archived), provided
+    /// it still is as `new` says. Both are `{id, note, on_date, cleared_on, archived}` or `null`.
+    Ping {
+        target: NodeRef,
+        old: Value,
+        new: Value,
     },
 }
 
@@ -134,6 +142,17 @@ fn irreversible_update(a: &Activity) -> Option<String> {
     None
 }
 
+/// The two states of a ping recorded by a `ping` diff, if the row is one (ADR-0020).
+fn ping_change(a: &Activity) -> Option<(Value, Value)> {
+    let diff = a.diff.as_object()?;
+    if diff.len() != 1 {
+        return None;
+    }
+    let pair = diff.get("ping")?.as_array().filter(|p| p.len() == 2)?;
+    let well_formed = |v: &Value| v.is_null() || v.get("id").and_then(Value::as_str).is_some();
+    (well_formed(&pair[0]) && well_formed(&pair[1])).then(|| (pair[0].clone(), pair[1].clone()))
+}
+
 /// What to do to undo the command that wrote `rows` (oldest first).
 pub fn plan(rows: &[Activity]) -> Plan {
     let rows: Vec<&Activity> = rows.iter().filter(|a| !is_ignored(a)).collect();
@@ -174,6 +193,19 @@ pub fn plan(rows: &[Activity]) -> Plan {
             }
             ActivityAction::Archived => inverse.push(Inverse::Unarchive(node_of(a))),
             ActivityAction::Updated => {
+                if a.diff.get("ping").is_some() {
+                    let Some((old, new)) = ping_change(a) else {
+                        return Plan::Irreversible(
+                            "it was recorded in a form that can't be reversed".into(),
+                        );
+                    };
+                    inverse.push(Inverse::Ping {
+                        target: node_of(a),
+                        old,
+                        new,
+                    });
+                    continue;
+                }
                 let Some((old, new)) = changes(a) else {
                     return Plan::Irreversible(
                         "it was recorded in a form that can't be reversed".into(),
@@ -316,6 +348,7 @@ pub fn headline_text(h: &Headline, name: impl Fn(NodeRef) -> String) -> String {
         Verb::Restored => format!("restored {}", subject(h.node)),
         Verb::Deleted => format!("deleted {}", type_word(h.node.node_type)),
         Verb::Updated => match h.fields.as_slice() {
+            [one] if one == "ping" => format!("changed the ping on {}", subject(h.node)),
             [one] => format!("changed {one} of {}", subject(h.node)),
             _ => format!("edited {}", subject(h.node)),
         },
@@ -677,6 +710,66 @@ mod tests {
         assert_eq!(
             text(&[archived, project, link]),
             "archived project Release and 1 more change"
+        );
+    }
+    #[test]
+    fn a_ping_change_is_put_back_as_it_was() {
+        let state = |note: &str| json!({"id": id(50), "note": note, "on_date": "2027-03-05", "cleared_on": null, "archived": false});
+        // Made: the inverse has no old state (the store archives it).
+        let made = row(
+            ActivityAction::Updated,
+            NodeType::Project,
+            1,
+            json!({"ping": [null, state("a")]}),
+        );
+        assert_eq!(
+            steps(std::slice::from_ref(&made)),
+            vec![Inverse::Ping {
+                target: NodeRef::new(NodeType::Project, id(1)),
+                old: Value::Null,
+                new: state("a"),
+            }]
+        );
+        // Changed: both states are kept, newest row first when several.
+        let changed = row(
+            ActivityAction::Updated,
+            NodeType::Project,
+            1,
+            json!({"ping": [state("a"), state("b")]}),
+        );
+        let got = steps(&[made, changed]);
+        assert_eq!(got.len(), 2);
+        assert!(matches!(&got[0], Inverse::Ping { old, .. } if old == &state("a")));
+        // A ping row in a shape we don't know is not guessed at.
+        let odd = row(
+            ActivityAction::Updated,
+            NodeType::Project,
+            1,
+            json!({"ping": "x"}),
+        );
+        assert!(matches!(plan(&[odd]), Plan::Irreversible(_)));
+        let mixed = row(
+            ActivityAction::Updated,
+            NodeType::Project,
+            1,
+            json!({"ping": [null, state("a")], "title": ["a", "b"]}),
+        );
+        assert!(matches!(plan(&[mixed]), Plan::Irreversible(_)));
+    }
+
+    #[test]
+    fn a_ping_headline_says_so() {
+        let state = json!({"id": id(50), "note": "", "on_date": "2027-03-05", "cleared_on": null, "archived": false});
+        let made = row(
+            ActivityAction::Updated,
+            NodeType::Project,
+            1,
+            json!({"ping": [null, state]}),
+        );
+        let name = |_: NodeRef| "Fix login".to_owned();
+        assert_eq!(
+            headline_text(&headline(&[made]).unwrap(), name),
+            "changed the ping on project Fix login"
         );
     }
 }

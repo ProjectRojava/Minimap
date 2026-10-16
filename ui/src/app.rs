@@ -30,6 +30,7 @@ use crate::{
         people::People,
         projects::Projects,
         settings::Settings,
+        archive::Archive,
         tasks::{Inbox, Tasks},
         teams::Teams,
         this_week::ThisWeek,
@@ -45,16 +46,29 @@ use crate::{
 
 #[component]
 pub fn App() -> impl IntoView {
+    // The radar (spec 53) is a second window of the same app: a page of its own, with none of the
+    // shell, that only reads.
+    if crate::window::is_radar_window() {
+        return view! { <crate::pages::radar::RadarApp /> }.into_any();
+    }
     provide_context(Selection(RwSignal::new(None)));
     provide_context(PaletteOpen(RwSignal::new(false)));
     provide_context(LinkDialog(RwSignal::new(None)));
     provide_context(crate::state::MeetingDialog(RwSignal::new(None)));
     provide_context(crate::state::NowClock(RwSignal::new(None)));
     provide_context(CardMenuState(RwSignal::new(None)));
+    provide_context(crate::components::ping::PingBoxState::new());
+    provide_context(crate::components::save_points::SaveBoxState(RwSignal::new(
+        false,
+    )));
     provide_context(Scenario(RwSignal::new(Vec::new())));
     provide_context(ListNav::new());
     provide_context(Toasts::new());
+    provide_context(crate::state::FinishDecision::new());
+    provide_context(crate::components::confirm_archive::ConfirmArchive::new());
     provide_context(DataVersion::new());
+    // Portfolio view or My view (spec 50), and what is in My view.
+    crate::components::orientation::Orientation::provide();
     let theme = ThemeCtx::new();
     provide_context(theme);
     // The database is the source of truth for the theme; localStorage only speeds up startup.
@@ -65,11 +79,17 @@ pub fn App() -> impl IntoView {
         }
     });
 
+    // What the shell asks of the window: keep running in the tray?, quick add, locked. Outside
+    // the unlock gate, so it works before the database is open.
+    let close_asked = crate::components::close_prompt::use_shell_events();
+
     view! {
         <Router>
             <LockGate />
         </Router>
+        <crate::components::close_prompt::ClosePrompt asked=close_asked />
     }
+    .into_any()
 }
 
 /// An encrypted database that is waiting for its key shows the unlock screen instead of the app
@@ -89,7 +109,12 @@ fn LockGate() -> impl IntoView {
 /// Sidebar | page | detail pane, plus toasts and keyboard shortcuts.
 #[component]
 fn Shell() -> impl IntoView {
+    // Zoom between the portfolio, an objective, a project and an item (spec 52). Before the
+    // shortcuts, which ask for it.
+    crate::state::ZoomCtx::provide();
     use_global_shortcuts();
+    // The radar window asks for an item to be opened here (spec 53).
+    crate::components::radar::use_open_requests();
     // Google Drive status, polled for the status bar, banners and Settings; a merge from another
     // computer reloads every screen.
     use_sync_status();
@@ -97,6 +122,10 @@ fn Shell() -> impl IntoView {
     crate::components::objective_colour::ObjectiveColours::provide();
     // The user's task types (spec 32), for chips, dropdowns and filters.
     crate::components::task_type::TaskTypes::provide();
+    // How stale what is in play has become (spec 43), for the chips and fading on rows and cards.
+    crate::components::fog::FogCtx::provide();
+    // The live pings (ADR-0020), for the pin on rows and cards and the card on This week.
+    crate::components::ping::PingsCtx::provide();
     let list = expect_context::<ListNav>();
     // Rows belong to the screen that registered them; clear them on route change.
     let location = leptos_router::hooks::use_location();
@@ -125,6 +154,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/notes") view=Notes />
                     <Route path=path!("/decisions") view=Decisions />
                     <Route path=path!("/waiting-on") view=WaitingOn />
+                    <Route path=path!("/archive") view=Archive />
                     <Route path=path!("/what-if") view=WhatIf />
                     <Route path=path!("/weekly-review") view=WeeklyReview />
                     <Route path=path!("/settings") view=Settings />
@@ -136,11 +166,16 @@ fn Shell() -> impl IntoView {
             <DetailPane />
             </div>
             <StatusBar />
+            <crate::components::zoom::ZoomHost />
             <PaletteHost />
             <LinkDialogHost />
+            <crate::components::finish_decision::FinishDecisionHost />
+            <crate::components::confirm_archive::ConfirmArchiveHost />
             <crate::components::meeting::MeetingDialogHost />
             <crate::components::meeting::MeetingClock />
             <CardMenuHost />
+            <crate::components::ping::PingBoxHost />
+            <crate::components::save_points::SaveBoxHost />
             <ToastHost />
             <FirstRun />
         </div>

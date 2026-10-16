@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "radar",
+  "description": "The radar window (ADR-0021). It can read what it draws, open an item in the main window, close itself, keep itself on top, and be dragged and resized. It can call no command that writes, and it listens for no events.",
+  "windows": [
+    "radar"
+  ],
+  "permissions": [
+    "allow-get-radar",
+    "allow-get-data-revision",
+    "allow-open-in-main",
+    "allow-close-radar",
+    "allow-set-radar-on-top",
+    "allow-get-settings",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging"
+  ]
+}

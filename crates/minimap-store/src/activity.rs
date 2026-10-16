@@ -81,6 +81,13 @@ pub(crate) fn diff<T: Serialize>(old: &T, new: &T) -> Result<Map<String, Value>>
     Ok(out)
 }
 
+/// A change that is only "still accurate" (spec 43): `confirmed_on` and nothing else. It is not an
+/// edit, so it leaves `updated_at` alone: the fog an undo brings back is the fog there was, and
+/// "last changed" keeps meaning a change.
+pub(crate) fn only_confirmation(diff: &Map<String, Value>) -> bool {
+    diff.len() == 1 && diff.contains_key("confirmed_on")
+}
+
 fn from_row(r: &rusqlite::Row) -> rusqlite::Result<Activity> {
     let diff: String = r.get(5)?;
     Ok(Activity {

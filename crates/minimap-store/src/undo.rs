@@ -21,7 +21,7 @@ use crate::{
     convert::now,
     decisions, edges,
     error::{Result, StoreError},
-    nodes, objectives, people, projects, tasks, teams, waiting_on,
+    nodes, objectives, people, pings, projects, tasks, teams, waiting_on,
 };
 
 fn invalid(message: impl Into<String>) -> StoreError {
@@ -83,6 +83,7 @@ fn apply_one(tx: &Transaction, step: &Inverse) -> Result<()> {
             to,
             attrs,
         } => add_edge(tx, *edge_type, *from, *to, attrs),
+        Inverse::Ping { target, old, new } => pings::restore_in_tx(tx, *target, old, new),
     }
 }
 
@@ -168,11 +169,27 @@ fn patch_from<T: DeserializeOwned>(old: &Map<String, Value>, nullable: &[&str]) 
     serde_json::from_value(Value::Object(fields)).map_err(StoreError::from)
 }
 
+/// The nullable (`Patch`) fields of a ping's update (ADR-0020).
+#[cfg(test)]
+pub(crate) fn ping_nullable_fields() -> &'static [&'static str] {
+    &["cleared_on"]
+}
+
 /// The nullable (`Patch`) fields of each node type's update.
 pub(crate) fn nullable_fields(node_type: NodeType) -> &'static [&'static str] {
     match node_type {
-        NodeType::Objective => &["target_date", "review_every_days", "last_reviewed_on"],
-        NodeType::Project => &["owner_person_id", "start_date", "target_date"],
+        NodeType::Objective => &[
+            "target_date",
+            "review_every_days",
+            "last_reviewed_on",
+            "confirmed_on",
+        ],
+        NodeType::Project => &[
+            "owner_person_id",
+            "start_date",
+            "target_date",
+            "confirmed_on",
+        ],
         NodeType::Task => &[
             "project_id",
             "estimate_days",
@@ -183,6 +200,7 @@ pub(crate) fn nullable_fields(node_type: NodeType) -> &'static [&'static str] {
             "focus",
             "start_minute",
             "length_minutes",
+            "confirmed_on",
         ],
         NodeType::Person => &["email"],
         NodeType::Team => &["parent_team_id"],
@@ -218,7 +236,7 @@ fn restore(
             projects::update_in_tx(tx, id, patch_from::<UpdateProject>(old, nullable)?)?;
         }
         NodeType::Task => {
-            tasks::update_in_tx(tx, id, patch_from::<UpdateTask>(old, nullable)?)?;
+            tasks::restore_in_tx(tx, id, patch_from::<UpdateTask>(old, nullable)?)?;
         }
         NodeType::Person => {
             people::update_in_tx(tx, id, patch_from::<UpdatePerson>(old, nullable)?)?;
@@ -281,5 +299,16 @@ mod tests {
             listed(NodeType::WaitingOn),
             patch_fields::<UpdateWaitingOn>()
         );
+    }
+
+    /// A ping is not a node, so its update has its own list (ADR-0020); undo restores whole
+    /// states, so the list is only kept here to catch a new `Patch` field.
+    #[test]
+    fn the_nullable_fields_of_a_ping_match_its_update_type() {
+        let listed: BTreeSet<String> = ping_nullable_fields()
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        assert_eq!(listed, patch_fields::<minimap_types::UpdatePing>());
     }
 }

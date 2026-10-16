@@ -1,6 +1,9 @@
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use minimap_store::{security::Key, Connection};
@@ -57,9 +60,42 @@ pub fn locked() -> AppError {
     )
 }
 
+/// How far the user's clock is ahead of UTC, as the screen last said it (every time it asks for
+/// the meetings to be advanced). The backend has no reliable way to know the time zone, and the
+/// meeting reminders need it while the window is hidden.
+pub struct ClockNote(AtomicI64);
+
+impl ClockNote {
+    const UNKNOWN: i64 = i64::MIN;
+
+    pub fn new() -> Self {
+        Self(AtomicI64::new(Self::UNKNOWN))
+    }
+
+    pub fn note(&self, utc_offset_minutes: i32) {
+        self.0
+            .store(i64::from(utc_offset_minutes), Ordering::SeqCst);
+    }
+
+    pub fn offset(&self) -> Option<i32> {
+        match self.0.load(Ordering::SeqCst) {
+            Self::UNKNOWN => None,
+            minutes => i32::try_from(minutes).ok(),
+        }
+    }
+}
+
+impl Default for ClockNote {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<Mutex<Vault>>,
+    /// The user's offset from UTC, as the screen last said it.
+    pub clock: Arc<ClockNote>,
     /// The app's data folder (the database, the log and the default backup folder live here).
     pub data_dir: PathBuf,
     pub keys: Arc<dyn KeyStore>,
@@ -78,6 +114,7 @@ impl AppState {
         });
         Self {
             db,
+            clock: Arc::new(ClockNote::new()),
             data_dir,
             keys,
             sync: Arc::new(SyncHub::new(Engine::new(host))),

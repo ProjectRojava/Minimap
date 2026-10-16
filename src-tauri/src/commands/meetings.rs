@@ -125,6 +125,9 @@ pub async fn advance_meetings(
     state: State<'_, AppState>,
     clock: Clock,
 ) -> Result<AdvanceResult, AppError> {
+    // The screen is the only thing that knows the time zone: keep it for the meeting reminders
+    // that come while the window is hidden (`watch.rs`).
+    state.clock.note(clock.utc_offset_minutes);
     state
         .run_vault(move |vault, _| {
             let conn = vault.parts()?.0;
@@ -226,6 +229,7 @@ mod tests {
             (TaskStatus::Todo, Some(900))
         );
         // A plain task is made a meeting by giving it a time.
+        let project = minimap_store::fixtures::project(&conn);
         let task = minimap_store::tasks::create(
             &mut conn,
             minimap_types::CreateTask {
@@ -237,7 +241,7 @@ mod tests {
                 title: "Plain".into(),
                 assignee: AssigneeChoice::Nobody,
                 description: String::new(),
-                project_id: None,
+                project_id: Some(project),
                 status: None,
                 estimate_days: None,
                 start_date: None,

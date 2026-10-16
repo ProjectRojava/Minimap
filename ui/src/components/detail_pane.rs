@@ -11,8 +11,10 @@ use crate::{
         objective_panel::ObjectivePanel,
         page::{Icon, Tone},
         people_panel::PersonPanel,
+        ping::{PanePing, PingButton},
         project_panel::ProjectPanel,
-        task_panel::TaskPanel,
+        task_panel::{ArchiveTaskButton, TaskPanel},
+        task_pinned::TaskPinned,
         team_panel::TeamPanel,
         waiting_panel::WaitingPanel,
     },
@@ -78,8 +80,16 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
     });
 
     view! {
-        <header class="flex items-start gap-2 px-4 py-3 border-b border-line">
+        // Pinned: the close button, breadcrumbs and title stay in view while the rest of the pane
+        // scrolls, and on a task so do Archive, its status, priority and due date, Done, and what
+        // is wrong with it.
+        <header class="sticky top-0 z-10 shrink-0 border-b border-line bg-panel px-4 py-3 shadow-sm">
+          <div class="flex items-start gap-2">
             <div class="flex-1 min-w-0">
+                <div class="mb-1">
+                    <crate::components::zoom::Crumbs
+                        focus=Signal::derive(move || crate::components::zoom::CrumbFocus::Node(node)) />
+                </div>
                 <p class="text-[11px] uppercase tracking-wide text-muted">{type_label(node.node_type)}</p>
                 <h2 class="text-base font-semibold break-words">
                     {move || match summary.get() {
@@ -95,10 +105,21 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
                     }}
                 </h2>
             </div>
+            <PingButton node=node />
+            {(node.node_type == NodeType::Task).then(|| view! {
+                // Not offered once archived (there is nothing left to archive).
+                {move || matches!(summary.get(), Some(Ok(s)) if !s.archived)
+                    .then(|| view! { <ArchiveTaskButton id=node.id /> })}
+            })}
             <button class="rounded px-1.5 text-muted hover:bg-hover"
                     aria-label="Close details (Esc)" title="Close (Esc)"
                     on:click=move |_| selection.close()>"✕"</button>
+          </div>
+          {(node.node_type == NodeType::Task).then(|| view! { <TaskPinned id=node.id /> })}
         </header>
+
+        // A ping on this item (ADR-0020), with Clear and Change…
+        <PanePing node=node />
 
         {match node.node_type {
             NodeType::Person => view! { <PersonPanel id=node.id /> }.into_any(),
@@ -111,7 +132,8 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
             NodeType::Decision => view! { <DecisionPanel id=node.id /> }.into_any(),
         }}
 
-        <Attachments node=node />
+        // A task's files are in its own panel, with its reference links (Files & links).
+        {(node.node_type != NodeType::Task).then(|| view! { <Attachments node=node /> })}
 
         // A task's links are in its own panel, together with the buttons to link tasks.
         {(node.node_type != NodeType::Task).then(|| view! {
@@ -355,8 +377,37 @@ pub fn describe(a: &Activity) -> Vec<String> {
         }
         _ => map
             .iter()
-            .map(|(k, v)| format!("{k}: {} → {}", show(&v[0]), show(&v[1])))
+            .map(|(k, v)| {
+                if k == "ping" {
+                    ping_line(&v[0], &v[1])
+                } else {
+                    format!("{k}: {} → {}", show(&v[0]), show(&v[1]))
+                }
+            })
             .collect(),
+    }
+}
+
+/// What a `ping` activity row says (ADR-0020): the state before and after, each a ping's
+/// `{note, on_date, cleared_on, archived}` or `null`.
+pub fn ping_line(old: &serde_json::Value, new: &serde_json::Value) -> String {
+    let day = |p: &serde_json::Value| p["on_date"].as_str().unwrap_or("?").to_owned();
+    let note = |p: &serde_json::Value| match p["note"].as_str() {
+        Some(n) if !n.is_empty() => format!(": {n}"),
+        _ => String::new(),
+    };
+    let cleared = |p: &serde_json::Value| !p["cleared_on"].is_null();
+    let removed = |p: &serde_json::Value| p["archived"].as_bool().unwrap_or(false);
+    if old.is_null() {
+        format!("ping made for {}{}", day(new), note(new))
+    } else if removed(new) && !removed(old) {
+        "ping removed".to_owned()
+    } else if cleared(new) && !cleared(old) {
+        "ping cleared".to_owned()
+    } else if cleared(old) && !cleared(new) {
+        "ping brought back".to_owned()
+    } else {
+        format!("ping changed to {}{}", day(new), note(new))
     }
 }
 
@@ -459,6 +510,34 @@ mod tests {
             json!({"title": [null, "x"], "description": [null, ""], "due_date": [null, null]}),
         );
         assert_eq!(describe(&c), vec!["title: x"]);
+    }
+
+    #[test]
+    fn a_ping_row_reads_as_a_sentence() {
+        let state = |note: &str, cleared: Option<&str>, archived: bool| json!({"id": "x", "note": note, "on_date": "2027-03-05", "cleared_on": cleared, "archived": archived});
+        let row = |old: serde_json::Value, new: serde_json::Value| {
+            describe(&act(ActivityAction::Updated, json!({"ping": [old, new]})))
+        };
+        assert_eq!(
+            row(json!(null), state("check it", None, false)),
+            vec!["ping made for 2027-03-05: check it"]
+        );
+        assert_eq!(
+            row(state("a", None, false), state("b", None, false)),
+            vec!["ping changed to 2027-03-05: b"]
+        );
+        assert_eq!(
+            row(state("", None, false), state("", Some("2027-03-05"), false)),
+            vec!["ping cleared"]
+        );
+        assert_eq!(
+            row(state("", Some("2027-03-05"), false), state("", None, false)),
+            vec!["ping brought back"]
+        );
+        assert_eq!(
+            row(state("", None, false), state("", None, true)),
+            vec!["ping removed"]
+        );
     }
 
     fn link(edge_type: EdgeType, outgoing: bool) -> EdgeLink {

@@ -15,6 +15,9 @@ minimap-store.workspace = true
 minimap-sync.workspace = true
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
+tauri-plugin-single-instance.workspace = true
+tauri-plugin-autostart.workspace = true
+tauri-plugin-notification.workspace = true
 keyring.workspace = true
 open.workspace = true
 zeroize.workspace = true
@@ -25,6 +28,10 @@ thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+# Linux only: asks the session bus whether anything is there to show a tray icon.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

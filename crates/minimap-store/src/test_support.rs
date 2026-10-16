@@ -26,6 +26,7 @@ pub(crate) fn temp_dir(name: &str) -> PathBuf {
 }
 
 pub(crate) fn add_task(conn: &mut Connection, title: &str) {
+    let __p = crate::fixtures::project(conn);
     tasks::create(
         conn,
         CreateTask {
@@ -37,7 +38,7 @@ pub(crate) fn add_task(conn: &mut Connection, title: &str) {
             title: title.into(),
             assignee: AssigneeChoice::Nobody,
             description: format!("About {title}"),
-            project_id: None,
+            project_id: Some(__p),
             status: None,
             estimate_days: Some(2.0),
             start_date: None,
@@ -79,6 +80,7 @@ pub(crate) fn fingerprint(conn: &Connection) -> String {
         "edges",
         "activity",
         "attachments",
+        "pings",
         "tombstones",
         "settings",
     ] {

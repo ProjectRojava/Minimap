@@ -6,7 +6,9 @@ use crate::{
     components::{
         form::{BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
-        page::{column_head, EmptyState, PageHeader, FORM_BAR},
+        page::{column_head, EmptyState, PageHeader, Tone, FORM_BAR},
+        people_frames::{nodes_of, use_frames, FramesStrip},
+        people_panel::ask_archive_person,
     },
     state::{finish, DataVersion, ListNav, Selection, Toasts},
 };
@@ -19,17 +21,24 @@ pub fn People() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let list = expect_context::<ListNav>();
     let selection = expect_context::<Selection>();
+    let confirm = expect_context::<crate::components::confirm_archive::ConfirmArchive>();
 
     let rows = LocalResource::new(move || {
         version.track();
         api::list_people()
     });
+    // The frames come first in the `j`/`k` list, then the people (spec 49).
+    let frames = use_frames();
+    let frame_nodes = move || frames.get().map(|f| nodes_of(&f)).unwrap_or_default();
     Effect::new(move |_| match rows.get() {
-        Some(Ok(r)) => list.set_items(
-            r.iter()
-                .map(|p| NodeRef::new(NodeType::Person, p.person.id))
-                .collect(),
-        ),
+        Some(Ok(r)) => {
+            let mut items = frame_nodes();
+            items.extend(
+                r.iter()
+                    .map(|p| NodeRef::new(NodeType::Person, p.person.id)),
+            );
+            list.set_items(items);
+        }
         Some(Err(e)) => toasts.error(&e),
         None => {}
     });
@@ -77,6 +86,11 @@ pub fn People() -> impl IntoView {
                     <button class=BUTTON_PRIMARY type="submit">"Add"</button>
                 </form>
             </Show>
+            {move || frames.get().map(|f| view! {
+                <div class="border-b border-line">
+                    <FramesStrip frames=f first_index=Some(0) />
+                </div>
+            })}
             <div class=column_head(COLS)>
                 <span>"Name"</span><span>"Role"</span><span>"Teams"</span>
                 <span class="text-right">"Tasks"</span><span class="text-right">"Waiting"</span>
@@ -89,24 +103,48 @@ pub fn People() -> impl IntoView {
                         <EmptyState icon="people" title="No people yet"
                             hint="Add the people you work with; assign them tasks and track what you wait on." />
                     }.into_any(),
-                    Some(Ok(r)) => r.into_iter().enumerate().map(|(i, p)| {
+                    Some(Ok(r)) => {
+                        let offset = frame_nodes().len();
+                        r.into_iter().enumerate().map(|(i, p)| {
+                        let i = i + offset;
                         let node = NodeRef::new(NodeType::Person, p.person.id);
+                        let (pid, pname, is_self) = (p.person.id, p.person.name.clone(), p.person.is_self);
                         let teams = p.teams.iter().map(|t| t.label.clone()).collect::<Vec<_>>().join(", ");
                         view! {
                             <NodeRow node=node index=i>
                                 <div class=COLS>
-                                    <span class="truncate font-medium">
+                                    // "Me" stands out: the name in the accent colour and a chip.
+                                    <span class=if is_self { "truncate font-semibold text-accent" } else { "truncate font-medium" }>
                                         {p.person.name}
-                                        {p.person.is_self.then(|| view! { <span class="ml-1.5 text-[11px] font-normal text-muted">"you"</span> })}
+                                        {is_self.then(|| view! {
+                                            <span class=format!("ml-2 align-middle {}", Tone::Accent.chip())
+                                                  title="This is you: the same person on every computer">"ME"</span>
+                                        })}
                                     </span>
                                     <span class="truncate text-muted">{p.person.role_title}</span>
                                     <span class="truncate text-muted">{teams}</span>
                                     <span class="text-right tabular-nums">{p.active_task_count}</span>
                                     <span class="text-right tabular-nums">{p.open_waiting_on_count}</span>
                                 </div>
+                                // Archive from the list (you can't archive yourself). Asks first;
+                                // Ctrl/Cmd+Z brings the person back.
+                                {(!is_self).then(|| {
+                                    let (id, name) = (pid, pname.clone());
+                                    view! {
+                                        <button class="absolute right-3 top-1.5 hidden rounded bg-hover px-2 text-[11px] text-muted hover:text-danger group-hover:block"
+                                                title="Archive this person (Ctrl/Cmd+Z undoes)"
+                                                on:click=move |ev: leptos::ev::MouseEvent| {
+                                                    ev.stop_propagation();
+                                                    ask_archive_person(id, name.clone(), toasts, version, selection, confirm);
+                                                }>
+                                            "Archive"
+                                        </button>
+                                    }
+                                })}
                             </NodeRow>
                         }
-                    }).collect_view().into_any(),
+                    }).collect_view().into_any()
+                    }
                 }}
             </div>
         </div>

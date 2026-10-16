@@ -6,6 +6,10 @@ Two kinds: a **goal** has an end (a target date, and it can be *done*); an **ong
 
 ## The screen
 
+In **My view** (`v`) only the objectives your own projects and tasks contribute to are listed, marked *serves your work*. See [Portfolio view and My view](help:views).
+
+With an objective open, `Alt+↑` zooms out to the Overview and the line under the title shows where you are ([Zoom](help:zoom)). A project that serves several objectives zooms out to the one with the highest priority.
+
 Objectives are listed by priority (1 is highest), then target date, then title. A toggle groups them by **calendar quarter** of their target date, with a *No date* group for goals without one. Ongoing objectives are always in a group of their own, *Ongoing*, at the end, whichever way you group; the date column shows an *ongoing* pill (or an amber *review due* pill when its review is overdue). Each row shows how many projects and tasks contribute.
 
 ## Colours
@@ -22,6 +26,10 @@ The pane opens with a row of coloured pills: your assessment (green on track, am
 - **Contributions**: the projects and tasks that contribute, each with a **weight** from 0 to 1. Add or remove them here. (You can also set it from the project's own pane.)
 - **Health**: the computed health and why.
 - **Notes and findings**: write a note about the objective (progress, reviews, decisions) and open the ones that mention it. They are ordinary [notes](help:notes).
+
+## Fog
+
+A goal that is not done and that nobody has touched for a while, and whose projects and tasks have not moved, is faded with a `≋ 22d` chip; **Still accurate** (or `c`) clears it. Ongoing objectives are not fogged: their review rhythm does that job. See [Fog](help:fog).
 
 ## Ongoing objectives
 

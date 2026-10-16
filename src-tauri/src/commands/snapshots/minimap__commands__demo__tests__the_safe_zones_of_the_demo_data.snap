@@ -1,0 +1,7 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+EU Region: Outside { remaining: 21, over: 2 }
+Security and Compliance: Inside { remaining: 20, room: 14, level: Wide }
+Platform Cost Reduction: Inside { remaining: 17, room: 27, level: Wide }

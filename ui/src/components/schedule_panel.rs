@@ -3,7 +3,7 @@
 //! `get_schedule`; layout is `timeline.rs`.
 
 use leptos::prelude::*;
-use minimap_types::{NodeRef, NodeType, Schedule, ScheduleScope, ScheduledTask, Uuid};
+use minimap_types::{NodeRef, NodeType, Schedule, ScheduleScope, ScheduledTask, Uuid, Zone};
 
 use crate::{
     api,
@@ -11,6 +11,7 @@ use crate::{
         detail_pane::Section,
         form::{BUTTON, BUTTON_ON},
         people_panel::error_line,
+        zone::ZoneBar,
     },
     state::{DataVersion, Selection},
     timeline::{
@@ -20,7 +21,7 @@ use crate::{
 };
 
 #[component]
-pub fn SchedulePanel(project: Uuid) -> impl IntoView {
+pub fn SchedulePanel(project: Uuid, #[prop(optional)] zone: Zone) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let schedule = LocalResource::new(move || {
         version.track();
@@ -29,7 +30,7 @@ pub fn SchedulePanel(project: Uuid) -> impl IntoView {
     view! {
         <Section title="Schedule">
             {move || match schedule.get() {
-                Some(Ok(s)) => view! { <ScheduleBody schedule=s /> }.into_any(),
+                Some(Ok(s)) => view! { <ScheduleBody schedule=s zone=zone /> }.into_any(),
                 Some(Err(e)) => error_line(e),
                 None => view! { <p class="text-muted">"Loading…"</p> }.into_any(),
             }}
@@ -51,12 +52,18 @@ fn marker_path(x: f64) -> String {
     )
 }
 
+// A task's name beside the chart. The buttons must fill the column (`w-full`, left-aligned), or a
+// long name makes its button as wide as the text and runs over the bars instead of being cut off.
+const LABEL: &str = "block w-full truncate px-1 text-left";
+const LABEL_CRITICAL: &str = "block w-full truncate px-1 text-left font-semibold";
+const LABEL_DONE: &str = "block w-full truncate px-1 text-left text-faint";
+
 fn button_class(active: bool) -> String {
     format!("{BUTTON} {}", if active { BUTTON_ON } else { "" })
 }
 
 #[component]
-fn ScheduleBody(schedule: Schedule) -> impl IntoView {
+fn ScheduleBody(schedule: Schedule, zone: Zone) -> impl IntoView {
     let selection = expect_context::<Selection>();
     let granularity = RwSignal::new(Granularity::Days);
     let show_done = RwSignal::new(false);
@@ -102,11 +109,11 @@ fn ScheduleBody(schedule: Schedule) -> impl IntoView {
                 .map(|t| {
                     let tip = describe(t);
                     let class = if t.critical {
-                        "block truncate px-1 font-semibold"
+                        LABEL_CRITICAL
                     } else if t.done {
-                        "block truncate px-1 text-faint"
+                        LABEL_DONE
                     } else {
-                        "block truncate px-1"
+                        LABEL
                     };
                     let id = t.id;
                     let title = t.title.clone();
@@ -199,6 +206,7 @@ fn ScheduleBody(schedule: Schedule) -> impl IntoView {
 
     view! {
         <p class=if late { "mb-2 font-medium text-danger" } else { "mb-2" }>{summary}</p>
+        <div class="mb-3"><ZoneBar zone=zone /></div>
         {(!has_critical && open_count > 0).then(|| view! { <p class="mb-2 text-muted">"No critical tasks."</p> })}
         {has_critical.then(|| view! {
             <h4 class="mb-1 text-[11px] uppercase tracking-wide text-muted">"Critical path"</h4>
@@ -220,7 +228,7 @@ fn ScheduleBody(schedule: Schedule) -> impl IntoView {
             </label>
         </div>
         <div class="flex">
-            <div class="w-[8.5rem] shrink-0 border-r border-line"
+            <div class="w-[8.5rem] shrink-0 overflow-hidden border-r border-line"
                  style=format!("padding-top:{HEADER_H}px")>
                 {rows}
             </div>
@@ -230,5 +238,22 @@ fn ScheduleBody(schedule: Schedule) -> impl IntoView {
             "Working days only. Solid bars are tasks; the dashed line after one is its slack. Dashed outlines have no estimate. The blue marker is today and the red one the target date."
         </p>
         })}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_task_label_fills_its_column_and_is_cut_off_there() {
+        for class in [LABEL, LABEL_CRITICAL, LABEL_DONE] {
+            for needed in ["w-full", "truncate", "text-left", "block"] {
+                assert!(
+                    class.split(' ').any(|c| c == needed),
+                    "{class} lacks {needed}"
+                );
+            }
+        }
     }
 }

@@ -5,7 +5,7 @@ Press `Ctrl/Cmd+K` anywhere (even in a text box) to open the **command palette**
 ## What the palette does
 
 - Type words to filter **actions and screens** ("new task", "go to capacity", "undo") and **search results**. `↑`/`↓` choose, `Enter` runs, `Esc` closes.
-- Type a line that **starts with a keyword and a space** (`task `, `project `, `wait `, `note `, `decision `) and it becomes a **quick-add**: a preview card shows how your line was understood, and `Enter` adds it.
+- Type a line that **starts with a keyword and a space** (`task `, `project `, `wait `, `note `, `decision `, `ping `) and it becomes a **quick-add**: a preview card shows how your line was understood, and `Enter` adds it.
 - Anything else ends with an *Add task…* row, so a bare line becomes a task.
 - *Resolve waiting-on…* lists your open waiting-ons so you can close one without leaving the keyboard.
 
@@ -19,9 +19,10 @@ note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
 task Board update every:mon
 task Pick the data store type:decision due:fri
+ping #eu-region check data residency by:fri
 ```
 
-- **Keyword first**: `task`, `project`, `wait` (or `waiting`), `note`, `decision`. No keyword means a task.
+- **Keyword first**: `task`, `project`, `wait` (or `waiting`), `note`, `decision`, `ping`. No keyword means a task.
 - The rest is **title words** mixed with **markers**; markers can go anywhere. Quote text to keep spaces: `"Release 1.2"`, `@"Priya Shah"`.
 - A token that *starts* inside quotes is plain text (`"#123 is a bug"`), and anything unrecognised is just a word.
 
@@ -29,10 +30,10 @@ task Pick the data store type:decision due:fri
 
 | Marker | Meaning | For |
 |---|---|---|
-| `@name` | a person (`@me` is you) | task: assignee (default you); project: owner; wait: who you wait on; note: mentioned |
-| `#handle` | a project, by handle or name | task: its project (default inbox); wait: what it is about; note: mentioned; decision: affected |
+| `@name` | a person (`@me` is you) | task: assignee (default you); project: owner; wait: who you wait on; note: mentioned; ping: the person to ping (not yourself) |
+| `#handle` | a project, by handle or name | task: its project (default inbox); wait: what it is about; note: mentioned; decision: affected; ping: the project to ping |
 | `!1`–`!5` | priority, 1 highest | task, project |
-| `due:` / `by:` | due date | task; `by:` is also a wait's expected date |
+| `due:` / `by:` | due date | task; `by:` is also a wait's expected date and the day of a ping (default today) |
 | `start:` | start date | task, project |
 | `target:` | target date (`due:`/`by:` also work) | project |
 | `est:` | estimate: `3d`, `1.5d`, `4h` | task |
@@ -45,7 +46,8 @@ task Pick the data store type:decision due:fri
 | `kind:` | `1:1`, `meeting`, `general` | note |
 | `status:` | `proposed` or `decided` | decision |
 | `every:` | repeats: `day`, `mon`, `2w`, `month` (see [Recurring items](help:recurring)) | task, note |
-| `type:` | the task's type, by name or id: `type:decision`, `type:"Legal review"` (see [Tasks](help:tasks)). Not `type:meeting`: a meeting needs a time, so use *New meeting* (see [Meetings](help:meetings)) | task |
+| `type:` | the task's type, by name or id: `type:decision`, `type:"Legal review"` (see [Tasks](help:tasks)); `type:decision` also creates the task's record in the [Decisions](help:decisions) log. Not `type:meeting`: a meeting needs a time, so use *New meeting* (see [Meetings](help:meetings)) | task |
+| `task:` / `objective:` / `decision:` | the item a ping is on, by name: `task:"Release 1.2"` | ping |
 | `1:1` | a bare word: makes the note a 1:1 | note |
 
 A marker a kind doesn't use is reported ("`est:` isn't used for a project"), never silently dropped.
@@ -70,5 +72,7 @@ A marker a kind doesn't use is reported ("`est:` isn't used for a project"), nev
 The card shows each detail it understood (title, due, estimate, project, assignee...). Anything unclear is a **question** under it: pick one of the candidates, **Create** a new person or project from the words you typed, or **Skip** it. `↑`/`↓` and `Enter` answer. Required references can't be skipped (a waiting-on needs its person), and nothing is added until every question is answered. Adding is **all or nothing**, including anything you chose to create.
 
 If something is wrong (an unreadable date, a bad estimate, an unclosed quote) the card says so in plain words and `Enter` does nothing until it is fixed.
+
+A `ping` line needs exactly one item to ping and leaves a marker on it for a day: see [Pings](help:pings).
 
 > **Tip:** `note 1:1 @priya` makes a note titled "1:1 with Priya" that mentions her, and it shows on [This week](help:this-week).

@@ -1,20 +1,42 @@
 //! Dependencies: how work depends on other work, left to right. Tasks joined by `blocks`, or
-//! projects joined by `depends_on`, narrowed by project, team or objective; the critical path is
-//! highlighted. The layout is computed by the backend; this draws it as SVG with drag to pan and
-//! wheel / buttons to zoom. Click a box to open it.
+//! projects joined by `depends_on`, narrowed by project, team or objective. The layout is
+//! computed by the backend; this draws it as SVG with drag to pan and wheel / buttons to zoom.
+//!
+//! Spec 47 made it a place to work: boxes say who and when, a lens answers one question at a time
+//! (route, risk, people), a click traces a chain, links can be drawn, given a lag and removed, and
+//! the unlinked work waits in a tray. A box opens (its ⌄ icon) into a large one that holds its
+//! details and quick actions: the backend lays the graph out around it, one box at a time. A
+//! double-click opens the detail pane. The logic is `graph_view.rs`.
 
-use leptos::{ev, prelude::*};
+use std::{collections::HashMap, time::Duration};
+
+use leptos::{ev, prelude::*, task::spawn_local, web_sys};
+use leptos_router::hooks::use_navigate;
 use minimap_types::{
-    DependencyGraph, GraphEdge, GraphFilter, GraphLevel, GraphNode, NodeType, Uuid,
+    DependencyGraph, GraphEdge, GraphFilter, GraphLevel, GraphNode, GraphUnlinked, NodeType,
+    UpdateTask, Uuid,
 };
 
 use crate::{
     api,
     components::{
-        form::{SelectField, BUTTON, BUTTON_ON},
-        page::{EmptyState, PageHeader, Tone, FILTER_BAR},
+        fog::{FogCtx, StillAccurate},
+        form::{SelectField, BUTTON, BUTTON_DANGER, BUTTON_ON, BUTTON_SOFT, COMPACT_INPUT},
+        objective_colour::{assign, use_objective_colours, ObjectiveChips},
+        page::{EmptyState, Icon, PageHeader, Tone, FILTER_BAR},
+        task_board::priority_pill,
+        task_type::TypeChip,
+        what_if_button::DEFAULT_SLIP_DAYS,
     },
-    state::{DataVersion, Selection},
+    graph_view::{
+        detail_level, drop_beside_banner, drop_pair, edge_class, edge_label, edge_sentence,
+        filter_unlinked, initials, insights, inspector_lines, keep_in_place, lag_attrs, legend,
+        line_three, line_two, link_message, midpoint, neighbours, new_link, node_class,
+        owner_choices_of, project_choices_of, status_choices, status_choices_of, status_word,
+        trace_edge, trace_node, tray_pair, unlinked_count_text, why_lines, Detail, Lens, Neighbour,
+        Trace, UnlinkedFilter, CARD_HINT, LEGEND_HINT, NODE_HINT, UNLINKED_CARD_HINT, WAITING_LINE,
+    },
+    state::{finish, finish_task, DataVersion, FinishDecision, Scenario, Selection, Toasts},
 };
 
 // ------------------------------------------------------------------ pure logic
@@ -43,6 +65,81 @@ pub fn zoom_at(zoom: f64, pan: (f64, f64), cursor: (f64, f64), factor: f64) -> (
             cursor.1 - (cursor.1 - pan.1) * k,
         ),
     )
+}
+
+/// The point of the drawing under a point of the view (view pixels from the view's corner).
+pub fn to_drawing(view: (f64, f64), pan: (f64, f64), zoom: f64) -> (f64, f64) {
+    ((view.0 - pan.0) / zoom, (view.1 - pan.1) / zoom)
+}
+
+/// The level a further zoom step switches to (spec 52): zooming out of the smallest scale of the
+/// Tasks level goes to the Projects level, and zooming in past the largest scale of the Projects
+/// level goes back to tasks. `delta` is the direction of the step (positive = in, negative =
+/// out). Anywhere else a step just zooms.
+pub fn next_level(
+    scale: f64,
+    min: f64,
+    max: f64,
+    delta: f64,
+    level: GraphLevel,
+) -> Option<GraphLevel> {
+    const EPS: f64 = 1e-6;
+    match level {
+        GraphLevel::Tasks if delta < 0.0 && scale <= min + EPS => Some(GraphLevel::Projects),
+        GraphLevel::Projects if delta > 0.0 && scale >= max - EPS => Some(GraphLevel::Tasks),
+        _ => None,
+    }
+}
+
+/// The project of the task box nearest a point of the drawing (the middle of the view when
+/// zooming out of the tasks).
+pub fn nearest_project(graph: &DependencyGraph, at: (f64, f64)) -> Option<Uuid> {
+    graph
+        .nodes
+        .iter()
+        .filter(|n| n.node.node_type == NodeType::Task)
+        .filter_map(|n| {
+            let (cx, cy) = (n.x + n.w / 2.0, n.y + n.h / 2.0);
+            Some((n.project_id?, (cx - at.0).powi(2) + (cy - at.1).powi(2)))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(project, _)| project)
+}
+
+/// The project box under a point of the drawing, if one is.
+pub fn project_at(graph: &DependencyGraph, at: (f64, f64)) -> Option<Uuid> {
+    graph
+        .nodes
+        .iter()
+        .filter(|n| n.node.node_type == NodeType::Project)
+        .find(|n| at.0 >= n.x && at.0 <= n.x + n.w && at.1 >= n.y && at.1 <= n.y + n.h)
+        .map(|n| n.node.id)
+}
+
+/// The pan that puts the middle of a box in the middle of a `view`-sized view at this zoom.
+pub fn centre_on(node: &GraphNode, zoom: f64, view: (f64, f64)) -> (f64, f64) {
+    (
+        view.0 / 2.0 - (node.x + node.w / 2.0) * zoom,
+        view.1 / 2.0 - (node.y + node.h / 2.0) * zoom,
+    )
+}
+
+/// The smallest scale a drawing is left at when it is framed around one project: small enough
+/// to see its neighbours, never so small that the box is a speck.
+pub const FOCUS_MIN_ZOOM: f64 = 0.6;
+
+thread_local! {
+    /// Which level-switch hints have been shown this session (bit 0 out, bit 1 in).
+    static HINTED: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+}
+
+/// True the first time it is asked for `bit` in a session.
+fn first_hint(bit: u8) -> bool {
+    HINTED.with(|h| {
+        let shown = h.get() & bit != 0;
+        h.set(h.get() | bit);
+        !shown
+    })
 }
 
 /// A smooth route through the points, with horizontal tangents at each one.
@@ -101,49 +198,140 @@ pub fn summary_text(g: &DependencyGraph) -> String {
     parts.join(" · ")
 }
 
-/// Classes of a box: its state, in the order the stylesheet expects.
-pub fn node_class(n: &GraphNode) -> String {
-    let mut c = String::from("node");
-    for (on, name) in [
-        (n.critical, "critical"),
-        (n.late, "late"),
-        (n.blocked, "blocked"),
-        (n.held_up, "held-up"),
-        (n.done, "done"),
-        (n.context, "context"),
-    ] {
-        if on {
-            c.push(' ');
-            c.push_str(name);
-        }
-    }
-    c
-}
-
 // ------------------------------------------------------------------ the screen
 
 fn parse_id(s: &str) -> Option<Uuid> {
     Uuid::parse_str(s).ok()
 }
 
+/// What is picked on the graph: a box or a link.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Picked {
+    Node(Uuid),
+    Edge(Uuid),
+}
+
+/// A link being made: from a box's handle (dragging), or from a chip in the tray or a button in an
+/// expanded box (then click the other box). `reverse` makes the clicked box the one that blocks
+/// (or is needed by) the source, instead of the one that is blocked.
+#[derive(Clone, Copy, PartialEq)]
+struct Linking {
+    source: Uuid,
+    cursor: Option<(f64, f64)>,
+    from_tray: bool,
+    reverse: bool,
+}
+
+/// Where a box was before the layout made room for it (or took the room back), so it can be kept
+/// where it was on screen once the new layout arrives.
+#[derive(Clone, Copy, PartialEq)]
+struct Anchor {
+    id: Uuid,
+    at: (f64, f64),
+    /// Whether the new layout has the box expanded.
+    want: bool,
+}
+
+/// Opens and closes the one expanded box. Opening another closes the first: the layout only ever
+/// makes room for one.
+#[derive(Clone, Copy)]
+struct Expander {
+    expanded: RwSignal<Option<Uuid>>,
+    anchor: RwSignal<Option<Anchor>>,
+    picked: RwSignal<Option<Picked>>,
+    /// Each box's top-left corner in the layout now on screen.
+    places: RwSignal<HashMap<Uuid, (f64, f64)>>,
+    /// A click waiting to see whether it is the first half of a double-click.
+    pending: StoredValue<Option<TimeoutHandle>, LocalStorage>,
+}
+
+/// How long a click on a box waits for a second one: a double-click opens the item in the pane
+/// and must not also expand or collapse the box.
+const CLICK_DELAY: Duration = Duration::from_millis(260);
+
+impl Expander {
+    fn set(&self, id: Option<Uuid>) {
+        let current = self.expanded.get_untracked();
+        if current == id {
+            return;
+        }
+        let places = self.places.get_untracked();
+        let remember =
+            |id: Uuid, want: bool| places.get(&id).map(|at| Anchor { id, at: *at, want });
+        match (id, current) {
+            (Some(new), _) => {
+                self.anchor.set(remember(new, true));
+                self.picked.set(Some(Picked::Node(new)));
+            }
+            (None, Some(old)) => self.anchor.set(remember(old, false)),
+            (None, None) => {}
+        }
+        self.expanded.set(id);
+    }
+
+    /// Does `f` shortly, unless a double-click comes first (then [`cancel`](Self::cancel)).
+    fn defer(&self, f: impl FnOnce() + 'static) {
+        self.cancel();
+        if let Ok(handle) = set_timeout_with_handle(f, CLICK_DELAY) {
+            self.pending.set_value(Some(handle));
+        }
+    }
+
+    /// Forgets the click that was waiting for a second one.
+    fn cancel(&self) {
+        if let Some(handle) = self.pending.get_value() {
+            handle.clear();
+            self.pending.set_value(None);
+        }
+    }
+
+    fn toggle(&self, id: Uuid) {
+        if self.expanded.get_untracked() == Some(id) {
+            self.set(None);
+        } else {
+            self.set(Some(id));
+        }
+    }
+}
+
 #[component]
 pub fn Graph() -> impl IntoView {
     let version = expect_context::<DataVersion>();
-    let selection = expect_context::<Selection>();
+    let toasts = expect_context::<Toasts>();
 
     let level = RwSignal::new(GraphLevel::Tasks);
+    let lens = RwSignal::new(Lens::Route);
     let project = RwSignal::new(String::new());
     let team = RwSignal::new(String::new());
     let objective = RwSignal::new(String::new());
     let include_done = RwSignal::new(false);
     let include_isolated = RwSignal::new(false);
+    let picked = RwSignal::new(Option::<Picked>::None);
+    let linking = RwSignal::new(Option::<Linking>::None);
+    // The list of unlinked work beside the graph: closed to start with, a small button opens it.
+    let unlinked_open = RwSignal::new(false);
+    // The box an unlinked item is being dragged over (it lights up).
+    let hover_drop = RwSignal::new(Option::<Uuid>::None);
+    // The unlinked task dropped on the graph, waiting for the next one to be linked to it.
+    let waiting = RwSignal::new(Option::<Uuid>::None);
+    let expander = Expander {
+        expanded: RwSignal::new(None),
+        anchor: RwSignal::new(None),
+        picked,
+        places: RwSignal::new(HashMap::new()),
+        pending: StoredValue::new_local(None),
+    };
 
     let zoom = RwSignal::new(1.0_f64);
     let pan = RwSignal::new((0.0_f64, 0.0_f64));
     let drag = RwSignal::new(Option::<((f64, f64), (f64, f64))>::None);
+    let moved = RwSignal::new(false);
     let needs_fit = RwSignal::new(true);
+    // The project to centre and pick once the Projects level has been drawn (spec 52).
+    let pending_focus = RwSignal::new(Option::<Uuid>::None);
     let viewport = leptos::prelude::NodeRef::<leptos::html::Div>::new();
 
+    let orientation = expect_context::<crate::components::orientation::Orientation>();
     let graph = LocalResource::new(move || {
         version.track();
         api::get_dependency_graph(GraphFilter {
@@ -157,7 +345,63 @@ pub fn Graph() -> impl IntoView {
             objective_id: parse_id(&objective.get()),
             include_done: include_done.get(),
             include_isolated: include_isolated.get(),
+            mine: orientation.is_mine(),
+            expanded: expander.expanded.get(),
+            waiting: waiting.get(),
         })
+    });
+    // The waiting task the view has already been moved to show.
+    let announced = StoredValue::new(Option::<Uuid>::None);
+    // Another level, another picture: nothing is left waiting on the old one.
+    Effect::new(move |_| {
+        level.track();
+        waiting.set(None);
+    });
+    // The last graph that arrived, so the drawing never blanks while a new layout is worked out
+    // (opening a box asks for one).
+    let shown = RwSignal::new(Option::<DependencyGraph>::None);
+    Effect::new(move |_| {
+        if let Some(Ok(g)) = graph.get() {
+            if let Some(a) = expander.anchor.get_untracked() {
+                match g.nodes.iter().find(|n| n.node.id == a.id) {
+                    // The layout has caught up: put the box back where it was on screen.
+                    Some(n) if n.expanded == a.want => {
+                        let z = zoom.get_untracked();
+                        pan.update(|p| *p = keep_in_place(*p, z, a.at, (n.x, n.y)));
+                        expander.anchor.set(None);
+                    }
+                    Some(_) => {}
+                    None => expander.anchor.set(None),
+                }
+            }
+            expander
+                .places
+                .set(g.nodes.iter().map(|n| (n.node.id, (n.x, n.y))).collect());
+            // The waiting task got linked another way (a handle drag, the pane): it is an
+            // ordinary box now, and the next one dropped starts afresh.
+            if let Some(w) = waiting.get_untracked() {
+                if g.edges.iter().any(|e| e.from == w || e.to == w) {
+                    waiting.set(None);
+                } else if let Some(n) = g.nodes.iter().find(|n| n.node.id == w) {
+                    // Just dropped: show it, even when it landed below the part of the graph on
+                    // screen.
+                    if announced.get_value() != Some(w) {
+                        announced.set_value(Some(w));
+                        if let Some(el) = viewport.get_untracked() {
+                            let r = el.get_bounding_client_rect();
+                            let (z, p) = (zoom.get_untracked(), pan.get_untracked());
+                            let (top, bottom) = (n.y * z + p.1, (n.y + n.h) * z + p.1);
+                            if top < 0.0 || bottom > r.height() {
+                                pan.set(centre_on(n, z, (r.width(), r.height())));
+                            }
+                        }
+                    }
+                }
+            } else {
+                announced.set_value(None);
+            }
+            shown.set(Some(g));
+        }
     });
     let projects = LocalResource::new(move || {
         version.track();
@@ -171,6 +415,31 @@ pub fn Graph() -> impl IntoView {
         version.track();
         api::list_node_summaries(NodeType::Objective)
     });
+    let people = LocalResource::new(move || {
+        version.track();
+        api::list_node_summaries(NodeType::Person)
+    });
+    // Project names, for the unlinked list's project filter.
+    let project_names =
+        Memo::new(
+            move |last: Option<&HashMap<Uuid, String>>| match projects.get() {
+                Some(Ok(list)) => list.into_iter().map(|p| (p.node.id, p.label)).collect(),
+                _ => last.cloned().unwrap_or_default(),
+            },
+        );
+    // Each person's colour, ranked by id like the board's, so an owner looks the same everywhere.
+    let hues = Memo::new(
+        move |last: Option<&HashMap<Uuid, u16>>| match people.get() {
+            Some(Ok(list)) => assign(&list.iter().map(|p| p.node.id).collect::<Vec<_>>()),
+            _ => last.cloned().unwrap_or_default(),
+        },
+    );
+    // What the picked box or link lights.
+    let trace = Memo::new(move |_| match (picked.get(), shown.get()) {
+        (Some(Picked::Node(id)), Some(g)) => Some(trace_node(&g, id)),
+        (Some(Picked::Edge(id)), Some(g)) => Some(trace_edge(&g, id)),
+        _ => None,
+    });
 
     // A different filter or level frames the new drawing; edits keep your place.
     Effect::new(move |first: Option<()>| {
@@ -180,12 +449,18 @@ pub fn Graph() -> impl IntoView {
         objective.track();
         include_done.track();
         include_isolated.track();
+        picked.set(None);
+        linking.set(None);
+        expander.anchor.set(None);
+        if expander.expanded.get_untracked().is_some() {
+            expander.expanded.set(None);
+        }
         if first.is_some() {
             needs_fit.set(true);
         }
     });
     let fit_now = move || {
-        if let (Some(el), Some(Ok(g))) = (viewport.get_untracked(), graph.get_untracked()) {
+        if let (Some(el), Some(g)) = (viewport.get_untracked(), shown.get_untracked()) {
             let r = el.get_bounding_client_rect();
             let (z, p) = fit(g.width, g.height, r.width(), r.height());
             zoom.set(z);
@@ -193,23 +468,107 @@ pub fn Graph() -> impl IntoView {
         }
     };
     Effect::new(move |_| {
-        if graph.get().is_some() && needs_fit.get_untracked() {
+        if shown.get().is_some() && needs_fit.get_untracked() {
             needs_fit.set(false);
             fit_now();
+            // Zoomed out from the tasks: the project they belonged to is centred and picked.
+            if let (Some(id), Some(g), Some(el)) = (
+                pending_focus.get_untracked(),
+                shown.get_untracked(),
+                viewport.get_untracked(),
+            ) {
+                if g.level == GraphLevel::Projects {
+                    if let Some(n) = g.nodes.iter().find(|n| n.node.id == id) {
+                        let r = el.get_bounding_client_rect();
+                        let z = zoom.get_untracked().max(FOCUS_MIN_ZOOM);
+                        zoom.set(z);
+                        pan.set(centre_on(n, z, (r.width(), r.height())));
+                        picked.set(Some(Picked::Node(id)));
+                    }
+                    pending_focus.set(None);
+                }
+            }
         }
     });
 
+    // One zoom step by `factor` around `cursor` (view pixels). Out of the smallest scale of the
+    // tasks, or in past the largest scale of the projects, it changes level instead (spec 52).
+    let zoom_step =
+        move |factor: f64, cursor: (f64, f64), view: (f64, f64), prefer_picked: bool| {
+            let to = next_level(
+                zoom.get_untracked(),
+                MIN_ZOOM,
+                MAX_ZOOM,
+                factor.ln(),
+                level.get_untracked(),
+            );
+            match to {
+                Some(GraphLevel::Projects) => {
+                    let middle = to_drawing(
+                        (view.0 / 2.0, view.1 / 2.0),
+                        pan.get_untracked(),
+                        zoom.get_untracked(),
+                    );
+                    pending_focus.set(
+                        shown
+                            .get_untracked()
+                            .and_then(|g| nearest_project(&g, middle)),
+                    );
+                    project.set(String::new());
+                    level.set(GraphLevel::Projects);
+                    if first_hint(1) {
+                        toasts.info("Zoomed out to projects");
+                    }
+                }
+                Some(_) => {
+                    let graph = shown.get_untracked();
+                    let under = graph.as_ref().and_then(|g| {
+                        project_at(
+                            g,
+                            to_drawing(cursor, pan.get_untracked(), zoom.get_untracked()),
+                        )
+                    });
+                    let chosen = match picked.get_untracked() {
+                        Some(Picked::Node(id))
+                            if graph.as_ref().is_some_and(|g| {
+                                g.nodes.iter().any(|n| {
+                                    n.node.id == id && n.node.node_type == NodeType::Project
+                                })
+                            }) =>
+                        {
+                            Some(id)
+                        }
+                        _ => None,
+                    };
+                    let target = if prefer_picked {
+                        chosen.or(under)
+                    } else {
+                        under.or(chosen)
+                    };
+                    if let Some(id) = target {
+                        let name = graph
+                            .and_then(|g| g.nodes.into_iter().find(|n| n.node.id == id))
+                            .map(|n| n.label)
+                            .unwrap_or_default();
+                        level.set(GraphLevel::Tasks);
+                        project.set(id.to_string());
+                        if first_hint(2) {
+                            toasts.info(format!("Zoomed in to the tasks of {name}"));
+                        }
+                    }
+                }
+                None => {
+                    let (z, p) = zoom_at(zoom.get_untracked(), pan.get_untracked(), cursor, factor);
+                    zoom.set(z);
+                    pan.set(p);
+                }
+            }
+        };
     let zoom_by = move |factor: f64| {
         if let Some(el) = viewport.get_untracked() {
             let r = el.get_bounding_client_rect();
-            let (z, p) = zoom_at(
-                zoom.get_untracked(),
-                pan.get_untracked(),
-                (r.width() / 2.0, r.height() / 2.0),
-                factor,
-            );
-            zoom.set(z);
-            pan.set(p);
+            let view = (r.width(), r.height());
+            zoom_step(factor, (view.0 / 2.0, view.1 / 2.0), view, true);
         }
     };
     let on_wheel = move |ev: ev::WheelEvent| {
@@ -220,17 +579,19 @@ pub fn Graph() -> impl IntoView {
                 f64::from(ev.client_x()) - r.left(),
                 f64::from(ev.client_y()) - r.top(),
             );
-            let (z, p) = zoom_at(
-                zoom.get_untracked(),
-                pan.get_untracked(),
-                cursor,
+            zoom_step(
                 (-ev.delta_y() * 0.0015).exp(),
+                cursor,
+                (r.width(), r.height()),
+                false,
             );
-            zoom.set(z);
-            pan.set(p);
         }
     };
     let on_down = move |ev: ev::MouseEvent| {
+        moved.set(false);
+        if linking.get_untracked().is_some() {
+            return;
+        }
         drag.set(Some((
             (f64::from(ev.client_x()), f64::from(ev.client_y())),
             pan.get_untracked(),
@@ -238,13 +599,145 @@ pub fn Graph() -> impl IntoView {
     };
     let on_move = move |ev: ev::MouseEvent| {
         if let Some((start, pan0)) = drag.get_untracked() {
-            pan.set((
-                pan0.0 + f64::from(ev.client_x()) - start.0,
-                pan0.1 + f64::from(ev.client_y()) - start.1,
-            ));
+            let (dx, dy) = (
+                f64::from(ev.client_x()) - start.0,
+                f64::from(ev.client_y()) - start.1,
+            );
+            if dx.abs() + dy.abs() > 3.0 {
+                moved.set(true);
+            }
+            pan.set((pan0.0 + dx, pan0.1 + dy));
+        }
+        // A link being dragged follows the mouse, in the drawing's own coordinates.
+        if let (Some(l), Some(el)) = (linking.get_untracked(), viewport.get_untracked()) {
+            if !l.from_tray {
+                let r = el.get_bounding_client_rect();
+                let at = to_drawing(
+                    (
+                        f64::from(ev.client_x()) - r.left(),
+                        f64::from(ev.client_y()) - r.top(),
+                    ),
+                    pan.get_untracked(),
+                    zoom.get_untracked(),
+                );
+                linking.set(Some(Linking {
+                    cursor: Some(at),
+                    ..l
+                }));
+            }
         }
     };
-    let end_drag = move |_| drag.set(None);
+    let end_drag = move |_| {
+        drag.set(None);
+        // Letting go anywhere but on a box drops a dragged link.
+        if linking.get_untracked().is_some_and(|l| !l.from_tray) {
+            linking.set(None);
+        }
+    };
+    // A click on the background clears the pick and a link waiting for its target (not after a pan).
+    // An expanded box stays open: it closes with its own button, Esc, or by opening another.
+    // An unlinked item dragged over (or dropped on) the empty graph: no box, no link.
+    let on_drag_over_background = move |ev: ev::DragEvent| {
+        if linking.get_untracked().is_some_and(|l| l.from_tray) {
+            ev.prevent_default();
+            if hover_drop.get_untracked().is_some() {
+                hover_drop.set(None);
+            }
+        }
+    };
+    // An unlinked item dropped on the empty graph (or on the box waiting there). The first one
+    // waits on the graph; each one after it is linked to the waiting box, before it when it is
+    // dropped to the left of its centre and after it when dropped to the right (the graph reads
+    // left to right).
+    let on_drop_background = move |ev: ev::DragEvent| {
+        ev.prevent_default();
+        hover_drop.set(None);
+        let Some(l) = linking.get_untracked().filter(|l| l.from_tray) else {
+            return;
+        };
+        linking.set(None);
+        let item = l.source;
+        let Some(g) = shown.get_untracked() else {
+            return;
+        };
+        let Some(w) = waiting.get_untracked() else {
+            waiting.set(Some(item));
+            return;
+        };
+        if w == item {
+            return;
+        }
+        let Some(node) = g.nodes.iter().find(|n| n.node.id == w) else {
+            waiting.set(Some(item));
+            return;
+        };
+        let centre = node.x + node.w / 2.0;
+        let at = viewport
+            .get_untracked()
+            .map(|el| {
+                let r = el.get_bounding_client_rect();
+                to_drawing(
+                    (
+                        f64::from(ev.client_x()) - r.left(),
+                        f64::from(ev.client_y()) - r.top(),
+                    ),
+                    pan.get_untracked(),
+                    zoom.get_untracked(),
+                )
+                .0
+            })
+            .unwrap_or(centre);
+        if let Some((from, to)) = drop_pair(item, w, at, centre) {
+            let name = |id: Uuid| label_in(&g, id);
+            make_link(
+                g.level,
+                from,
+                to,
+                (name(from), name(to)),
+                toasts,
+                version,
+                Some(Callback::new(move |()| waiting.set(None))),
+            );
+        }
+    };
+    let on_background = move |_| {
+        if !moved.get_untracked() {
+            picked.set(None);
+            linking.set(None);
+        }
+    };
+
+    // Escape clears (and closes the open box); Delete removes the picked link.
+    let handle = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
+        let typing = e
+            .target()
+            .and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlElement>(t).ok())
+            .map(|el| crate::nav::is_typing_target(&el.tag_name(), el.is_content_editable()))
+            .unwrap_or(false);
+        if typing {
+            return;
+        }
+        let plain = !(e.ctrl_key() || e.meta_key() || e.alt_key());
+        match e.key().as_str() {
+            // `-` and `+` zoom like the buttons (and change level at the ends, spec 52).
+            "-" | "_" if plain => zoom_by(1.0 / 1.25),
+            "+" | "=" if plain => zoom_by(1.25),
+            "Escape" => {
+                picked.set(None);
+                linking.set(None);
+                waiting.set(None);
+                expander.set(None);
+            }
+            "Delete" | "Backspace" => {
+                if let Some(Picked::Edge(id)) = picked.get_untracked() {
+                    e.prevent_default();
+                    remove_link(id, picked, toasts, version);
+                }
+            }
+            _ => {}
+        }
+    });
+    on_cleanup(move || handle.remove());
 
     let level_button = move |l: GraphLevel, text: &'static str| {
         view! {
@@ -252,6 +745,15 @@ pub fn Graph() -> impl IntoView {
                     on:click=move |_| { project.set(String::new()); level.set(l) }>{text}</button>
         }
     };
+    let lens_buttons = Lens::ALL
+        .into_iter()
+        .map(|l| {
+            view! {
+                <button class=move || format!("{BUTTON} {}", if lens.get() == l { BUTTON_ON } else { "" })
+                        title=l.hint() on:click=move |_| lens.set(l)>{l.label()}</button>
+            }
+        })
+        .collect_view();
     let option_list =
         move |any: &'static str,
               res: Option<Result<Vec<minimap_types::NodeSummary>, minimap_types::AppError>>|
@@ -268,19 +770,46 @@ pub fn Graph() -> impl IntoView {
         };
 
     let body = move || {
-        match graph.get() {
-        None => view! { <p class="p-6 text-muted">"Laying it out…"</p> }.into_any(),
-        Some(Err(e)) => view! { <p class="p-6 text-danger">{e.message}</p> }.into_any(),
-        Some(Ok(g)) if g.nodes.is_empty() => view! {
+        match (shown.get(), graph.get()) {
+        (None, Some(Err(e))) => view! { <p class="p-6 text-danger">{e.message}</p> }.into_any(),
+        (None, _) => view! { <p class="p-6 text-muted">"Laying it out…"</p> }.into_any(),
+        (Some(g), _) if g.nodes.is_empty() => view! {
             <EmptyState icon="graph" title="No dependencies to draw"
-                hint="Link tasks with Links → Blocks (or projects with Depends on), then they appear here. Tasks and projects with no links are hidden unless you include them." />
-        }.into_any(),
-        Some(Ok(g)) => view! { <Drawing graph=g zoom=zoom pan=pan selection=selection /> }.into_any(),
+                hint="Link tasks with Links → Blocks (or projects with Depends on), then they appear here. Tasks and projects with no links are listed on the right (the Unlinked button), and you can link one from there." />
+        }
+        .into_any(),
+        (Some(g), _) => view! {
+            <Drawing graph=g zoom=zoom pan=pan lens=lens picked=picked linking=linking
+                     trace=trace hues=hues expander=expander hover_drop=hover_drop waiting=waiting />
+        }
+        .into_any(),
     }
     };
-    let summary = move || match graph.get() {
-        Some(Ok(g)) => summary_text(&g),
-        _ => String::new(),
+    let summary = move || shown.get().map(|g| summary_text(&g)).unwrap_or_default();
+    let chips = move || {
+        match shown.get() {
+        Some(g) => insights(&g)
+            .into_iter()
+            .map(|i| {
+                let node = i.node;
+                let class = format!("{} {}", Tone::Neutral.chip(), if node.is_some() { "cursor-pointer hover:bg-hover" } else { "" });
+                view! {
+                    <button class=class disabled=node.is_none()
+                            on:click=move |_| { if let Some(id) = node { picked.set(Some(Picked::Node(id))); } }>
+                        {i.text}
+                    </button>
+                }
+            })
+            .collect_view()
+            .into_any(),
+        None => ().into_any(),
+    }
+    };
+    let key = move || {
+        legend(lens.get())
+            .into_iter()
+            .map(|(tone, text)| view! { <span class=tone.chip()>{text}</span> })
+            .collect_view()
     };
 
     view! {
@@ -289,6 +818,10 @@ pub fn Graph() -> impl IntoView {
                         subtitle="How work depends on other work, left to right">
                 {level_button(GraphLevel::Tasks, "Tasks")}
                 {level_button(GraphLevel::Projects, "Projects")}
+                <span class="ml-2 flex items-center gap-1" role="group" aria-label="Lens">
+                    <span class="mr-1 text-[10px] uppercase tracking-wider text-muted">"Lens"</span>
+                    {lens_buttons}
+                </span>
                 <span class="ml-auto flex items-center gap-1">
                     <button class=BUTTON aria-label="Zoom out" on:click=move |_| zoom_by(1.0 / 1.25)>"−"</button>
                     <span class="w-12 text-center tabular-nums text-muted">{move || format!("{}%", (zoom.get() * 100.0).round() as i64)}</span>
@@ -296,6 +829,7 @@ pub fn Graph() -> impl IntoView {
                     <button class=BUTTON on:click=move |_| fit_now()>"Fit"</button>
                 </span>
             </PageHeader>
+            <crate::components::orientation::MineBanner />
             <div class=FILTER_BAR>
                 {move || view! { <SelectField compact=true current=project.get_untracked()
                     options=option_list(if level.get() == GraphLevel::Tasks { "Any project" } else { "Any project (focus)" }, projects.get())
@@ -316,25 +850,398 @@ pub fn Graph() -> impl IntoView {
                 <label class="flex items-center gap-1 text-[11px] text-muted">
                     <input type="checkbox" prop:checked=move || include_isolated.get()
                            on:change=move |ev| include_isolated.set(event_target_checked(&ev)) />
-                    "Include unlinked"
+                    "Draw unlinked"
                 </label>
                 <span class="ml-auto text-[11px] text-muted">{summary}</span>
             </div>
-            <div node_ref=viewport class="relative min-h-0 flex-1 overflow-hidden"
+            <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-1 empty:hidden">{chips}</div>
+            <div class="flex min-h-0 flex-1">
+            <div node_ref=viewport class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
                  on:mousedown=on_down on:mousemove=on_move on:mouseup=end_drag on:mouseleave=end_drag
-                 on:wheel=on_wheel>
+                 on:click=on_background on:wheel=on_wheel
+                 on:dragover=on_drag_over_background on:drop=on_drop_background>
                 {body}
+                <LinkBanner graph=shown linking=linking waiting=waiting />
+                <EdgeCard graph=shown picked=picked pan=pan zoom=zoom />
+                <UnlinkedToggle graph=shown open=unlinked_open />
                 <div class="pointer-events-none absolute bottom-2 left-3 flex flex-wrap items-center gap-2 text-[11px] text-muted">
-                    <span class=Tone::Accent.chip()>"critical path"</span>
-                    <span class=Tone::Danger.chip()>"late"</span>
-                    <span class=Tone::Warning.chip()>"blocked"</span>
-                    <span class=Tone::Danger.chip()>"held up by a blocked task"</span>
-                    <span class=Tone::Neutral.chip()>"dim = context"</span>
-                    <span>"drag to pan · scroll to zoom · click to open"</span>
+                    {key}
+                    <span>{LEGEND_HINT}</span>
                 </div>
+            </div>
+            <UnlinkedPanel graph=shown linking=linking open=unlinked_open lens=lens hues=hues project_names=project_names />
             </div>
         </div>
     }
+}
+
+/// Removes a link, and says how to get it back.
+fn remove_link(id: Uuid, picked: RwSignal<Option<Picked>>, toasts: Toasts, version: DataVersion) {
+    spawn_local(async move {
+        if finish(api::remove_edge(id).await, toasts, version).is_some() {
+            picked.set(None);
+            toasts.info("Removed the link. Press Ctrl/Cmd+Z to undo.");
+        }
+    });
+}
+
+/// Makes the link a drag or a click means, and says what it did (or why it could not).
+fn make_link(
+    level: GraphLevel,
+    source: Uuid,
+    target: Uuid,
+    names: (String, String),
+    toasts: Toasts,
+    version: DataVersion,
+    done: Option<Callback<()>>,
+) {
+    spawn_local(async move {
+        if finish(
+            api::add_edge(new_link(level, source, target)).await,
+            toasts,
+            version,
+        )
+        .is_some()
+        {
+            toasts.info(link_message(level, &names.0, &names.1));
+            if let Some(done) = done {
+                done.run(());
+            }
+        }
+    });
+}
+
+/// A node's name in the graph, or in its list of unlinked work.
+fn label_in(g: &DependencyGraph, id: Uuid) -> String {
+    g.nodes
+        .iter()
+        .find(|n| n.node.id == id)
+        .map(|n| n.label.clone())
+        .or_else(|| {
+            g.unlinked
+                .iter()
+                .find(|u| u.node.id == id)
+                .map(|u| u.label.clone())
+        })
+        .unwrap_or_default()
+}
+
+/// "Click the box X should block" while a chip or a button is waiting for its other box.
+#[component]
+fn LinkBanner(
+    graph: RwSignal<Option<DependencyGraph>>,
+    linking: RwSignal<Option<Linking>>,
+    waiting: RwSignal<Option<Uuid>>,
+) -> impl IntoView {
+    move || {
+        let l = linking.get().filter(|l| l.from_tray)?;
+        let g = graph.get()?;
+        let name = g
+            .nodes
+            .iter()
+            .find(|n| n.node.id == l.source)
+            .map(|n| n.label.clone())
+            .or_else(|| {
+                g.unlinked
+                    .iter()
+                    .find(|u| u.node.id == l.source)
+                    .map(|u| u.label.clone())
+            })
+            .map_or_else(|| "it".to_owned(), |n| format!("“{n}”"));
+        // Something is waiting on the graph: say where to drop the next one.
+        let beside = waiting
+            .get()
+            .filter(|w| *w != l.source)
+            .and_then(|w| g.nodes.iter().find(|n| n.node.id == w))
+            .map(|n| drop_beside_banner(&n.label));
+        let text = match (g.level, l.reverse) {
+            _ if beside.is_some() => beside.clone().unwrap_or_default(),
+            (GraphLevel::Tasks, false) => {
+                format!("Click or drop it on the task {name} should block, or drop it on empty space to start a link (Esc cancels)")
+            }
+            (GraphLevel::Tasks, true) => {
+                format!("Click the task that should block {name} (Esc cancels)")
+            }
+            (GraphLevel::Projects, false) => {
+                format!("Click or drop it on the project that needs {name}, or drop it on empty space to start a link (Esc cancels)")
+            }
+            (GraphLevel::Projects, true) => {
+                format!("Click the project {name} needs (Esc cancels)")
+            }
+        };
+        Some(view! {
+            <div class="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-sm border border-accent bg-panel px-3 py-1.5 text-[12px] text-accent">
+                {text}
+            </div>
+        })
+    }
+}
+
+/// The popover on a picked link, at the middle of the arrow: what it means, its lag, remove.
+#[component]
+fn EdgeCard(
+    graph: RwSignal<Option<DependencyGraph>>,
+    picked: RwSignal<Option<Picked>>,
+    pan: RwSignal<(f64, f64)>,
+    zoom: RwSignal<f64>,
+) -> impl IntoView {
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    move || {
+        let Picked::Edge(id) = picked.get()? else {
+            return None;
+        };
+        let g = graph.get()?;
+        let e = g.edges.iter().find(|e| e.id == id)?.clone();
+        let (mx, my) = midpoint(&e.points)?;
+        let (px, py) = pan.get();
+        let z = zoom.get();
+        let (left, top) = (px + mx * z, py + my * z);
+        let sentence = edge_sentence(&g, id);
+        let tasks = g.level == GraphLevel::Tasks;
+        let lag = e.lag_days.unwrap_or(0);
+        let on_lag = move |ev| {
+            let text: String = event_target_value(&ev);
+            match text.trim().parse::<u32>() {
+                Ok(days) if days <= 365 => {
+                    spawn_local(async move {
+                        finish(
+                            api::update_edge_attrs(id, lag_attrs(days)).await,
+                            toasts,
+                            version,
+                        );
+                    });
+                }
+                _ => {
+                    toasts.error(&minimap_types::AppError {
+                        code: "invalid".into(),
+                        message: "A lag is a whole number of working days, 0 to 365".into(),
+                    });
+                    version.bump();
+                }
+            }
+        };
+        Some(view! {
+            <div class="absolute z-10 w-72 -translate-x-1/2 rounded-sm border border-line bg-panel p-3 text-[12px]"
+                 style=format!("left:{left:.1}px; top:{:.1}px", top + 10.0)
+                 on:mousedown=|ev| ev.stop_propagation() on:click=|ev| ev.stop_propagation()>
+                <div class="flex items-start gap-2">
+                    <p class="min-w-0 flex-1">{sentence}</p>
+                    <button class="rounded px-1 text-muted hover:bg-hover" aria-label="Close"
+                            on:click=move |_| picked.set(None)>"✕"</button>
+                </div>
+                {tasks.then(|| view! {
+                    <label class="mt-2 flex items-center gap-2 text-muted">
+                        "Lag"
+                        <input type="number" min="0" max="365" class=format!("{COMPACT_INPUT} w-16")
+                               prop:value=lag.to_string() on:change=on_lag />
+                        "working days"
+                    </label>
+                })}
+                <div class="mt-3">
+                    <button class=BUTTON_DANGER on:click=move |_| remove_link(id, picked, toasts, version)>
+                        "Remove link"
+                    </button>
+                    <span class="ml-2 text-[11px] text-muted">"or press Delete"</span>
+                </div>
+            </div>
+        })
+    }
+}
+
+/// A small button at the top right of the graph that opens the list of unlinked work.
+#[component]
+fn UnlinkedToggle(graph: RwSignal<Option<DependencyGraph>>, open: RwSignal<bool>) -> impl IntoView {
+    move || {
+        let g = graph.get()?;
+        if g.hidden_unlinked == 0 || open.get() {
+            return None;
+        }
+        let what = match g.level {
+            GraphLevel::Tasks => "tasks",
+            GraphLevel::Projects => "projects",
+        };
+        Some(view! {
+            <button class="absolute right-3 top-2 z-10 inline-flex items-center gap-1.5 rounded-sm border border-line \
+                           bg-panel px-2 py-1 text-[12px] hover:border-accent/50 hover:bg-hover"
+                    title=format!("Show the {what} that have no links, to link them")
+                    on:mousedown=|ev| ev.stop_propagation()
+                    on:click=move |ev| { ev.stop_propagation(); open.set(true); }>
+                <Icon name="chain" size="h-3.5 w-3.5" />
+                {format!("Unlinked ({})", g.hidden_unlinked)}
+            </button>
+        })
+    }
+}
+
+/// The work with no links, on the right of the graph, drawn like the boxes in it: search it, narrow
+/// it by status, project or owner, click one and then the box it should block.
+#[component]
+fn UnlinkedPanel(
+    graph: RwSignal<Option<DependencyGraph>>,
+    linking: RwSignal<Option<Linking>>,
+    open: RwSignal<bool>,
+    lens: RwSignal<Lens>,
+    hues: Memo<HashMap<Uuid, u16>>,
+    project_names: Memo<HashMap<Uuid, String>>,
+) -> impl IntoView {
+    let selection = expect_context::<Selection>();
+    let colours = use_objective_colours();
+    let filter = RwSignal::new(UnlinkedFilter::default());
+    move || {
+        let g = graph.get()?;
+        if g.hidden_unlinked == 0 || !open.get() {
+            return None;
+        }
+        let what = match g.level {
+            GraphLevel::Tasks => "tasks",
+            GraphLevel::Projects => "projects",
+        };
+        let tasks = g.level == GraphLevel::Tasks;
+        let total = g.hidden_unlinked;
+        let items = StoredValue::new(g.unlinked.clone());
+        let more = (total as usize).saturating_sub(g.unlinked.len());
+        let statuses = status_choices_of(&g.unlinked);
+        let owners = owner_choices_of(&g.unlinked);
+        let name_of = move |p: Uuid| project_names.with_untracked(|m| m.get(&p).cloned());
+        let project_options = project_choices_of(&g.unlinked, &name_of);
+        let header = move || {
+            let shown = items.with_value(|i| filter_unlinked(i, &filter.get()).len());
+            unlinked_count_text(total, shown, !filter.get().is_empty())
+        };
+        let cards = move || {
+            let f = filter.get();
+            let list: Vec<GraphUnlinked> =
+                items.with_value(|i| filter_unlinked(i, &f).into_iter().cloned().collect());
+            if list.is_empty() {
+                return view! {
+                    <p class="px-2 py-6 text-center text-[12px] text-muted">
+                        "Nothing matches. Clear the search or the filters to see all of them."
+                    </p>
+                }
+                .into_any();
+            }
+            list.into_iter()
+                .map(|u| {
+                    let n = u.look.clone();
+                    let id = u.node.id;
+                    let target = u.node;
+                    let active = move || linking.get().is_some_and(|l| l.source == id);
+                    let hue = n
+                        .assignee
+                        .as_ref()
+                        .and_then(|a| hues.with(|h| h.get(&a.node.id).copied()));
+                    let stripe = colours
+                        .first_hue(&colours.of_project(n.project_id))
+                        .map(|h| view! { <span class="obj-edge" style=format!("--obj-h: {h}")></span> });
+                    let look = if n.blocked {
+                        "border-dashed border-warning/70"
+                    } else if n.late || n.held_up {
+                        "border-danger/60"
+                    } else {
+                        "border-line-strong"
+                    };
+                    let faded = if n.done { "opacity-60" } else { "" };
+                    let pill = (n.priority <= 2).then(|| view! {
+                        <span class=priority_pill(n.priority, n.done) title="Priority (1 is highest)">{format!("P{}", n.priority)}</span>
+                    });
+                    let badge = n.assignee.as_ref().map(|a| view! {
+                        <span class="person-badge" title=a.label.clone()
+                              style=hue.map(|h| format!("--obj-h: {h}")).unwrap_or_default()>{initials(&a.label)}</span>
+                    });
+                    let (two, three) = (line_two(&n), line_three(&n, lens.get()));
+                    view! {
+                        <button class=move || format!(
+                                    "relative block w-full cursor-grab overflow-hidden rounded-sm border bg-canvas py-1.5 pl-3 pr-2 text-left hover:bg-hover {look} {faded} {}",
+                                    if active() { "!border-accent ring-1 ring-accent" } else { "" })
+                                draggable="true"
+                                title=UNLINKED_CARD_HINT
+                                on:dragstart=move |ev: ev::DragEvent| {
+                                    // WebKit needs some data set for a drag to start.
+                                    if let Some(dt) = ev.data_transfer() {
+                                        let _ = dt.set_data("text/plain", &id.to_string());
+                                        dt.set_effect_allowed("link");
+                                    }
+                                    linking.set(Some(Linking { source: id, cursor: None, from_tray: true, reverse: false }));
+                                }
+                                on:dragend=move |_| {
+                                    // A drop on a box already finished the link; anything left is a drag that
+                                    // ended nowhere.
+                                    if linking.get_untracked().is_some_and(|l| l.from_tray && l.source == id) {
+                                        linking.set(None);
+                                    }
+                                }
+                                on:click=move |ev| {
+                                    ev.stop_propagation();
+                                    linking.set(Some(Linking { source: id, cursor: None, from_tray: true, reverse: false }));
+                                }
+                                on:dblclick=move |ev| {
+                                    ev.stop_propagation();
+                                    linking.set(None);
+                                    selection.open(target);
+                                }>
+                            {stripe}
+                            <span class="flex items-start gap-2">
+                                <span class="min-w-0 flex-1 truncate text-[12px] font-medium">{u.label.clone()}</span>
+                                {pill}
+                            </span>
+                            <span class="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
+                                <span class="min-w-0 flex-1 truncate">{two}</span>
+                                {badge}
+                            </span>
+                            <span class="block truncate text-[11px] text-muted">{three}</span>
+                        </button>
+                    }
+                })
+                .collect_view()
+                .into_any()
+        };
+        Some(view! {
+            <aside class="flex w-72 shrink-0 flex-col border-l border-line bg-panel" aria-label="Unlinked work">
+                <div class="flex items-center gap-2 border-b border-line px-3 py-2">
+                    <h2 class="min-w-0 flex-1 text-[12px] font-medium">{header}</h2>
+                    <button class="rounded px-1 text-muted hover:bg-hover hover:text-fg" aria-label="Hide the unlinked list"
+                            title="Hide the list" on:click=move |_| open.set(false)>"✕"</button>
+                </div>
+                <div class="space-y-2 border-b border-line px-3 py-2">
+                    <input class=COMPACT_INPUT type="search" placeholder="Search by name, project, owner or status"
+                           aria-label="Search the unlinked work" style="width: 100%"
+                           prop:value=move || filter.with_untracked(|f| f.text.clone())
+                           on:input=move |ev| filter.update(|f| f.text = event_target_value(&ev)) />
+                    <div class="flex flex-wrap gap-1.5">
+                        <SelectField compact=true current=filter.with_untracked(|f| f.status.clone())
+                            options=statuses on_change=move |v: String| filter.update(|f| f.status = v) />
+                        {tasks.then(|| view! {
+                            <SelectField compact=true current=filter.with_untracked(|f| f.project.clone())
+                                options=project_options on_change=move |v: String| filter.update(|f| f.project = v) />
+                        })}
+                        <SelectField compact=true current=filter.with_untracked(|f| f.owner.clone())
+                            options=owners on_change=move |v: String| filter.update(|f| f.owner = v) />
+                    </div>
+                    <p class="text-[11px] text-muted">
+                        {format!("These {what} have no links. Drag one onto the graph, then drag a second to its right (it comes after) or left (it comes before) to link them. Or drop one on a box it should {}, or click it and then the box. Double-click to open it on the right.",
+                            if tasks { "block" } else { "be needed by" })}
+                    </p>
+                </div>
+                <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
+                    {cards}
+                    {(more > 0).then(|| view! {
+                        <p class="px-1 py-2 text-[11px] text-muted">{format!("and {more} more that this list does not show (tick “Draw unlinked” to see them all)")}</p>
+                    })}
+                </div>
+            </aside>
+        })
+    }
+}
+
+/// The names a made link will mention, from the two ends' ids.
+fn link_names(names: StoredValue<HashMap<Uuid, String>>, a: Uuid, b: Uuid) -> (String, String) {
+    names.with_value(|m| {
+        (
+            m.get(&a).cloned().unwrap_or_default(),
+            m.get(&b).cloned().unwrap_or_default(),
+        )
+    })
 }
 
 #[component]
@@ -342,50 +1249,294 @@ fn Drawing(
     graph: DependencyGraph,
     zoom: RwSignal<f64>,
     pan: RwSignal<(f64, f64)>,
-    selection: Selection,
+    lens: RwSignal<Lens>,
+    picked: RwSignal<Option<Picked>>,
+    linking: RwSignal<Option<Linking>>,
+    trace: Memo<Option<Trace>>,
+    hues: Memo<HashMap<Uuid, u16>>,
+    expander: Expander,
+    hover_drop: RwSignal<Option<Uuid>>,
+    waiting: RwSignal<Option<Uuid>>,
 ) -> impl IntoView {
+    let selection = expect_context::<Selection>();
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    let colours = use_objective_colours();
+    let fog = use_context::<FogCtx>();
+    let level = graph.level;
+    let detail = Memo::new(move |_| detail_level(zoom.get()));
     let transform = move || {
         let (x, y) = pan.get();
         format!("translate({x:.1} {y:.1}) scale({:.4})", zoom.get())
     };
+    // The names a made link will mention, and where each box is (for the link being dragged).
+    let names: HashMap<Uuid, String> = graph
+        .nodes
+        .iter()
+        .map(|n| (n.node.id, n.label.clone()))
+        .chain(graph.unlinked.iter().map(|u| (u.node.id, u.label.clone())))
+        .collect();
+    let names = StoredValue::new(names);
+    let places: HashMap<Uuid, (f64, f64)> = graph
+        .nodes
+        .iter()
+        .map(|n| (n.node.id, (n.x + n.w, n.y + n.h / 2.0)))
+        .collect();
+    let by_id: HashMap<Uuid, GraphNode> =
+        graph.nodes.iter().map(|n| (n.node.id, n.clone())).collect();
+    let by_id = StoredValue::new(by_id);
+    let whole = StoredValue::new(graph.clone());
+    let selected_node = move || match picked.get() {
+        Some(Picked::Node(id)) => Some(id),
+        _ => None,
+    };
+    let selected_edge = move || match picked.get() {
+        Some(Picked::Edge(id)) => Some(id),
+        _ => None,
+    };
+
     let edges = graph
         .edges
         .iter()
         .map(|e: &GraphEdge| {
-            let class = if e.critical { "edge critical" } else { "edge" };
-            let marker = if e.critical { "url(#dep-arrow-hot)" } else { "url(#dep-arrow)" };
-            let lag = e.lag_days.filter(|l| *l > 0).and_then(|l| {
-                let mid = e.points.len() / 2;
-                let (a, b) = (e.points.get(mid.saturating_sub(1))?, e.points.get(mid)?);
+            let edge = e.clone();
+            let id = e.id;
+            let d = edge_path(&e.points);
+            let label = edge_label(e, level).and_then(|text| {
+                let (x, y) = midpoint(&e.points)?;
                 Some(view! {
-                    <text class="lag" x=(a.0 + b.0) / 2.0 y=(a.1 + b.1) / 2.0 - 4.0 text-anchor="middle">
-                        {format!("+{l}d")}
-                    </text>
+                    <text class="lag" x=x y=y - 4.0 text-anchor="middle">{text}</text>
                 })
             });
+            let sentence = edge_sentence(&graph, e.id);
+            let e2 = edge.clone();
+            let class = move || {
+                let from = by_id.with_value(|m| m.get(&e2.from).cloned());
+                edge_class(&e2, lens.get(), from.as_ref(), trace.get().as_ref(), selected_edge())
+            };
+            let marker = {
+                let critical = e.critical;
+                move || {
+                    if critical && lens.get() == Lens::Route {
+                        "url(#dep-arrow-hot)"
+                    } else {
+                        "url(#dep-arrow)"
+                    }
+                }
+            };
             view! {
-                <path d=edge_path(&e.points) class=class marker-end=marker />
-                {lag}
+                <path d=d.clone() class=class marker-end=marker />
+                {label}
+                <path d=d class="edge-hit" on:mousedown=|ev| ev.stop_propagation()
+                      on:click=move |ev| { ev.stop_propagation(); picked.set(Some(Picked::Edge(id))); }>
+                    <title>{sentence}</title>
+                </path>
             }
         })
         .collect_view();
+
     let nodes = graph
         .nodes
         .iter()
         .map(|n| {
+            let id = n.node.id;
             let target = n.node;
-            let class = node_class(n);
+            let n = StoredValue::new(n.clone());
+            let class = move || {
+                let node = n.get_value();
+                let mut c = node_class(&node, lens.get(), trace.get().as_ref(), selected_node());
+                if lens.get() == Lens::People && node.assignee.is_some() {
+                    c.push_str(" owned");
+                }
+                if hover_drop.get() == Some(id) {
+                    c.push_str(" drop");
+                }
+                if node.waiting {
+                    c.push_str(" waiting");
+                }
+                c
+            };
+            let person_hue = n.get_value().assignee.as_ref().map(|a| a.node.id);
+            let group_style = move || {
+                person_hue
+                    .and_then(|p| hues.with(|h| h.get(&p).copied()))
+                    .map(|h| format!("--obj-h: {h}"))
+                    .unwrap_or_default()
+            };
+            let stripe = {
+                let project = n.get_value().project_id;
+                move || {
+                    colours
+                        .first_hue(&colours.of_project(project))
+                        .map(|h| view! { <rect class="stripe" x="0" y="0" width="3" height=n.get_value().h style=format!("--obj-h: {h}") /> })
+                }
+            };
+            // Finishes the link an unlinked item started (by a click, or by being dragged here):
+            // forward, the item blocks this box; reverse, this box blocks the item.
+            let complete_tray_link = move || {
+                if let Some(l) = linking.get_untracked().filter(|l| l.from_tray) {
+                    if let Some((from, to)) = tray_pair(l.source, id, l.reverse) {
+                        make_link(level, from, to, link_names(names, from, to), toasts, version, None);
+                    }
+                    linking.set(None);
+                }
+                hover_drop.set(None);
+            };
+            // An unlinked item dragged over this box: it may be dropped here.
+            let is_waiting = n.get_value().waiting;
+            let on_drag_over = move |ev: ev::DragEvent| {
+                // The waiting box is not a target of its own: a drop beside or on it is worked out
+                // from where it lands, by the graph around it.
+                if is_waiting {
+                    return;
+                }
+                if linking.get_untracked().is_some_and(|l| l.from_tray) {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    if let Some(dt) = ev.data_transfer() {
+                        dt.set_drop_effect("link");
+                    }
+                    if hover_drop.get_untracked() != Some(id) {
+                        hover_drop.set(Some(id));
+                    }
+                }
+            };
+            let on_drop = move |ev: ev::DragEvent| {
+                if is_waiting {
+                    return;
+                }
+                ev.prevent_default();
+                ev.stop_propagation();
+                complete_tray_link();
+            };
+            // A click traces the box and expands (or collapses) it, or finishes a link waiting for
+            // this box; a double-click opens the item in the pane on the right.
+            let on_click = move |ev: ev::MouseEvent| {
+                ev.stop_propagation();
+                if linking.get_untracked().is_some() {
+                    complete_tray_link();
+                    return;
+                }
+                picked.set(Some(Picked::Node(id)));
+                // Far enough out that a box is only a shape, a click just traces it.
+                if detail.get_untracked() != Detail::Shape {
+                    expander.defer(move || expander.toggle(id));
+                }
+            };
+            let on_double = move |ev: ev::MouseEvent| {
+                ev.stop_propagation();
+                expander.cancel();
+                selection.open(target);
+            };
+            let on_up = move |ev: ev::MouseEvent| {
+                if let Some(l) = linking.get_untracked() {
+                    if !l.from_tray {
+                        ev.stop_propagation();
+                        if l.source != id {
+                            make_link(level, l.source, id, link_names(names, l.source, id), toasts, version, None);
+                        }
+                        linking.set(None);
+                    }
+                }
+            };
+            let start_link = move |ev: ev::MouseEvent| {
+                ev.stop_propagation();
+                ev.prevent_default();
+                linking.set(Some(Linking { source: id, cursor: None, from_tray: false, reverse: false }));
+            };
+            let body = move || {
+                let node = n.get_value();
+                if node.expanded {
+                    // The box is laid out large: its details fill it.
+                    return view! {
+                        <foreignObject x="0" y="0" width=node.w height=node.h>
+                            <NodeCard graph=whole.get_value() node=node.clone()
+                                      expander=expander linking=linking />
+                        </foreignObject>
+                    }
+                    .into_any();
+                }
+                let d = detail.get();
+                let title_w = node.w - 20.0;
+                let title = (d != Detail::Shape).then(|| view! {
+                    <text class="label" x="10" y="16">{fit_text(&node.label, title_w, 6.6)}</text>
+                });
+                let full = (d == Detail::Full).then(|| {
+                    let owner = node.assignee.clone();
+                    let owner_hue = owner
+                        .as_ref()
+                        .and_then(|a| hues.with(|h| h.get(&a.node.id).copied()));
+                    let badge_w = if node.priority <= 2 { 52.0 } else { 26.0 };
+                    let fog_chip = fog
+                        .filter(|_| level == GraphLevel::Tasks)
+                        .and_then(|f| f.mark(node.node.id))
+                        .map(|m| view! { <text class="fog" x=node.w - 10.0 y="46">{crate::components::fog::chip_text(&m)}</text> });
+                    view! {
+                        <text class="sub" x="10" y="31">{fit_text(&line_two(&node), title_w - badge_w, 5.6)}</text>
+                        <text class="sub" x="10" y="46">{fit_text(&if node.waiting { WAITING_LINE.to_owned() } else { line_three(&node, lens.get()) }, title_w - 40.0, 5.6)}</text>
+                        {fog_chip}
+                        {owner.map(|a| view! {
+                            <circle class="person" cx=node.w - 16.0 cy="29" r="8"
+                                    style=owner_hue.map(|h| format!("--obj-h: {h}")).unwrap_or_default() />
+                            <text class="initials" x=node.w - 16.0 y="32">{initials(&a.label)}</text>
+                        })}
+                        {(node.priority <= 2).then(|| {
+                            let class = if node.priority == 1 { "p1" } else { "p2" };
+                            view! {
+                                <g class=class>
+                                    <rect x=node.w - 52.0 y="23" width="22" height="13" rx="2" />
+                                    <text x=node.w - 41.0 y="33">{format!("P{}", node.priority)}</text>
+                                </g>
+                            }
+                        })}
+                    }
+                });
+                // The box waiting on the graph can be taken off it again.
+                let take_off = (node.waiting && d != Detail::Shape).then(|| view! {
+                    <g class="unstage" transform=format!("translate({:.1} 10)", node.w - 14.0)
+                       on:mousedown=|ev| ev.stop_propagation()
+                       on:click=move |ev| { ev.stop_propagation(); waiting.set(None); }>
+                        <circle r="7" />
+                        <path d="M-2.4 -2.4L2.4 2.4M2.4 -2.4L-2.4 2.4" />
+                        <title>"Take it off the graph (Esc)"</title>
+                    </g>
+                });
+                view! { {title} {full} {take_off} }.into_any()
+            };
+            let (nx, ny) = (n.get_value().x, n.get_value().y);
+            let handle = move || {
+                let node = n.get_value();
+                (!node.expanded).then(|| view! {
+                    <circle class="port" cx=node.w cy=node.h / 2.0 r="5" on:mousedown=start_link
+                            on:click=|ev| ev.stop_propagation()>
+                        <title>"Drag to another box to link"</title>
+                    </circle>
+                })
+            };
+            let (width, height) = (n.get_value().w, n.get_value().h);
             view! {
-                <g class=class transform=format!("translate({:.1} {:.1})", n.x, n.y)
+                <g class=class style=group_style transform=format!("translate({nx:.1} {ny:.1})")
                    on:mousedown=|ev| ev.stop_propagation()
-                   on:click=move |_| selection.open(target)>
-                    <rect class="box" width=n.w height=n.h rx="4" />
-                    <text class="label" x="10" y="16">{fit_text(&n.label, n.w - 20.0, 6.6)}</text>
-                    <text class="sub" x="10" y="30">{fit_text(&n.subtitle, n.w - 20.0, 5.6)}</text>
+                   on:mouseup=on_up on:click=on_click on:dblclick=on_double
+                   on:dragover=on_drag_over on:drop=on_drop>
+                    <title>{NODE_HINT}</title>
+                    <rect class="box" width=width height=height rx="4" />
+                    {stripe}
+                    {body}
+                    {handle}
                 </g>
             }
         })
         .collect_view();
+
+    // The link being dragged, from the handle to the mouse.
+    let rubber = move || {
+        let l = linking.get().filter(|l| !l.from_tray)?;
+        let (x0, y0) = places.get(&l.source).copied()?;
+        let (x1, y1) = l.cursor?;
+        Some(view! { <path class="rubber" d=edge_path(&[(x0, y0), (x1, y1)]) /> })
+    };
+
     view! {
         <svg class="dep" width="100%" height="100%">
             <defs>
@@ -396,15 +1547,195 @@ fn Drawing(
                     <path class="arrow critical" d="M0 0L10 5L0 10z" />
                 </marker>
             </defs>
-            <g transform=transform>{edges}{nodes}</g>
+            <g transform=transform>{edges}{nodes}{rubber}</g>
         </svg>
     }
+}
+
+/// The inside of the one expanded box (it is laid out large to hold it): the full title, the
+/// pills, what is wrong and why, what it waits on and holds up (click a name to go there, ✕ to
+/// remove the link), the start of its description, and the quick actions: a status, a new blocker
+/// or blocked task, Open, What if it slips?, Still accurate.
+#[component]
+fn NodeCard(
+    graph: DependencyGraph,
+    node: GraphNode,
+    expander: Expander,
+    linking: RwSignal<Option<Linking>>,
+) -> impl IntoView {
+    let selection = expect_context::<Selection>();
+    let scenario = expect_context::<Scenario>();
+    let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
+    let gate = expect_context::<FinishDecision>();
+    let navigate = use_navigate();
+    let colours = use_objective_colours();
+    let id = node.node.id;
+    let target = node.node;
+    let is_task = node.node.node_type == NodeType::Task;
+    // The start of the description, from the item itself.
+    let description = LocalResource::new(move || async move {
+        if is_task {
+            api::get_task(id).await.map(|t| t.description)
+        } else {
+            api::get_project(id).await.map(|p| p.description)
+        }
+    });
+    let (waits, holds) = neighbours(&graph, id);
+    let lines = inspector_lines(&graph, id)
+        .into_iter()
+        .map(|l| view! { <li>{l}</li> })
+        .collect_view();
+    let why = why_lines(&graph, id)
+        .into_iter()
+        .map(|l| view! { <li class="text-warning">{l}</li> })
+        .collect_view();
+    let picked_none = expander.picked;
+    let list = move |title: &'static str, items: Vec<Neighbour>| {
+        let total = items.len();
+        let rows = items
+            .into_iter()
+            .take(5)
+            .map(|n| {
+                let (node_id, edge) = (n.node, n.edge);
+                view! {
+                    <li class="flex items-center gap-1.5">
+                        <button class="min-w-0 truncate text-left hover:underline" title="Go to it"
+                                on:click=move |_| expander.set(Some(node_id))>{n.label}</button>
+                        <span class=if n.stuck { "shrink-0 text-warning" } else { "shrink-0 text-muted" }>{n.status}</span>
+                        <button class="ml-auto shrink-0 rounded px-1 text-muted hover:bg-hover hover:text-danger"
+                                title="Remove this link" aria-label="Remove this link"
+                                on:click=move |_| remove_link(edge, picked_none, toasts, version)>"✕"</button>
+                    </li>
+                }
+            })
+            .collect_view();
+        (total > 0).then(|| {
+            view! {
+                <div>
+                    <h4 class="text-[10px] font-semibold uppercase tracking-wider text-muted">{format!("{title} ({total})")}</h4>
+                    <ul class="mt-0.5 space-y-0.5">{rows}</ul>
+                    {(total > 5).then(|| view! { <p class="text-[11px] text-muted">{format!("and {} more", total - 5)}</p> })}
+                </div>
+            }
+        })
+    };
+    let waits_title = if is_task { "Waits on" } else { "Needs" };
+    let holds_title = if is_task { "Holds up" } else { "Needed by" };
+    let start = move |reverse: bool| {
+        linking.set(Some(Linking {
+            source: id,
+            cursor: None,
+            from_tray: true,
+            reverse,
+        }));
+    };
+    let (before_label, after_label) = if is_task {
+        ("Add blocker…", "Add task it blocks…")
+    } else {
+        ("Needs…", "Needed by…")
+    };
+    let status_buttons = is_task.then(|| {
+        let current = node.task_status;
+        let buttons = status_choices()
+            .into_iter()
+            .map(|(s, label, _tone)| {
+                view! {
+                    <button class=format!("{BUTTON} {}", if current == Some(s) { BUTTON_ON } else { "" })
+                            on:click=move |_| {
+                                spawn_local(async move {
+                                    finish_task(
+                                        api::update_task(id, UpdateTask { status: Some(s), ..Default::default() }).await,
+                                        id, toasts, version, gate,
+                                    );
+                                });
+                            }>{label}</button>
+                }
+            })
+            .collect_view();
+        view! { <div class="flex flex-wrap gap-1" role="group" aria-label="Status">{buttons}</div> }
+    });
+    let objectives = colours.of_project(node.project_id);
+    let priority = (node.priority <= 2).then(|| {
+        view! { <span class=priority_pill(node.priority, node.done) title="Priority (1 is highest)">{format!("P{}", node.priority)}</span> }
+    });
+    let task_type = node.task_type.clone();
+    let owner = node.assignee.as_ref().map(|a| a.label.clone());
+    let navigate_what_if = navigate.clone();
+    view! {
+        <div class="flex h-full flex-col gap-2 overflow-y-auto p-3 text-[12px] text-fg"
+             on:mousedown=|ev| ev.stop_propagation()
+             on:click=move |ev| {
+                 ev.stop_propagation();
+                 // A click on the card itself (not on one of its buttons or names) closes it.
+                 if !on_control(&ev) {
+                     expander.defer(move || expander.set(None));
+                 }
+             }
+             on:dblclick=move |ev| {
+                 ev.stop_propagation();
+                 expander.cancel();
+                 selection.open(target);
+             }
+             on:wheel=|ev| ev.stop_propagation()>
+            <div class="flex items-start gap-2">
+                <h3 class="min-w-0 flex-1 break-words text-[13px] font-semibold">{node.label.clone()}</h3>
+                <button class="shrink-0 rounded px-1 text-muted hover:bg-hover" aria-label="Collapse"
+                        title="Collapse" on:click=move |_| expander.set(None)>"⌃"</button>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+                <span class=Tone::Neutral.chip()>{status_word(&node)}</span>
+                {priority}
+                {is_task.then(|| view! { <TypeChip id=task_type.clone() /> })}
+                <ObjectiveChips objectives=objectives />
+                {owner.map(|o| view! { <span class="text-muted">{o}</span> })}
+            </div>
+            <ul class="space-y-0.5">{lines}</ul>
+            <ul class="space-y-0.5">{why}</ul>
+            {list(waits_title, waits)}
+            {list(holds_title, holds)}
+            {move || match description.get() {
+                Some(Ok(text)) if !text.trim().is_empty() => Some(view! {
+                    <p class="max-h-[3.9em] overflow-hidden whitespace-pre-line text-muted">{text}</p>
+                }),
+                _ => None,
+            }}
+            {status_buttons}
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button class=BUTTON on:click=move |_| start(true)>{before_label}</button>
+                <button class=BUTTON on:click=move |_| start(false)>{after_label}</button>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button class=BUTTON_SOFT on:click=move |_| selection.open(target)>"Open"</button>
+                <button class=BUTTON title="See what it would push back if it slipped"
+                        on:click=move |_| {
+                            scenario.start(target, DEFAULT_SLIP_DAYS);
+                            navigate_what_if("/what-if", Default::default());
+                        }>"What if it slips?"</button>
+                <StillAccurate node=target />
+            </div>
+            <p class="mt-auto text-[10px] text-faint">{CARD_HINT}</p>
+        </div>
+    }
+}
+
+/// Whether a click landed on something that does its own thing (a button, a name, a field), as
+/// opposed to the empty part of a card.
+fn on_control(ev: &ev::MouseEvent) -> bool {
+    ev.target()
+        .and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(t).ok())
+        .and_then(|el| {
+            el.closest("button, a, input, select, textarea, [role=button], [role=option]")
+                .ok()
+                .flatten()
+        })
+        .is_some()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use minimap_types::{NodeRef, Uuid};
+    use minimap_types::{NodeRef, Uuid, Zone};
 
     fn node(label: &str, f: impl Fn(&mut GraphNode)) -> GraphNode {
         let mut n = GraphNode {
@@ -414,14 +1745,32 @@ mod tests {
             x: 0.0,
             y: 0.0,
             w: 210.0,
-            h: 38.0,
+            h: 54.0,
             layer: 0,
             context: false,
+            expanded: false,
+            waiting: false,
             done: false,
             critical: false,
             late: false,
             blocked: false,
             held_up: false,
+            task_status: None,
+            project_status: None,
+            priority: 3,
+            assignee: None,
+            project_id: None,
+            finish: None,
+            due: None,
+            slack_days: None,
+            late_by_days: None,
+            estimate_days: None,
+            task_type: None,
+            health: None,
+            zone: Zone::None,
+            progress: None,
+            upstream: 0,
+            downstream: 0,
         };
         f(&mut n);
         n
@@ -441,6 +1790,7 @@ mod tests {
             height: 100.0,
             critical_nodes: critical,
             hidden_unlinked: hidden,
+            unlinked: vec![],
             warnings: vec![],
         }
     }
@@ -461,6 +1811,78 @@ mod tests {
     }
 
     #[test]
+    fn only_the_ends_of_the_zoom_change_the_level() {
+        use GraphLevel::{Projects, Tasks};
+        let (min, max) = (MIN_ZOOM, MAX_ZOOM);
+        // Tasks: out at the smallest scale goes to projects; anything else just zooms.
+        assert_eq!(next_level(min, min, max, -0.2, Tasks), Some(Projects));
+        assert_eq!(next_level(min + 0.01, min, max, -0.2, Tasks), None);
+        assert_eq!(next_level(min, min, max, 0.2, Tasks), None);
+        assert_eq!(next_level(max, min, max, 0.2, Tasks), None);
+        // Projects: in at the largest scale goes to tasks.
+        assert_eq!(next_level(max, min, max, 0.2, Projects), Some(Tasks));
+        assert_eq!(next_level(max - 0.01, min, max, 0.2, Projects), None);
+        assert_eq!(next_level(max, min, max, -0.2, Projects), None);
+        assert_eq!(next_level(min, min, max, -0.2, Projects), None);
+        // A zoom that has just reached the bound (zoom_at clamps) has not switched yet.
+        let (z, _) = zoom_at(0.16, (0.0, 0.0), (0.0, 0.0), 0.5);
+        assert_eq!(z, MIN_ZOOM);
+        assert_eq!(next_level(0.16, min, max, -0.7, Tasks), None);
+        assert_eq!(next_level(z, min, max, -0.7, Tasks), Some(Projects));
+    }
+
+    #[test]
+    fn zooming_out_of_the_tasks_lands_on_the_project_nearest_the_middle() {
+        let a = Uuid::from_u128(1);
+        let b = Uuid::from_u128(2);
+        let g = graph(
+            vec![
+                node("a1", |n| {
+                    n.project_id = Some(a);
+                    n.x = 0.0;
+                }),
+                node("b1", |n| {
+                    n.project_id = Some(b);
+                    n.x = 1000.0;
+                }),
+                // An inbox task is nobody's project.
+                node("inbox", |n| n.x = 480.0),
+            ],
+            0,
+            0,
+            GraphLevel::Tasks,
+        );
+        assert_eq!(nearest_project(&g, (50.0, 20.0)), Some(a));
+        assert_eq!(nearest_project(&g, (900.0, 20.0)), Some(b));
+        assert_eq!(
+            nearest_project(&graph(vec![], 0, 0, GraphLevel::Tasks), (0.0, 0.0)),
+            None
+        );
+    }
+
+    #[test]
+    fn a_project_is_found_under_a_point_and_centred_in_the_view() {
+        let p = Uuid::from_u128(7);
+        let g = graph(
+            vec![node("P", |n| {
+                n.node = NodeRef::new(NodeType::Project, p);
+                n.x = 100.0;
+                n.y = 100.0;
+                n.w = 200.0;
+                n.h = 50.0;
+            })],
+            0,
+            0,
+            GraphLevel::Projects,
+        );
+        assert_eq!(project_at(&g, (150.0, 120.0)), Some(p));
+        assert_eq!(project_at(&g, (99.0, 120.0)), None);
+        assert_eq!(project_at(&g, (150.0, 151.0)), None);
+        // At 2x the box's middle (200, 125) lands in the middle of a 1000x600 view.
+        assert_eq!(centre_on(&g.nodes[0], 2.0, (1000.0, 600.0)), (100.0, 50.0));
+    }
+
+    #[test]
     fn zooming_keeps_the_point_under_the_cursor_still() {
         let (zoom, pan) = (1.0, (40.0, 20.0));
         let cursor = (300.0, 200.0);
@@ -473,6 +1895,15 @@ mod tests {
         // Limits.
         assert_eq!(zoom_at(2.9, pan, cursor, 2.0).0, MAX_ZOOM);
         assert_eq!(zoom_at(0.2, pan, cursor, 0.1).0, MIN_ZOOM);
+    }
+
+    #[test]
+    fn a_point_of_the_view_maps_back_to_the_drawing() {
+        // Undo what the pan and zoom do to the drawing.
+        let (pan, zoom) = ((40.0, 20.0), 2.0);
+        assert_eq!(to_drawing((140.0, 120.0), pan, zoom), (50.0, 50.0));
+        assert_eq!(to_drawing((40.0, 20.0), pan, zoom), (0.0, 0.0));
+        assert_eq!(to_drawing((10.0, 10.0), (0.0, 0.0), 1.0), (10.0, 10.0));
     }
 
     #[test]
@@ -520,24 +1951,5 @@ mod tests {
         );
         let one = graph(vec![node("a", |_| {})], 0, 0, GraphLevel::Projects);
         assert_eq!(summary_text(&one), "1 project");
-    }
-
-    #[test]
-    fn box_classes_follow_the_state() {
-        assert_eq!(node_class(&node("a", |_| {})), "node");
-        assert_eq!(
-            node_class(&node("a", |n| {
-                n.critical = true;
-                n.late = true
-            })),
-            "node critical late"
-        );
-        assert_eq!(
-            node_class(&node("a", |n| {
-                n.done = true;
-                n.context = true
-            })),
-            "node done context"
-        );
     }
 }

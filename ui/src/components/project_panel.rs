@@ -4,15 +4,17 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    EdgeType, NewEdge, NodeRef, NodeSummary, NodeType, Patch, PersonRow, Project, ProjectDetail,
-    ProjectStatus, TaskDisposition, UpdateProject, Uuid,
+    ApproachScope, EdgeType, NewEdge, NodeRef, NodeSummary, NodeType, Patch, PersonRow, Project,
+    ProjectDetail, ProjectStatus, TaskDisposition, UpdateProject, Uuid,
 };
 
 use crate::{
     api,
     components::{
+        approaching::ApproachStrip,
+        confirm_archive::{question, ArchiveChoice, ArchiveRequest, ConfirmArchive, UNDO_HINT},
         detail_pane::{Section, FIELD_GROUP},
-        form::{date_patch, SelectField, TextField, BUTTON, BUTTON_DANGER},
+        form::{date_patch, SelectField, TextField, BUTTON_DANGER},
         health_panel::ProjectHealthSection,
         item_notes::ItemNotes,
         markdown_box::{saver, MarkdownField},
@@ -51,6 +53,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
     view! {
         <Section title="Fields" always_open=true>
             <ProjectSummary id=id />
+            <ApproachStrip scope=ApproachScope::Project(id) class="mb-3" />
             {move || match (project.get(), people.get()) {
                 (Some(Ok(p)), Some(Ok(ps))) => view! { <ProjectFields project=p people=ps /> }.into_any(),
                 (Some(Err(e)), _) | (_, Some(Err(e))) => error_line(e),
@@ -62,7 +65,7 @@ pub fn ProjectPanel(id: Uuid) -> impl IntoView {
                 <Objectives detail=d.clone() candidates=os />
                 <Dependencies detail=d.clone() candidates=ps />
                 <ProjectHealthSection project=id />
-                <SchedulePanel project=id />
+                <SchedulePanel project=id zone=d.zone />
                 <WhatIfButton node=NodeRef::new(NodeType::Project, id) />
                 <Tasks detail=d.clone() />
                 <ItemNotes node=NodeRef::new(NodeType::Project, id) />
@@ -361,59 +364,75 @@ fn ArchiveProject(detail: ProjectDetail) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
     let selection = expect_context::<Selection>();
+    let confirm = expect_context::<ConfirmArchive>();
     let id = detail.project.id;
     let title = detail.project.title.clone();
-    // `Some(tasks)` = confirmation showing; the tasks are what the choice is about.
-    let confirming = RwSignal::new(None::<Vec<NodeSummary>>);
 
+    let archive = move |tasks: TaskDisposition| {
+        Callback::new(move |()| {
+            spawn_local(async move {
+                if finish(api::archive_project(id, tasks).await, toasts, version).is_some() {
+                    selection.close();
+                }
+            });
+        })
+    };
+    // What happens to its tasks is chosen in the dialog, which lists them.
     let start = move |_| {
+        let title = title.clone();
         spawn_local(async move {
             match api::preview_archive_project(id).await {
-                Ok(p) => confirming.set(Some(p.tasks)),
+                Ok(p) if p.tasks.is_empty() => confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
+                    title: question(&title),
+                    message: format!("It has no tasks. {UNDO_HINT}"),
+                    body: None,
+                    choices: vec![ArchiveChoice {
+                        label: "Archive".to_owned(),
+                        run: archive(TaskDisposition::Inbox),
+                    }],
+                }),
+                Ok(p) => {
+                    let n = p.tasks.len();
+                    confirm.ask_with(ArchiveRequest {
+                    on_cancel: None,
+                        title: question(&title),
+                        message: format!(
+                            "What should happen to its {n} task{}? {UNDO_HINT}",
+                            if n == 1 { "" } else { "s" }
+                        ),
+                        body: Some(task_lines(p.tasks)),
+                        choices: vec![
+                            ArchiveChoice {
+                                label: "Archive tasks too".to_owned(),
+                                run: archive(TaskDisposition::Archive),
+                            },
+                            ArchiveChoice {
+                                label: "Move tasks to inbox".to_owned(),
+                                run: archive(TaskDisposition::Inbox),
+                            },
+                        ],
+                    });
+                }
                 Err(e) => toasts.error(&e),
-            }
-        });
-    };
-    let archive = move |tasks: TaskDisposition| {
-        spawn_local(async move {
-            if finish(api::archive_project(id, tasks).await, toasts, version).is_some() {
-                confirming.set(None);
-                selection.close();
             }
         });
     };
 
     view! {
         <Section title="Archive" collapsed=true tone=crate::components::page::Tone::Danger>
-            {move || match confirming.get() {
-                None => view! { <button class=BUTTON_DANGER on:click=start>"Archive project…"</button> }.into_any(),
-                Some(tasks) if tasks.is_empty() => view! {
-                    <div class="space-y-2">
-                        <p>"Archive " <strong>{title.clone()}</strong> "? It has no tasks."</p>
-                        <div class="flex gap-2">
-                            <button class=BUTTON_DANGER on:click=move |_| archive(TaskDisposition::Inbox)>"Archive"</button>
-                            <button class=BUTTON on:click=move |_| confirming.set(None)>"Cancel"</button>
-                        </div>
-                    </div>
-                }.into_any(),
-                Some(tasks) => {
-                    let n = tasks.len();
-                    view! {
-                        <div class="space-y-2">
-                            <p>
-                                "Archive " <strong>{title.clone()}</strong> ". What should happen to its "
-                                {n} {if n == 1 { " task" } else { " tasks" }} "?"
-                            </p>
-                            <NodeButtons nodes=tasks />
-                            <div class="flex flex-wrap gap-2">
-                                <button class=BUTTON_DANGER on:click=move |_| archive(TaskDisposition::Archive)>"Archive tasks too"</button>
-                                <button class=BUTTON on:click=move |_| archive(TaskDisposition::Inbox)>"Move tasks to inbox"</button>
-                                <button class=BUTTON on:click=move |_| confirming.set(None)>"Cancel"</button>
-                            </div>
-                        </div>
-                    }.into_any()
-                }
-            }}
+            <button class=BUTTON_DANGER on:click=start>"Archive project…"</button>
         </Section>
     }
+}
+
+/// The tasks an archive touches, as plain lines in the dialog.
+fn task_lines(tasks: Vec<NodeSummary>) -> ViewFn {
+    ViewFn::from(move || {
+        view! {
+            <ul class="max-h-40 space-y-px overflow-y-auto text-[12px]">
+                {tasks.iter().map(|t| view! { <li class="truncate">"· " {t.label.clone()}</li> }).collect_view()}
+            </ul>
+        }
+    })
 }

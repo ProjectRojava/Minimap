@@ -1,8 +1,8 @@
 # Weekly review
 
-The **Weekly review** (`g r`) is a guided look back at the week, in eight short steps, with the fixes at hand, ending in a **status report** you can send. Weeks run Monday to Sunday; the arrows next to the dates move to another week.
+The **Weekly review** (`g r`) is a guided look back at the week, in nine short steps, with the fixes at hand, ending in a **status report** you can send. Weeks run Monday to Sunday; the arrows next to the dates move to another week.
 
-## The eight steps
+## The nine steps
 
 Move with the step buttons (each shows how many items it has), the **Back/Next** buttons, or the `n` and `p` keys. `j`, `k` and `Enter` walk the rows of a step.
 
@@ -15,13 +15,14 @@ Move with the step buttons (each shows how many items it has), the **Back/Next**
 | **5. Decisions** | What was decided? | Decisions made this week (proposals are left out) |
 | **6. Done** | What got done? | Tasks finished this week, and projects and objectives marked done |
 | **7. Ongoing** | Which ongoing objectives are due for a look? | [Ongoing objectives](help:objectives) whose review is overdue or falls this week, with *Mark reviewed* |
-| **8. Report** | What do I tell people? | The status report |
+| **8. Fog** | What has gone quiet? | Tasks, projects and objectives that are in play but that nobody has changed, written about or confirmed for a while, fog first and then haze, oldest first, each with *Still accurate*. The step button says *All clear* when nothing is left. See [Fog](help:fog) |
+| **9. Report** | What do I tell people? | The status report |
 
 Meetings are not in the review: they start and end on their own, so they are never slipped, blocked or overdue.
 
 ## Fixing things as you go
 
-Rows have quick fixes so you don't have to leave the review: **Tomorrow**, **Next week** or a typed date on slipped and blocked tasks; an **assignee** picker; **Unblock** on blocked tasks; **Resolve** or **Snooze** on stale waiting-ons; **Open Capacity** on overloaded people, and **Mark reviewed** on ongoing objectives.
+Rows have quick fixes so you don't have to leave the review: **Tomorrow**, **Next week** or a typed date on slipped and blocked tasks; an **assignee** picker; **Unblock** on blocked tasks; **Resolve** or **Snooze** on stale waiting-ons; **Open Capacity** on overloaded people, **Mark reviewed** on ongoing objectives, and **Still accurate** (or `c`) on what has gone quiet.
 
 ## The status report
 

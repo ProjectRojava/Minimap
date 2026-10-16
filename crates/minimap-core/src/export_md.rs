@@ -468,6 +468,7 @@ pub fn readme(markdown: bool) -> String {
          - `edges.json`: every link between items (`blocks`, `depends_on`, `assigned_to`, ...), with `from_id` and `to_id` pointing at item ids; removed links have `archived_at` set\n\
          - `attachments.json`: the files attached to items (which item, name, size, checksum); the files themselves are in `attachments/<id>/`\n\
          - `task_types.json`: your list of task types; a task's `task_type` is the `id` of one of them\n\
+         - `pings.json`: the pings (markers on an item with a day to come back to it): `target` says which item, `on_date` the day, `cleared_on` the day it was cleared; removed ones have `archived_at` set\n\
          - `activity.json`: the full history of changes, oldest first. Each entry has a `diff` of `{field: [old, new]}`\n\n\
          Ids are UUIDs, dates are `YYYY-MM-DD` and timestamps are RFC 3339 in UTC.\n\n\
          Note bodies are Markdown. A mention of an item looks like `@[Name](node:<id>)` and a picture or file like `![name](attachment:<id>)`.\n\n\
@@ -500,6 +501,8 @@ mod tests {
 
     fn project(n: u128, title: &str) -> Project {
         Project {
+            confirmed_on: None,
+
             id: id(n),
             title: title.into(),
             slug: slugify(title),
@@ -517,6 +520,8 @@ mod tests {
 
     fn task(n: u128, title: &str, project: Option<u128>, status: TaskStatus) -> Task {
         Task {
+            confirmed_on: None,
+
             links: Vec::new(),
             task_type: None,
             focus: None,
@@ -617,6 +622,8 @@ mod tests {
         due.task_type = Some("decision".into());
         let blocked = task(13, "Go live", Some(1), TaskStatus::Todo);
         let objective = Objective {
+            confirmed_on: None,
+
             ongoing: false,
             review_every_days: None,
             last_reviewed_on: None,
@@ -638,6 +645,8 @@ mod tests {
             rationale: String::new(),
             decided_on: Some(date!(2027 - 02 - 12)),
             status: DecisionStatus::Decided,
+            auto_status: false,
+            auto_decided_on: false,
             created_at: T0,
             updated_at: T0,
             archived_at: None,

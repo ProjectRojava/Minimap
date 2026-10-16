@@ -2,13 +2,15 @@
 
 Made a mistake? `Ctrl/Cmd+Z` takes back your last change and shows what it did ("Undone: archived task Fix login"). `Ctrl/Cmd+Shift+Z` (or `Ctrl+Y`) puts it back. Both are also in the command palette.
 
+To go back to how everything was this morning or last week, use a [save point](help:backup-restore): `Ctrl/Cmd+S` makes one, and *Settings → Data & backup → Save points* lists them all.
+
 ## What counts as one step
 
 **One action is one step**, however many things it changed: a quick-add, pasting a list of tasks, archiving a project with its tasks, applying a [what-if](help:what-if), finishing a repeating task (which also made the next one). Undo takes back the whole step. Minimap keeps the **last 20 steps** of the current session.
 
 ## What can be undone
 
-Creating, editing, archiving and restoring items, adding and removing links, changing a manager, finishing a task, superseding a decision, making a task repeat. Undoing a creation **archives** the item (it isn't deleted, so redo can bring it back and nothing is lost).
+Creating, editing, archiving and restoring items, adding and removing links, changing a manager, finishing a task, superseding a decision, making a task repeat, and making, changing or clearing a [ping](help:pings). Undoing a creation **archives** the item (it isn't deleted, so redo can bring it back and nothing is lost).
 
 ## What can't
 
