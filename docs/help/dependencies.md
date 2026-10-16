@@ -1,6 +1,6 @@
 # Dependency graph
 
-The **Dependencies** screen (`g l`) draws what blocks what as a graph, left to right. It is a place to **untangle what is holding what up**, to **check whether a project will finish on time**, and to **fix a link without leaving it**.
+The **Dependencies** screen (`g l`) draws what blocks what as a graph, left to right. (For the same links on a calendar, see [Gantt](help:gantt).) It is a place to **untangle what is holding what up**, to **check whether a project will finish on time**, and to **fix a link without leaving it**.
 
 ## Two levels
 

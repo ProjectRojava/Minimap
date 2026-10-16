@@ -95,6 +95,44 @@ fn short_month(d: Date) -> &'static str {
     &name[..3]
 }
 
+/// The ticks of a date axis of working days: a label at the start of each week, and for Days a
+/// line and the day number for each day.
+pub fn axis_ticks(days: &[Date], granularity: Granularity) -> Vec<Tick> {
+    let ppd = granularity.px_per_day();
+    let mut ticks = Vec::new();
+    for (i, d) in days.iter().enumerate() {
+        let x = i as f64 * ppd;
+        // A new (Monday-first) week starts at the first working day after the weekday number
+        // goes back down: Monday normally, Tuesday when Monday isn't worked.
+        let new_week = i > 0
+            && days.get(i - 1).is_some_and(|prev| {
+                d.weekday().number_days_from_monday() < prev.weekday().number_days_from_monday()
+            });
+        if new_week || i == 0 {
+            ticks.push(Tick {
+                x,
+                label: format!("{} {}", short_month(*d), d.day()),
+                kind: TickKind::Week,
+            });
+        }
+        if granularity == Granularity::Days && !(new_week || i == 0) {
+            ticks.push(Tick {
+                x,
+                label: String::new(),
+                kind: TickKind::Day,
+            });
+        }
+        if granularity == Granularity::Days {
+            ticks.push(Tick {
+                x: x + ppd / 2.0,
+                label: d.day().to_string(),
+                kind: TickKind::Day,
+            });
+        }
+    }
+    ticks
+}
+
 pub fn layout(
     schedule: &Schedule,
     granularity: Granularity,
@@ -132,37 +170,7 @@ pub fn layout(
         })
         .collect();
 
-    let mut ticks = Vec::new();
-    for (i, d) in schedule.days.iter().enumerate() {
-        let x = i as f64 * ppd;
-        // A new (Monday-first) week starts at the first working day after the weekday number
-        // goes back down: Monday normally, Tuesday when Monday isn't worked.
-        let new_week = i > 0
-            && schedule.days.get(i - 1).is_some_and(|prev| {
-                d.weekday().number_days_from_monday() < prev.weekday().number_days_from_monday()
-            });
-        if new_week || i == 0 {
-            ticks.push(Tick {
-                x,
-                label: format!("{} {}", short_month(*d), d.day()),
-                kind: TickKind::Week,
-            });
-        }
-        if granularity == Granularity::Days && !(new_week || i == 0) {
-            ticks.push(Tick {
-                x,
-                label: String::new(),
-                kind: TickKind::Day,
-            });
-        }
-        if granularity == Granularity::Days {
-            ticks.push(Tick {
-                x: x + ppd / 2.0,
-                label: d.day().to_string(),
-                kind: TickKind::Day,
-            });
-        }
-    }
+    let ticks = axis_ticks(&schedule.days, granularity);
 
     Layout {
         width: schedule.days.len() as f64 * ppd,
@@ -305,6 +313,8 @@ mod tests {
             slack_days: slack,
             critical,
             late_by_days: (slack < 0.0).then_some((-slack).ceil() as u32),
+            earliest_start: date!(2027 - 03 - 01),
+            held_by: None,
         }
     }
 

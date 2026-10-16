@@ -227,6 +227,69 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .gantt .today-marker { fill: var(--accent); }
 .gantt .target-marker { fill: var(--danger); }
 
+/* Gantt screen (pages/gantt.rs, spec 57): objectives, projects and tasks on a calendar. A task bar
+   is coloured by its status (to do hollow, in progress accent, blocked striped amber, done dim),
+   so status never depends on colour alone: blocked has a pattern, done is faded, and the legend
+   and the row chips say it in words. Theme tokens only. */
+.gc { display: block; user-select: none; }
+.gc text { fill: var(--muted); font-size: 10px; font-family: inherit; }
+.gc .week-line { stroke: var(--line-strong); stroke-width: 1; }
+.gc .day-line { stroke: var(--line); stroke-width: 1; stroke-opacity: 0.5; }
+.gc .head-line, .gc .row-line { stroke: var(--line); stroke-width: 1; }
+.gc .row-line { stroke-opacity: 0.6; }
+.gc .row-bg { fill: transparent; }
+.gc .row-sel { fill: var(--active); fill-opacity: 0.6; }
+.gc .today { stroke: var(--accent); stroke-width: 1; pointer-events: none; }
+.gc .today-marker { fill: var(--accent); }
+.gc .stripe-bg { fill: color-mix(in srgb, var(--warning) 14%, var(--panel)); }
+.gc .stripe-line { stroke: var(--warning); stroke-width: 3; }
+.gc .fade-from { stop-color: var(--muted); stop-opacity: 0.6; }
+.gc .fade-to { stop-color: var(--muted); stop-opacity: 0; }
+.gc .gb { stroke-width: 1; cursor: grab; }
+.gc .gb.todo { fill: var(--canvas); stroke: var(--muted); }
+.gc .gb.progress { fill: var(--accent); stroke: var(--accent); }
+.gc .gb.blocked { fill: url(#gc-stripes); stroke: var(--warning); }
+.gc .gb.done { fill: var(--faint); stroke: var(--faint); opacity: 0.55; cursor: default; }
+.gc .gb.cancelled { fill: none; stroke: var(--faint); stroke-dasharray: 2 2; cursor: default; }
+.gc .gb.unestimated { stroke-dasharray: 3 2; }
+.gc .gb.moving { opacity: 0.85; }
+.gc .gb.pushed { stroke: var(--danger); stroke-width: 1.6; }
+.gc .gb:hover { filter: brightness(1.15); }
+.gc .crit { fill: var(--accent); }
+.gc .late-tail { fill: var(--danger); fill-opacity: 0.85; }
+.gc .slack { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 2; }
+.gc .due { stroke: var(--fg); stroke-width: 1.5; stroke-opacity: 0.7; }
+.gc .due.overdue { stroke: var(--danger); stroke-opacity: 1; }
+.gc .task.dim { opacity: 0.3; }
+.gc .handle { fill: transparent; cursor: ew-resize; }
+.gc .grip { fill: transparent; cursor: grab; }
+.gc .ghost { fill: none; stroke: var(--faint); stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
+.gc .limit { stroke: var(--warning); stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
+.gc .pushed { fill: var(--danger); font-weight: 600; }
+.gc .summary { fill: var(--muted); }
+.gc .summary.objc { fill: hsl(var(--obj-h) var(--obj-s) var(--obj-l)); }
+.gc .cap { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+.gc .room { fill: var(--success); fill-opacity: 0.16; }
+.gc .room.narrow { fill: var(--warning); fill-opacity: 0.2; }
+.gc .room.closing { fill: var(--warning); fill-opacity: 0.38; }
+.gc .over { fill: var(--danger); fill-opacity: 0.35; }
+.gc .fade { fill: url(#gc-fade); }
+.gc .target { stroke: var(--danger); stroke-width: 1; stroke-dasharray: 3 2; }
+.gc .flag { fill: var(--danger); }
+.gc .pin { stroke: var(--fg); stroke-width: 2; stroke-opacity: 0.6; fill: none; }
+.gc .link .line { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+.gc .link .head { fill: var(--muted); }
+.gc .link.dashed .line { stroke-dasharray: 4 3; }
+.gc .link.quiet { opacity: 0.45; }
+.gc .link.dim { opacity: 0.1; }
+.gc .link.lit .line { stroke: var(--accent); stroke-width: 2; }
+.gc .link.lit .head { fill: var(--accent); }
+.gc .link { pointer-events: none; }
+.gc .tag rect { fill: var(--panel); stroke: var(--line-strong); }
+.gc .tag text { fill: var(--fg); font-size: 11px; }
+.gc .tag.stopped rect { stroke: var(--warning); }
+.gc.dragging, .gc.dragging * { cursor: grabbing !important; }
+
 /* Dependency graph (pages/graph.rs). Theme tokens only. */
 .dep { display: block; cursor: grab; user-select: none; }
 .dep:active { cursor: grabbing; }

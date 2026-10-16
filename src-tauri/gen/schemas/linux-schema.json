@@ -201,6 +201,12 @@
           "markdownDescription": "Enables the add_edges command without any pre-configured scope."
         },
         {
+          "description": "Enables the add_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-add-task-waiting",
+          "markdownDescription": "Enables the add_task_waiting command without any pre-configured scope."
+        },
+        {
           "description": "Enables the advance_meetings command without any pre-configured scope.",
           "type": "string",
           "const": "allow-advance-meetings",
@@ -223,6 +229,12 @@
           "type": "string",
           "const": "allow-apply-slips",
           "markdownDescription": "Enables the apply_slips command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the apply_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-apply-task-drag",
+          "markdownDescription": "Enables the apply_task_drag command without any pre-configured scope."
         },
         {
           "description": "Enables the archive_decision command without any pre-configured scope.",
@@ -507,6 +519,12 @@
           "markdownDescription": "Enables the get_fog command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_gantt command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-gantt",
+          "markdownDescription": "Enables the get_gantt command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_last_save_point command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-last-save-point",
@@ -643,6 +661,12 @@
           "type": "string",
           "const": "allow-get-task-detail",
           "markdownDescription": "Enables the get_task_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-task-waiting",
+          "markdownDescription": "Enables the get_task_waiting command without any pre-configured scope."
         },
         {
           "description": "Enables the get_team command without any pre-configured scope.",
@@ -867,6 +891,12 @@
           "markdownDescription": "Enables the preview_restore command without any pre-configured scope."
         },
         {
+          "description": "Enables the preview_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-preview-task-drag",
+          "markdownDescription": "Enables the preview_task_drag command without any pre-configured scope."
+        },
+        {
           "description": "Enables the quit_app command without any pre-configured scope.",
           "type": "string",
           "const": "allow-quit-app",
@@ -937,6 +967,12 @@
           "type": "string",
           "const": "allow-reschedule-task",
           "markdownDescription": "Enables the reschedule_task command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the resolve_task_waiting_ons command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-resolve-task-waiting-ons",
+          "markdownDescription": "Enables the resolve_task_waiting_ons command without any pre-configured scope."
         },
         {
           "description": "Enables the resolve_waiting_on command without any pre-configured scope.",
@@ -1167,6 +1203,12 @@
           "markdownDescription": "Denies the add_edges command without any pre-configured scope."
         },
         {
+          "description": "Denies the add_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-add-task-waiting",
+          "markdownDescription": "Denies the add_task_waiting command without any pre-configured scope."
+        },
+        {
           "description": "Denies the advance_meetings command without any pre-configured scope.",
           "type": "string",
           "const": "deny-advance-meetings",
@@ -1189,6 +1231,12 @@
           "type": "string",
           "const": "deny-apply-slips",
           "markdownDescription": "Denies the apply_slips command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the apply_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-apply-task-drag",
+          "markdownDescription": "Denies the apply_task_drag command without any pre-configured scope."
         },
         {
           "description": "Denies the archive_decision command without any pre-configured scope.",
@@ -1473,6 +1521,12 @@
           "markdownDescription": "Denies the get_fog command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_gantt command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-gantt",
+          "markdownDescription": "Denies the get_gantt command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_last_save_point command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-last-save-point",
@@ -1609,6 +1663,12 @@
           "type": "string",
           "const": "deny-get-task-detail",
           "markdownDescription": "Denies the get_task_detail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-task-waiting",
+          "markdownDescription": "Denies the get_task_waiting command without any pre-configured scope."
         },
         {
           "description": "Denies the get_team command without any pre-configured scope.",
@@ -1833,6 +1893,12 @@
           "markdownDescription": "Denies the preview_restore command without any pre-configured scope."
         },
         {
+          "description": "Denies the preview_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-preview-task-drag",
+          "markdownDescription": "Denies the preview_task_drag command without any pre-configured scope."
+        },
+        {
           "description": "Denies the quit_app command without any pre-configured scope.",
           "type": "string",
           "const": "deny-quit-app",
@@ -1903,6 +1969,12 @@
           "type": "string",
           "const": "deny-reschedule-task",
           "markdownDescription": "Denies the reschedule_task command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the resolve_task_waiting_ons command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-resolve-task-waiting-ons",
+          "markdownDescription": "Denies the resolve_task_waiting_ons command without any pre-configured scope."
         },
         {
           "description": "Denies the resolve_waiting_on command without any pre-configured scope.",

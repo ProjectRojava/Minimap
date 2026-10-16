@@ -19,9 +19,11 @@ use crate::{
     },
     keyboard::use_global_shortcuts,
     pages::{
+        archive::Archive,
         capacity::Capacity,
         decisions::Decisions,
         deep_link::{DeepLink, NotFound},
+        gantt::Gantt,
         graph::Graph,
         help::Help,
         notes::Notes,
@@ -30,7 +32,6 @@ use crate::{
         people::People,
         projects::Projects,
         settings::Settings,
-        archive::Archive,
         tasks::{Inbox, Tasks},
         teams::Teams,
         this_week::ThisWeek,
@@ -150,6 +151,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/people") view=People />
                     <Route path=path!("/capacity") view=Capacity />
                     <Route path=path!("/graph") view=Graph />
+                    <Route path=path!("/gantt") view=Gantt />
                     <Route path=path!("/teams") view=Teams />
                     <Route path=path!("/notes") view=Notes />
                     <Route path=path!("/decisions") view=Decisions />
@@ -170,6 +172,7 @@ fn Shell() -> impl IntoView {
             <PaletteHost />
             <LinkDialogHost />
             <crate::components::finish_decision::FinishDecisionHost />
+            <crate::components::finish_waiting::FinishWaitingHost />
             <crate::components::confirm_archive::ConfirmArchiveHost />
             <crate::components::meeting::MeetingDialogHost />
             <crate::components::meeting::MeetingClock />

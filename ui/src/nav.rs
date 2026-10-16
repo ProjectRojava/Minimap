@@ -73,6 +73,14 @@ pub const NAV: &[NavItem] = &[
         enabled: true,
     },
     NavItem {
+        label: "Gantt",
+        icon: "gantt",
+        group: "Plan",
+        path: "/gantt",
+        chord: 'j',
+        enabled: true,
+    },
+    NavItem {
         label: "What if",
         icon: "what-if",
         group: "Plan",

@@ -7,6 +7,8 @@
 - Open a task or project and press **What if this slips?** in its detail pane; it starts a 5-day scenario for that item and opens the screen.
 - Or open **What if** (`g f`) directly and add items yourself with the search box.
 
+To move work for real instead of trying a delay out, drag its bar on the [Gantt](help:gantt) screen.
+
 A scenario can hold **several slips** at once (for example two things both running late). For each, set the **number of working days**; remove one with ✕. A project slip delays all its open tasks.
 
 ## What it shows

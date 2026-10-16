@@ -24,7 +24,7 @@ At the top of a task's detail pane a row of coloured pills shows where it stands
 | Project | Optional. No project means the inbox |
 | Assignee | One person, or nobody |
 | Estimate | `3d`, `1.5d`, `4h` or a bare number (days). Hours use your hours-per-working-day setting. Leave it empty if you don't know |
-| Start date, due date | Optional. A start date means "not before" for the schedule |
+| Start date, due date | Optional. A start date means "not before" for the schedule. On the [Gantt](help:gantt) screen, dragging a task's bar changes them (and the estimate) for you |
 | Repeats | Optional rule such as `mon` or `2w`: see [Recurring items](help:recurring) |
 | Focus | Optional: keep the task on [This week](help:this-week) every day, whatever its due date. See *Focus* below |
 | Reference links | Web pages, Google Drive files and other addresses: see below |
@@ -124,6 +124,16 @@ Below the reference links, **Notes and findings** is where you keep the record o
 
 On each note, the **pencil** edits it in place (*Save* or `Ctrl/Cmd+Enter`, *Cancel* to leave it as it was; the note's title follows its first line unless you changed the title yourself). The **⋯** menu has *Open in the pane* (to change its date or kind, or to see its checklist) and *Archive* (asks first; `Ctrl/Cmd+Z` brings it back). Only the newest ten are listed at first; *Show earlier notes* lists the rest. Projects and objectives have the same section.
 
+## Waiting on someone
+
+When a task is stuck on a person, say so on the task. **Add to this task → Waiting on** (or *+ Add* in the section once it shows) opens a small form: **who** you are waiting on, **what** you are waiting for (it starts as "Waiting for" and the task's title) and, if you know it, **expected by**. The waiting-on is the ordinary record on the [Waiting on](help:waiting-on) screen, linked to the task. A task can wait on **several** people at once, and each is listed under *Waiting on* in the task's pane with how long ago you asked, a *stale* chip when it is stale, and **Resolve**, **Snooze** and **Open** buttons. Resolved ones are folded under *Resolved*, with **Reopen**.
+
+- **Who it waits on is on the card.** A task with an open waiting-on shows a small clock chip with the person's name (*Raj*, or *Raj +1* when there are more) on its board card, its row in the list, and its row on [This week](help:this-week). It turns amber when any of it is stale; point at it to see each person, what for and for how long.
+- **The status is yours to change.** Minimap offers **Mark as blocked** while a to-do or in-progress task has something open, and **Move to In progress** when you resolve the last one on a blocked task. It never changes the status by itself.
+- **An expected-by date does not move the schedule.** It is a reminder, like a [ping](help:pings): it does not change the task's dates, the critical path, health or anyone's load.
+- **Finishing the task asks about it.** Marking a task done is never held up. If it still has open waiting-ons, a small box asks *Resolve them too?*: **Resolve** closes them all as one step (`Ctrl/Cmd+Z` undoes it), **Leave open** (or `Esc`) keeps them on the Waiting on screen.
+- **Archiving the task leaves them.** Its link to the task goes with it, but the waiting-ons stay open on the Waiting on screen: the other person still owes you the thing. The *Archive* box says how many.
+
 ## Sub-tasks and links
 
 A task's pane has two sections for tying it to other tasks, and they mean different things.
@@ -154,4 +164,4 @@ Who a task is **assigned** to is set in its fields, above.
 
 ## Finishing, archiving and undoing
 
-*Done* records when it was completed. *Archive* (in the detail pane) hides the task with its links. Both can be undone with `Ctrl/Cmd+Z`; see [Undo and redo](help:undo).
+*Done* records when it was completed (if people are still owing you something on it, Minimap asks whether to resolve that too: see *Waiting on someone*). *Archive* (in the detail pane) hides the task with its links; anything you are waiting for on it stays on the Waiting on screen. Both can be undone with `Ctrl/Cmd+Z`; see [Undo and redo](help:undo).

@@ -128,6 +128,12 @@ pub const PAGES: &[Page] = &[
         "How finish dates, slack and the critical path are worked out"
     ),
     page!(
+        "gantt",
+        "Planning and insight",
+        "Gantt",
+        "The plan on a calendar: bars, arrows between tasks, and dragging work to move it"
+    ),
+    page!(
         "dependencies",
         "Planning and insight",
         "Dependency graph",
@@ -419,7 +425,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 37);
+        assert_eq!(PAGES.len(), 38);
     }
 
     #[test]

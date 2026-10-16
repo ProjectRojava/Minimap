@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resolve-task-waiting-ons"
+description = "Enables the resolve_task_waiting_ons command without any pre-configured scope."
+commands.allow = ["resolve_task_waiting_ons"]
+
+[[permission]]
+identifier = "deny-resolve-task-waiting-ons"
+description = "Denies the resolve_task_waiting_ons command without any pre-configured scope."
+commands.deny = ["resolve_task_waiting_ons"]

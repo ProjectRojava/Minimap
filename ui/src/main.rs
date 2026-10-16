@@ -2,6 +2,7 @@ mod api;
 mod app;
 mod calendar;
 mod components;
+mod gantt;
 mod graph_view;
 mod help;
 mod icons;

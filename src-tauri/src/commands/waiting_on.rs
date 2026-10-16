@@ -167,6 +167,70 @@ pub(crate) fn snooze_impl(
     minimap_store::waiting_on::update(conn, id, patch).map_err(store_error)
 }
 
+/// Every waiting-on about a task, whatever its state (open, snoozed, resolved), oldest first, for
+/// the task pane's *Waiting on* section (spec 56).
+#[tauri::command]
+pub async fn get_task_waiting(
+    state: State<'_, AppState>,
+    task_id: Uuid,
+) -> Result<Vec<WaitingOnRow>, AppError> {
+    state
+        .run(move |conn| task_waiting_impl(conn, task_id, minimap_store::today()))
+        .await
+}
+
+pub(crate) fn task_waiting_impl(
+    conn: &Connection,
+    task: Uuid,
+    today: Date,
+) -> Result<Vec<WaitingOnRow>, AppError> {
+    let all = WaitingOnFilter {
+        person_id: None,
+        include_resolved: true,
+        include_snoozed: true,
+    };
+    Ok(list_impl(conn, &all, today)?
+        .into_iter()
+        .filter(|r| {
+            r.about
+                .as_ref()
+                .is_some_and(|a| a.node.node_type == NodeType::Task && a.node.id == task)
+        })
+        .collect())
+}
+
+/// A waiting-on made from a task's pane: the record and its `about` link to the task in one step.
+#[tauri::command]
+pub async fn add_task_waiting(
+    state: State<'_, AppState>,
+    task_id: Uuid,
+    input: CreateWaitingOn,
+) -> Result<WaitingOn, AppError> {
+    state
+        .run(move |conn| {
+            check_person_active(conn, input.person_id)?;
+            minimap_store::waiting_on::create_for_task(conn, task_id, input).map_err(store_error)
+        })
+        .await
+}
+
+/// Resolves every open waiting-on about a task today (the dialog after finishing it); returns
+/// how many it resolved.
+#[tauri::command]
+pub async fn resolve_task_waiting_ons(
+    state: State<'_, AppState>,
+    task_id: Uuid,
+) -> Result<u32, AppError> {
+    state
+        .run(move |conn| {
+            let done =
+                minimap_store::waiting_on::resolve_for_task(conn, task_id, minimap_store::today())
+                    .map_err(store_error)?;
+            Ok(u32::try_from(done.len()).unwrap_or(u32::MAX))
+        })
+        .await
+}
+
 #[tauri::command]
 pub async fn archive_waiting_on(state: State<'_, AppState>, id: Uuid) -> Result<(), AppError> {
     state
@@ -324,5 +388,76 @@ mod tests {
             check_person_active(&conn, Uuid::now_v7()).unwrap_err().code,
             "not_found"
         );
+    }
+
+    #[test]
+    fn a_tasks_waiting_rows_are_the_ones_about_it_with_their_flags() {
+        use minimap_types::{AssigneeChoice, CreateTask, EdgeType, NewEdge};
+        let (mut conn, raj) = setup();
+        let project = minimap_store::fixtures::project(&conn);
+        let mut task = |title: &str| {
+            minimap_store::tasks::create(
+                &mut conn,
+                CreateTask {
+                    links: Vec::new(),
+                    task_type: None,
+                    focus: None,
+                    start_minute: None,
+                    length_minutes: None,
+                    title: title.into(),
+                    assignee: AssigneeChoice::Nobody,
+                    description: String::new(),
+                    project_id: Some(project),
+                    status: None,
+                    estimate_days: None,
+                    start_date: None,
+                    due_date: None,
+                    priority: None,
+                    recurrence: None,
+                },
+            )
+            .unwrap()
+            .id
+        };
+        let (a, b) = (task("A"), task("B"));
+        let input = |text: &str, asked: Date| CreateWaitingOn {
+            description: text.into(),
+            person_id: raj,
+            asked_on: Some(asked),
+            expected_by: None,
+            follow_up_on: None,
+        };
+        let old = minimap_store::waiting_on::create_for_task(
+            &mut conn,
+            a,
+            input("old", TODAY - Duration::days(20)),
+        )
+        .unwrap();
+        minimap_store::waiting_on::create_for_task(&mut conn, a, input("new", TODAY)).unwrap();
+        minimap_store::waiting_on::create_for_task(&mut conn, b, input("elsewhere", TODAY))
+            .unwrap();
+        // Not linked to a task, and linked to a project: neither is the task's.
+        make(&mut conn, raj, "loose", TODAY);
+        let linked = make(&mut conn, raj, "project", TODAY);
+        minimap_store::edges::add(
+            &mut conn,
+            NewEdge {
+                edge_type: EdgeType::About,
+                from: NodeRef::new(NodeType::WaitingOn, linked.id),
+                to: NodeRef::new(NodeType::Project, project),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .unwrap();
+
+        let rows = task_waiting_impl(&conn, a, TODAY).unwrap();
+        assert_eq!(texts(&rows), vec!["old", "new"]);
+        assert!(rows[0].stale && !rows[1].stale);
+
+        // Resolved ones are still listed, with their state.
+        resolve_impl(&mut conn, old.id, TODAY).unwrap();
+        let rows = task_waiting_impl(&conn, a, TODAY).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!(rows[0].waiting.resolved_on.is_some() && !rows[0].stale);
     }
 }

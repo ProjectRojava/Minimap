@@ -26,6 +26,7 @@ use crate::{
         review_row::ReviewRow,
         sync_status::SyncBanner,
         task_board::{priority_pill, today as local_today},
+        waiting_badge::WaitingChip,
         waiting_panel::age_text,
     },
     labels::{note_kind_tone, priority_short, task_status_label, task_status_tone},
@@ -1012,6 +1013,7 @@ fn FlagRow(
         })
         .collect_view();
     let blockers = blocked_text(&item.task);
+    let waiting = item.task.row.waiting.clone();
     // Under the title: the pill column is 11rem wide, then a gap.
     let below = move || {
         notes
@@ -1031,6 +1033,7 @@ fn FlagRow(
             </span>
             {priority_chip(t.priority)}
             {blockers.map(|b| view! { <span class="min-w-0 truncate text-[11px] text-warning">{b}</span> })}
+            <WaitingChip badge=waiting with_age=true />
             {ping.map(|p| {
                 let day = p.on_date;
                 view! { <RowPing ping=p today=local_today().unwrap_or(day) /> }
@@ -1170,6 +1173,7 @@ fn FocusRow(
     let status = (t.status != TaskStatus::Todo)
         .then(|| (task_status_tone(t.status), task_status_label(t.status)));
     let quiet = quiet_text(item.quiet_days);
+    let waiting = item.task.row.waiting.clone();
     let description = (!t.description.trim().is_empty()).then(|| t.description.clone());
     // Under the title: the star column, then a gap.
     let below = move || {
@@ -1190,6 +1194,7 @@ fn FocusRow(
                     {project.map(|p| view! { <span>{p}</span> })}
                     {due.map(|text| view! { <span class="tabular-nums">{text}</span> })}
                     {until.map(|text| view! { <span>{text}</span> })}
+                    <WaitingChip badge=waiting with_age=true />
                     {quiet.map(|text| {
                         let title = format!("{text} Click the star to take it out of focus.");
                         view! { <span class="text-warning" title=title>{text}</span> }
@@ -1233,6 +1238,7 @@ fn PlanRow(
     let id = t.id;
     let node = NodeRef::new(NodeType::Task, id);
     let project = row.row.project.as_ref().map(|p| p.label.clone());
+    let waiting = row.row.waiting.clone();
     let due = t.due_date.map(|d| {
         let soon = (d - today).whole_days() <= 1;
         (due_text(d, today), soon)
@@ -1263,6 +1269,7 @@ fn PlanRow(
                 <span class="min-w-0 truncate">
                     <span class=if top { "font-semibold" } else { "" }>{t.title.clone()}</span>
                     {project.map(|p| view! { <span class="ml-2 text-muted">{p}</span> })}
+                    <span class="ml-2"><WaitingChip badge=waiting /></span>
                 </span>
                 <span>{priority_chip(t.priority)}</span>
                 <span>{status.map(|(tone, s)| view! { <span class=tone.chip()>{s}</span> })}</span>
@@ -1661,6 +1668,7 @@ mod tests {
     fn task(n: u128, status: TaskStatus) -> WeekTask {
         WeekTask {
             row: minimap_types::TaskRow {
+                waiting: None,
                 task: minimap_types::Task {
                     confirmed_on: None,
 

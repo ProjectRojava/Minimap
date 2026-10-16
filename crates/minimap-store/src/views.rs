@@ -475,6 +475,8 @@ pub fn task_rows(conn: &Connection) -> Result<Vec<TaskRow>> {
         }
     }
     let files = attachments::counts(conn)?;
+    // Who each task is waiting on (spec 56): open waiting-ons about it, with the stale rules.
+    let mut waiting = waiting_badges(conn)?;
     let active = tasks::list(conn, false)?;
     // Sub-tasks (spec 33): each child's parent, and the parent's progress over its live children.
     let status: HashMap<Uuid, TaskStatus> = active.iter().map(|t| (t.id, t.status)).collect();
@@ -496,6 +498,7 @@ pub fn task_rows(conn: &Connection) -> Result<Vec<TaskRow>> {
                 children.get(&task.id).into_iter().flatten().copied(),
             );
             TaskRow {
+                waiting: waiting.remove(&task.id),
                 subtask_count,
                 subtasks_done,
                 parent: parent.get(&task.id).and_then(|p| {
@@ -517,6 +520,34 @@ pub fn task_rows(conn: &Connection) -> Result<Vec<TaskRow>> {
                 }),
                 task,
             }
+        })
+        .collect())
+}
+
+/// The waiting badge of every task that has open waiting-ons (spec 56).
+fn waiting_badges(conn: &Connection) -> Result<HashMap<Uuid, minimap_types::WaitingBadge>> {
+    let stale_days = crate::settings::get(conn)?.stale_waiting_days;
+    let today = crate::today();
+    let filter = minimap_types::WaitingOnFilter {
+        person_id: None,
+        include_resolved: false,
+        include_snoozed: true,
+    };
+    let mut by_task: HashMap<Uuid, Vec<minimap_types::WaitingOnItem>> = HashMap::new();
+    for item in waiting_on_items(conn)? {
+        if let Some(a) = item
+            .about
+            .as_ref()
+            .filter(|a| a.node.node_type == NodeType::Task)
+        {
+            by_task.entry(a.node.id).or_default().push(item);
+        }
+    }
+    Ok(by_task
+        .into_iter()
+        .filter_map(|(task, items)| {
+            let rows = minimap_core::waiting_on::arrange(items, &filter, today, stale_days);
+            minimap_core::waiting_on::badge(&rows).map(|b| (task, b))
         })
         .collect())
 }

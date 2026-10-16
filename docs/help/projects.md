@@ -64,5 +64,6 @@ Archiving opens a dialog that lists the project's tasks and asks what to do with
 
 ## Tips
 
+- A project's **start date** means *nothing in it starts before this day*: its tasks are held back until then (see [Schedule](help:schedule)). Leave it empty unless that is what you mean. On the [Gantt](help:gantt) screen you can drag a project's start mark and its target flag, which gives its work more or less room.
 - Give projects a **target date** and tasks **estimates**; that is what lets Minimap say whether the project will finish on time.
 - A project with no open tasks, or one that is paused, done or cancelled, is *not scored* for health.

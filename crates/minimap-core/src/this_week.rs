@@ -486,6 +486,7 @@ mod tests {
 
     fn row(n: u128, title: &str, status: TaskStatus, due: Option<Date>, priority: u8) -> TaskRow {
         TaskRow {
+            waiting: None,
             task: Task {
                 confirmed_on: None,
 

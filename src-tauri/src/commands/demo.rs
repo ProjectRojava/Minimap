@@ -252,6 +252,71 @@ mod tests {
     }
 
     #[test]
+    fn the_gantt_of_the_demo_data() {
+        let conn = demo();
+        let data =
+            crate::commands::gantt::gantt_at(&conn, TODAY, minimap_types::GanttFilter::default())
+                .unwrap();
+        let mut out = String::new();
+        for g in &data.groups {
+            let name = g
+                .objective
+                .as_ref()
+                .map_or("(no objective)", |o| o.title.as_str());
+            let _ = writeln!(
+                out,
+                "{name}: work {}..{} target {} late {}",
+                opt(g.band.work_from),
+                opt(g.band.work_to),
+                opt(g.band.target_date),
+                opt(g.band.late_by_days)
+            );
+            for p in &g.projects {
+                let _ = writeln!(
+                    out,
+                    "  {}: {} open, {} blocked, {} done; room {:?}; also under {}; chain {}",
+                    p.title,
+                    p.open_tasks,
+                    p.blocked_tasks,
+                    p.done_tasks,
+                    p.zone,
+                    p.also_under.len(),
+                    p.chain.len()
+                );
+            }
+        }
+        let blocks = data
+            .links
+            .iter()
+            .filter(|l| l.kind == minimap_types::GanttLinkKind::Blocks)
+            .count();
+        let _ = writeln!(out, "links: {blocks} blocks, {} in all", data.links.len());
+        insta::assert_snapshot!(out);
+        // The story holds: EU Region is the project that runs late.
+        let eu = data
+            .groups
+            .iter()
+            .flat_map(|g| g.projects.iter())
+            .find(|p| p.title == "EU Region")
+            .unwrap();
+        assert!(eu.band.late_by_days.is_some() || eu.band.target_offset.is_some());
+        // Every task has a bar that starts on or after its earliest day.
+        for t in data
+            .groups
+            .iter()
+            .flat_map(|g| g.projects.iter())
+            .flat_map(|p| p.tasks.iter())
+        {
+            assert!(t.schedule.earliest_start <= t.schedule.start || t.schedule.done);
+        }
+        if let Ok(dir) = std::env::var("MINIMAP_DUMP_GANTT") {
+            let settings = minimap_store::settings::get(&conn).unwrap();
+            let both = serde_json::json!({ "get_gantt": data, "get_settings": settings });
+            std::fs::write(dir, serde_json::to_string(&both).unwrap()).unwrap();
+        }
+    }
+
+    #[test]
     fn a_five_day_slip_on_the_eu_clusters_ripples_as_expected() {
         let conn = demo();
         let slip = Slip {

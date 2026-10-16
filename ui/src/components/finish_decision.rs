@@ -22,7 +22,7 @@ pub fn can_submit(decision: &str, rationale: &str) -> bool {
 pub fn FinishDecisionHost() -> impl IntoView {
     let gate = expect_context::<FinishDecision>();
     view! {
-        {move || gate.0.get().map(|task| view! { <Dialog task=task /> })}
+        {move || gate.decision.get().map(|task| view! { <Dialog task=task /> })}
     }
 }
 

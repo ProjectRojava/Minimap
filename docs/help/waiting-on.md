@@ -16,6 +16,8 @@ Open items are listed **oldest first** with their age, so the ones that most nee
 | Expected by | Optional date |
 | **About** | Optional: the task or project it concerns |
 
+**From a task.** Open a task and choose **Add to this task → Waiting on** to add one that is already about that task: you only pick who, what and, if you like, when you expect it. The task then shows who it is waiting on on its card and rows, and finishing it asks whether to resolve them. See [Tasks](help:tasks), *Waiting on someone*. A waiting-on is about one task or project at a time, and its *About* link is the same one either way.
+
 From the keyboard: `Ctrl/Cmd+K` then `wait @raj on "Security review sign-off" by:next-wed`. See [Quick-add and the palette](help:quick-add).
 
 ## When is something stale?

@@ -31,6 +31,7 @@ use crate::{
         task_type::{
             finish_badge, frame_colour, frame_style, type_for_new_task, use_task_types, TypeChip,
         },
+        waiting_badge::WaitingChip,
     },
     labels::{
         deadline_heat, estimate_text, heat_strength, priority_short, task_status_label,
@@ -1210,7 +1211,12 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     let attached = attachment_hint(row.attachment_count, t.links.len());
     let subtasks = (row.subtask_count > 0).then_some((row.subtasks_done, row.subtask_count));
     let parent = row.parent.map(|p| p.label);
-    let marks = link_count > 0 || attached.is_some() || subtasks.is_some() || parent.is_some();
+    let waiting = row.waiting;
+    let marks = link_count > 0
+        || attached.is_some()
+        || subtasks.is_some()
+        || parent.is_some()
+        || waiting.is_some();
     let assignee = row.assignee.map(|a| (a.node.id, a.label));
     let project = row.project.map(|p| p.label);
     let title_class = if closed {
@@ -1301,6 +1307,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             })}
             {(marks && !faded).then(|| view! {
                 <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <WaitingChip badge=waiting.clone() />
                     {(link_count > 0).then(|| view! {
                         <span class="hue-chip" style=format!("--obj-h: {LINK_HUE}") title=link_hint(link_count)>
                             <Icon name="chain" size="h-3.5 w-3.5" />
@@ -1377,6 +1384,7 @@ mod tests {
     fn row(title: &str, status: TaskStatus) -> TaskRow {
         let at = OffsetDateTime::UNIX_EPOCH;
         TaskRow {
+            waiting: None,
             task: minimap_types::Task {
                 confirmed_on: None,
 

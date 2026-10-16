@@ -628,6 +628,7 @@ mod tests {
     fn blocked_task(title: &str, by: &[&str]) -> WeekTask {
         WeekTask {
             row: TaskRow {
+                waiting: None,
                 task: Task {
                     confirmed_on: None,
 

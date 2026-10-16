@@ -33,9 +33,9 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
         summary.decisions, 7,
         "4 written, 3 made by tasks of type Decision, one of them replaced"
     );
-    assert_eq!(summary.waiting_ons, 3);
+    assert_eq!(summary.waiting_ons, 4);
     assert_eq!(summary.pings, 3);
-    assert_eq!(summary.links, 119);
+    assert_eq!(summary.links, 120);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 45);
     assert_eq!(count(&conn, "people"), 8);

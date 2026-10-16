@@ -105,6 +105,7 @@ pub fn done_rows_between(conn: &Connection, from: Date, to: Date) -> Result<Vec<
             .find(|e: &Edge| e.edge_type == EdgeType::AssignedTo && e.from_id == task.id)
             .and_then(|e| people.get(&e.to_id).map(|n| (e.to_id, n.clone())));
         rows.push(TaskRow {
+            waiting: None,
             project: task.project_id.and_then(|p| {
                 names.get(&p).map(|n| NodeSummary {
                     node: NodeRef::new(NodeType::Project, p),

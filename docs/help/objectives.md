@@ -42,7 +42,7 @@ Some outcomes never finish: keeping the systems patched, access reviewed, costs 
 
 ## How computed health works
 
-The objective's health is a **weighted average** of what contributes to it, with one safeguard: *one red contributor caps the objective at amber*, so one disaster can't hide behind several fine projects. A goal's own target date is judged like a project's; an ongoing objective has none, and an overdue review holds it at amber instead. Details are in [Overview](help:overview).
+The objective's health is a **weighted average** of what contributes to it, with one safeguard: *one red contributor caps the objective at amber*, so one disaster can't hide behind several fine projects. A goal's own target date is judged like a project's (on the [Gantt](help:gantt) screen you can drag an objective's target flag to move it); an ongoing objective has none, and an overdue review holds it at amber instead. Details are in [Overview](help:overview).
 
 ## Tips
 
