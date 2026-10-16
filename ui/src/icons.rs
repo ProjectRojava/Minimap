@@ -134,6 +134,8 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M5.5 8h2.5l2.5-3",
             "M8 8l2.5 3",
         ],
+        // Bars of different lengths on rows: a Gantt chart (spec 57).
+        "gantt" => &["M2.5 4h6", "M5.5 8h8", "M3.5 12h5", "M1.8 2v12.2"],
         "search" => &["M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M10.8 10.8 14 14"],
         // An arrow pointing up and to the right: something coming at you from elsewhere (spec 45).
         "approach" => &["M4.5 11.5 11.5 4.5", "M5.5 4.5h6v6"],
@@ -198,6 +200,7 @@ mod tests {
             "capacity",
             "archive",
             "graph",
+            "gantt",
             "chain",
             "subtasks",
             "chevron",

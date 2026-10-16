@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-gantt"
+description = "Enables the get_gantt command without any pre-configured scope."
+commands.allow = ["get_gantt"]
+
+[[permission]]
+identifier = "deny-get-gantt"
+description = "Denies the get_gantt command without any pre-configured scope."
+commands.deny = ["get_gantt"]

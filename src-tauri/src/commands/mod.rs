@@ -9,6 +9,7 @@ pub mod device;
 pub mod edges;
 pub mod export;
 pub mod fog;
+pub mod gantt;
 pub mod graph;
 pub mod impact;
 pub mod links;

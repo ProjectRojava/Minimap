@@ -58,6 +58,7 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 44 | [Safe zone: the room left before a project's target](../product-design/02-safe-zone.md) | — | Should | 05, 13, 15 |
 | 45 | [Approaching: trouble elsewhere that will reach you](../product-design/03-off-screen-indicators.md) | — | Should | 07, 13, 14, 16 |
 | 47 | [Dependencies, richer: see why, trace a chain, edit the links](../product-design/12-dependency-graph.md) | — | Should | 07, 13, 18, 33, 43, 44, 45 |
+| 57 | [Gantt: the plan on a calendar, with arrows between tasks and bars you drag](57-gantt.md) | — | Should | 05, 06, 13, 14, 17, 25, 30, 33, 44, 46, 50 |
 | 56 | [Waiting on, from the task: who a task is stuck on, shown on the task](56-task-waiting-on.md) | — | Should | 06, 08, 24, 25, 41, 42 |
 | 55 | [Splash screen: the mark while Minimap starts](../product-design/13-splash-screen.md) | — | Could | 54 |
 | 54 | [Brand and voice: the name, the mark and the words](../product-design/11-brand-and-voice.md) | — | Could | 40, Help wiki |

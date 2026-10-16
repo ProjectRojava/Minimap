@@ -24,7 +24,7 @@ At the top of a task's detail pane a row of coloured pills shows where it stands
 | Project | Optional. No project means the inbox |
 | Assignee | One person, or nobody |
 | Estimate | `3d`, `1.5d`, `4h` or a bare number (days). Hours use your hours-per-working-day setting. Leave it empty if you don't know |
-| Start date, due date | Optional. A start date means "not before" for the schedule |
+| Start date, due date | Optional. A start date means "not before" for the schedule. On the [Gantt](help:gantt) screen, dragging a task's bar changes them (and the estimate) for you |
 | Repeats | Optional rule such as `mon` or `2w`: see [Recurring items](help:recurring) |
 | Focus | Optional: keep the task on [This week](help:this-week) every day, whatever its due date. See *Focus* below |
 | Reference links | Web pages, Google Drive files and other addresses: see below |

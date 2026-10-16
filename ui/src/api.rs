@@ -2,24 +2,24 @@
 
 use minimap_types::{
     Activity, AddAttachment, AdvanceResult, AppError, ApplyPreview, ApplyResult, ArchivedItem,
-    AssigneeChoice,
-    Attachment, BackupEntry, BackupStatus, Capacity, CheckpointInfo, Clock, CloseChoice,
-    ConnectOutcome, DeviceSettings, DeviceView,
-    CreateDecision, CreateMeeting, CreateNote, CreateObjective, CreatePerson, CreateProject,
-    CreateTask, CreateTeam, CreateWaitingOn, DataInfo, Decision, DecisionFilter, DecisionRow,
-    DemoRemoval, DemoStatus, DemoSummary, DependencyGraph, Edge, EdgeLink, EncryptionResult,
-    ExportAllResult, ExportFormat, ExportResult, FinishConnect, FocusChoice, GraphFilter,
-    ImpactReport, LinkOption, LinkRelation, MeetingTime, NewEdge, NodeRef, NodeSummary, NodeType,
-    Note, NoteDetail, NoteFilter, NoteRow, Objective, ObjectiveDetail, ObjectiveGroup,
-    ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail, PersonRow, PingResponse,
-    PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail, ProjectFilter, ProjectGroup,
-    ProjectLayout, QuickChoice, QuickPreview, QuickResult, RecoverCheckpoint, RecoverResult,
-    Recurrence, ReportKind, ReportParams, RestorePreview, RestoreResult, Schedule, ScheduleScope,
-    ScheduledTask, SearchFilter, SearchHit, Secret, SecurityStatus, SetEncryption, Settings, Slip,
-    SyncStatus, Task, TaskDetail, TaskDisposition, TaskFilter, TaskRow, Team, TeamDetail, TeamRow,
-    ThisWeek, UndoOutcome, UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson,
-    UpdateProject, UpdateSettings, UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn,
-    Uuid, WaitingOn, WaitingOnFilter, WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
+    AssigneeChoice, Attachment, BackupEntry, BackupStatus, Capacity, CheckpointInfo, Clock,
+    CloseChoice, ConnectOutcome, CreateDecision, CreateMeeting, CreateNote, CreateObjective,
+    CreatePerson, CreateProject, CreateTask, CreateTeam, CreateWaitingOn, DataInfo, Decision,
+    DecisionFilter, DecisionRow, DemoRemoval, DemoStatus, DemoSummary, DependencyGraph,
+    DeviceSettings, DeviceView, DragApplied, DragPreview, Edge, EdgeLink, EncryptionResult,
+    ExportAllResult, ExportFormat, ExportResult, FinishConnect, FocusChoice, GanttData,
+    GanttFilter, GraphFilter, ImpactReport, LinkOption, LinkRelation, MeetingTime, NewEdge,
+    NodeRef, NodeSummary, NodeType, Note, NoteDetail, NoteFilter, NoteRow, Objective,
+    ObjectiveDetail, ObjectiveGroup, ObjectiveGrouping, Person, PersonArchivePreview, PersonDetail,
+    PersonRow, PingResponse, PortfolioOverview, Project, ProjectArchivePreview, ProjectDetail,
+    ProjectFilter, ProjectGroup, ProjectLayout, QuickChoice, QuickPreview, QuickResult,
+    RecoverCheckpoint, RecoverResult, Recurrence, ReportKind, ReportParams, RestorePreview,
+    RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret,
+    SecurityStatus, SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition,
+    TaskDrag, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UndoOutcome,
+    UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
+    UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter,
+    WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -1273,6 +1273,32 @@ pub async fn apply_slips(slips: Vec<Slip>) -> Result<ApplyResult, AppError> {
 #[derive(Serialize)]
 struct ScopeArg {
     scope: ScheduleScope,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GanttArg {
+    filter_by: GanttFilter,
+}
+
+#[derive(Serialize)]
+struct DragArg {
+    drag: TaskDrag,
+}
+
+/// The plan as the Gantt screen draws it (spec 57).
+pub async fn get_gantt(filter_by: GanttFilter) -> Result<GanttData, AppError> {
+    invoke("get_gantt", &GanttArg { filter_by }).await
+}
+
+/// What dropping a bar here would do. Writes nothing.
+pub async fn preview_task_drag(drag: TaskDrag) -> Result<DragPreview, AppError> {
+    invoke("preview_task_drag", &DragArg { drag }).await
+}
+
+/// Drops the bar: its dates, and the due dates of what follows.
+pub async fn apply_task_drag(drag: TaskDrag) -> Result<DragApplied, AppError> {
+    invoke("apply_task_drag", &DragArg { drag }).await
 }
 
 pub async fn get_schedule(scope: ScheduleScope) -> Result<Schedule, AppError> {

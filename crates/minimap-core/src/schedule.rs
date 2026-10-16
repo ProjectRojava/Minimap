@@ -76,6 +76,10 @@ struct Node<'a> {
     in_scope: bool,
     /// The open predecessor that sets the start (see `ScheduledTask::driver`).
     driver: Option<Uuid>,
+    /// The earliest the task could start whatever its own start date says, and what sets it
+    /// (see `ScheduledTask::earliest_start`).
+    earliest: f64,
+    held_by: Option<Uuid>,
 }
 
 fn lag_of(e: &Edge) -> f64 {
@@ -143,6 +147,8 @@ pub fn compute_with(
             ls: 0.0,
             lf: 0.0,
             driver: None,
+            earliest: 0.0,
+            held_by: None,
             in_scope: match scope {
                 ScheduleScope::Portfolio => true,
                 ScheduleScope::Project(p) => t.project_id == Some(p),
@@ -150,7 +156,10 @@ pub fn compute_with(
         })
         .collect();
 
-    // Forward pass: as early as predecessors, the start date and today allow.
+    let project_by_id: HashMap<Uuid, &Project> = projects.iter().map(|p| (p.id, p)).collect();
+
+    // Forward pass: as early as predecessors, the start dates (the task's and its project's) and
+    // today allow.
     for &n in &order {
         let i = n.index();
         if nodes[i].done {
@@ -163,9 +172,17 @@ pub fn compute_with(
                 .unwrap_or(ef - nodes[i].duration);
             nodes[i].es = es;
             nodes[i].ef = ef;
+            nodes[i].earliest = es;
             continue;
         }
-        let mut es: f64 = 0.0;
+        // No task starts before its project does (spec 57); the past counts as today.
+        let base = nodes[i]
+            .task
+            .project_id
+            .and_then(|p| project_by_id.get(&p))
+            .and_then(|p| p.start_date)
+            .map_or(0.0, |s| offset(s).max(0.0));
+        let mut es: f64 = base;
         if let Some(s) = nodes[i].task.start_date {
             es = es.max(offset(s));
         }
@@ -176,10 +193,23 @@ pub fn compute_with(
         // as every other constraint (ties go to the lowest id, so the answer never wobbles).
         let others = es;
         let mut driver: Option<(f64, Uuid)> = None;
+        let mut held: Option<(f64, Uuid)> = None;
         for e in graph.edges_directed(n, Direction::Incoming) {
             let pred = &nodes[e.source().index()];
             let reach = pred.ef + *e.weight();
             es = es.max(reach);
+            if reach > base + EPS {
+                let id = pred.task.id;
+                let better = match held {
+                    None => true,
+                    Some((best, best_id)) => {
+                        reach > best + EPS || ((reach - best).abs() <= EPS && id < best_id)
+                    }
+                };
+                if better {
+                    held = Some((reach, id));
+                }
+            }
             if !pred.done && reach + EPS >= others {
                 let id = pred.task.id;
                 let better = match driver {
@@ -197,12 +227,13 @@ pub fn compute_with(
         nodes[i].driver = driver
             .filter(|(reach, _)| *reach + EPS >= es)
             .map(|(_, id)| id);
+        nodes[i].earliest = held.map_or(base, |(reach, _)| reach.max(base));
+        nodes[i].held_by = held.map(|(_, id)| id);
         nodes[i].es = es;
         nodes[i].ef = es + nodes[i].duration;
     }
 
     // Each project (and the inbox) is judged against its own deadline.
-    let project_by_id: HashMap<Uuid, &Project> = projects.iter().map(|p| (p.id, p)).collect();
     let mut finish: BTreeMap<Option<Uuid>, f64> = BTreeMap::new();
     for n in nodes.iter().filter(|n| n.in_scope && !n.done) {
         let f = finish.entry(n.task.project_id).or_insert(f64::NEG_INFINITY);
@@ -281,6 +312,8 @@ pub fn compute_with(
                 critical: is_critical(n),
                 late_by_days: (slack < -EPS).then(|| (-slack - EPS).ceil().max(1.0) as u32),
                 driver: n.driver,
+                earliest_start: day_at((n.earliest + EPS).floor() as i64),
+                held_by: n.held_by,
             }
         })
         .collect();
@@ -629,6 +662,60 @@ mod tests {
             0.0,
             "tasks start from today at the earliest"
         );
+    }
+
+    #[test]
+    fn no_task_starts_before_its_project_does() {
+        // The project starts on Thursday 2027-03-04; its tasks wait for it, other projects' don't.
+        let mut p = project(10, "Late start", None);
+        p.start_date = Some(date!(2027 - 03 - 04));
+        let tasks = [
+            in_project(task(1, "Waits", Some(2.0)), 10),
+            in_project(task(2, "After", Some(1.0)), 10),
+            task(3, "Free", Some(1.0)),
+        ];
+        let s = run(
+            &tasks,
+            &[blocks(1, 2, None)],
+            &[p],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "Waits").es, 3.0);
+        assert_eq!(get(&s, "Waits").earliest_start, date!(2027 - 03 - 04));
+        assert_eq!(get(&s, "After").es, 5.0);
+        assert_eq!(get(&s, "Free").es, 0.0);
+        // A start in the past is today.
+        let mut old = project(11, "Old", None);
+        old.start_date = Some(date!(2027 - 01 - 04));
+        let s = run(
+            &[in_project(task(4, "Now", Some(1.0)), 11)],
+            &[],
+            &[old],
+            ScheduleScope::Portfolio,
+        );
+        assert_eq!(get(&s, "Now").es, 0.0);
+    }
+
+    #[test]
+    fn the_earliest_start_ignores_the_tasks_own_start_date_and_names_what_holds_it() {
+        let mut b = task(2, "B", Some(1.0));
+        b.start_date = Some(date!(2027 - 03 - 10)); // Wednesday of the week after
+        let tasks = [task(1, "A", Some(2.0)), b, task(3, "C", Some(1.0))];
+        let s = run(&tasks, &[blocks(1, 2, None)], &[], ScheduleScope::Portfolio);
+        let b = get(&s, "B");
+        // A ends after two days, so B could start Wednesday 2027-03-03 though it is pinned later.
+        assert_eq!(b.earliest_start, date!(2027 - 03 - 03));
+        assert_eq!(b.held_by, Some(id(1)));
+        assert_eq!(b.start, date!(2027 - 03 - 10));
+        let c = get(&s, "C");
+        assert_eq!((c.earliest_start, c.held_by), (MON, None));
+        // A finished blocker still holds its dependant back, and is named.
+        let tasks = [
+            done_on(task(1, "A", Some(1.0)), date!(2027 - 03 - 01)),
+            task(2, "B", Some(1.0)),
+        ];
+        let s = run(&tasks, &[blocks(1, 2, None)], &[], ScheduleScope::Portfolio);
+        assert_eq!(get(&s, "B").held_by, Some(id(1)));
     }
 
     #[test]

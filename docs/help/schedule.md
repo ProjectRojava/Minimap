@@ -10,12 +10,12 @@ Open a project: its detail pane has a **Schedule** section with
 - the **critical path**: the tasks that decide the finish, in order;
 - a **timeline** (switch between *Days* and *Weeks*; *Show finished* adds completed tasks) with today and the target marked, slack drawn as thin lines, and late or unestimated work styled differently. Hover for the details of a bar; click a bar to open the task.
 
-The [Dependencies](help:dependencies) screen draws the same thing as a graph, and the [Overview](help:overview) uses the forecasts for health.
+The [Gantt](help:gantt) screen draws every project's schedule on one calendar, objectives to tasks, and lets you move work by dragging. The [Dependencies](help:dependencies) screen draws the same thing as a graph, and the [Overview](help:overview) uses the forecasts for health.
 
 ## How it is worked out
 
 1. **Working days only.** Monday to Friday by default (change it in [Settings](help:settings)). A weekend start moves to the next working day. Time is counted from today.
-2. **Forward pass.** Each open task starts as soon as everything that **blocks** it has finished (plus any *lag*), but not before its **start date**, and runs for its **estimate**. Links across projects count: a task in another project can hold this one up whichever project you are looking at.
+2. **Forward pass.** Each open task starts as soon as everything that **blocks** it has finished (plus any *lag*), but not before its **start date** or its **project's start date**, and runs for its **estimate**. Links across projects count: a task in another project can hold this one up whichever project you are looking at.
 3. **Finished work is fixed** at the date it was actually completed; **cancelled** and archived tasks are ignored.
 4. **Backward pass.** Working back from the project's **target date** (or, if it has none, from its own projected finish) gives each task the *latest* it could start without making the project late.
 5. **Slack** = latest start minus earliest start: how many working days a task can slip without moving the finish. **Critical** tasks are the ones with the least slack in their project.
@@ -26,6 +26,7 @@ The [Dependencies](help:dependencies) screen draws the same thing as a graph, an
 - **Negative slack** means the target can't be met: the late tasks show *late by N working days* and the project shows how far past its target it will finish.
 - **Unestimated** tasks (no estimate) are scheduled as one day and flagged. The more of a plan is unestimated, the less you can trust the forecast. The project's health says so.
 - A task with a **start date in the future** won't be scheduled before it, even if nothing blocks it.
+- **No task starts before its project does.** A project with a start date in the future holds all of its tasks back until then; a start date in the past changes nothing, because nothing starts before today anyway.
 - The **safe zone** is the room between the projected finish and the target, in working days, drawn as a bar on the project's cards and rows and at the top of this section (see [Projects](help:projects), *Safe zone*).
 - The critical path is the **route** to a project's finish; [What if](help:what-if) shows how a slip recalculates it, old route against new, turn by turn.
 - **Meetings** are left out: they happen at a time and take no days of work, so they are not unestimated and are never on the critical path.

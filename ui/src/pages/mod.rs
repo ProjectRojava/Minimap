@@ -3,6 +3,7 @@ pub mod archive;
 pub mod capacity;
 pub mod decisions;
 pub mod deep_link;
+pub mod gantt;
 pub mod graph;
 pub mod help;
 pub mod notes;

@@ -33,6 +33,7 @@ Press `g`, then the letter within a second.
 | `g p` | Projects |
 | `g t` | Tasks |
 | `g l` | Dependencies |
+| `g j` | Gantt |
 | `g f` | What if |
 | `g e` | People |
 | `g m` | Teams |
@@ -47,6 +48,10 @@ Press `g`, then the letter within a second.
 | `g u` | About |
 
 Hover over a sidebar entry to see its keys.
+
+## On the Gantt screen
+
+Click the chart first. `↑` `↓` move between rows, `→` `←` open and fold them, `*` opens every project, `Alt+←` `Alt+→` move the open task one working day and `Alt+Shift+←` `Alt+Shift+→` move only its end. `Esc` cancels a drag. See [Gantt](help:gantt).
 
 ## In lists
 

@@ -52,6 +52,13 @@ pub struct ScheduledTask {
     /// when the task starts on its own date, today, or after a finished task only (spec 45).
     #[serde(default)]
     pub driver: Option<Uuid>,
+    /// The first day the task could start whatever its own start date says: today, the project's
+    /// start date, or when the tasks that block it are done, whichever is last. A bar can't be
+    /// dragged earlier than this (spec 57).
+    pub earliest_start: Date,
+    /// The task whose finish (plus lag) sets `earliest_start`, when one does: open or finished.
+    #[serde(default)]
+    pub held_by: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -231,6 +231,12 @@
           "markdownDescription": "Enables the apply_slips command without any pre-configured scope."
         },
         {
+          "description": "Enables the apply_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-apply-task-drag",
+          "markdownDescription": "Enables the apply_task_drag command without any pre-configured scope."
+        },
+        {
           "description": "Enables the archive_decision command without any pre-configured scope.",
           "type": "string",
           "const": "allow-archive-decision",
@@ -511,6 +517,12 @@
           "type": "string",
           "const": "allow-get-fog",
           "markdownDescription": "Enables the get_fog command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_gantt command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-gantt",
+          "markdownDescription": "Enables the get_gantt command without any pre-configured scope."
         },
         {
           "description": "Enables the get_last_save_point command without any pre-configured scope.",
@@ -879,6 +891,12 @@
           "markdownDescription": "Enables the preview_restore command without any pre-configured scope."
         },
         {
+          "description": "Enables the preview_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-preview-task-drag",
+          "markdownDescription": "Enables the preview_task_drag command without any pre-configured scope."
+        },
+        {
           "description": "Enables the quit_app command without any pre-configured scope.",
           "type": "string",
           "const": "allow-quit-app",
@@ -1215,6 +1233,12 @@
           "markdownDescription": "Denies the apply_slips command without any pre-configured scope."
         },
         {
+          "description": "Denies the apply_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-apply-task-drag",
+          "markdownDescription": "Denies the apply_task_drag command without any pre-configured scope."
+        },
+        {
           "description": "Denies the archive_decision command without any pre-configured scope.",
           "type": "string",
           "const": "deny-archive-decision",
@@ -1495,6 +1519,12 @@
           "type": "string",
           "const": "deny-get-fog",
           "markdownDescription": "Denies the get_fog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_gantt command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-gantt",
+          "markdownDescription": "Denies the get_gantt command without any pre-configured scope."
         },
         {
           "description": "Denies the get_last_save_point command without any pre-configured scope.",
@@ -1861,6 +1891,12 @@
           "type": "string",
           "const": "deny-preview-restore",
           "markdownDescription": "Denies the preview_restore command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the preview_task_drag command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-preview-task-drag",
+          "markdownDescription": "Denies the preview_task_drag command without any pre-configured scope."
         },
         {
           "description": "Denies the quit_app command without any pre-configured scope.",

@@ -43,6 +43,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 | Plan | [Projects](help:projects) | Work with an owner, a target date and tasks; list and board |
 | Plan | [Tasks](help:tasks) | Every task, as a drag-and-drop board of status columns or a list, with filters |
 | Plan | [Dependencies](help:dependencies) | A picture of what blocks what, with the critical path |
+| Plan | [Gantt](help:gantt) | The whole plan on a calendar, objectives to tasks, with arrows between tasks; drag a bar to move the work |
 | Plan | [What if](help:what-if) | See what a slip of a few days would push back |
 | People | [People](help:people-teams) and Teams | Who is who, and the teams and reporting lines |
 | People | [Capacity](help:capacity) | A heatmap of who is loaded when |

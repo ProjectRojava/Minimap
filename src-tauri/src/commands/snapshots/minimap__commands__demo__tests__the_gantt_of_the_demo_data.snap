@@ -1,0 +1,11 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+Launch in the EU: work 0..21 target 2027-05-17 late -
+  EU Region: 12 open, 1 blocked, 2 done; room Outside { remaining: 21, over: 2 }; also under 0; chain 4
+  Security and Compliance: 9 open, 0 blocked, 1 done; room Inside { remaining: 20, room: 14, level: Wide }; also under 0; chain 1
+Cut platform costs by 20%: work 0..17 target 2027-07-01 late -
+  Platform Cost Reduction: 11 open, 0 blocked, 2 done; room Inside { remaining: 17, room: 27, level: Wide }; also under 0; chain 2
+Keep internal systems healthy: work -..- target - late -
+links: 23 blocks, 24 in all
