@@ -26,6 +26,7 @@ use crate::{
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
         task_board::today,
         task_type::{type_for_new_task, use_task_types, TypeChip},
+        waiting_badge::WaitingChip,
     },
     labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
     state::{finish, finish_task, DataVersion, FinishDecision, ListNav, Toasts},
@@ -730,6 +731,7 @@ fn TaskRowView(
         });
     };
 
+    let waiting = row.waiting.clone();
     let t = row.task;
     // The row wears the colour of the objective its project serves (ADR-0012).
     let colours = use_objective_colours();
@@ -843,6 +845,7 @@ fn TaskRowView(
                     <span class=title_class>{t.title}</span>
                     <WhyChip kind=Kind::Task id=id />
                     <TypeChip id=t.task_type.clone() />
+                    <WaitingChip badge=waiting />
                     {repeats.map(|text| view! {
                         <span class=Tone::Neutral.chip() title=text>"↻"</span>
                     })}

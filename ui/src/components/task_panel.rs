@@ -9,7 +9,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
-        confirm_archive::{ArchiveChoice, ArchiveRequest, ConfirmArchive, UNDO_HINT},
+        confirm_archive::{ArchiveChoice, ArchiveRequest, ConfirmArchive},
         detail_pane::{Section, FIELD_GROUP},
         files_links::FilesAndLinks,
         focus::FocusField,
@@ -25,6 +25,7 @@ use crate::{
         task_decision::TaskDecision,
         task_links::TaskLinks,
         task_type::{use_task_types, TaskTiming},
+        task_waiting::{archive_message, TaskWaiting},
     },
     labels::{estimate_text, priority_option, PRIORITY_TINT},
     state::{finish, finish_task, DataVersion, FinishDecision, Selection, Toasts},
@@ -122,6 +123,7 @@ pub fn TaskPanel(id: Uuid) -> impl IntoView {
             }}
         </Section>
         <TaskDecision task=id />
+        <TaskWaiting task=id />
         // Below the fields: what a task can have, hidden while it has none of it, and the row
         // that starts the first of each (and "what if").
         <TaskAddRow id=id />
@@ -409,7 +411,10 @@ pub fn ArchiveTaskButton(id: Uuid) -> impl IntoView {
     };
     view! {
         <button class=format!("shrink-0 {BUTTON_DANGER}") title="Archive this task (Ctrl/Cmd+Z undoes)"
-            on:click=move |_| confirm.ask("Archive this task?", format!("Its links (assignee, blocks) are archived with it. {UNDO_HINT}"), archive)>
+            on:click=move |_| spawn_local(async move {
+                let message = archive_message(id).await;
+                confirm.ask("Archive this task?", message, archive);
+            })>
             "Archive…"
         </button>
     }

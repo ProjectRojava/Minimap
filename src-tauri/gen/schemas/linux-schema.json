@@ -201,6 +201,12 @@
           "markdownDescription": "Enables the add_edges command without any pre-configured scope."
         },
         {
+          "description": "Enables the add_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-add-task-waiting",
+          "markdownDescription": "Enables the add_task_waiting command without any pre-configured scope."
+        },
+        {
           "description": "Enables the advance_meetings command without any pre-configured scope.",
           "type": "string",
           "const": "allow-advance-meetings",
@@ -645,6 +651,12 @@
           "markdownDescription": "Enables the get_task_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-task-waiting",
+          "markdownDescription": "Enables the get_task_waiting command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_team command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-team",
@@ -939,6 +951,12 @@
           "markdownDescription": "Enables the reschedule_task command without any pre-configured scope."
         },
         {
+          "description": "Enables the resolve_task_waiting_ons command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-resolve-task-waiting-ons",
+          "markdownDescription": "Enables the resolve_task_waiting_ons command without any pre-configured scope."
+        },
+        {
           "description": "Enables the resolve_waiting_on command without any pre-configured scope.",
           "type": "string",
           "const": "allow-resolve-waiting-on",
@@ -1165,6 +1183,12 @@
           "type": "string",
           "const": "deny-add-edges",
           "markdownDescription": "Denies the add_edges command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the add_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-add-task-waiting",
+          "markdownDescription": "Denies the add_task_waiting command without any pre-configured scope."
         },
         {
           "description": "Denies the advance_meetings command without any pre-configured scope.",
@@ -1611,6 +1635,12 @@
           "markdownDescription": "Denies the get_task_detail command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_task_waiting command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-task-waiting",
+          "markdownDescription": "Denies the get_task_waiting command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_team command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-team",
@@ -1903,6 +1933,12 @@
           "type": "string",
           "const": "deny-reschedule-task",
           "markdownDescription": "Denies the reschedule_task command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the resolve_task_waiting_ons command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-resolve-task-waiting-ons",
+          "markdownDescription": "Denies the resolve_task_waiting_ons command without any pre-configured scope."
         },
         {
           "description": "Denies the resolve_waiting_on command without any pre-configured scope.",

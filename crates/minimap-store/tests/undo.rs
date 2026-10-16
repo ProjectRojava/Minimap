@@ -922,3 +922,57 @@ fn creating_a_linked_task_is_one_step() {
         });
     }
 }
+
+#[test]
+fn adding_a_waiting_on_to_a_task_is_one_undo_step() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    let raj = people::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .find(|p| !p.is_self)
+        .unwrap();
+    round_trip(&mut conn, |c| {
+        waiting_on::create_for_task(
+            c,
+            t.id,
+            CreateWaitingOn {
+                description: "Key from security".into(),
+                person_id: raj.id,
+                asked_on: Some(TODAY),
+                expected_by: None,
+                follow_up_on: None,
+            },
+        )
+        .unwrap();
+    });
+}
+
+#[test]
+fn resolving_a_tasks_waiting_ons_is_one_undo_step() {
+    let mut conn = demo();
+    let t = task(&conn, "Rotate service credentials");
+    let raj = people::list(&conn, false)
+        .unwrap()
+        .into_iter()
+        .find(|p| !p.is_self)
+        .unwrap();
+    for what in ["Key from security", "Budget"] {
+        waiting_on::create_for_task(
+            &mut conn,
+            t.id,
+            CreateWaitingOn {
+                description: what.into(),
+                person_id: raj.id,
+                asked_on: Some(TODAY),
+                expected_by: None,
+                follow_up_on: None,
+            },
+        )
+        .unwrap();
+    }
+    round_trip(&mut conn, |c| {
+        let done = waiting_on::resolve_for_task(c, t.id, TODAY).unwrap();
+        assert_eq!(done.len(), 2);
+    });
+}

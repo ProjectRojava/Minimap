@@ -1,6 +1,8 @@
 //! Waiting-on rules: age, stale, snoozed, and the list order.
 
-use minimap_types::{WaitingOn, WaitingOnFilter, WaitingOnItem, WaitingOnRow};
+use minimap_types::{
+    WaitingBadge, WaitingBadgeEntry, WaitingOn, WaitingOnFilter, WaitingOnItem, WaitingOnRow,
+};
 use time::Date;
 
 /// Whole days since it was asked (0 if the date is in the future).
@@ -65,6 +67,27 @@ pub fn arrange(
             .then_with(|| a.waiting.id.cmp(&b.waiting.id))
     });
     rows
+}
+
+/// The badge for a task from its waiting-ons as [`arrange`] returns them (open ones, snoozed
+/// included): `None` when none is open. A snoozed one counts but is never stale.
+pub fn badge(rows: &[WaitingOnRow]) -> Option<WaitingBadge> {
+    let entries: Vec<WaitingBadgeEntry> = rows
+        .iter()
+        .filter(|r| is_open(&r.waiting))
+        .map(|r| WaitingBadgeEntry {
+            person: r.person.label.clone(),
+            description: r.waiting.description.clone(),
+            age_days: r.age_days,
+            stale: r.stale,
+            snoozed: r.snoozed,
+        })
+        .collect();
+    if entries.is_empty() {
+        return None;
+    }
+    let stale = entries.iter().any(|e| e.stale);
+    Some(WaitingBadge { entries, stale })
 }
 
 #[cfg(test)]
@@ -228,6 +251,46 @@ mod tests {
         );
     }
 
+    fn all(items: Vec<WaitingOnItem>) -> Vec<WaitingOnRow> {
+        let f = WaitingOnFilter {
+            person_id: None,
+            include_resolved: true,
+            include_snoozed: true,
+        };
+        arrange(items, &f, TODAY, 7)
+    }
+
+    #[test]
+    fn badge_counts_open_ones_oldest_first_and_flags_stale() {
+        let mut done = waiting(3, 30);
+        done.resolved_on = Some(TODAY);
+        let rows = all(vec![item(waiting(1, 2)), item(waiting(2, 12)), item(done)]);
+        let b = badge(&rows).unwrap();
+        assert_eq!(b.entries.len(), 2);
+        assert_eq!(
+            b.entries.iter().map(|e| e.age_days).collect::<Vec<_>>(),
+            vec![12, 2]
+        );
+        assert!(b.stale);
+    }
+
+    #[test]
+    fn badge_counts_a_snoozed_one_but_it_is_never_stale() {
+        let mut snoozed = waiting(1, 40);
+        snoozed.follow_up_on = Some(TODAY + Duration::days(3));
+        let b = badge(&all(vec![item(snoozed)])).unwrap();
+        assert_eq!(b.entries.len(), 1);
+        assert!(b.entries[0].snoozed && !b.stale);
+    }
+
+    #[test]
+    fn no_badge_when_nothing_is_open() {
+        let mut done = waiting(1, 3);
+        done.resolved_on = Some(TODAY);
+        assert!(badge(&all(vec![item(done)])).is_none());
+        assert!(badge(&[]).is_none());
+    }
+
     proptest! {
         /// Whatever the dates, a row is never both stale and snoozed, and resolved rows are neither.
         #[test]
@@ -248,6 +311,24 @@ mod tests {
             // Overdue always counts as stale.
             if is_overdue(&w, TODAY) { prop_assert!(stale); }
             prop_assert!(age_days(&w, TODAY) >= 0);
+        }
+    }
+    proptest! {
+        /// A stale badge always has an entry, and has a stale entry.
+        #[test]
+        fn stale_badge_has_a_stale_entry(
+            ages in proptest::collection::vec((-5i64..60, proptest::option::of(-5i64..20), any::<bool>()), 0..6),
+        ) {
+            let items: Vec<WaitingOnItem> = ages.iter().enumerate().map(|(i, (a, f, r))| {
+                let mut w = waiting(i as u128 + 1, *a);
+                w.follow_up_on = f.map(|d| TODAY + Duration::days(d));
+                w.resolved_on = r.then_some(TODAY);
+                item(w)
+            }).collect();
+            if let Some(b) = badge(&all(items)) {
+                prop_assert!(!b.entries.is_empty());
+                prop_assert_eq!(b.stale, b.entries.iter().any(|e| e.stale));
+            }
         }
     }
 }

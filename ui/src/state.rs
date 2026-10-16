@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_location;
-use minimap_types::{AppError, Clock, LinkRelation, NodeRef, Uuid, ZoomStep};
+use minimap_types::{AppError, Clock, LinkRelation, NodeRef, Task, TaskStatus, Uuid, ZoomStep};
 
 use crate::{
     nav::move_cursor,
@@ -374,22 +374,37 @@ pub fn finish<T>(result: Result<T, AppError>, toasts: Toasts, version: DataVersi
     }
 }
 
-/// The *Finish decision* dialog (spec 42): the Decision task that was being finished, if the
-/// dialog is open.
+/// The two dialogs that can follow finishing a task: *Finish decision* (spec 42), the Decision
+/// task that was being finished, and *Resolve waiting-ons* (spec 56), the task that was just
+/// finished while something was still being waited for. Each holds the task while it is open.
 #[derive(Clone, Copy)]
-pub struct FinishDecision(pub RwSignal<Option<Uuid>>);
+pub struct FinishDecision {
+    pub decision: RwSignal<Option<Uuid>>,
+    pub waiting: RwSignal<Option<Uuid>>,
+}
 
 impl FinishDecision {
     pub fn new() -> Self {
-        Self(RwSignal::new(None))
+        Self {
+            decision: RwSignal::new(None),
+            waiting: RwSignal::new(None),
+        }
     }
 
     pub fn open(&self, task: Uuid) {
-        self.0.set(Some(task));
+        self.decision.set(Some(task));
     }
 
     pub fn close(&self) {
-        self.0.set(None);
+        self.decision.set(None);
+    }
+
+    pub fn open_waiting(&self, task: Uuid) {
+        self.waiting.set(Some(task));
+    }
+
+    pub fn close_waiting(&self) {
+        self.waiting.set(None);
     }
 }
 
@@ -402,16 +417,39 @@ impl Default for FinishDecision {
 /// The error code of a Decision task that can't be finished yet.
 pub const DECISION_INCOMPLETE: &str = "decision_incomplete";
 
+/// How long after a task's completion time a change still counts as "just finished it".
+const JUST_FINISHED_SECONDS: i64 = 15;
+
+/// Whether this change is the one that finished the task: done, and completed a moment ago (an
+/// edit to a task finished long ago keeps its old completion time).
+pub fn just_finished(
+    status: TaskStatus,
+    completed_at: Option<time::OffsetDateTime>,
+    now: time::OffsetDateTime,
+) -> bool {
+    status == TaskStatus::Done
+        && completed_at.is_some_and(|at| {
+            let age = (now - at).whole_seconds();
+            (-JUST_FINISHED_SECONDS..=JUST_FINISHED_SECONDS).contains(&age)
+        })
+}
+
+fn now_utc() -> Option<time::OffsetDateTime> {
+    let nanos = (js_sys::Date::now() * 1_000_000.0) as i128;
+    time::OffsetDateTime::from_unix_timestamp_nanos(nanos).ok()
+}
+
 /// [`finish`] for a change to a task. If it was refused because the task is a Decision with no
 /// decision and reason written yet, the *Finish decision* dialog opens instead of an error toast
-/// (views still reload, so a dragged card goes back to its column).
-pub fn finish_task<T>(
-    result: Result<T, AppError>,
+/// (views still reload, so a dragged card goes back to its column). If the change finished the
+/// task and something is still being waited for on it, the *Resolve waiting-ons* dialog follows.
+pub fn finish_task(
+    result: Result<Task, AppError>,
     task: Uuid,
     toasts: Toasts,
     version: DataVersion,
     gate: FinishDecision,
-) -> Option<T> {
+) -> Option<Task> {
     if let Err(e) = &result {
         if e.code == DECISION_INCOMPLETE {
             version.bump();
@@ -419,7 +457,19 @@ pub fn finish_task<T>(
             return None;
         }
     }
-    finish(result, toasts, version)
+    let done = finish(result, toasts, version)?;
+    if now_utc().is_some_and(|now| just_finished(done.status, done.completed_at, now)) {
+        spawn_local(async move {
+            let open = crate::api::get_task_waiting(task)
+                .await
+                .map(|rows| rows.iter().any(|r| r.waiting.resolved_on.is_none()))
+                .unwrap_or(false);
+            if open {
+                gate.open_waiting(task);
+            }
+        });
+    }
+    Some(done)
 }
 
 /// Undo (or redo) the last change, as the keyboard shortcut and the palette do: the answer is a
@@ -605,5 +655,25 @@ impl ZoomCtx {
             cursor: None,
             push,
         }));
+    }
+}
+
+#[cfg(test)]
+mod finish_tests {
+    use super::*;
+    use time::{macros::datetime, Duration};
+
+    #[test]
+    fn only_the_change_that_finished_the_task_counts() {
+        let now = datetime!(2027-03-15 10:00:00 UTC);
+        let done = TaskStatus::Done;
+        assert!(just_finished(done, Some(now), now));
+        assert!(just_finished(done, Some(now - Duration::seconds(10)), now));
+        // An edit to a task finished earlier keeps its old completion time.
+        assert!(!just_finished(done, Some(now - Duration::minutes(5)), now));
+        assert!(!just_finished(done, Some(now - Duration::days(3)), now));
+        // Not done, or no completion time: nothing was finished.
+        assert!(!just_finished(TaskStatus::InProgress, Some(now), now));
+        assert!(!just_finished(done, None, now));
     }
 }

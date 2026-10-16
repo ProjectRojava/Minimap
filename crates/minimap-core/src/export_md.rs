@@ -131,6 +131,32 @@ impl<'a> Lookup<'a> {
         }
     }
 
+    /// Who a task is waiting on (spec 56): the people of its open waiting-ons, each once, in
+    /// the order the links were made.
+    fn waiting_on_names(&self, task: Uuid) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        for (from, ..) in self
+            .edges(EdgeType::About)
+            .iter()
+            .filter(|(_, to, _)| *to == task)
+        {
+            let Some(w) = self
+                .waiting
+                .get(from)
+                .filter(|w| w.resolved_on.is_none() && w.archived_at.is_none())
+            else {
+                continue;
+            };
+            if let Some(p) = self.people.get(&w.person_id) {
+                let name = escape(&p.name);
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
+        }
+        names
+    }
+
     fn edges(&self, t: EdgeType) -> &[(Uuid, Uuid, &'a serde_json::Value)] {
         self.edges.get(&t).map_or(&[], Vec::as_slice)
     }
@@ -208,6 +234,10 @@ fn task_line(t: &Task, l: &Lookup) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
+    }
+    let waiting = l.waiting_on_names(t.id);
+    if is_open(t) && !waiting.is_empty() {
+        bits.push(format!("waiting on {}", waiting.join(", ")));
     }
     if let Some(rule) = &t.recurrence {
         bits.push(format!("repeats {}", rule.describe()));
@@ -766,6 +796,33 @@ mod tests {
         assert!(
             !sec.contains("## Tasks"),
             "a project without tasks has no tasks section"
+        );
+    }
+
+    #[test]
+    fn an_open_task_names_who_it_is_waiting_on_and_a_resolved_one_does_not() {
+        let mut d = data();
+        let mut open = d.waiting_on[0].clone();
+        open.id = id(51);
+        let mut resolved = open.clone();
+        resolved.id = id(52);
+        resolved.person_id = id(20);
+        resolved.resolved_on = Some(date!(2027 - 03 - 02));
+        d.waiting_on.extend([open, resolved]);
+        for (n, w) in [(7, 51), (8, 52)] {
+            d.edges.push(edge(
+                n,
+                EdgeType::About,
+                (NodeType::WaitingOn, w),
+                (NodeType::Task, 13),
+                serde_json::json!({}),
+            ));
+        }
+        let files = markdown(&d, &HashMap::new());
+        let text = file(&files, "projects/eu-region.md");
+        assert!(
+            text.contains("- [ ] Go live — blocked by Build clusters · waiting on Raj Patel\n"),
+            "{text}"
         );
     }
 

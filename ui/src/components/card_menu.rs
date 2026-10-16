@@ -6,8 +6,11 @@ use minimap_types::{LinkRelation, NodeRef, NodeType, Uuid};
 
 use crate::{
     api,
-    components::confirm_archive::{question, ConfirmArchive, UNDO_HINT},
     components::overlay::{anchor_of, place, viewport, Anchor},
+    components::{
+        confirm_archive::{question, ConfirmArchive},
+        task_waiting::archive_message,
+    },
     state::{finish, CardMenuState, DataVersion, LinkDialog, MenuRequest, Selection, Toasts},
 };
 
@@ -102,10 +105,9 @@ pub fn CardMenuHost() -> impl IntoView {
             Item::SubTask => dialog.open_as(task, name, false, LinkRelation::Subtask),
             Item::LinkNew => dialog.open(task, name, false),
             Item::LinkExisting => dialog.open(task, name, true),
-            Item::Archive => confirm.ask(
-                question(&name),
-                format!("Its links (assignee, blocks) are archived with it. {UNDO_HINT}"),
-                move || {
+            Item::Archive => spawn_local(async move {
+                let message = archive_message(task).await;
+                confirm.ask(question(&name), message, move || {
                     let name = name.clone();
                     spawn_local(async move {
                         if finish(api::archive_task(task).await, toasts, version).is_some() {
@@ -117,8 +119,8 @@ pub fn CardMenuHost() -> impl IntoView {
                             toasts.info(archived_message(&name));
                         }
                     });
-                },
-            ),
+                });
+            }),
         }
     };
     // Escape closes it.

@@ -95,6 +95,10 @@ pub fn TaskAddRow(id: Uuid) -> impl IntoView {
                     <button class=ADD title="Attach a file" on:click=move |_| pick_and_attach(node)>
                         <span class=PLUS>"+"</span>"File"
                     </button>
+                    <button class=ADD title="Someone this task is waiting on"
+                            on:click=move |_| reveal.ask("waiting")>
+                        <span class=PLUS>"+"</span>"Waiting on"
+                    </button>
                     <button class=ADD title="Write a note or finding about this task"
                             on:click=move |_| reveal.ask("notes")>
                         <span class=PLUS>"+"</span>"Note"

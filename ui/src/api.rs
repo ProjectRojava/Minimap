@@ -706,6 +706,40 @@ pub async fn reopen_waiting_on(id: Uuid) -> Result<WaitingOn, AppError> {
     invoke("reopen_waiting_on", &IdArg { id }).await
 }
 
+/// Every waiting-on about a task, whatever its state, oldest first (spec 56).
+pub async fn get_task_waiting(task_id: Uuid) -> Result<Vec<WaitingOnRow>, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+    }
+    invoke("get_task_waiting", &Arg { task_id }).await
+}
+
+/// A waiting-on for a task, with its link to the task, in one step (spec 56).
+pub async fn add_task_waiting(
+    task_id: Uuid,
+    input: CreateWaitingOn,
+) -> Result<WaitingOn, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+        input: CreateWaitingOn,
+    }
+    invoke("add_task_waiting", &Arg { task_id, input }).await
+}
+
+/// Resolves every open waiting-on about a task today; how many it resolved (spec 56).
+pub async fn resolve_task_waiting_ons(task_id: Uuid) -> Result<u32, AppError> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Arg {
+        task_id: Uuid,
+    }
+    invoke("resolve_task_waiting_ons", &Arg { task_id }).await
+}
+
 /// `Some(days)` hides it for that many days; `None` ends the snooze.
 pub async fn snooze_waiting_on(id: Uuid, days: Option<u32>) -> Result<WaitingOn, AppError> {
     invoke("snooze_waiting_on", &SnoozeArg { id, days }).await

@@ -9,8 +9,8 @@
 //! Contents: 3 objectives (one ongoing), 3 projects (EU Region is at risk), 40 tasks (cross-project `blocks`) and
 //! 5 meetings (one today, one tomorrow with a follow-up, a weekly sync held on Monday and its next),
 //! 8 people (me and 7 others, one overloaded) in 2 nested teams with reporting lines, 3 notes
-//! (one 1:1 with mentions and a checklist), 7 decisions (three are the records of Decision tasks; one replaced by another) and 3
-//! waiting-ons (one stale, one resolved this week).
+//! (one 1:1 with mentions and a checklist), 7 decisions (three are the records of Decision tasks; one replaced by another) and 4
+//! waiting-ons (one stale, one resolved this week, three about tasks: sign-off, pricing and the blocked runbook).
 //!
 //! The history is made to read like a real week: the creation activity is dated three weeks
 //! back, and this week's events (a task finished, due dates moved later, a task newly blocked,
@@ -1279,10 +1279,17 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
         &tx,
         waiting("Brand assets for the EU launch page", "elena", -8, Some(-1)),
     )?;
+    // The blocked runbook task is waiting on someone too (spec 56): fresh, so the one stale
+    // waiting-on stays the story.
+    let contacts = waiting_on::create_in_tx(
+        &tx,
+        waiting("Support contact list for the runbook", "maya", -2, Some(3)),
+    )?;
     for (w, about) in [
         (signoff.id, s.task_ref("s4")),
         (pricing.id, s.task_ref("e12")),
         (assets.id, eu),
+        (contacts.id, s.task_ref("e13")),
     ] {
         s.link(
             EdgeType::About,

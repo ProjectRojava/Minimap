@@ -14,7 +14,7 @@ pub const CONTENTS: [&str; 10] = [
     "40 tasks across the projects and the inbox, with blocks links between projects",
     "8 people (you and 7 others) in 2 nested teams, with reporting lines (four report to you); one person, who reports to you, is overloaded",
     "3 notes (a 1:1 with mentions and a checklist), 7 decisions (three are the records of Decision tasks; one replaced by another)",
-    "3 waiting-ons: one stale, one resolved this week",
+    "4 waiting-ons: one stale, one resolved this week; three are about tasks, so those tasks show who they wait on",
     "This week's events: a task finished, two due dates moved later, one task newly blocked",
     "Repeating work: a monthly task, a task every 12 weeks, and a weekly 1:1 note",
     "Reference links on three tasks: a Google Doc and Sheet, a Drive folder, and web pages",

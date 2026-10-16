@@ -243,6 +243,27 @@ pub struct TaskRow {
     pub subtask_count: u32,
     #[serde(default)]
     pub subtasks_done: u32,
+    /// Who the task is waiting on, when it has open waiting-ons (spec 56).
+    #[serde(default)]
+    pub waiting: Option<WaitingBadge>,
+}
+
+/// The open waiting-ons about a task, for the badge on its card and rows (spec 56): oldest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WaitingBadge {
+    pub entries: Vec<WaitingBadgeEntry>,
+    /// Any of them is stale (a snoozed one is not).
+    pub stale: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WaitingBadgeEntry {
+    pub person: String,
+    /// What it is, for the tooltip.
+    pub description: String,
+    pub age_days: i64,
+    pub stale: bool,
+    pub snoozed: bool,
 }
 
 /// One thing in the Archive: what it is, when it was archived, and for a task the state it was

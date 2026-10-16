@@ -1,12 +1,18 @@
-use minimap_types::{ActivityAction, CreateWaitingOn, NodeType, UpdateWaitingOn, WaitingOn};
+use minimap_types::{
+    ActivityAction, CreateWaitingOn, EdgeType, NewEdge, NodeRef, NodeType, Patch, UpdateWaitingOn,
+    WaitingOn,
+};
 use rusqlite::{params, Connection, Row, Transaction};
+use time::Date;
 use uuid::Uuid;
 
 use crate::{
     activity,
     convert::*,
-    error::Result,
+    edges,
+    error::{Result, StoreError},
     repo::{fetch, fetch_all},
+    tasks,
 };
 
 const TABLE: &str = "waiting_on";
@@ -123,4 +129,68 @@ pub(crate) fn update_in_tx(
         &diff.into(),
     )?;
     Ok(new)
+}
+
+/// The active waiting-ons that are about a task (spec 56): the other end of an active `about`
+/// link, however it was made. Resolved ones are included; archived ones are not.
+pub fn for_task(conn: &Connection, task: Uuid) -> Result<Vec<WaitingOn>> {
+    let mut out = Vec::new();
+    for e in edges::list_for_node(conn, task, false)? {
+        if e.edge_type == EdgeType::About && e.to_id == task && e.from_type == NodeType::WaitingOn {
+            let w = get(conn, e.from_id)?;
+            if w.archived_at.is_none() {
+                out.push(w);
+            }
+        }
+    }
+    out.sort_by_key(|w| (w.asked_on, w.id));
+    Ok(out)
+}
+
+/// A waiting-on made from a task's pane (spec 56): the waiting-on and its `about` link to the
+/// task in one transaction, so one undo step. Refused for an archived or missing task.
+pub fn create_for_task(
+    conn: &mut Connection,
+    task: Uuid,
+    input: CreateWaitingOn,
+) -> Result<WaitingOn> {
+    let tx = conn.transaction()?;
+    let t = tasks::get(&tx, task)?;
+    if t.archived_at.is_some() {
+        return Err(StoreError::Invalid("that task is archived".into()));
+    }
+    let w = create_in_tx(&tx, input)?;
+    edges::add_in_tx(
+        &tx,
+        NewEdge {
+            edge_type: EdgeType::About,
+            from: NodeRef::new(NodeType::WaitingOn, w.id),
+            to: NodeRef::new(NodeType::Task, task),
+            attrs: serde_json::json!({}),
+        },
+    )?;
+    tx.commit()?;
+    Ok(w)
+}
+
+/// Resolves every open waiting-on about a task, as of `today`, in one transaction (the dialog
+/// that follows finishing a task). Returns the ones it resolved; already resolved ones keep
+/// their date.
+pub fn resolve_for_task(conn: &mut Connection, task: Uuid, today: Date) -> Result<Vec<WaitingOn>> {
+    let tx = conn.transaction()?;
+    let mut resolved = Vec::new();
+    for w in for_task(&tx, task)? {
+        if w.resolved_on.is_none() {
+            resolved.push(update_in_tx(
+                &tx,
+                w.id,
+                UpdateWaitingOn {
+                    resolved_on: Patch::Set(today),
+                    ..Default::default()
+                },
+            )?);
+        }
+    }
+    tx.commit()?;
+    Ok(resolved)
 }

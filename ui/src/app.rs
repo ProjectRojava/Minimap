@@ -170,6 +170,7 @@ fn Shell() -> impl IntoView {
             <PaletteHost />
             <LinkDialogHost />
             <crate::components::finish_decision::FinishDecisionHost />
+            <crate::components::finish_waiting::FinishWaitingHost />
             <crate::components::confirm_archive::ConfirmArchiveHost />
             <crate::components::meeting::MeetingDialogHost />
             <crate::components::meeting::MeetingClock />
