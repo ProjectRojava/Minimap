@@ -60,3 +60,16 @@ fn nothing_loads_from_the_internet() {
         }
     }
 }
+
+#[test]
+fn inline_style_attributes_stay_allowed_in_an_installed_build() {
+    // Tauri adds a nonce to `style-src` for the inline <style> in index.html when it embeds the
+    // page, and a browser then ignores 'unsafe-inline' there, so every `style="..."` the UI sets
+    // (positions, colours, grid templates) is dropped in an installed build while `cargo tauri
+    // dev` (no policy) looks fine. `style-src-attr` is not touched by Tauri and says it again.
+    let attr = sources("style-src-attr");
+    assert!(
+        attr.contains(&"'unsafe-inline'".to_owned()),
+        "style-src-attr: {attr:?}"
+    );
+}
