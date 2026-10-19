@@ -19,6 +19,7 @@ All notable changes to Minimap are documented here, organized by release. Format
 
 ### Fixed
 
+- Installed builds (`cargo tauri build`, AppImage, .deb) no longer lose colours, positions and layout that only the dev build showed: the content policy now allows inline styles again.
 ---
 
 ## [0.5.0] - 2026-10-16
