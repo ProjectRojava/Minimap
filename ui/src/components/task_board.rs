@@ -19,12 +19,13 @@ use crate::{
     calendar::format_ymd,
     components::{
         approaching::FilteredApproach,
+        avatar::{Avatar, PeopleLooks},
         card_menu::CardMenu,
         date_field::today_ymd,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
         fog::{confirm_row, fog_class, mark_for, FogLine},
         form::{SelectField, BUTTON_SOFT},
-        objective_colour::{assign, use_objective_colours, ObjectiveChips},
+        objective_colour::{use_objective_colours, ObjectiveChips},
         orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{Hints, Icon, PageHeader, Tone, CHIP},
         task_list::{next_status, BoardSort, FilterControls, LayoutToggle, TaskFilters},
@@ -318,15 +319,6 @@ fn link_label(links: u32) -> String {
         "{links} linked {}",
         if links == 1 { "task" } else { "tasks" }
     )
-}
-
-/// "AB" for "Ada Byron", "P" for "priya": the avatar's letters.
-pub(crate) fn initials(name: &str) -> String {
-    name.split_whitespace()
-        .filter_map(|w| w.chars().next())
-        .take(2)
-        .flat_map(char::to_uppercase)
-        .collect()
 }
 
 /// How a task on the board is joined to the one that is open.
@@ -686,16 +678,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     list.on_new(move || adding.set(Some(TaskStatus::Todo)));
 
     // Each person's colour: ranked by id like objectives, so it never changes under a filter.
-    let people = LocalResource::new(move || {
-        version.track();
-        api::list_node_summaries(NodeType::Person)
-    });
-    let hues = Memo::new(
-        move |last: Option<&HashMap<Uuid, u16>>| match people.get() {
-            Some(Ok(list)) => assign(&list.iter().map(|p| p.node.id).collect::<Vec<_>>()),
-            _ => last.cloned().unwrap_or_default(),
-        },
-    );
+    let hues = expect_context::<PeopleLooks>().hues();
 
     // The open task's links: those cards light up and lines join them.
     let selection = expect_context::<Selection>();
@@ -1355,13 +1338,9 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                     <span class="tabular-nums text-muted" title="Estimate">{estimate}</span>
                 })}
                 {assignee.map(|(person, name)| view! {
-                    <span class=move || format!(
-                              "ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold {}",
-                              if hues.with(|h| h.contains_key(&person)) { "avatar" }
-                              else { "border border-line-strong bg-panel text-muted" })
-                          style=move || hues.with(|h| h.get(&person).map(|h| format!("--obj-h: {h}")))
-                          title=name.clone()>
-                        {initials(&name)}
+                    <span class="ml-auto shrink-0 leading-none">
+                        <Avatar name=name.clone() title=name
+                                hue=move || hues.with(|h| h.get(&person).copied()) />
                     </span>
                 })}
             </div>
@@ -1696,14 +1675,6 @@ mod tests {
         );
         assert_eq!(link_label(1), "1 linked task");
         assert_eq!(link_label(4), "4 linked tasks");
-    }
-
-    #[test]
-    fn avatars_use_up_to_two_initials() {
-        assert_eq!(initials("Ada Byron"), "AB");
-        assert_eq!(initials("priya"), "P");
-        assert_eq!(initials("  Mary Jane Watson "), "MJ");
-        assert_eq!(initials(""), "");
     }
 
     fn link(

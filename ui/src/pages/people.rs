@@ -4,6 +4,7 @@ use minimap_types::{CreatePerson, NodeRef, NodeType};
 use crate::{
     api,
     components::{
+        avatar::PersonAvatar,
         form::{BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
         page::{column_head, EmptyState, PageHeader, Tone, FORM_BAR},
@@ -114,10 +115,11 @@ pub fn People() -> impl IntoView {
                             <NodeRow node=node index=i>
                                 <div class=COLS>
                                     // "Me" stands out: the name in the accent colour and a chip.
-                                    <span class=if is_self { "truncate font-semibold text-accent" } else { "truncate font-medium" }>
-                                        {p.person.name}
+                                    <span class=if is_self { "flex min-w-0 items-center gap-2 font-semibold text-accent" } else { "flex min-w-0 items-center gap-2 font-medium" }>
+                                        <PersonAvatar id=pid name=pname.clone() size=18 />
+                                        <span class="truncate">{p.person.name}</span>
                                         {is_self.then(|| view! {
-                                            <span class=format!("ml-2 align-middle {}", Tone::Accent.chip())
+                                            <span class=format!("shrink-0 {}", Tone::Accent.chip())
                                                   title="This is you: the same person on every computer">"ME"</span>
                                         })}
                                     </span>

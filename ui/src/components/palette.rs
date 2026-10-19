@@ -12,6 +12,7 @@ use minimap_types::{
 
 use crate::{
     api,
+    components::avatar::{NodeLabel, PersonLabel},
     nav::{move_cursor, type_label, NAV},
     state::{finish, undo_or_redo, DataVersion, PaletteOpen, Selection, Toasts},
 };
@@ -592,13 +593,13 @@ pub fn PaletteHost() -> impl IntoView {
                 .map(|(i, w)| {
                     let id = w.waiting.id;
                     let what = w.waiting.description.clone();
-                    let who = w.person.label.clone();
+                    let who = (w.person.node.id, w.person.label.clone());
                     let age = format!("{}d", w.age_days);
                     let text = what.clone();
                     view! {
                         <PaletteRow index=i cursor=pal.cursor
                             on_pick=move || pal.resolve_waiting(id, what.clone())>
-                            <span class="w-28 shrink-0 truncate text-muted">{who}</span>
+                            <span class="w-32 shrink-0 text-muted"><PersonLabel id=who.0 name=who.1 /></span>
                             <span class="min-w-0 flex-1 truncate">{text}</span>
                             <span class="shrink-0 text-[11px] text-muted">{age}</span>
                         </PaletteRow>
@@ -628,10 +629,18 @@ pub fn PaletteHost() -> impl IntoView {
                     Row::AddTask(t) => ("Add".to_owned(), format!("Add task \u{201c}{t}\u{201d}"), "task …".to_owned()),
                     Row::Pong(text) => ("Check".to_owned(), text.clone(), String::new()),
                 };
+                // A person's name comes with their avatar.
+                let node = match &row {
+                    Row::Node(h) => Some(h.node),
+                    _ => None,
+                };
                 view! {
                     <PaletteRow index=i cursor=pal.cursor on_pick=move || pal.run(picked.clone())>
                         <span class="w-16 shrink-0 text-[10px] uppercase tracking-wide text-muted">{tag}</span>
-                        <span class="shrink-0 truncate font-medium">{label}</span>
+                        <span class="shrink-0 truncate font-medium">{match node {
+                            Some(node) => view! { <NodeLabel node=node name=label /> }.into_any(),
+                            None => label.into_any(),
+                        }}</span>
                         <span class="min-w-0 flex-1 truncate text-[11px] text-muted">{hint}</span>
                     </PaletteRow>
                 }
@@ -750,7 +759,7 @@ fn QuickCard(preview: QuickPreview, pal: Pal) -> impl IntoView {
             let label = r.label.clone();
             let state = match &r.state {
                 RefState::Resolved { node } => {
-                    view! { <span>"✓ " {node.label.clone()}</span> }.into_any()
+                    view! { <span class="inline-flex items-center gap-1.5">"✓ " <NodeLabel node=node.node name=node.label.clone() /></span> }.into_any()
                 }
                 RefState::Created { name } => {
                     view! { <span>"+ new: " {name.clone()}</span> }.into_any()

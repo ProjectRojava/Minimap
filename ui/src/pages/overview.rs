@@ -11,6 +11,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        avatar::PersonLabel,
         fog::{fog_class, mark_for, visibility_text, visibility_tone, FogChipFor, FogCtx},
         health::{
             counts_text, finish_text, load_text, reasons_text, risk_kind_label, risk_priority_text,
@@ -317,7 +318,7 @@ fn person_row(
     view! {
         <div class=ROW on:click=on_click>
             <span class="w-4 shrink-0 text-center text-danger" title="Over capacity">"●"</span>
-            <span class="max-w-[18rem] shrink-0 truncate font-medium">{p.person.label.clone()}</span>
+            <span class="max-w-[18rem] shrink-0 font-medium"><PersonLabel id=p.person.node.id name=p.person.label.clone() /></span>
             <span class="text-muted">{load_text(p)}</span>
             <WhyChip kind=Kind::Person id=p.person.node.id />
             <crate::components::ping::PingMarkFor id=p.person.node.id />
@@ -337,7 +338,7 @@ fn waiting_row(
     view! {
         <div class=ROW on:click=on_click>
             <span class="w-4 shrink-0 text-center text-fg">"◐"</span>
-            <span class="w-28 shrink-0 truncate text-muted">{w.person.label.clone()}</span>
+            <span class="w-32 shrink-0 text-muted"><PersonLabel id=w.person.node.id name=w.person.label.clone() /></span>
             <span class="min-w-0 flex-1 truncate">{w.waiting.description.clone()}</span>
             <span class="shrink-0 text-[11px] text-muted">
                 {format!("waiting {}", age_text(w.age_days))}

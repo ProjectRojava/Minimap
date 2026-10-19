@@ -14,6 +14,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        avatar::PersonLabel,
         detail_pane::{Section, SECTION_ACTION},
         form::{DateField, SelectField, BUTTON, BUTTON_PRIMARY, BUTTON_SUCCESS, INPUT},
         page::Tone,
@@ -269,7 +270,7 @@ fn OpenRow(row: WaitingOnRow) -> impl IntoView {
     view! {
         <div class="mb-2 rounded-sm border border-line px-2 py-1.5">
             <div class="flex items-center gap-1.5">
-                <span class="font-medium">{row.person.label.clone()}</span>
+                <span class="font-medium"><PersonLabel id=row.person.node.id name=row.person.label.clone() /></span>
                 {row.stale.then(|| view! { <span class=Tone::Warning.chip()>"stale"</span> })}
                 {snoozed.then(|| view! { <span class=Tone::Neutral.chip()>"snoozed"</span> })}
             </div>

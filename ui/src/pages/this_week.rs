@@ -14,6 +14,7 @@ use crate::{
     api,
     components::{
         approaching::ApproachStrip,
+        avatar::PersonLabel,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
         fog::{confirm_row, FogHidden, StillAccurate},
         form::{BUTTON, BUTTON_SUCCESS, COMPACT_INPUT},
@@ -1504,7 +1505,12 @@ fn QuietRow(
     let id = t.id;
     let node = NodeRef::new(NodeType::Task, id);
     let project = item.task.row.project.as_ref().map(|p| p.label.clone());
-    let who = item.task.row.assignee.as_ref().map(|a| a.label.clone());
+    let who = item
+        .task
+        .row
+        .assignee
+        .as_ref()
+        .map(|a| (a.node.id, a.label.clone()));
     let status = (t.status != TaskStatus::Todo)
         .then(|| (task_status_tone(t.status), task_status_label(t.status)));
     let below = move || {
@@ -1521,7 +1527,7 @@ fn QuietRow(
             <span class="min-w-0 truncate">
                 <span class="font-medium">{t.title.clone()}</span>
                 {project.map(|p| view! { <span class="ml-2 text-muted">{p}</span> })}
-                {who.map(|w| view! { <span class="ml-2 text-muted">{format!("· {w}")}</span> })}
+                {who.map(|(pid, w)| view! { <span class="ml-2 text-muted"><PersonLabel id=pid name=w size=14 /></span> })}
             </span>
             {priority_chip(t.priority)}
             {status.map(|(tone, s)| view! { <span class=tone.chip()>{s}</span> })}
@@ -1549,7 +1555,7 @@ fn WaitingRowView(row: WaitingOnRow, index: usize) -> impl IntoView {
     view! {
         <NodeRow node=node index=index>
             <span class=state_tone.chip()>{state}</span>
-            <span class="w-24 shrink-0 truncate text-muted">{row.person.label.clone()}</span>
+            <span class="w-28 shrink-0 text-muted"><PersonLabel id=row.person.node.id name=row.person.label.clone() /></span>
             <span class="min-w-0 truncate font-medium">{row.waiting.description.clone()}</span>
             <span class="shrink-0 text-[11px] text-muted">{format!("waiting {}", age_text(row.age_days))}</span>
             <span class="shrink-0 text-[11px] tabular-nums text-muted">{expected}</span>

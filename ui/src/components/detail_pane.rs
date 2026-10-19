@@ -5,6 +5,7 @@ use crate::{
     api,
     components::{
         attachments::Attachments,
+        avatar::PersonAvatar,
         decision_panel::DecisionPanel,
         links_editor::LinksEditor,
         note_panel::NotePanel,
@@ -92,6 +93,9 @@ fn PaneBody(node: NodeRef) -> impl IntoView {
                 </div>
                 <p class="text-[11px] uppercase tracking-wide text-muted">{type_label(node.node_type)}</p>
                 <h2 class="text-base font-semibold break-words">
+                    {(node.node_type == NodeType::Person).then(|| view! {
+                        <span class="mr-2 align-middle leading-none"><PersonAvatar id=node.id size=22 /></span>
+                    })}
                     {move || match summary.get() {
                         Some(Ok(s)) => {
                             let archived = s.archived;

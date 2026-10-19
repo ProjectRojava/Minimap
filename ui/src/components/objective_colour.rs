@@ -17,7 +17,7 @@ use crate::{api, state::DataVersion};
 
 /// The first eight objectives, in the order they are handed out: far apart in hue, and kept
 /// away from red and amber, which already mean "overdue" and "needs attention".
-const PALETTE: [u16; 8] = [215, 25, 145, 285, 340, 75, 180, 250];
+pub const PALETTE: [u16; 8] = [215, 25, 145, 285, 340, 75, 180, 250];
 
 /// Saturation and lightness (percent) of an objective colour on dark and light themes. These are
 /// the values in `input.css`; a test keeps the two in step.

@@ -6,6 +6,7 @@ use minimap_types::{Patch, Team, TeamDetail, TeamRow, UpdateTeam, Uuid};
 use crate::{
     api,
     components::{
+        avatar::NodeLabel,
         confirm_archive::{question, ConfirmArchive, UNDO_HINT},
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON_DANGER},
@@ -126,8 +127,8 @@ fn Members(detail: TeamDetail) -> impl IntoView {
                             let node = m.node.node;
                             view! {
                                 <li class="flex items-center gap-2">
-                                    <button class="flex-1 truncate rounded px-1.5 py-0.5 text-left hover:bg-hover"
-                                            on:click=move |_| selection.open(node)>{m.node.label}</button>
+                                    <button class="min-w-0 flex-1 truncate rounded px-1.5 py-0.5 text-left hover:bg-hover"
+                                            on:click=move |_| selection.open(node)><NodeLabel node=node name=m.node.label /></button>
                                     <span class="text-[11px] text-muted">{m.role}</span>
                                 </li>
                             }

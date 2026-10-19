@@ -170,15 +170,6 @@ fn count(n: u32, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
 }
 
-/// Initials for an owner badge.
-pub fn initials(name: &str) -> String {
-    name.split_whitespace()
-        .filter_map(|w| w.chars().next())
-        .take(2)
-        .flat_map(char::to_uppercase)
-        .collect()
-}
-
 /// The second line of a box: status, owner and when.
 pub fn line_two(n: &GraphNode) -> String {
     let mut parts: Vec<String> = Vec::new();
@@ -1473,7 +1464,6 @@ mod tests {
         assert_eq!(legend(Lens::Route)[0].1, "critical path");
         assert_eq!(legend(Lens::People)[0].1, "colour = owner");
         assert_eq!(Lens::Route.label(), "Route");
-        assert_eq!(initials("priya nair"), "PN");
         assert_eq!(short_date(date!(2027 - 10 - 07)), "Oct 7");
     }
 

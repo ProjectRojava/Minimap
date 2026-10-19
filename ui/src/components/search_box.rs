@@ -7,6 +7,7 @@ use wasm_bindgen::JsCast;
 
 use crate::{
     api,
+    components::avatar::NodeLabel,
     components::form::COMPACT_INPUT,
     nav::{move_cursor, type_label},
     state::{Selection, Toasts},
@@ -128,7 +129,7 @@ pub fn SearchBox() -> impl IntoView {
                                 <span class="w-16 shrink-0 text-[10px] uppercase tracking-wide text-muted">
                                     {type_label(hit.node.node_type)}
                                 </span>
-                                <span class="truncate font-medium">{hit.label.clone()}</span>
+                                <span class="min-w-0 font-medium"><NodeLabel node=hit.node name=hit.label.clone() /></span>
                                 {hit.archived.then(|| view! { <span class="text-[11px] text-faint">"archived"</span> })}
                             </div>
                             {(!hit.snippet.is_empty() && hit.snippet != hit.label).then(|| view! {

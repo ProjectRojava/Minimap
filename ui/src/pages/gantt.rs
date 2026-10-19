@@ -18,6 +18,7 @@ use crate::{
     calendar::{format_ymd, parse_ymd},
     components::date_field::DateField,
     components::{
+        avatar::PersonLabel,
         form::{BUTTON, BUTTON_ON},
         objective_colour::use_objective_colours,
         page::{Hints, PageHeader, Tone, FILTER_BAR},
@@ -2097,7 +2098,11 @@ fn label_row(
                                 if id != UNASSIGNED.id {
                                     ctx.selection.open(NodeRef::new(NodeType::Person, id));
                                 }
-                            }>{p.title.clone()}</button>
+                            }>{if id == UNASSIGNED.id {
+                                p.title.clone().into_any()
+                            } else {
+                                view! { <PersonLabel id=id name=p.title.clone() /> }.into_any()
+                            }}</button>
                     {column(chips, false)}
                     </div>
                 </div>
