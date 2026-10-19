@@ -15,8 +15,8 @@ use std::collections::{HashMap, HashSet};
 use minimap_types::{
     Band, DragEdge, DragPreview, DragRefusal, DuePush, EarliestReason, Edge, EdgeType, GanttData,
     GanttGroup, GanttLink, GanttLinkKind, GanttObjective, GanttProject, GanttRef, GanttTask,
-    MovedBar, MyScope, Objective, Project, ProjectEffect, Schedule, ScheduleScope, ScheduledTask,
-    Task, TaskDrag, TaskStatus, Uuid, WorkWeek, Zone,
+    MovedBar, MyScope, Objective, Person, Project, ProjectEffect, ProjectStatus, Schedule,
+    ScheduleScope, ScheduledTask, Task, TaskDrag, TaskStatus, Uuid, WorkWeek, Zone,
 };
 use time::Date;
 
@@ -38,6 +38,8 @@ pub struct BuildInput<'a> {
     pub edges: &'a [Edge],
     pub projects: &'a [Project],
     pub objectives: &'a [Objective],
+    /// For the names of the people tasks are assigned to (spec 58).
+    pub people: &'a [Person],
     pub today: Date,
     pub work_week: WorkWeek,
     pub zone_narrow_days: u32,
@@ -46,6 +48,20 @@ pub struct BuildInput<'a> {
 }
 
 // ------------------------------------------------------------------------ the tree
+
+/// Whether a project needs a look (spec 58): it is not finished, and it is late, has no room left
+/// before its target, or has blocked work. The Gantt opens such projects on its own and the
+/// *Needs a look* filter keeps them.
+pub fn needs_a_look(
+    status: ProjectStatus,
+    late_by_days: Option<u32>,
+    zone: &Zone,
+    blocked: u32,
+) -> bool {
+    let finished = matches!(status, ProjectStatus::Done | ProjectStatus::Cancelled);
+    let no_room = matches!(zone, Zone::Inside { room: 0, .. } | Zone::Outside { .. });
+    !finished && (late_by_days.is_some() || no_room || blocked > 0)
+}
 
 pub fn build(input: &BuildInput) -> Result<GanttData, ScheduleError> {
     let week = input.work_week;
@@ -113,6 +129,18 @@ pub fn build(input: &BuildInput) -> Result<GanttData, ScheduleError> {
         list.dedup();
     }
 
+    // Who each task is assigned to.
+    let mut assignees: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for e in input.edges {
+        if e.edge_type == EdgeType::AssignedTo && e.archived_at.is_none() {
+            assignees.entry(e.from_id).or_default().push(e.to_id);
+        }
+    }
+    for list in assignees.values_mut() {
+        list.sort_unstable();
+        list.dedup();
+    }
+
     // Sub-task → parent (organisation only).
     let parent_of: HashMap<Uuid, Uuid> = input
         .edges
@@ -152,6 +180,7 @@ pub fn build(input: &BuildInput) -> Result<GanttData, ScheduleError> {
                 priority: t.priority,
                 parent: parent_here(s.id),
                 overdue: !s.done && t.due_date.is_some_and(|d| d < input.today),
+                assignees: assignees.get(&s.id).cloned().unwrap_or_default(),
             })
         };
         let mut rows: Vec<GanttTask> = Vec::new();
@@ -193,6 +222,11 @@ pub fn build(input: &BuildInput) -> Result<GanttData, ScheduleError> {
                     .collect()
             })
             .unwrap_or_default();
+        let blocked_tasks = open
+            .iter()
+            .filter(|t| t.schedule.status == TaskStatus::Blocked)
+            .count() as u32;
+        let needs_a_look = needs_a_look(p.status, band.late_by_days, &zone, blocked_tasks);
         projects.push(GanttProject {
             id: p.id,
             title: p.title.clone(),
@@ -201,14 +235,12 @@ pub fn build(input: &BuildInput) -> Result<GanttData, ScheduleError> {
             band,
             zone,
             open_tasks: open.len() as u32,
-            blocked_tasks: open
-                .iter()
-                .filter(|t| t.schedule.status == TaskStatus::Blocked)
-                .count() as u32,
+            blocked_tasks,
             done_tasks: (rows.len() - open.len()) as u32,
             also_under,
             chain: chain_of(&schedule, p.id),
             tasks: rows,
+            needs_a_look,
         });
     }
     // Projects in a group: the soonest to start first.
@@ -345,12 +377,31 @@ pub fn build(input: &BuildInput) -> Result<GanttData, ScheduleError> {
     hi = (hi + PADDING).min(lo + MAX_DAYS);
     let days = (lo..hi).map(|i| date_of(week, t0 + i)).collect();
 
+    // Everyone assigned to something drawn, by name.
+    let drawn_people: HashSet<Uuid> = groups
+        .iter()
+        .flat_map(|g| g.projects.iter())
+        .flat_map(|p| p.tasks.iter())
+        .flat_map(|t| t.assignees.iter().copied())
+        .collect();
+    let mut people: Vec<GanttRef> = input
+        .people
+        .iter()
+        .filter(|p| drawn_people.contains(&p.id))
+        .map(|p| GanttRef {
+            id: p.id,
+            title: p.name.clone(),
+        })
+        .collect();
+    people.sort_by(|a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
+
     Ok(GanttData {
         today: input.today,
         first_offset: lo,
         days,
         groups,
         links,
+        people,
     })
 }
 
@@ -684,11 +735,115 @@ mod tests {
             edges,
             projects,
             objectives,
+            people: &[],
             today: MON,
             work_week: WorkWeek::MON_FRI,
             zone_narrow_days: 3,
             scope: None,
         }
+    }
+
+    fn person(n: u128, name: &str) -> Person {
+        Person {
+            id: id(n),
+            name: name.into(),
+            role_title: String::new(),
+            email: None,
+            weekly_capacity_hours: 40.0,
+            is_self: false,
+            notes: String::new(),
+            created_at: OffsetDateTime::UNIX_EPOCH,
+            updated_at: OffsetDateTime::UNIX_EPOCH,
+            archived_at: None,
+        }
+    }
+
+    #[test]
+    fn tasks_know_who_they_are_assigned_to_and_the_plan_lists_those_people() {
+        let projects = [project(10, "API")];
+        let tasks = [task(100, "Build", 2.0, 10), task(101, "Test", 1.0, 10)];
+        let edges = [
+            edge(
+                EdgeType::AssignedTo,
+                (NodeType::Task, 100),
+                (NodeType::Person, 50),
+            ),
+            edge(
+                EdgeType::AssignedTo,
+                (NodeType::Task, 101),
+                (NodeType::Person, 51),
+            ),
+            edge(
+                EdgeType::AssignedTo,
+                (NodeType::Task, 100),
+                (NodeType::Person, 51),
+            ),
+        ];
+        let people = [person(50, "Zoe"), person(51, "Amir"), person(52, "Nobody")];
+        let mut i = input(&tasks, &edges, &projects, &[]);
+        i.people = &people;
+        let d = build(&i).unwrap();
+        let p = &d.groups[0].projects[0];
+        let of = |n: u128| {
+            p.tasks
+                .iter()
+                .find(|t| t.schedule.id == id(n))
+                .unwrap()
+                .assignees
+                .clone()
+        };
+        assert_eq!(of(100), [id(50), id(51)]);
+        assert_eq!(of(101), [id(51)]);
+        let names: Vec<_> = d.people.iter().map(|p| p.title.as_str()).collect();
+        assert_eq!(
+            names,
+            ["Amir", "Zoe"],
+            "by name, only people on drawn tasks"
+        );
+    }
+
+    #[test]
+    fn a_project_needs_a_look_when_late_out_of_room_or_blocked() {
+        let wide = Zone::Inside {
+            remaining: 5,
+            room: 4,
+            level: minimap_types::ZoneLevel::Wide,
+        };
+        let none = Zone::Inside {
+            remaining: 5,
+            room: 0,
+            level: minimap_types::ZoneLevel::Closing,
+        };
+        let over = Zone::Outside {
+            remaining: 5,
+            over: 2,
+        };
+        let active = ProjectStatus::Active;
+        assert!(!needs_a_look(active, None, &wide, 0));
+        assert!(needs_a_look(active, Some(2), &wide, 0), "late");
+        assert!(needs_a_look(active, None, &none, 0), "no room");
+        assert!(needs_a_look(active, None, &over, 0), "past the target");
+        assert!(needs_a_look(active, None, &wide, 1), "blocked work");
+        assert!(!needs_a_look(active, None, &Zone::None, 0));
+        assert!(
+            !needs_a_look(ProjectStatus::Done, Some(2), &over, 3),
+            "finished is finished"
+        );
+        // Built: a blocked task makes its project need a look.
+        let projects = [project(10, "API"), project(11, "Docs")];
+        let mut stuck = task(100, "Build", 2.0, 10);
+        stuck.status = TaskStatus::Blocked;
+        let tasks = [stuck, task(101, "Write", 1.0, 11)];
+        let d = build(&input(&tasks, &[], &projects, &[])).unwrap();
+        let look: Vec<_> = d.groups[0]
+            .projects
+            .iter()
+            .map(|p| (p.title.as_str(), p.needs_a_look))
+            .collect();
+        assert!(
+            look.contains(&("API", true)) && look.contains(&("Docs", false)),
+            "{look:?}"
+        );
     }
 
     #[test]

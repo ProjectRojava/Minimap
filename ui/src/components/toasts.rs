@@ -1,10 +1,11 @@
 use leptos::prelude::*;
 
-use crate::state::{Toast, Toasts};
+use crate::state::{undo_or_redo, DataVersion, Toast, Toasts};
 
 #[component]
 pub fn ToastHost() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
+    let version = expect_context::<DataVersion>();
     view! {
         <div class="fixed bottom-3 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-[min(28rem,calc(100vw-1.5rem))]"
              role="status" aria-live="polite">
@@ -24,6 +25,13 @@ pub fn ToastHost() -> impl IntoView {
                                 <p class="break-words">{t.message}</p>
                                 {t.code.map(|c| view! { <p class="mt-0.5 font-mono text-[11px] text-faint">{c}</p> })}
                             </div>
+                            {t.undo.then(|| view! {
+                                <button class="text-accent hover:underline"
+                                        on:click=move |_| {
+                                            toasts.dismiss(id);
+                                            undo_or_redo(false, toasts, version);
+                                        }>"Undo"</button>
+                            })}
                             <button class="text-faint hover:text-fg" aria-label="Dismiss"
                                     on:click=move |_| toasts.dismiss(id)>"✕"</button>
                         </div>

@@ -26,6 +26,8 @@ Each cell shows the percentage, coloured by band:
 
 **Click a cell** to see the tasks behind it. The *Capacity* button on a [Your people](help:people-teams) frame opens the screen on that person's row with this week chosen, and the percentage on the frame is this week's number from the heatmap. Switch between **4, 8 and 12 weeks** and move **earlier or later** with the arrows. The row also notes people who have **many open tasks**.
 
+The same overloaded weeks are hatched on each person's row of the [Gantt](help:gantt) when you switch on **By person** there, next to the tasks that make them.
+
 ## Too many tasks
 
 Estimates can be missing, so there is a second signal: a person with **more open tasks than a limit** (10 by default, set under *Settings → Thresholds*) is flagged on this screen and on the [Overview](help:overview) whatever the estimates say.

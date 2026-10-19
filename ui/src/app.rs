@@ -54,6 +54,7 @@ pub fn App() -> impl IntoView {
     }
     provide_context(Selection(RwSignal::new(None)));
     provide_context(PaletteOpen(RwSignal::new(false)));
+    provide_context(crate::state::PaletteText(RwSignal::new(None)));
     provide_context(LinkDialog(RwSignal::new(None)));
     provide_context(crate::state::MeetingDialog(RwSignal::new(None)));
     provide_context(crate::state::NowClock(RwSignal::new(None)));

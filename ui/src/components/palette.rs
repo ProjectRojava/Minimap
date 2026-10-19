@@ -417,13 +417,21 @@ pub fn PaletteHost() -> impl IntoView {
             pal.go.set(None);
         }
     });
-    // A fresh palette each time it opens, with the cursor in the box.
+    // A fresh palette each time it opens, with the cursor in the box, and any text another
+    // screen asked it to open with (which also replaces the text of an open palette).
+    let prefill = expect_context::<crate::state::PaletteText>();
     Effect::new(move |was_open: Option<bool>| {
         let now = pal.open.get();
+        let text = prefill.0.get();
         if now && was_open != Some(true) {
             pal.reset();
             hits.set(Vec::new());
             preview.set(None);
+        }
+        if let Some(text) = text.filter(|_| now) {
+            prefill.0.set(None);
+            pal.input.set(text);
+            pal.cursor.set(0);
         }
         now
     });
