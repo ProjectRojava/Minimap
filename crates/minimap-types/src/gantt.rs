@@ -56,6 +56,10 @@ pub struct GanttTask {
     pub parent: Option<Uuid>,
     /// Open and past its due date.
     pub overdue: bool,
+    /// The people it is assigned to (`assigned_to`), for the Gantt's person filter and rows by
+    /// person (spec 58).
+    #[serde(default)]
+    pub assignees: Vec<Uuid>,
 }
 
 /// A project whose bar is also under another objective.
@@ -82,6 +86,10 @@ pub struct GanttProject {
     pub chain: Vec<Uuid>,
     /// In row order: a task, then its sub-tasks.
     pub tasks: Vec<GanttTask>,
+    /// Late, out of room, or with blocked work (spec 58): opens on its own and passes the
+    /// *Needs a look* filter. Never for a finished project.
+    #[serde(default)]
+    pub needs_a_look: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -117,6 +125,9 @@ pub struct GanttData {
     pub days: Vec<Date>,
     pub groups: Vec<GanttGroup>,
     pub links: Vec<GanttLink>,
+    /// Everyone assigned to a drawn task, by name (spec 58).
+    #[serde(default)]
+    pub people: Vec<GanttRef>,
 }
 
 // ------------------------------------------------------------------ dragging a bar

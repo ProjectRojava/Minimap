@@ -131,7 +131,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
    theme. The two pairs below are mirrored by DARK_SL / LIGHT_SL (a test keeps them in step). */
 :root { --obj-s: 55%; --obj-l: 70%; }
 :root[data-kind="light"] { --obj-s: 55%; --obj-l: 32%; }
-.obj-dot, .obj-chip, .obj-edge, .obj-bar, .radar-rim, .dep .node, .dep .stripe, .dep .person { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
+.obj-dot, .obj-chip, .obj-edge, .obj-bar, .radar-rim, .dep .node, .dep .stripe { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); }
 .obj-dot { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 9999px; background: var(--obj); }
 .obj-chip {
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0; height: 18px;
@@ -161,11 +161,12 @@ article.card-frame {
   border: 1px solid hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.5);
 }
 /* A person's avatar wears a hue the same way (Tasks board): tinted fill, hue ring and letters. */
-.avatar {
-  color: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l));
-  background: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.18);
-  border: 1px solid hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.7);
-}
+/* A person's avatar: two letters in a shape (components/avatar.rs), in the person's hue. */
+svg.avatar-svg { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); display: inline-block; flex-shrink: 0; vertical-align: middle; overflow: visible; }
+svg.avatar-svg path { fill: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.18); stroke: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.7); stroke-width: 1.5; }
+svg.avatar-svg text { fill: var(--obj); font-weight: 600; text-anchor: middle; font-family: inherit; }
+svg.avatar-svg.plain path { fill: var(--panel); stroke: var(--line-strong); }
+svg.avatar-svg.plain text { fill: var(--muted); }
 
 /* A task's fill warms towards the danger colour as its deadline nears: a tint laid over the
    item's own background, behind its content. `--heat` is its strength (0 to 1). An overlay
@@ -235,6 +236,10 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .gc text { fill: var(--muted); font-size: 10px; font-family: inherit; }
 .gc .week-line { stroke: var(--line-strong); stroke-width: 1; }
 .gc .day-line { stroke: var(--line); stroke-width: 1; stroke-opacity: 0.5; }
+.gc .month-line { stroke: var(--line-strong); stroke-width: 1.5; }
+.gc text.month { fill: var(--fg); font-size: 11px; font-weight: 600; }
+.gc .today-col { fill: var(--accent); fill-opacity: 0.18; }
+.gc text.today-num { fill: var(--accent); font-weight: 700; }
 .gc .head-line, .gc .row-line { stroke: var(--line); stroke-width: 1; }
 .gc .row-line { stroke-opacity: 0.6; }
 .gc .row-bg { fill: transparent; }
@@ -254,26 +259,52 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .gc .gb.unestimated { stroke-dasharray: 3 2; }
 .gc .gb.moving { opacity: 0.85; }
 .gc .gb.pushed { stroke: var(--danger); stroke-width: 1.6; }
-.gc .gb:hover { filter: brightness(1.15); }
+.gc .task:hover .gb { filter: brightness(1.15); }
+.gc .gb.focus, .gc .summary.focus { stroke: var(--accent); stroke-width: 2; }
 .gc .crit { fill: var(--accent); }
-.gc .late-tail { fill: var(--danger); fill-opacity: 0.85; }
-.gc .slack { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 2; }
-.gc .due { stroke: var(--fg); stroke-width: 1.5; stroke-opacity: 0.7; }
-.gc .due.overdue { stroke: var(--danger); stroke-opacity: 1; }
+.gc .late-tail { fill: var(--danger); }
+.gc .slack { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; }
+.gc .due { stroke: var(--fg); stroke-width: 1.5; }
+.gc .due.overdue { stroke: var(--danger); }
 .gc .task.dim { opacity: 0.3; }
+/* Press areas (spec 58): invisible, at least 24 px either way, over what is drawn. */
 .gc .handle { fill: transparent; cursor: ew-resize; }
-.gc .grip { fill: transparent; cursor: grab; }
+.gc .grip, .gc .hit { fill: transparent; cursor: grab; }
+.gc .hit.still { cursor: pointer; }
 .gc .ghost { fill: none; stroke: var(--faint); stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
 .gc .limit { stroke: var(--warning); stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
 .gc .pushed { fill: var(--danger); font-weight: 600; }
-.gc .summary { fill: var(--muted); }
-.gc .summary.objc { fill: hsl(var(--obj-h) var(--obj-s) var(--obj-l)); }
-.gc .cap { stroke: var(--muted); stroke-width: 1.4; fill: none; }
-.gc .room { fill: var(--success); fill-opacity: 0.16; }
-.gc .room.narrow { fill: var(--warning); fill-opacity: 0.2; }
-.gc .room.closing { fill: var(--warning); fill-opacity: 0.38; }
-.gc .over { fill: var(--danger); fill-opacity: 0.35; }
-.gc .fade { fill: url(#gc-fade); }
+/* Project and objective bars (spec 58): neutral, filled for the work done; the room is a thin
+   strip along the foot of the row up to the flag, the overrun as tall as the bar. */
+.gc .summary { fill: color-mix(in srgb, var(--muted) 30%, var(--canvas)); stroke: var(--muted); stroke-width: 1; }
+.gc .progress { fill: var(--muted); pointer-events: none; }
+/* The room's level is told by pattern as well as colour: wide plain, narrow hatched, closing dotted. */
+.gc .room { fill: var(--success); }
+.gc .room.narrow { fill: url(#gc-hatch); stroke: var(--warning); stroke-width: 1; }
+.gc .room.closing { fill: url(#gc-dots); stroke: var(--warning); stroke-width: 1; }
+.gc .hatch-line { stroke: var(--warning); stroke-width: 1.6; }
+.gc .dot { fill: var(--warning); }
+.gc .room-key { fill: none; stroke: var(--warning); stroke-width: 1; }
+/* Spec 58, phase 3: the add row and the task drawn on it, weeks over capacity (hatched, by
+   person), what the find box matched, and the overview strip. */
+.gc .add-row { fill: transparent; cursor: crosshair; }
+.gc .new-bar { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 2; pointer-events: none; }
+.gc .overload { fill: url(#gc-over); stroke: var(--danger); stroke-width: 1; }
+.gc .over-line { stroke: var(--danger); stroke-width: 1.2; }
+.gc .row-found { fill: color-mix(in srgb, var(--warning) 16%, transparent); }
+.gc-found { background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.gc-strip { cursor: pointer; }
+.gc .strip-work { fill: var(--muted); }
+.gc .strip-work.look { fill: var(--warning); }
+.gc .strip-target { stroke: var(--danger); stroke-width: 1; }
+.gc .strip-box { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.gc .over { fill: var(--danger); }
+.gc .fade { fill: url(#gc-fade); opacity: 0.6; }
+/* Names after the bars, with a halo of the background so a dashed line under them can't hide them. */
+.gc text.name { fill: var(--fg); font-size: 11px; pointer-events: none; paint-order: stroke; stroke: var(--canvas); stroke-width: 3px; stroke-linejoin: round; }
+.gc text.name.critical { font-weight: 600; }
+.gc text.band-name { fill: var(--muted); font-weight: 600; }
+.gc text.empty { fill: var(--muted); font-size: 11px; font-style: italic; pointer-events: none; }
 .gc .target { stroke: var(--danger); stroke-width: 1; stroke-dasharray: 3 2; }
 .gc .flag { fill: var(--danger); }
 .gc .pin { stroke: var(--fg); stroke-width: 2; stroke-opacity: 0.6; fill: none; }
@@ -284,11 +315,24 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .gc .link.dim { opacity: 0.1; }
 .gc .link.lit .line { stroke: var(--accent); stroke-width: 2; }
 .gc .link.lit .head { fill: var(--accent); }
-.gc .link { pointer-events: none; }
+.gc .link { pointer-events: none; transition: opacity 150ms ease; }
+.gc .row-focus { stroke: var(--accent); stroke-width: 1.5; }
+@media (prefers-reduced-motion: reduce) {
+  .gc .link { transition: none; }
+}
 .gc .tag rect { fill: var(--panel); stroke: var(--line-strong); }
 .gc .tag text { fill: var(--fg); font-size: 11px; }
 .gc .tag.stopped rect { stroke: var(--warning); }
 .gc.dragging, .gc.dragging * { cursor: grabbing !important; }
+/* Around the chart (spec 58): the row and the day under the pointer, the label column's edge, panning. */
+.gc-row-hover { position: absolute; left: 0; right: 0; pointer-events: none; background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.gc-day-col { position: absolute; top: 19px; bottom: 0; pointer-events: none; background: color-mix(in srgb, var(--fg) 10%, transparent); }
+.gc-day-tag { position: absolute; top: 2px; transform: translateX(-50%); pointer-events: none; white-space: nowrap; border: 1px solid var(--line-strong); border-radius: 2px; background: var(--panel); color: var(--fg); font-size: 10px; line-height: 14px; padding: 0 4px; }
+.gc-resize { position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; z-index: 5; }
+.gc-resize:hover { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.gc-panning, .gc-panning * { cursor: grabbing !important; }
+/* The open row while the chart has the keyboard (spec 58). */
+.gc-focus-row { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* Dependency graph (pages/graph.rs). Theme tokens only. */
 .dep { display: block; cursor: grab; user-select: none; }
@@ -318,8 +362,6 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .dep .node.selected .box { stroke: var(--fg); stroke-width: 2; }
 .dep .node.dim { opacity: 0.25; }
 .dep .stripe { fill: var(--obj); }
-.dep .person { fill: var(--obj); }
-.dep .initials { fill: var(--canvas); font-size: 8px; font-weight: 700; text-anchor: middle; }
 .dep .p1 rect { fill: var(--warning); }
 .dep .p1 text { fill: var(--canvas); font-size: 9px; font-weight: 700; text-anchor: middle; }
 .dep .p2 rect { fill: color-mix(in srgb, var(--warning) 14%, var(--panel)); stroke: var(--warning); stroke-width: 1; }
@@ -333,8 +375,6 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .dep .edge.dim { opacity: 0.2; }
 .dep .edge-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
 .dep .rubber { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 4 3; pointer-events: none; }
-/* An owner's initials as a round badge (the list of unlinked work, like the one in a box). */
-.person-badge { --obj: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l)); display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 9999px; font-size: 9px; font-weight: 600; color: var(--obj); background: hsl(var(--obj-h, 215) var(--obj-s) var(--obj-l) / 0.2); border: 1px solid var(--obj); }
 .dep .node.waiting .box { stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 6 4; }
 .dep .unstage circle { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
 .dep .unstage path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; }

@@ -61,6 +61,7 @@ pub(crate) fn gantt_at(
     let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let objectives = minimap_store::objectives::list(conn, false).map_err(store_error)?;
+    let people = minimap_store::people::list(conn, false).map_err(store_error)?;
     let settings = minimap_store::settings::get(conn).map_err(store_error)?;
     let scope = if filter.mine {
         Some(crate::commands::orientation::my_scope_at(conn, today)?)
@@ -72,6 +73,7 @@ pub(crate) fn gantt_at(
         edges: &edges,
         projects: &projects,
         objectives: &objectives,
+        people: &people,
         today,
         work_week: settings.work_week,
         zone_narrow_days: settings.zone_narrow_days,

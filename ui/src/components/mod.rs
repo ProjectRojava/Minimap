@@ -1,5 +1,6 @@
 pub mod approaching;
 pub mod attachments;
+pub mod avatar;
 pub mod backup_settings;
 pub mod card_menu;
 pub mod close_prompt;

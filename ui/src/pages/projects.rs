@@ -9,6 +9,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        avatar::PersonLabel,
         fog::{confirm_row, fog_class, mark_for, FogLine},
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SOFT, INPUT},
         node_row::NodeRow,
@@ -296,7 +297,7 @@ fn project_row(row: ProjectRow, index: usize, edge: Option<Signal<Option<u16>>>)
                     <span class="ml-2"><WhyChip kind=Kind::Project id=p.id /></span>
                 </span>
                 <ObjectiveChips objectives=objectives max=1 />
-                <span class=format!("{WIDE_ONLY} truncate text-muted")>{row.owner.map(|o| o.label).unwrap_or_default()}</span>
+                <span class=format!("{WIDE_ONLY} min-w-0 text-muted")>{row.owner.map(|o| view! { <PersonLabel id=o.node.id name=o.label /> })}</span>
                 <span><span class=project_status_tone(p.status).chip()>{project_status_label(p.status)}</span></span>
                 <span class=format!("{WIDE_ONLY} text-muted tabular-nums")>{p.target_date.map(|d| d.to_string()).unwrap_or_default()}</span>
                 <span class=WIDE_ONLY><ZoneBar zone=zone compact=true /></span>
@@ -432,7 +433,7 @@ fn BoardCard(
                 <div class="mt-1"><ObjectiveChips objectives=objectives /></div>
             })}
             <div class="mt-1 flex flex-wrap gap-x-2 text-[11px] text-muted">
-                {row.owner.map(|o| view! { <span>{o.label}</span> })}
+                {row.owner.map(|o| view! { <PersonLabel id=o.node.id name=o.label size=14 /> })}
                 {p.target_date.map(|d| view! { <span class="tabular-nums">{d.to_string()}</span> })}
                 {(!tasks.is_empty()).then(|| view! { <span class="tabular-nums">{tasks} " tasks"</span> })}
             </div>

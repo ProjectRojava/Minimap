@@ -54,6 +54,7 @@ pub fn App() -> impl IntoView {
     }
     provide_context(Selection(RwSignal::new(None)));
     provide_context(PaletteOpen(RwSignal::new(false)));
+    provide_context(crate::state::PaletteText(RwSignal::new(None)));
     provide_context(LinkDialog(RwSignal::new(None)));
     provide_context(crate::state::MeetingDialog(RwSignal::new(None)));
     provide_context(crate::state::NowClock(RwSignal::new(None)));
@@ -121,6 +122,8 @@ fn Shell() -> impl IntoView {
     use_sync_status();
     // One hue per objective, worn by its projects and tasks (ADR-0012).
     crate::components::objective_colour::ObjectiveColours::provide();
+    // One colour and shape per person, for avatars next to a name (dropdowns, lists, panes).
+    crate::components::avatar::PeopleLooks::provide();
     // The user's task types (spec 32), for chips, dropdowns and filters.
     crate::components::task_type::TaskTypes::provide();
     // How stale what is in play has become (spec 43), for the chips and fading on rows and cards.

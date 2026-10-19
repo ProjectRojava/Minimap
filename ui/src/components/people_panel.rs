@@ -9,6 +9,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        avatar::NodeLabel,
         confirm_archive::{question, ArchiveChoice, ArchiveRequest, ConfirmArchive, UNDO_HINT},
         detail_pane::Section,
         form::{SelectField, TextField, BUTTON, BUTTON_DANGER},
@@ -252,7 +253,7 @@ pub fn NodeButtons(nodes: Vec<NodeSummary>) -> impl IntoView {
                 view! {
                     <li>
                         <button class="w-full rounded px-1.5 py-0.5 text-left hover:bg-hover"
-                                on:click=move |_| selection.open(node)>{n.label}</button>
+                                on:click=move |_| selection.open(node)><NodeLabel node=node name=n.label /></button>
                     </li>
                 }
             }).collect_view()}

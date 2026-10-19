@@ -26,7 +26,7 @@ On [This week](help:this-week) (a card after the 1:1s) and at the top of the **P
 
 A frame has three lines:
 
-1. their initials in their colour, their name and role (yours says *You*);
+1. their **avatar**, their name and role (yours says *You*). The avatar is two letters in a shape and a colour that belong to that person, so people whose names start the same way still look different. Two words give the first letter of the first and of the last (*Priya Nair* is **PN**); one word gives its first two letters (*Pawan* is **PA**, *Prayrit* is **PR**). The colour and the shape are the same everywhere a person shows up, and hovering an avatar on a card or box shows the full name. You will also see the avatar before a person's name in the **dropdowns** that pick a person (assignee, owner, manager, *Waiting on*, and so on), in lists (People, Projects, Capacity, This week, Waiting on, the weekly review, What if, Gantt rows by person), in **search** and the **command palette**, in a task's or team's links and members, and beside the title of a person's pane;
 2. a **load bar** and the number: *72% this week* is the same figure the [Capacity](help:capacity) heatmap shows for their cell this week. Past 100% the bar is full and the part over capacity is drawn in amber at its end. *No capacity set* when there is nothing to measure it against;
 3. up to three small pills with facts, then *+N*:
    - *Over capacity*: this week's load is above 100%.

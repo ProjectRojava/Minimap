@@ -51,7 +51,7 @@ Hover over a sidebar entry to see its keys.
 
 ## On the Gantt screen
 
-Click the chart first. `↑` `↓` move between rows, `→` `←` open and fold them, `*` opens every project, `Alt+←` `Alt+→` move the open task one working day and `Alt+Shift+←` `Alt+Shift+→` move only its end. `Esc` cancels a drag. See [Gantt](help:gantt).
+Click the chart first. `↑` `↓` move between rows (`Home`, `End`, `PageUp`, `PageDown` jump), `→` `←` open and fold them, `*` opens every project, `t` brings today into view, `Enter` opens the row's date box, `Alt+←` `Alt+→` move the open task (or a project's or objective's target) one working day and `Alt+Shift+←` `Alt+Shift+→` move only a task's end or a project's start. `Esc` closes the date box or cancels a drag. `Ctrl/Cmd+F` finds a row by name (then `Enter` and `Shift+Enter` step through the matches) and `Ctrl` with the mouse wheel zooms. The same keys work in the Table view. See [Gantt](help:gantt).
 
 ## In lists
 

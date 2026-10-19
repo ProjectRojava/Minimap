@@ -12,7 +12,7 @@ A toggle at the top chooses:
 ## What a box says
 
 - **Line 1**: the title. **Line 2**: the status, the owner or assignee, and when it is projected to finish (for a project, how many of its tasks are done). **Line 3**: what the lens is about (below).
-- At the right: the owner's **initials** in their colour (the same colour as on the Tasks board) and a **P1** (solid amber) or **P2** (tinted) pill for urgent work. A thin **stripe** on the left is the colour of the objective the work serves, and a `≋ 19d` chip says a task has gone quiet (see [Fog](help:fog)).
+- At the right: the owner's **avatar**: two letters in the owner's colour and shape (the same as on the Tasks board) and a **P1** (solid amber) or **P2** (tinted) pill for urgent work. A thin **stripe** on the left is the colour of the objective the work serves, and a `≋ 19d` chip says a task has gone quiet (see [Fog](help:fog)).
 - On the **Projects** level a box also says the **safe zone** (*10 days of room*) and the project's **target**, and the health shows in the Risk lens.
 - Zoom out and the boxes say less: below 50% only the title, below 30% only the shape.
 

@@ -9,6 +9,13 @@ All notable changes to Minimap are documented here, organized by release. Format
 ### Added
 
 ### Changed
+- **People have an avatar of their own**: two letters in a shape and a colour, instead of one letter in a circle, so two people whose names start the same way (Pawan and Prayrit) are easy to tell apart. It shows on your people's frames, on Tasks board cards and in Dependencies, and now also before a person's name in the assignee, owner, manager and *Waiting on* dropdowns, in lists, in search and the command palette, in links and team members, and in the person's pane.
+
+- **The Gantt is easier to read** (Spec 58, phase 1): names are written next to the bars, the row and the day under the pointer light up, months sit above the days, the chart opens at today (and **Today** / `t` brings it back), a new **Fit** scale shows the whole plan, project bars are filled for the work done with the room as a thin strip to the flag, counts move into their own column so names have room, the names column can be resized, empty rows offer *Add a project* / *Add a task*, the legend moves behind **?**, the message after a drop has **Undo**, and you can pan by dragging empty chart or with `Shift` and the wheel.
+
+- **The Gantt works without a mouse and with a screen reader** (Spec 58, phase 2): click a bar or press `Enter` for a date box with −1d / +1d and date fields (same rules and undo as dragging); `Alt+←/→` also moves a project's or objective's target and `Alt+Shift+←/→` a project's start; `Home`, `End`, `PageUp`, `PageDown`; rows are a tree that says in words what each bar shows, with folds and refusals announced; bigger press areas; *Comfortable* rows; narrow and closing room is hatched and dotted, not only coloured; chart marks pass a contrast check in every theme; less motion when the system asks; and a **Table** view of the same rows that sorts every task by any date.
+
+- **The Gantt opens where the trouble is, and narrows down** (Spec 58, phase 3): projects that are late, out of room or blocked start open; **Show** filters to one person, one objective, or what needs a look; **Find** (`Ctrl/Cmd+F`) lights up matches and unfolds them; an overview strip shows the whole plan and moves the chart; `Ctrl` + wheel zooms between Weeks and Days; drag across a project's add row to start a task with those dates in quick-add; and **By person** shows each person's tasks with the weeks they are over capacity hatched.
 
 ### Fixed
 

@@ -6,7 +6,10 @@
 
 use leptos::{ev, html, prelude::*};
 
+use minimap_types::Uuid;
+
 use super::{
+    avatar::{use_people_looks, PersonAvatar},
     overlay::{anchor_of, place, viewport},
     page::Tone,
 };
@@ -17,7 +20,8 @@ const MAX_LIST: f64 = 256.0;
 const MIN_WIDTH: f64 = 140.0;
 
 /// `(value, label)` options. Reports the chosen value; `current` is only the starting value
-/// (the control keeps its own selection afterwards, like an uncontrolled `<select>`).
+/// (the control keeps its own selection afterwards, like an uncontrolled `<select>`). An option
+/// whose value is a person's id (an assignee, an owner, a manager) shows that person's avatar.
 #[component]
 pub fn SelectField(
     options: Vec<(String, String)>,
@@ -47,6 +51,13 @@ pub fn SelectField(
     let pos = RwSignal::new((0.0_f64, 0.0_f64, 0.0_f64));
     let button = NodeRef::<html::Button>::new();
     let list = NodeRef::<html::Ul>::new();
+
+    // The person an option's value names, if any: its avatar goes before the label.
+    let looks = use_people_looks();
+    let person_of = move |value: &str| -> Option<Uuid> {
+        let id = value.parse::<Uuid>().ok()?;
+        looks.filter(|l| l.knows(id)).map(|_| id)
+    };
 
     let count = move || options.with_value(Vec::len);
     // Shows the selected option's label (the first option if the value matches none).
@@ -209,7 +220,10 @@ pub fn SelectField(
                 on:click=move |_| if open.get_untracked() { open.set(false) } else { open_menu() }
                 on:keydown=on_keydown
             >
-                <span class="min-w-0 truncate">{shown}</span>
+                {move || person_of(&selected.get()).map(|id| view! {
+                    <span class="shrink-0 leading-none"><PersonAvatar id=id size=16 /></span>
+                })}
+                <span class="min-w-0 flex-1 truncate">{shown}</span>
                 <span class="shrink-0 text-[9px] text-faint" aria-hidden="true">"▼"</span>
             </button>
             <Show when=move || open.get()>
@@ -224,11 +238,17 @@ pub fn SelectField(
                         format!("left:{left}px; top:{top}px; min-width:{}px; max-height:{MAX_LIST}px", width.max(MIN_WIDTH))
                     }
                 >
-                    {move || options
+                    {move || {
+                        // In a list of people, an option that is not one (Unassigned) keeps the
+                        // labels lined up.
+                        let has_people = options.with_value(|o| o.iter().any(|(v, _)| person_of(v).is_some()));
+                        options
                         .with_value(|o| o.clone())
                         .into_iter()
                         .enumerate()
-                        .map(|(i, (value, text))| view! {
+                        .map(|(i, (value, text))| {
+                            let who = person_of(&value);
+                            view! {
                             <li
                                 role="option"
                                 aria-selected=move || (selected.get() == value).to_string()
@@ -242,10 +262,17 @@ pub fn SelectField(
                                 <span class="w-3 shrink-0 text-[10px]">
                                     {move || if selected.get() == options.with_value(|o| o.get(i).map(|(v, _)| v.clone()).unwrap_or_default()) { "✓" } else { "" }}
                                 </span>
+                                {match who {
+                                    Some(id) => Some(view! { <span class="shrink-0 leading-none"><PersonAvatar id=id size=16 /></span> }.into_any()),
+                                    None if has_people => Some(view! { <span class="w-4 shrink-0"></span> }.into_any()),
+                                    None => None,
+                                }}
                                 <span class=move || format!("truncate {}", option_tone(i))>{text}</span>
                             </li>
+                            }
                         })
-                        .collect_view()}
+                        .collect_view()
+                    }}
                 </ul>
             </Show>
         </div>

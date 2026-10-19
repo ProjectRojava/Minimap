@@ -8,6 +8,7 @@ use minimap_types::Uuid;
 use crate::{
     api,
     components::{
+        avatar::PersonLabel,
         form::{BUTTON, BUTTON_PRIMARY},
         waiting_panel::age_text,
     },
@@ -103,7 +104,7 @@ fn Dialog(task: Uuid) -> impl IntoView {
             <ul class="mb-3 space-y-1">
                 {move || open().into_iter().map(|r| view! {
                     <li>
-                        <span class="font-medium">{r.person.label.clone()}</span>
+                        <span class="font-medium"><PersonLabel id=r.person.node.id name=r.person.label.clone() /></span>
                         " · " {r.waiting.description.clone()}
                         <span class="text-muted">{format!(" · {}", age_text(r.age_days))}</span>
                     </li>

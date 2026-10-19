@@ -35,6 +35,19 @@ impl PaletteOpen {
     }
 }
 
+/// Text the palette opens with next time: a quick-add line filled in from another screen
+/// (the Gantt's *Add a project* / *Add a task*, spec 58).
+#[derive(Clone, Copy)]
+pub struct PaletteText(pub RwSignal<Option<String>>);
+
+impl PaletteText {
+    /// Opens the palette with `text` in its box, the cursor at the end.
+    pub fn open_with(self, palette: PaletteOpen, text: String) {
+        self.0.set(Some(text));
+        palette.0.set(true);
+    }
+}
+
 /// The "link a task" dialog (from a card's menu or a task's panel): which task it starts from
 /// and whether it opens on *New task* or *Existing task*.
 #[derive(Clone, Copy)]
@@ -284,6 +297,8 @@ pub struct Toast {
     pub is_error: bool,
     pub message: String,
     pub code: Option<String>,
+    /// Offers *Undo* (the last change, as `Ctrl/Cmd+Z`).
+    pub undo: bool,
 }
 
 const TOAST_SECONDS: u64 = 6;
@@ -302,7 +317,7 @@ impl Toasts {
         }
     }
 
-    fn push(&self, is_error: bool, message: String, code: Option<String>) {
+    fn push(&self, is_error: bool, message: String, code: Option<String>, undo: bool) {
         let id = self.next_id.get_untracked();
         self.next_id.set(id + 1);
         self.items.update(|v| {
@@ -311,6 +326,7 @@ impl Toasts {
                 is_error,
                 message,
                 code,
+                undo,
             })
         });
         let this = *self;
@@ -318,11 +334,16 @@ impl Toasts {
     }
 
     pub fn error(&self, e: &AppError) {
-        self.push(true, e.message.clone(), Some(e.code.clone()));
+        self.push(true, e.message.clone(), Some(e.code.clone()), false);
     }
 
     pub fn info(&self, message: impl Into<String>) {
-        self.push(false, message.into(), None);
+        self.push(false, message.into(), None, false);
+    }
+
+    /// A message about a change just made, with an *Undo* button.
+    pub fn info_with_undo(&self, message: impl Into<String>) {
+        self.push(false, message.into(), None, true);
     }
 
     pub fn dismiss(&self, id: u64) {
