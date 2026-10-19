@@ -274,14 +274,15 @@ mod tests {
             for p in &g.projects {
                 let _ = writeln!(
                     out,
-                    "  {}: {} open, {} blocked, {} done; room {:?}; also under {}; chain {}",
+                    "  {}: {} open, {} blocked, {} done; room {:?}; also under {}; chain {}; needs a look {}",
                     p.title,
                     p.open_tasks,
                     p.blocked_tasks,
                     p.done_tasks,
                     p.zone,
                     p.also_under.len(),
-                    p.chain.len()
+                    p.chain.len(),
+                    p.needs_a_look
                 );
             }
         }
@@ -291,6 +292,18 @@ mod tests {
             .filter(|l| l.kind == minimap_types::GanttLinkKind::Blocks)
             .count();
         let _ = writeln!(out, "links: {blocks} blocks, {} in all", data.links.len());
+        let assigned = data
+            .groups
+            .iter()
+            .flat_map(|g| g.projects.iter())
+            .flat_map(|p| p.tasks.iter())
+            .filter(|t| !t.assignees.is_empty())
+            .count();
+        let _ = writeln!(
+            out,
+            "people: {} on the plan; {assigned} tasks assigned",
+            data.people.len()
+        );
         insta::assert_snapshot!(out);
         // The story holds: EU Region is the project that runs late.
         let eu = data

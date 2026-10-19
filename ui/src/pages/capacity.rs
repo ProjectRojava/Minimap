@@ -10,6 +10,7 @@ use crate::{
     api,
     calendar::MONTHS,
     components::{
+        avatar::PersonLabel,
         form::{BUTTON, BUTTON_ON},
         orientation::{MineBanner, Orientation},
         page::{EmptyState, PageHeader, Tone},
@@ -254,7 +255,7 @@ fn Body(
                             class="flex min-w-0 flex-col justify-center border-b border-line px-4 py-1 text-left hover:bg-hover"
                             on:click=move |_| selection.open(node)>
                         <span class="flex items-center gap-2">
-                            <span class="truncate font-medium">{p.person.label.clone()}</span>
+                            <span class="min-w-0 font-medium"><PersonLabel id=person_id name=p.person.label.clone() /></span>
                             {flagged.then(|| view! { <span class=Tone::Warning.chip()>"many tasks"</span> })}
                         </span>
                         <span class="truncate text-[11px] text-muted">

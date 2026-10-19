@@ -12,6 +12,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        avatar::PersonLabel,
         form::{BUTTON, BUTTON_ON, BUTTON_PRIMARY, COMPACT_INPUT},
         page::{EmptyState, PageHeader, CHIP},
         route::RouteList,
@@ -519,7 +520,7 @@ fn person_row(
         .join(", ");
     view! {
         <div class=ROW on:click=on_click>
-            <span class="truncate font-medium">{p.name.clone()}</span>
+            <span class="min-w-0 font-medium"><PersonLabel id=p.id name=p.name.clone() /></span>
             <span class="truncate text-muted">{plural(p.tasks.len() as f64, "task")}</span>
             <span class="truncate" title=tasks.clone()>{format!("{} · {tasks}", delay_text(p.delay_days))}</span>
         </div>

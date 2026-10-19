@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 use crate::{
     api,
     components::{
+        avatar::NodeLabel,
         detail_pane::{group_links, kind_edited_elsewhere, link_heading},
         form::{SelectField, BUTTON, COMPACT_INPUT, INPUT},
         people_panel::error_line,
@@ -155,7 +156,7 @@ fn Editor(
                         <li class="flex items-center gap-2">
                             <span class="w-16 shrink-0 text-faint">{type_label(other.node_type)}</span>
                             <button class="min-w-0 flex-1 truncate text-left hover:underline"
-                                    on:click=move |_| selection.open(other)>{l.other.label}</button>
+                                    on:click=move |_| selection.open(other)><NodeLabel node=other name=l.other.label /></button>
                             <AttrFields edge_id=edge_id attrs=l.edge.attrs specs=fields />
                             <button class="px-1 text-faint hover:text-danger" aria-label="Remove link"
                                     on:click=remove>"✕"</button>
@@ -379,7 +380,7 @@ fn AddLink(
                                                         <button class="flex w-full gap-2 rounded px-1.5 py-0.5 text-left hover:bg-hover"
                                                                 on:click=move |_| pick(other)>
                                                             <span class="w-16 shrink-0 text-faint">{type_label(other.node_type)}</span>
-                                                            <span class="truncate">{c.label}</span>
+                                                            <span class="min-w-0 truncate"><NodeLabel node=other name=c.label /></span>
                                                         </button>
                                                     </li>
                                                 }

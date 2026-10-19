@@ -9,13 +9,10 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
-use minimap_types::{Frame, FrameFlag, FramesHint, NodeRef, NodeType, PeopleFrames, Uuid};
+use minimap_types::{Frame, FrameFlag, FramesHint, NodeRef, PeopleFrames, Uuid};
 
 use crate::{
-    components::{
-        form::BUTTON, objective_colour::assign, page::Tone, people_panel::new_one_on_one,
-        task_board::initials,
-    },
+    components::{avatar::PersonAvatar, form::BUTTON, page::Tone, people_panel::new_one_on_one},
     state::{DataVersion, ListNav, Selection, Toasts},
 };
 
@@ -153,23 +150,6 @@ fn summary(frame: &Frame) -> String {
 
 // ------------------------------------------------------------------ the frames
 
-/// Each person's hue (by id, in creation order), the one their avatar wears on the Tasks board.
-fn use_hues() -> Memo<HashMap<Uuid, u16>> {
-    let version = expect_context::<DataVersion>();
-    let people = LocalResource::new(move || {
-        version.track();
-        crate::api::list_node_summaries(NodeType::Person)
-    });
-    let kept = RwSignal::new(HashMap::new());
-    Effect::new(move |_| {
-        if let Some(Ok(list)) = people.get() {
-            let ids: Vec<Uuid> = list.iter().map(|p| p.node.id).collect();
-            kept.set(assign(&ids));
-        }
-    });
-    Memo::new(move |_| kept.get())
-}
-
 /// One person's frame: who, how loaded this week, and the facts worth a glance. Click it to open
 /// the person; the buttons (shown when you point at it or tab into it) go on from there.
 #[component]
@@ -178,7 +158,6 @@ pub fn FrameCard(
     /// Its place in the screen's `j`/`k` list, when it has one.
     #[prop(default = None)]
     index: Option<usize>,
-    hues: Memo<HashMap<Uuid, u16>>,
 ) -> impl IntoView {
     let selection = expect_context::<Selection>();
     let list = expect_context::<ListNav>();
@@ -201,7 +180,6 @@ pub fn FrameCard(
         }
         selection.open(node);
     };
-    let initials_text = initials(&name);
     let tasks_path = format!("/tasks?person={id}");
     let capacity_path = format!("/capacity?person={id}");
     let (go_tasks, go_capacity) = (navigate.clone(), navigate);
@@ -218,13 +196,8 @@ pub fn FrameCard(
                  if e.key() == "Enter" { e.prevent_default(); open(); }
              }>
             <div class="flex items-center gap-2">
-                <span class=move || format!(
-                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold {}",
-                          if hues.with(|h| h.contains_key(&id)) { "avatar" }
-                          else { "border border-line-strong bg-panel text-muted" })
-                      style=move || hues.with(|h| h.get(&id).map(|h| format!("--obj-h: {h}")))
-                      aria-hidden="true">
-                    {initials_text}
+                <span class="shrink-0 leading-none">
+                    <PersonAvatar id=id name=name.clone() size=22 />
                 </span>
                 <span class="min-w-0 truncate font-medium">{name_text(&frame)}</span>
                 <span class="min-w-0 flex-1 truncate text-[11px] text-muted">{frame.role_title.clone()}</span>
@@ -270,7 +243,6 @@ pub fn FramesStrip(
     frames: PeopleFrames,
     #[prop(default = None)] first_index: Option<usize>,
 ) -> impl IntoView {
-    let hues = use_hues();
     let navigate = use_navigate();
     // The People screen gives the frames a place in its list; This week does not.
     let on_people = first_index.is_some();
@@ -320,10 +292,10 @@ pub fn FramesStrip(
     let hint = frames.hint;
     view! {
         <div class="flex flex-wrap items-start gap-2 px-4 py-3">
-            <FrameCard frame=frames.me.clone() index=me_index hues=hues />
+            <FrameCard frame=frames.me.clone() index=me_index />
             {reports
                 .into_iter()
-                .map(|(f, at)| view! { <FrameCard frame=f index=at hues=hues /> })
+                .map(|(f, at)| view! { <FrameCard frame=f index=at /> })
                 .collect_view()}
         </div>
         {second
@@ -335,7 +307,7 @@ pub fn FramesStrip(
                     <div class="flex flex-wrap items-start gap-2">
                         {cards
                             .into_iter()
-                            .map(|(f, at)| view! { <FrameCard frame=f index=at hues=hues /> })
+                            .map(|(f, at)| view! { <FrameCard frame=f index=at /> })
                             .collect_view()}
                     </div>
                 </div>
@@ -374,6 +346,7 @@ pub fn use_frames() -> RwSignal<Option<PeopleFrames>> {
 mod tests {
     use super::*;
     use minimap_types::NodeSummary;
+    use minimap_types::NodeType;
 
     fn frame() -> Frame {
         Frame {

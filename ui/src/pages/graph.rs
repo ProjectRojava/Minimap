@@ -20,9 +20,10 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        avatar::{Avatar, PeopleLooks},
         fog::{FogCtx, StillAccurate},
         form::{SelectField, BUTTON, BUTTON_DANGER, BUTTON_ON, BUTTON_SOFT, COMPACT_INPUT},
-        objective_colour::{assign, use_objective_colours, ObjectiveChips},
+        objective_colour::{use_objective_colours, ObjectiveChips},
         page::{EmptyState, Icon, PageHeader, Tone, FILTER_BAR},
         task_board::priority_pill,
         task_type::TypeChip,
@@ -30,11 +31,11 @@ use crate::{
     },
     graph_view::{
         detail_level, drop_beside_banner, drop_pair, edge_class, edge_label, edge_sentence,
-        filter_unlinked, initials, insights, inspector_lines, keep_in_place, lag_attrs, legend,
-        line_three, line_two, link_message, midpoint, neighbours, new_link, node_class,
-        owner_choices_of, project_choices_of, status_choices, status_choices_of, status_word,
-        trace_edge, trace_node, tray_pair, unlinked_count_text, why_lines, Detail, Lens, Neighbour,
-        Trace, UnlinkedFilter, CARD_HINT, LEGEND_HINT, NODE_HINT, UNLINKED_CARD_HINT, WAITING_LINE,
+        filter_unlinked, insights, inspector_lines, keep_in_place, lag_attrs, legend, line_three,
+        line_two, link_message, midpoint, neighbours, new_link, node_class, owner_choices_of,
+        project_choices_of, status_choices, status_choices_of, status_word, trace_edge, trace_node,
+        tray_pair, unlinked_count_text, why_lines, Detail, Lens, Neighbour, Trace, UnlinkedFilter,
+        CARD_HINT, LEGEND_HINT, NODE_HINT, UNLINKED_CARD_HINT, WAITING_LINE,
     },
     state::{finish, finish_task, DataVersion, FinishDecision, Scenario, Selection, Toasts},
 };
@@ -415,10 +416,6 @@ pub fn Graph() -> impl IntoView {
         version.track();
         api::list_node_summaries(NodeType::Objective)
     });
-    let people = LocalResource::new(move || {
-        version.track();
-        api::list_node_summaries(NodeType::Person)
-    });
     // Project names, for the unlinked list's project filter.
     let project_names =
         Memo::new(
@@ -428,12 +425,7 @@ pub fn Graph() -> impl IntoView {
             },
         );
     // Each person's colour, ranked by id like the board's, so an owner looks the same everywhere.
-    let hues = Memo::new(
-        move |last: Option<&HashMap<Uuid, u16>>| match people.get() {
-            Some(Ok(list)) => assign(&list.iter().map(|p| p.node.id).collect::<Vec<_>>()),
-            _ => last.cloned().unwrap_or_default(),
-        },
-    );
+    let hues = expect_context::<PeopleLooks>().hues();
     // What the picked box or link lights.
     let trace = Memo::new(move |_| match (picked.get(), shown.get()) {
         (Some(Picked::Node(id)), Some(g)) => Some(trace_node(&g, id)),
@@ -1146,8 +1138,9 @@ fn UnlinkedPanel(
                         <span class=priority_pill(n.priority, n.done) title="Priority (1 is highest)">{format!("P{}", n.priority)}</span>
                     });
                     let badge = n.assignee.as_ref().map(|a| view! {
-                        <span class="person-badge" title=a.label.clone()
-                              style=hue.map(|h| format!("--obj-h: {h}")).unwrap_or_default()>{initials(&a.label)}</span>
+                        <span class="shrink-0 leading-none">
+                            <Avatar name=a.label.clone() title=a.label.clone() hue=hue size=18 />
+                        </span>
                     });
                     let (two, three) = (line_two(&n), line_three(&n, lens.get()));
                     view! {
@@ -1466,7 +1459,7 @@ fn Drawing(
                     let owner_hue = owner
                         .as_ref()
                         .and_then(|a| hues.with(|h| h.get(&a.node.id).copied()));
-                    let badge_w = if node.priority <= 2 { 52.0 } else { 26.0 };
+                    let badge_w = if node.priority <= 2 { 52.0 } else { 30.0 };
                     let fog_chip = fog
                         .filter(|_| level == GraphLevel::Tasks)
                         .and_then(|f| f.mark(node.node.id))
@@ -1476,9 +1469,9 @@ fn Drawing(
                         <text class="sub" x="10" y="46">{fit_text(&if node.waiting { WAITING_LINE.to_owned() } else { line_three(&node, lens.get()) }, title_w - 40.0, 5.6)}</text>
                         {fog_chip}
                         {owner.map(|a| view! {
-                            <circle class="person" cx=node.w - 16.0 cy="29" r="8"
-                                    style=owner_hue.map(|h| format!("--obj-h: {h}")).unwrap_or_default() />
-                            <text class="initials" x=node.w - 16.0 y="32">{initials(&a.label)}</text>
+                            <g transform=format!("translate({} 19)", node.w - 26.0)>
+                                <Avatar name=a.label.clone() title=a.label.clone() hue=owner_hue size=20 />
+                            </g>
                         })}
                         {(node.priority <= 2).then(|| {
                             let class = if node.priority == 1 { "p1" } else { "p2" };

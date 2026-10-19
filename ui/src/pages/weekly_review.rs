@@ -17,6 +17,7 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::{
+        avatar::PersonLabel,
         fog::{confirm_row, StillAccurate},
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, BUTTON_SUCCESS},
         health::load_text,
@@ -649,7 +650,7 @@ fn LoadRow(person: OverloadedPerson, index: usize) -> impl IntoView {
             <span class=if over { Tone::Danger.chip() } else { Tone::Warning.chip() }>
                 {if over { "over capacity" } else { "many tasks" }}
             </span>
-            <span class="min-w-0 truncate font-medium">{person.person.label.clone()}</span>
+            <span class="min-w-0 font-medium"><PersonLabel id=person.person.node.id name=person.person.label.clone() /></span>
             <span class="shrink-0 text-[11px] text-muted">{text}</span>
             <span class="ml-auto shrink-0" on:click=|ev| ev.stop_propagation()>
                 <button class=BUTTON title="See which tasks make up the load"
@@ -680,7 +681,7 @@ fn StaleRow(row: WaitingOnRow, index: usize) -> impl IntoView {
     view! {
         <NodeRow node=node index=index>
             <span class=tone.chip()>{state}</span>
-            <span class="w-24 shrink-0 truncate text-muted">{row.person.label.clone()}</span>
+            <span class="w-28 shrink-0 text-muted"><PersonLabel id=row.person.node.id name=row.person.label.clone() /></span>
             <span class="min-w-0 truncate font-medium">{row.waiting.description.clone()}</span>
             <span class="shrink-0 text-[11px] text-muted">{format!("waiting {}", age_text(row.age_days))}</span>
             <span class="shrink-0 text-[11px] tabular-nums text-muted">{expected}</span>
@@ -705,7 +706,7 @@ fn ResolvedRow(row: WaitingOnRow, index: usize) -> impl IntoView {
     view! {
         <NodeRow node=node index=index>
             <span class=Tone::Success.chip()>"resolved"</span>
-            <span class="w-24 shrink-0 truncate text-muted">{row.person.label.clone()}</span>
+            <span class="w-28 shrink-0 text-muted"><PersonLabel id=row.person.node.id name=row.person.label.clone() /></span>
             <span class="min-w-0 truncate">{row.waiting.description.clone()}</span>
             <span class="ml-auto shrink-0 text-[11px] tabular-nums text-muted">{on}</span>
         </NodeRow>

@@ -7,6 +7,7 @@ use minimap_types::{
 use crate::{
     api,
     components::{
+        avatar::PersonLabel,
         form::{
             DateField, SelectField, BUTTON, BUTTON_PRIMARY, BUTTON_SOFT, BUTTON_SUCCESS, INPUT,
         },
@@ -311,7 +312,7 @@ fn WaitingRowView(row: WaitingOnRow, index: usize) -> impl IntoView {
             <div class=COLS>
                 <span class=age_class>{age_text(row.age_days)}</span>
                 <span class=title_class>{w.description}{status_chip.map(chip)}</span>
-                <span class="truncate text-muted">{row.person.label}</span>
+                <span class="min-w-0 text-muted"><PersonLabel id=row.person.node.id name=row.person.label /></span>
                 <span class="truncate text-muted">{about}</span>
                 <span class=expected_class>{w.expected_by.map(|d| d.to_string()).unwrap_or_default()}</span>
                 <span class="flex items-center justify-end gap-1" on:click=|ev| ev.stop_propagation()>
