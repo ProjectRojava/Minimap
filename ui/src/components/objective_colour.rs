@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use leptos::prelude::*;
 use minimap_types::{NodeSummary, NodeType, ProjectFilter, ProjectLayout, Uuid};
 
-use crate::{api, state::DataVersion};
+use crate::{api, components::select::NOTE_SEP, state::DataVersion};
 
 /// The first eight objectives, in the order they are handed out: far apart in hue, and kept
 /// away from red and amber, which already mean "overdue" and "needs attention".
@@ -113,11 +113,32 @@ impl ObjectiveColours {
             .unwrap_or_default()
     }
 
+    /// A project as a choice in a drop-down: its id and its name followed by the objective(s) it
+    /// serves, so two projects (or a project and an objective) with alike names stay apart
+    /// (tracks, so call it inside a closure that redraws).
+    pub fn project_choice(&self, project: &NodeSummary) -> (String, String) {
+        let objectives = self.of_project(Some(project.node.id));
+        (
+            project.node.id.to_string(),
+            project_with_objectives(&project.label, &objectives),
+        )
+    }
+
     /// The edge hue of one objective as a signal, for `NodeRow`.
     pub fn objective_edge(&self, objective: Uuid) -> Signal<Option<u16>> {
         let this = *self;
         Signal::derive(move || this.hue(objective))
     }
+}
+
+/// A project's name, then the objectives it serves as a quiet note (`NOTE_SEP` splits them; a
+/// drop-down draws the note smaller and fainter). A project that serves none keeps its plain name.
+pub fn project_with_objectives(project: &str, objectives: &[NodeSummary]) -> String {
+    if objectives.is_empty() {
+        return project.to_owned();
+    }
+    let names: Vec<&str> = objectives.iter().map(|o| o.label.as_str()).collect();
+    format!("{project}{NOTE_SEP}{}", names.join(", "))
 }
 
 /// The colours, from the shell.
@@ -195,6 +216,20 @@ mod tests {
     fn gap(a: u16, b: u16) -> u16 {
         let d = a.abs_diff(b);
         d.min(360 - d)
+    }
+
+    #[test]
+    fn a_project_choice_names_the_objectives_it_serves() {
+        let o = |name: &str| NodeSummary {
+            node: minimap_types::NodeRef::new(NodeType::Objective, Uuid::from_u128(1)),
+            label: name.to_owned(),
+            archived: false,
+        };
+        assert_eq!(project_with_objectives("Phase 1 MVP", &[]), "Phase 1 MVP");
+        assert_eq!(
+            project_with_objectives("Phase 1 MVP", &[o("Launch Bonds"), o("Grow")]),
+            "Phase 1 MVP\u{1f}Launch Bonds, Grow"
+        );
     }
 
     #[test]

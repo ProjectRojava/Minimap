@@ -1114,9 +1114,10 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                    } />
             // A board filtered to a project adds into it; otherwise the project is asked.
             {move || project.get().is_empty().then(|| {
+                let colours = use_objective_colours();
                 let options: Vec<(String, String)> = std::iter::once((String::new(), "Choose a project…".to_owned()))
                     .chain(match projects.get() {
-                        Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
+                        Some(Ok(p)) => p.iter().map(|p| colours.project_choice(p)).collect(),
                         _ => Vec::new(),
                     })
                     .collect();

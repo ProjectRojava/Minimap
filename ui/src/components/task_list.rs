@@ -149,6 +149,32 @@ fn save_board_sort(sort: BoardSort) {
     }
 }
 
+const FILTERS_KEY: &str = "minimap.task-filters";
+
+/// The dropdown filters as remembered on this computer (not the search text: it is typed for one
+/// look, and a forgotten word would hide tasks for no visible reason).
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+struct Remembered {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    project: String,
+    #[serde(default)]
+    assignee: String,
+    #[serde(default)]
+    task_type: String,
+    #[serde(default)]
+    due_from: String,
+    #[serde(default)]
+    due_to: String,
+    #[serde(default)]
+    show_closed: bool,
+}
+
+fn local_storage() -> Option<web_sys::Storage> {
+    web_sys::window().and_then(|w| w.local_storage().ok().flatten())
+}
+
 /// The filters of the Tasks screen. They live outside the list and the board so switching
 /// between the two keeps what you searched for.
 #[derive(Clone, Copy)]
@@ -180,6 +206,39 @@ impl TaskFilters {
             show_closed: RwSignal::new(false),
             board_sort: RwSignal::new(load_board_sort()),
         }
+    }
+
+    /// The filters as last left on this computer (a convenience: nothing breaks without it), kept
+    /// up to date from now on. They stay until *Reset* puts them back. Call once, in the Tasks
+    /// screen: the Inbox keeps its own.
+    pub fn remembered() -> Self {
+        let filters = Self::new();
+        let saved: Remembered = local_storage()
+            .and_then(|s| s.get_item(FILTERS_KEY).ok().flatten())
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default();
+        filters.status.set(saved.status);
+        filters.project.set(saved.project);
+        filters.assignee.set(saved.assignee);
+        filters.task_type.set(saved.task_type);
+        filters.due_from.set(saved.due_from);
+        filters.due_to.set(saved.due_to);
+        filters.show_closed.set(saved.show_closed);
+        Effect::new(move |_| {
+            let now = Remembered {
+                status: filters.status.get(),
+                project: filters.project.get(),
+                assignee: filters.assignee.get(),
+                task_type: filters.task_type.get(),
+                due_from: filters.due_from.get(),
+                due_to: filters.due_to.get(),
+                show_closed: filters.show_closed.get(),
+            };
+            if let (Some(storage), Ok(json)) = (local_storage(), serde_json::to_string(&now)) {
+                let _ = storage.set_item(FILTERS_KEY, &json);
+            }
+        });
+        filters
     }
 
     /// The request for the current filters (reads the signals, so call it inside a resource).
@@ -236,8 +295,30 @@ pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl In
         board_sort,
     } = filters;
     let types = use_task_types();
-    // Bumped by "Reset" so the dropdowns and date boxes, which keep their own value, start over.
+    // Bumped by "Reset" (or by a dropped choice, below) so the dropdowns and date boxes, which keep their own value, start over.
     let epoch = RwSignal::new(0u32);
+    // A remembered project or person that no longer exists (archived or deleted since) would
+    // filter on something the dropdown cannot show, so it is dropped.
+    if !inbox {
+        Effect::new(move |_| {
+            if let Some(Ok(list)) = projects.get() {
+                let wanted = project.get_untracked();
+                if !wanted.is_empty() && !list.iter().any(|p| p.node.id.to_string() == wanted) {
+                    project.set(String::new());
+                    epoch.update(|e| *e += 1);
+                }
+            }
+        });
+    }
+    Effect::new(move |_| {
+        if let Some(Ok(list)) = people.get() {
+            let wanted = assignee.get_untracked();
+            if !wanted.is_empty() && !list.iter().any(|p| p.person.id.to_string() == wanted) {
+                assignee.set(String::new());
+                epoch.update(|e| *e += 1);
+            }
+        }
+    });
     let changed = move || {
         changed_count(&Changed {
             text: text.get(),
@@ -283,9 +364,10 @@ pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl In
             {(!inbox).then(|| view! {
                 {move || {
                     epoch.track();
+                    let colours = use_objective_colours();
                     let options: Vec<(String, String)> = std::iter::once((String::new(), "Any project".to_owned()))
                         .chain(match projects.get() {
-                            Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
+                            Some(Ok(p)) => p.iter().map(|p| colours.project_choice(p)).collect(),
                             _ => Vec::new(),
                         })
                         .collect();
@@ -637,9 +719,10 @@ pub fn TaskList(
                     {move || {
                         let filtered = !inbox && !project.get().is_empty();
                         (!filtered).then(|| {
+                            let colours = use_objective_colours();
                             let options: Vec<(String, String)> = std::iter::once((String::new(), "Choose a project…".to_owned()))
                                 .chain(match projects.get() {
-                                    Some(Ok(p)) => p.into_iter().map(|p| (p.node.id.to_string(), p.label)).collect(),
+                                    Some(Ok(p)) => p.iter().map(|p| colours.project_choice(p)).collect(),
                                     _ => Vec::new(),
                                 })
                                 .collect();
@@ -699,7 +782,8 @@ pub fn TaskList(
                             };
                         }
                         let people: Vec<(String, String)> = ps.iter().map(|p| (p.person.id.to_string(), p.person.name.clone())).collect();
-                        let projects: Vec<(String, String)> = pr.iter().map(|p| (p.node.id.to_string(), p.label.clone())).collect();
+                        let colours = use_objective_colours();
+                        let projects: Vec<(String, String)> = pr.iter().map(|p| colours.project_choice(p)).collect();
                         r.into_iter().enumerate().map(|(i, row)| {
                             view! { <TaskRowView row=row index=i people=people.clone() projects=projects.clone() /> }
                         }).collect_view().into_any()

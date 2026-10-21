@@ -283,13 +283,12 @@ fn TaskFields(
     // A project can be changed but not taken away; "No project" is only there for a meeting or a
     // task from before projects were required, which have none.
     let can_clear_project = is_meeting || task.project_id.is_none();
+    let colours = crate::components::objective_colour::use_objective_colours();
     let project_options: Vec<(String, String)> = can_clear_project
         .then(|| (String::new(), "No project (inbox)".to_owned()))
         .into_iter()
         .chain(
-            projects
-                .iter()
-                .map(|p| (p.node.id.to_string(), p.label.clone())),
+            projects.iter().map(|p| colours.project_choice(p)),
         )
         .collect();
     let assignee_options: Vec<(String, String)> =
