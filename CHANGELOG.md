@@ -9,6 +9,8 @@ All notable changes to Minimap are documented here, organized by release. Format
 ### Added
 
 ### Changed
+- **The Tasks filters are remembered**: the project, assignee, type, status and due range stay as you left them, across screens and restarts, until you press *Reset*.
+- **Project pickers on tasks show the objective too**: the project filter and the project choices on a task list the objective after the project's name, smaller and fainter, so a project and an objective with alike names are no longer confused.
 - **People have an avatar of their own**: two letters in a shape and a colour, instead of one letter in a circle, so two people whose names start the same way (Pawan and Prayrit) are easy to tell apart. It shows on your people's frames, on Tasks board cards and in Dependencies, and now also before a person's name in the assignee, owner, manager and *Waiting on* dropdowns, in lists, in search and the command palette, in links and team members, and in the person's pane.
 
 - **The Gantt is easier to read** (Spec 58, phase 1): names are written next to the bars, the row and the day under the pointer light up, months sit above the days, the chart opens at today (and **Today** / `t` brings it back), a new **Fit** scale shows the whole plan, project bars are filled for the work done with the room as a thin strip to the flag, counts move into their own column so names have room, the names column can be resized, empty rows offer *Add a project* / *Add a task*, the legend moves behind **?**, the message after a drop has **Undo**, and you can pan by dragging empty chart or with `Shift` and the wheel.
