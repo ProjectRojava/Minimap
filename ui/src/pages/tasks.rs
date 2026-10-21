@@ -14,7 +14,7 @@ use crate::{
 #[component]
 pub fn Tasks() -> impl IntoView {
     let board = RwSignal::new(true);
-    let filters = TaskFilters::new();
+    let filters = TaskFilters::remembered();
     // `?person=<id>` opens the screen filtered to that person's tasks (a *Your people* frame's
     // *Tasks* button).
     let (person, _) = query_signal_with_options::<String>("person", NavigateOptions::default());
@@ -22,9 +22,13 @@ pub fn Tasks() -> impl IntoView {
         filters.assignee.set(id);
     }
     // `?project=<id>` opens the screen filtered to that project (zooming to a project, spec 52).
-    // It follows the address when that changes, e.g. a sidebar click back to plain Tasks.
+    // A plain address leaves the remembered filter alone: filters stay until *Reset*.
     let (project, _) = query_signal_with_options::<String>("project", NavigateOptions::default());
-    Effect::new(move |_| filters.project.set(project.get().unwrap_or_default()));
+    Effect::new(move |_| {
+        if let Some(id) = project.get().filter(|p| !p.is_empty()) {
+            filters.project.set(id);
+        }
+    });
     // A zoom that lands here names the project to filter by (or none), even when the address
     // already says so: the dropdown may have been changed by hand since.
     let zoom = expect_context::<ZoomCtx>();

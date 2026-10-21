@@ -19,6 +19,22 @@ const ROW: f64 = 24.0;
 const MAX_LIST: f64 = 256.0;
 const MIN_WIDTH: f64 = 140.0;
 
+/// Splits an option's label into a main part and a quieter note: `"Phase 1 MVP\u{1f}Launch Bonds"`
+/// shows *Phase 1 MVP* as usual and *Launch Bonds* after it, smaller and fainter (the objective a
+/// project serves). A label without the separator is shown as it is.
+pub const NOTE_SEP: char = '\u{1f}';
+
+fn label_view(text: String) -> impl IntoView {
+    match text.split_once(NOTE_SEP) {
+        Some((main, note)) => view! {
+            {main.to_owned()}
+            <span class="ml-1.5 text-[11px] italic text-faint">{note.to_owned()}</span>
+        }
+        .into_any(),
+        None => text.into_any(),
+    }
+}
+
 /// `(value, label)` options. Reports the chosen value; `current` is only the starting value
 /// (the control keeps its own selection afterwards, like an uncontrolled `<select>`). An option
 /// whose value is a person's id (an assignee, an owner, a manager) shows that person's avatar.
@@ -223,7 +239,7 @@ pub fn SelectField(
                 {move || person_of(&selected.get()).map(|id| view! {
                     <span class="shrink-0 leading-none"><PersonAvatar id=id size=16 /></span>
                 })}
-                <span class="min-w-0 flex-1 truncate">{shown}</span>
+                <span class="min-w-0 flex-1 truncate">{move || label_view(shown())}</span>
                 <span class="shrink-0 text-[9px] text-faint" aria-hidden="true">"▼"</span>
             </button>
             <Show when=move || open.get()>
@@ -267,7 +283,7 @@ pub fn SelectField(
                                     None if has_people => Some(view! { <span class="w-4 shrink-0"></span> }.into_any()),
                                     None => None,
                                 }}
-                                <span class=move || format!("truncate {}", option_tone(i))>{text}</span>
+                                <span class=move || format!("truncate {}", option_tone(i))>{label_view(text)}</span>
                             </li>
                             }
                         })
