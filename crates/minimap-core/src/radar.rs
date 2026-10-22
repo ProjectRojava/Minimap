@@ -945,6 +945,7 @@ mod tests {
 
     fn task(n: u128, status: TaskStatus, due: Option<Date>) -> Task {
         Task {
+            order_step: None,
             id: id(n),
             title: format!("task {n}"),
             description: String::new(),

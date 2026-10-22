@@ -426,6 +426,7 @@ mod tests {
 
     fn meeting(start: u16, length: Option<u32>) -> Task {
         Task {
+            order_step: None,
             confirmed_on: None,
 
             links: Vec::new(),

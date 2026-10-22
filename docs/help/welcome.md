@@ -47,6 +47,7 @@ task Write the launch plan @me #my-project due:fri est:3d
 | Plan | [What if](help:what-if) | See what a slip of a few days would push back |
 | People | [People](help:people-teams) and Teams | Who is who, and the teams and reporting lines |
 | People | [Capacity](help:capacity) | A heatmap of who is loaded when |
+| People | [Order](help:order) | What each person does first, and what they do at the same time |
 | Log | [Notes](help:notes) | Meeting notes and 1:1s, with `@` mentions and checklists |
 | Log | [Decisions](help:decisions) | What was decided, why, and what replaced it |
 | Log | [Waiting on](help:waiting-on) | What you are waiting for from others, and how long |

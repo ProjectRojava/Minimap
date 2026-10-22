@@ -38,6 +38,7 @@ Press `g`, then the letter within a second.
 | `g e` | People |
 | `g m` | Teams |
 | `g c` | Capacity |
+| `g q` | Order |
 | `g n` | Notes |
 | `g d` | Decisions |
 | `g a` | Waiting on |

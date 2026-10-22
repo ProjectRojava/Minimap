@@ -53,6 +53,8 @@ On a bar, **colour always says where the work stands**: a task's status, or a pr
 
 ## Which task waits for which
 
+When a person's tasks are in [order](help:order), their bars follow it: a task starts when the step above it in that person's order is finished. No arrow is drawn for that; open the task to see what holds it.
+
 An **arrow** runs from the end of a task that must finish to the start of the task it blocks (a *blocks* link; a lag shows in the arrow's tooltip). Dashed arrows are *depends on* links between projects, or links to a task inside a folded project (the arrow then goes to the project's summary bar). The **Arrows** buttons choose how many are drawn:
 
 - **Focus** (the default): every arrow, quietly. **Point at a task or open it** and everything it waits for, and everything waiting for it, lights up in the accent colour while the other arrows fade.

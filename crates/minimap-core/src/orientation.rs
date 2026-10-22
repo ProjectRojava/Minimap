@@ -285,6 +285,7 @@ mod tests {
 
     fn task(n: u128, status: TaskStatus, project: Option<u128>) -> Task {
         Task {
+            order_step: None,
             id: id(n),
             title: format!("T{n}"),
             description: String::new(),

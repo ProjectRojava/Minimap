@@ -435,6 +435,7 @@ mod tests {
 
     fn task(n: u128, title: &str, project: Option<u128>, days: f64) -> Task {
         Task {
+            order_step: None,
             id: id(n),
             title: title.into(),
             description: String::new(),

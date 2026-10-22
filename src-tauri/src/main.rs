@@ -220,6 +220,8 @@ fn main() {
             commands::tasks::set_task_estimate,
             commands::tasks::set_task_focus,
             commands::tasks::set_task_backburner,
+            commands::order::get_order,
+            commands::order::set_order,
             commands::meetings::create_meeting,
             commands::meetings::set_meeting,
             commands::meetings::schedule_follow_up,

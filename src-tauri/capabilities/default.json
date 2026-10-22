@@ -63,6 +63,8 @@
     "allow-set-task-estimate",
     "allow-set-task-focus",
     "allow-set-task-backburner",
+    "allow-get-order",
+    "allow-set-order",
     "allow-create-meeting",
     "allow-set-meeting",
     "allow-schedule-follow-up",
