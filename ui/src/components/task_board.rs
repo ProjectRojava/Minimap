@@ -1,5 +1,5 @@
-//! The Tasks board: one column per status, cards you drag from column to column to change a
-//! task's status. Cards keep the order the list uses (due date, priority, title); the Done
+//! The Tasks board: one column per status, plus the Backburner (spec 59), cards you drag from
+//! column to column to change a task's status or set it aside. Cards keep the order the list uses (due date, priority, title); the Done
 //! column shows the newest finished work first.
 
 use std::{
@@ -9,8 +9,8 @@ use std::{
 
 use leptos::{ev, prelude::*, task::spawn_local, web_sys};
 use minimap_types::{
-    AppError, AssigneeChoice, CreateTask, Date, EdgeLink, EdgeType, NodeRef, NodeType, TaskRow, TaskStatus,
-    UpdateTask, Uuid,
+    AppError, AssigneeChoice, CreateTask, Date, EdgeLink, EdgeType, NodeRef, NodeType, Patch,
+    TaskRow, TaskStatus, UpdateTask, Uuid,
 };
 use wasm_bindgen::JsCast;
 
@@ -20,6 +20,7 @@ use crate::{
     components::{
         approaching::FilteredApproach,
         avatar::{Avatar, PeopleLooks},
+        backburner::{set_backburner, since_text, since_title},
         card_menu::CardMenu,
         date_field::today_ymd,
         focus::{is_on, set_focus, toggle_choice, FocusStar},
@@ -30,7 +31,8 @@ use crate::{
         page::{Hints, Icon, PageHeader, Tone, CHIP},
         task_list::{next_status, BoardSort, FilterControls, LayoutToggle, TaskFilters},
         task_type::{
-            finish_badge, frame_colour, frame_style, type_for_new_task, use_task_types, TypeChip,
+            finish_badge, frame_colour, frame_style, remember_new_type, use_task_types, TypeChip,
+            CHOOSE_TYPE,
         },
         waiting_badge::WaitingChip,
     },
@@ -64,10 +66,47 @@ fn is_faded(task: &minimap_types::Task, today: Option<Date>) -> bool {
     task.status == TaskStatus::Done && today.is_some_and(|t| done_age_days(task, t) >= FADE_DAYS)
 }
 
+/// A column of the board: a status, or the Backburner (spec 59), which is a flag a task carries
+/// on top of its status. A task on the backburner is in that column whatever its status is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Lane {
+    Status(TaskStatus),
+    Backburner,
+}
+
+impl Lane {
+    /// The column a task is in.
+    pub(crate) fn of(task: &minimap_types::Task) -> Lane {
+        if task.is_parked() {
+            Lane::Backburner
+        } else {
+            Lane::Status(task.status)
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Lane::Status(s) => task_status_label(s),
+            Lane::Backburner => "Backburner",
+        }
+    }
+
+    fn tone(self) -> Tone {
+        match self {
+            Lane::Status(s) => task_status_tone(s),
+            Lane::Backburner => Tone::Neutral,
+        }
+    }
+
+    fn is(self, status: TaskStatus) -> bool {
+        self == Lane::Status(status)
+    }
+}
+
 /// What one column shows.
 #[derive(Clone, Debug, PartialEq)]
 struct Column {
-    status: TaskStatus,
+    lane: Lane,
     /// The cards on show, in order.
     rows: Vec<TaskRow>,
     /// Done only: finished a week or two ago, folded into one group that opens on a click.
@@ -77,16 +116,18 @@ struct Column {
     hidden: usize,
 }
 
-/// The columns, left to right: the three open states, Done, and Cancelled when asked for.
-fn statuses(show_cancelled: bool) -> Vec<TaskStatus> {
+/// The columns, left to right: the three open states, Done, the Backburner, and Cancelled when
+/// asked for.
+fn lanes(show_cancelled: bool) -> Vec<Lane> {
     let mut all = vec![
-        TaskStatus::Todo,
-        TaskStatus::InProgress,
-        TaskStatus::Blocked,
-        TaskStatus::Done,
+        Lane::Status(TaskStatus::Todo),
+        Lane::Status(TaskStatus::InProgress),
+        Lane::Status(TaskStatus::Blocked),
+        Lane::Status(TaskStatus::Done),
+        Lane::Backburner,
     ];
     if show_cancelled {
-        all.push(TaskStatus::Cancelled);
+        all.push(Lane::Status(TaskStatus::Cancelled));
     }
     all
 }
@@ -94,10 +135,16 @@ fn statuses(show_cancelled: bool) -> Vec<TaskStatus> {
 /// Puts a column's cards in order. Ties fall back to priority, then title, like the list. One
 /// setting orders every column; `Default` is by deadline (soonest first) in the open columns and
 /// newest first in Done.
-fn sort_cards(cards: &mut [TaskRow], sort: BoardSort, status: TaskStatus) {
+fn sort_cards(cards: &mut [TaskRow], sort: BoardSort, lane: Lane) {
     let title = |r: &TaskRow| r.task.title.to_lowercase();
-    let sort = match (sort, status) {
-        (BoardSort::Default, TaskStatus::Done) => None,
+    // The Backburner by default: what has been set aside longest comes first, so it is the one
+    // you are asked about.
+    if lane == Lane::Backburner && sort == BoardSort::Default {
+        cards.sort_by_cached_key(|r| (r.task.backburner_since, r.task.priority, title(r)));
+        return;
+    }
+    let sort = match (sort, lane) {
+        (BoardSort::Default, Lane::Status(TaskStatus::Done)) => None,
         (BoardSort::Default, _) => Some(BoardSort::DueSoonest),
         (other, _) => Some(other),
     };
@@ -140,28 +187,44 @@ fn sort_cards(cards: &mut [TaskRow], sort: BoardSort, status: TaskStatus) {
 /// sit in their new column, so a drop never waits for the database.
 fn columns(
     rows: &[TaskRow],
-    pending: &HashMap<Uuid, TaskStatus>,
+    pending: &HashMap<Uuid, Lane>,
     show_cancelled: bool,
     all_done: bool,
     sort: BoardSort,
     today: Option<Date>,
 ) -> Vec<Column> {
-    statuses(show_cancelled)
+    lanes(show_cancelled)
         .into_iter()
-        .map(|status| {
+        .map(|lane| {
             let mut cards: Vec<TaskRow> = rows
                 .iter()
-                .filter(|r| pending.get(&r.task.id).copied().unwrap_or(r.task.status) == status)
+                .filter(|r| {
+                    pending
+                        .get(&r.task.id)
+                        .copied()
+                        .unwrap_or_else(|| Lane::of(&r.task))
+                        == lane
+                })
                 .cloned()
                 .map(|mut r| {
-                    r.task.status = status;
+                    // A card that is still saving shows as it will be.
+                    match pending.get(&r.task.id) {
+                        Some(Lane::Status(s)) => {
+                            r.task.status = *s;
+                            r.task.backburner_since = None;
+                        }
+                        Some(Lane::Backburner) => {
+                            r.task.backburner_since = r.task.backburner_since.or(today);
+                        }
+                        None => {}
+                    }
                     r
                 })
                 .collect();
-            sort_cards(&mut cards, sort, status);
+            sort_cards(&mut cards, sort, lane);
             let mut hidden = 0;
             let mut earlier = Vec::new();
-            if status == TaskStatus::Done {
+            if lane.is(TaskStatus::Done) {
                 match today {
                     // Newest first, so each card goes to the group its age says and the order
                     // inside every group stays newest first.
@@ -191,7 +254,7 @@ fn columns(
                 }
             }
             Column {
-                status,
+                lane,
                 rows: cards,
                 earlier,
                 hidden,
@@ -505,13 +568,14 @@ fn column_tint(tone: Tone) -> &'static str {
 }
 
 /// What a column says when it has no cards.
-fn empty_hint(status: TaskStatus) -> &'static str {
-    match status {
-        TaskStatus::Todo => "Nothing waiting to start",
-        TaskStatus::InProgress => "Drag a task here when you start it",
-        TaskStatus::Blocked => "Nothing is stuck",
-        TaskStatus::Done => "Finished work lands here",
-        TaskStatus::Cancelled => "Nothing cancelled",
+fn empty_hint(lane: Lane) -> &'static str {
+    match lane {
+        Lane::Status(TaskStatus::Todo) => "Nothing waiting to start",
+        Lane::Status(TaskStatus::InProgress) => "Drag a task here when you start it",
+        Lane::Status(TaskStatus::Blocked) => "Nothing is stuck",
+        Lane::Status(TaskStatus::Done) => "Finished work lands here",
+        Lane::Status(TaskStatus::Cancelled) => "Nothing cancelled",
+        Lane::Backburner => "Nothing set aside. Drag a task here, or press b on it",
     }
 }
 
@@ -565,7 +629,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     // In My view (spec 50) only your tasks and what reaches them.
     let orientation = expect_context::<Orientation>();
     // Moves that are saving; cleared once the reloaded tasks arrive.
-    let pending = RwSignal::new(HashMap::<Uuid, TaskStatus>::new());
+    let pending = RwSignal::new(HashMap::<Uuid, Lane>::new());
     let all_done = RwSignal::new(false);
     let failed = RwSignal::new(false);
     Effect::new(move |_| match rows.get() {
@@ -619,17 +683,29 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     });
 
     // Moves a card: it jumps at once and the change is saved behind it.
-    let move_to = move |id: Uuid, status: TaskStatus| {
+    let move_to = move |id: Uuid, lane: Lane| {
         pending.update(|p| {
-            p.insert(id, status);
+            p.insert(id, lane);
         });
-        spawn_local(async move {
-            let patch = UpdateTask {
-                status: Some(status),
-                ..Default::default()
-            };
-            finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
-        });
+        match lane {
+            // The Backburner is a flag: the task keeps its status.
+            Lane::Backburner => set_backburner(id, true, toasts, version),
+            // A card dropped on a status column leaves the backburner, whatever it was.
+            Lane::Status(status) => {
+                let parked = data.with_untracked(|d| {
+                    d.as_ref()
+                        .is_some_and(|d| d.iter().any(|r| r.task.id == id && r.task.is_parked()))
+                });
+                spawn_local(async move {
+                    let patch = UpdateTask {
+                        status: Some(status),
+                        backburner_since: if parked { Patch::Clear } else { Patch::Keep },
+                        ..Default::default()
+                    };
+                    finish_task(api::update_task(id, patch).await, id, toasts, version, gate);
+                });
+            }
+        }
     };
 
     // Keyboard on the card under the cursor: x done, s next status, f focus, 1-5 priority.
@@ -641,17 +717,34 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
             return;
         };
         let id = row.task.id;
-        let current = pending.with_untracked(|p| p.get(&id).copied().unwrap_or(row.task.status));
+        let lane = pending
+            .with_untracked(|p| p.get(&id).copied())
+            .unwrap_or_else(|| Lane::of(&row.task));
+        // The status the task has, under the backburner if it is there.
+        let current = match lane {
+            Lane::Status(s) => s,
+            Lane::Backburner => row.task.status,
+        };
         match key.as_str() {
             "x" => move_to(
                 id,
-                if current == TaskStatus::Done {
+                Lane::Status(if current == TaskStatus::Done {
                     TaskStatus::Todo
                 } else {
                     TaskStatus::Done
-                },
+                }),
             ),
-            "s" => move_to(id, next_status(current)),
+            "s" => move_to(id, Lane::Status(next_status(current))),
+            "b" if !row.task.is_meeting() => {
+                if lane == Lane::Backburner {
+                    pending.update(|p| {
+                        p.insert(id, Lane::Status(row.task.status));
+                    });
+                    set_backburner(id, false, toasts, version);
+                } else {
+                    move_to(id, Lane::Backburner);
+                }
+            }
             "c" => confirm_row(node),
             "f" => {
                 let on = is_on(row.task.focus.as_ref(), today());
@@ -671,11 +764,11 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
     });
 
     // Drag state: the card in the air (id, its column) and the column it is over.
-    let dragging = RwSignal::new(None::<(Uuid, TaskStatus)>);
-    let over = RwSignal::new(None::<TaskStatus>);
+    let dragging = RwSignal::new(None::<(Uuid, Lane)>);
+    let over = RwSignal::new(None::<Lane>);
     // The column with an open "add a task" box.
-    let adding = RwSignal::new(None::<TaskStatus>);
-    list.on_new(move || adding.set(Some(TaskStatus::Todo)));
+    let adding = RwSignal::new(None::<Lane>);
+    list.on_new(move || adding.set(Some(Lane::Status(TaskStatus::Todo))));
 
     // Each person's colour: ranked by id like objectives, so it never changes under a filter.
     let hues = expect_context::<PeopleLooks>().hues();
@@ -754,7 +847,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
         adding,
         all_done,
         dismissed,
-        move_to: Callback::new(move |(id, status)| move_to(id, status)),
+        move_to: Callback::new(move |(id, lane)| move_to(id, lane)),
         order,
         today: today_date,
     };
@@ -782,7 +875,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
             <PageHeader icon="tasks" title="Tasks" subtitle="Drag cards between columns to change their status"
                         crumbs=crate::components::zoom::project_crumbs(filters.project)>
                 <button class=BUTTON_SOFT
-                        on:click=move |_| adding.update(|a| *a = if a.is_some() { None } else { Some(TaskStatus::Todo) })>
+                        on:click=move |_| adding.update(|a| *a = if a.is_some() { None } else { Some(Lane::Status(TaskStatus::Todo)) })>
                     {move || if adding.get().is_some() { "Cancel" } else { "New task" }}
                 </button>
                 <crate::components::meeting::NewMeetingButton />
@@ -792,7 +885,7 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                     </span>
                 </Show>
                 <span class="ml-auto"><LayoutToggle board=layout /></span>
-                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("f", "focus"), ("c", "still accurate"), ("1-5", "priority")] />
+                <Hints keys=&[("n", "new"), ("j/k", "move"), ("x", "done"), ("s", "next status"), ("f", "focus"), ("b", "backburner"), ("c", "still accurate"), ("1-5", "priority")] />
             </PageHeader>
             <MineBanner />
             <FilterControls filters=filters inbox=false board=true />
@@ -801,8 +894,8 @@ pub fn TaskBoard(filters: TaskFilters, layout: RwSignal<bool>) -> impl IntoView 
                 view! {
                     <div class="flex min-h-0 flex-1 overflow-x-auto p-3">
                         <div node_ref=stage class="relative flex min-w-max gap-3">
-                            {statuses(true).into_iter().map(|status| view! {
-                                <BoardColumn status=status ctx=ctx />
+                            {lanes(true).into_iter().map(|lane| view! {
+                                <BoardColumn lane=lane ctx=ctx />
                             }).collect_view()}
                             <LinkLines arrows=arrows />
                         </div>
@@ -841,12 +934,12 @@ struct BoardCtx {
     scrolled: RwSignal<u32>,
     filters: TaskFilters,
     cols: Memo<Option<Vec<Column>>>,
-    dragging: RwSignal<Option<(Uuid, TaskStatus)>>,
-    over: RwSignal<Option<TaskStatus>>,
-    adding: RwSignal<Option<TaskStatus>>,
+    dragging: RwSignal<Option<(Uuid, Lane)>>,
+    over: RwSignal<Option<Lane>>,
+    adding: RwSignal<Option<Lane>>,
     all_done: RwSignal<bool>,
     dismissed: RwSignal<Option<Uuid>>,
-    move_to: Callback<(Uuid, TaskStatus)>,
+    move_to: Callback<(Uuid, Lane)>,
     order: Memo<Vec<Uuid>>,
     today: Option<Date>,
 }
@@ -888,7 +981,7 @@ fn LinkLines(arrows: RwSignal<Vec<Arrow>>) -> impl IntoView {
 }
 
 #[component]
-fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
+fn BoardColumn(lane: Lane, ctx: BoardCtx) -> impl IntoView {
     let BoardCtx {
         filters,
         cols,
@@ -900,11 +993,11 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
         scrolled,
         ..
     } = ctx;
-    let tone = task_status_tone(status);
+    let tone = lane.tone();
     let mine = move || {
         cols.with(|c| {
             c.as_ref()
-                .and_then(|c| c.iter().find(|c| c.status == status).cloned())
+                .and_then(|c| c.iter().find(|c| c.lane == lane).cloned())
         })
     };
     let count = move || {
@@ -915,8 +1008,7 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
     // The folded group of finished tasks from a week or two ago (Done only).
     let earlier_open = RwSignal::new(false);
     // A card from another column is over this one: the drop would move it here.
-    let target =
-        move || over.get() == Some(status) && dragging.get().is_some_and(|d| d.1 != status);
+    let target = move || over.get() == Some(lane) && dragging.get().is_some_and(|d| d.1 != lane);
 
     let on_drop = move |ev: ev::DragEvent| {
         ev.prevent_default();
@@ -925,8 +1017,8 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             return;
         };
         dragging.set(None);
-        if from != status {
-            move_to.run((id, status));
+        if from != lane {
+            move_to.run((id, lane));
         }
     };
     let on_leave = move |ev: ev::DragEvent| {
@@ -942,7 +1034,7 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             .unwrap_or(false);
         if !inside {
             over.update(|o| {
-                if *o == Some(status) {
+                if *o == Some(lane) {
                     *o = None;
                 }
             });
@@ -950,23 +1042,26 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
     };
 
     // The Cancelled column exists only when asked for.
-    let visible = move || status != TaskStatus::Cancelled || filters.show_closed.get();
+    let visible = move || !lane.is(TaskStatus::Cancelled) || filters.show_closed.get();
 
     view! {
         <Show when=visible>
             <section
-                aria-label=task_status_label(status)
+                aria-label=lane.label()
                 class=move || format!(
                     "flex w-72 min-w-[16rem] shrink-0 flex-col rounded-sm border {} {}",
                     column_tint(tone),
-                    if target() { "!bg-hover !border-accent border-dashed" } else { "" })
+                    if target() { "!bg-hover !border-accent border-dashed" }
+                    // Set aside, not part of the flow: a dashed edge.
+                    else if lane == Lane::Backburner { "border-dashed" }
+                    else { "" })
                 on:dragover=move |ev: ev::DragEvent| {
                     ev.prevent_default();
                     if let Some(dt) = ev.data_transfer() {
                         dt.set_drop_effect("move");
                     }
-                    if over.get_untracked() != Some(status) {
-                        over.set(Some(status));
+                    if over.get_untracked() != Some(lane) {
+                        over.set(Some(lane));
                     }
                 }
                 on:dragleave=on_leave
@@ -974,20 +1069,20 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             >
                 <header class="flex items-center gap-2 px-3 py-2">
                     <h2 class=format!("text-[11px] font-semibold uppercase tracking-wider {}", tone.text())>
-                        {task_status_label(status)}
+                        {lane.label()}
                     </h2>
                     <span class="rounded-sm border border-line px-1 text-[10px] leading-4 tabular-nums text-muted">
                         {count}
                     </span>
                     <button class="ml-auto rounded-sm px-1 text-[14px] leading-4 text-faint hover:bg-hover hover:text-accent"
-                            title=format!("Add a task to {}", task_status_label(status))
-                            aria-label=format!("Add a task to {}", task_status_label(status))
-                            on:click=move |_| adding.set(Some(status))>"+"</button>
+                            title=format!("Add a task to {}", lane.label())
+                            aria-label=format!("Add a task to {}", lane.label())
+                            on:click=move |_| adding.set(Some(lane))>"+"</button>
                 </header>
                 <div data-lane="" class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2"
                      on:scroll=move |_| scrolled.update(|n| *n += 1)>
-                    <Show when=move || adding.get() == Some(status)>
-                        <NewCard status=status ctx=ctx />
+                    <Show when=move || adding.get() == Some(lane)>
+                        <NewCard lane=lane ctx=ctx />
                     </Show>
                     <For
                         each=move || mine().map(|c| c.rows).unwrap_or_default()
@@ -997,7 +1092,7 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                     // Finished a week or two ago: one line that opens the cards (small and dimmed).
                     {move || {
                         let n = mine().map(|c| c.earlier.len()).unwrap_or_default();
-                        (status == TaskStatus::Done && n > 0).then(|| view! {
+                        (lane.is(TaskStatus::Done) && n > 0).then(|| view! {
                             <button class="flex items-center gap-1.5 rounded-sm border border-dashed border-line px-2 py-1 text-left text-[11px] text-muted hover:bg-hover hover:text-fg"
                                     aria-expanded=move || earlier_open.get().to_string()
                                     on:click=move |_| earlier_open.update(|o| *o = !*o)>
@@ -1009,7 +1104,7 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                             </button>
                         })
                     }}
-                    <Show when=move || status == TaskStatus::Done && earlier_open.get()>
+                    <Show when=move || lane.is(TaskStatus::Done) && earlier_open.get()>
                         <For
                             each=move || mine().map(|c| c.earlier).unwrap_or_default()
                             key=card_key
@@ -1020,18 +1115,18 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                         let empty = mine().is_some_and(|c| c.rows.is_empty() && c.earlier.is_empty());
                         (empty && !target()).then(|| view! {
                             <p class="rounded-sm border border-dashed border-line px-3 py-6 text-center text-[11px] text-faint">
-                                {empty_hint(status)}
+                                {empty_hint(lane)}
                             </p>
                         })
                     }}
                     {move || target().then(|| view! {
                         <p class="rounded-sm border border-dashed border-accent/60 bg-accent/10 px-3 py-3 text-center text-[11px] text-accent">
-                            {format!("Move to {}", task_status_label(status))}
+                            {format!("Move to {}", lane.label())}
                         </p>
                     })}
                     {move || {
                         let hidden = mine().map(|c| c.hidden).unwrap_or_default();
-                        (status == TaskStatus::Done && (hidden > 0 || all_done.get())).then(|| view! {
+                        (lane.is(TaskStatus::Done) && (hidden > 0 || all_done.get())).then(|| view! {
                             <button class="rounded-sm py-1 text-[11px] text-muted hover:bg-hover hover:text-accent"
                                     on:click=move |_| all_done.update(|a| *a = !*a)>
                                 {if all_done.get() { "Hide older".to_owned() } else { format!("Show {hidden} older") }}
@@ -1046,12 +1141,16 @@ fn BoardColumn(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
 
 /// The box that adds a task straight into a column.
 #[component]
-fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
+fn NewCard(lane: Lane, ctx: BoardCtx) -> impl IntoView {
     let version = expect_context::<DataVersion>();
     let toasts = expect_context::<Toasts>();
+    let selection = expect_context::<Selection>();
     let adding = ctx.adding;
     let project = ctx.filters.project;
     let title = RwSignal::new(String::new());
+    // A task has a type: the one the board is filtered to, else the one used last, else asked.
+    let types = use_task_types();
+    let new_type = RwSignal::new(types.starting_type(&ctx.filters.task_type.get_untracked()));
     let input = leptos::prelude::NodeRef::<leptos::html::Input>::new();
     Effect::new(move |_| {
         if let Some(el) = input.get() {
@@ -1077,18 +1176,30 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             });
             return;
         };
+        let kind = new_type.get_untracked();
+        if kind.is_empty() {
+            toasts.error(&AppError {
+                code: "invalid".into(),
+                message: CHOOSE_TYPE.into(),
+            });
+            return;
+        }
         let new = CreateTask {
             links: Vec::new(),
             focus: None,
+            // A card added in the Backburner is born there.
+            backburner_since: (lane == Lane::Backburner).then(today).flatten(),
             start_minute: None,
             length_minutes: None,
-            // A board filtered to a type adds tasks of that type.
-            task_type: type_for_new_task(&ctx.filters.task_type.get_untracked()),
+            task_type: Some(kind.clone()),
             title: t.to_owned(),
             assignee: AssigneeChoice::Me,
             description: String::new(),
             project_id: Some(project_id),
-            status: Some(status),
+            status: match lane {
+                Lane::Status(s) => Some(s),
+                Lane::Backburner => None,
+            },
             estimate_days: None,
             start_date: None,
             due_date: None,
@@ -1096,8 +1207,11 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
             recurrence: None,
         };
         spawn_local(async move {
-            if finish(api::create_task(new).await, toasts, version).is_some() {
+            // The new task opens on the right, ready to be filled in.
+            if let Some(task) = finish(api::create_task(new).await, toasts, version) {
+                remember_new_type(&kind);
                 title.set(String::new());
+                selection.open(NodeRef::new(NodeType::Task, task.id));
             }
         });
     };
@@ -1128,6 +1242,14 @@ fn NewCard(status: TaskStatus, ctx: BoardCtx) -> impl IntoView {
                     </div>
                 }
             })}
+            // Every task has a type.
+            {move || view! {
+                <div class="mt-1">
+                    <SelectField compact=true options=types.new_task_options()
+                                 current=new_type.get_untracked()
+                                 on_change=move |v: String| new_type.set(v) />
+                </div>
+            }}
             <p class="mt-1 text-[10px] text-faint">"Enter adds and keeps going · Esc closes"</p>
         </div>
     }
@@ -1149,6 +1271,12 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     } = ctx;
     let t = row.task;
     let (id, status) = (t.id, t.status);
+    // On the backburner (spec 59): quiet, no deadline pressure, and it says how long.
+    let lane = Lane::of(&t);
+    let parked = t.is_parked();
+    let parked_for = t
+        .backburner_since
+        .map(|since| (since_text(since, today), since_title(since)));
     let title_label = t.title.clone();
     let node = NodeRef::new(NodeType::Task, id);
     // The card wears the colour of the objective its project serves (ADR-0012).
@@ -1180,10 +1308,13 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     };
     let focus = t.focus;
     let finished = finish_badge(&t);
-    let due = t.due_date.map(|d| due_pill(d, today, status));
+    // Without a clock a due date is plain: a task set aside is not due soon.
+    let due = t
+        .due_date
+        .map(|d| due_pill(d, today.filter(|_| !parked), status));
     // A meeting has a time, not a deadline: it doesn't warm up as the day nears (spec 38).
     let is_meeting = t.is_meeting();
-    let heat = deadline_heat(t.due_date, today, !closed && !is_meeting);
+    let heat = deadline_heat(t.due_date, today, !closed && !is_meeting && !parked);
     let meeting_time = t.start_minute.filter(|_| is_meeting).map(|m| {
         (
             minimap_types::fmt_range(m, t.meeting_minutes()),
@@ -1210,7 +1341,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
     };
     // Urgent work (P1, P2) is the warning tone, like everywhere else.
     let priority = t.priority;
-    let priority_class = priority_pill(priority, closed);
+    let priority_class = priority_pill(priority, closed || parked);
 
     view! {
         <article
@@ -1235,7 +1366,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                 else if on_cursor() { "bg-hover ring-1 ring-line-strong" }
                 else { "bg-canvas hover:bg-hover" },
                 if heat.is_some() && !is_open() && !on_cursor() { "heat" } else { "" },
-                if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else if faded { "opacity-60 hover:opacity-100" } else { "" },
+                if in_the_air() { "opacity-40" } else if dimmed() { "opacity-50" } else if faded { "opacity-60 hover:opacity-100" } else if parked { "opacity-75 hover:opacity-100" } else { "" },
                 // Gone quiet (spec 43): faded, with the chip at the top.
                 fog_class(mark_for(id).map(|m| m.level)))
             on:click=move |_| {
@@ -1252,7 +1383,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
                     let _ = dt.set_data("text/plain", &id.to_string());
                     dt.set_effect_allowed("move");
                 }
-                dragging.set(Some((id, status)));
+                dragging.set(Some((id, lane)));
             }
             on:dragend=move |_| {
                 dragging.set(None);
@@ -1263,7 +1394,7 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             {(!closed).then(|| view! { <FogLine id=id /> })}
             // A ping on the task (ADR-0020): a pin at the card's top left corner.
             <span class="absolute left-1 top-1"><crate::components::ping::PingMarkFor id=id /></span>
-            {(!closed && !is_meeting).then(|| view! {
+            {(!closed && !is_meeting && !parked).then(|| view! {
                 <FocusStar task=id focus=focus place="absolute right-6 top-1" />
             })}
             {move || {
@@ -1327,6 +1458,15 @@ fn TaskCard(row: TaskRow, ctx: BoardCtx) -> impl IntoView {
             {(!faded).then(|| view! {
             <div class="mt-2 flex items-center gap-1.5 text-[11px]">
                 <span class=priority_class title="Priority (1 is highest)">{priority_short(priority)}</span>
+                // The status a card on the backburner keeps (To do needs no word).
+                {(parked && status != TaskStatus::Todo).then(|| view! {
+                    <span class=task_status_tone(status).chip() title="Its status, kept while it is set aside">
+                        {task_status_label(status)}
+                    </span>
+                })}
+                {parked_for.map(|(text, title)| view! {
+                    <span class="tabular-nums text-faint" title=title>{text}</span>
+                })}
                 {due.map(|pill| view! { <span class=pill.class title=pill.hint>{pill.text}</span> })}
                 {meeting_time.map(|(range, live)| view! {
                     <span class=if live { "tabular-nums font-medium text-accent" } else { "tabular-nums text-muted" }
@@ -1371,6 +1511,7 @@ mod tests {
                 links: Vec::new(),
                 task_type: None,
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 id: {
@@ -1406,17 +1547,85 @@ mod tests {
     }
 
     #[test]
-    fn open_work_gets_three_columns_then_done_and_cancelled_on_request() {
+    fn open_work_gets_three_columns_then_done_the_backburner_and_cancelled_on_request() {
         assert_eq!(
-            statuses(false),
+            lanes(false),
             [
-                TaskStatus::Todo,
-                TaskStatus::InProgress,
-                TaskStatus::Blocked,
-                TaskStatus::Done
+                Lane::Status(TaskStatus::Todo),
+                Lane::Status(TaskStatus::InProgress),
+                Lane::Status(TaskStatus::Blocked),
+                Lane::Status(TaskStatus::Done),
+                Lane::Backburner,
             ]
         );
-        assert_eq!(statuses(true).last(), Some(&TaskStatus::Cancelled));
+        assert_eq!(
+            lanes(true).last(),
+            Some(&Lane::Status(TaskStatus::Cancelled))
+        );
+    }
+
+    fn parked(title: &str, status: TaskStatus, since: &str) -> TaskRow {
+        let mut r = row(title, status);
+        r.task.backburner_since = Some(date(since));
+        r
+    }
+
+    #[test]
+    fn a_task_on_the_backburner_is_in_that_column_whatever_its_status_and_keeps_it() {
+        let rows = [
+            row("todo", TaskStatus::Todo),
+            parked("later", TaskStatus::Todo, "2027-03-01"),
+            parked("stuck", TaskStatus::Blocked, "2027-02-01"),
+        ];
+        let cols = columns(
+            &rows,
+            &HashMap::new(),
+            false,
+            false,
+            BoardSort::Default,
+            None,
+        );
+        assert_eq!(titles(&cols[0]), ["todo"]);
+        assert!(
+            cols[2].rows.is_empty(),
+            "a parked blocked task is not under Blocked"
+        );
+        // Oldest first, and the status stays on the card.
+        assert_eq!(titles(&cols[4]), ["stuck", "later"]);
+        assert_eq!(cols[4].lane, Lane::Backburner);
+        assert_eq!(cols[4].rows[0].task.status, TaskStatus::Blocked);
+        assert_eq!(Lane::of(&rows[1].task), Lane::Backburner);
+        assert_eq!(Lane::of(&rows[0].task), Lane::Status(TaskStatus::Todo));
+    }
+
+    #[test]
+    fn a_card_being_moved_already_sits_in_its_new_column_in_both_directions() {
+        let rows = [
+            row("a", TaskStatus::InProgress),
+            parked("b", TaskStatus::Todo, "2027-03-01"),
+        ];
+        let today = Some(date("2027-03-03"));
+        let pending = HashMap::from([
+            (rows[0].task.id, Lane::Backburner),
+            (rows[1].task.id, Lane::Status(TaskStatus::Blocked)),
+        ]);
+        let cols = columns(&rows, &pending, false, false, BoardSort::Default, today);
+        assert_eq!(titles(&cols[4]), ["a"]);
+        assert_eq!(cols[4].rows[0].task.status, TaskStatus::InProgress);
+        assert!(cols[4].rows[0].task.is_parked());
+        assert_eq!(titles(&cols[2]), ["b"]);
+        assert!(
+            !cols[2].rows[0].task.is_parked(),
+            "dropped on a status: off the backburner"
+        );
+        assert_eq!(cols[2].rows[0].task.status, TaskStatus::Blocked);
+    }
+
+    #[test]
+    fn the_backburner_has_a_hint_a_label_and_a_neutral_tone() {
+        assert_eq!(Lane::Backburner.label(), "Backburner");
+        assert_eq!(Lane::Backburner.tone(), Tone::Neutral);
+        assert!(empty_hint(Lane::Backburner).contains("press b"));
     }
 
     fn dated(title: &str, status: TaskStatus, due: Option<&str>, priority: u8) -> TaskRow {
@@ -1498,7 +1707,14 @@ mod tests {
             row("b", TaskStatus::InProgress),
             row("c", TaskStatus::Todo),
         ];
-        let cols = columns(&rows, &HashMap::new(), false, false, BoardSort::Default, None);
+        let cols = columns(
+            &rows,
+            &HashMap::new(),
+            false,
+            false,
+            BoardSort::Default,
+            None,
+        );
         assert_eq!(titles(&cols[0]), ["a", "c"]);
         assert_eq!(titles(&cols[1]), ["b"]);
         assert!(cols[2].rows.is_empty() && cols[3].rows.is_empty());
@@ -1507,7 +1723,7 @@ mod tests {
     #[test]
     fn a_saving_move_already_sits_in_its_new_column() {
         let rows = [row("a", TaskStatus::Todo), row("b", TaskStatus::Todo)];
-        let pending = HashMap::from([(rows[0].task.id, TaskStatus::Blocked)]);
+        let pending = HashMap::from([(rows[0].task.id, Lane::Status(TaskStatus::Blocked))]);
         let cols = columns(&rows, &pending, false, false, BoardSort::Default, None);
         assert_eq!(titles(&cols[0]), ["b"]);
         assert_eq!(titles(&cols[2]), ["a"]);
@@ -1518,11 +1734,26 @@ mod tests {
     fn cancelled_tasks_show_only_when_asked_for() {
         let rows = [row("a", TaskStatus::Cancelled)];
         assert_eq!(
-            columns(&rows, &HashMap::new(), false, false, BoardSort::Default, None).len(),
-            4
+            columns(
+                &rows,
+                &HashMap::new(),
+                false,
+                false,
+                BoardSort::Default,
+                None
+            )
+            .len(),
+            5
         );
-        let shown = columns(&rows, &HashMap::new(), true, false, BoardSort::Default, None);
-        assert_eq!(titles(&shown[4]), ["a"]);
+        let shown = columns(
+            &rows,
+            &HashMap::new(),
+            true,
+            false,
+            BoardSort::Default,
+            None,
+        );
+        assert_eq!(titles(&shown[5]), ["a"]);
     }
 
     #[test]
@@ -1535,11 +1766,25 @@ mod tests {
             })
             .collect();
         rows.reverse();
-        let done = &columns(&rows, &HashMap::new(), false, false, BoardSort::Default, None)[3];
+        let done = &columns(
+            &rows,
+            &HashMap::new(),
+            false,
+            false,
+            BoardSort::Default,
+            None,
+        )[3];
         assert_eq!(done.rows.len(), DONE_VISIBLE);
         assert_eq!(done.hidden, 3);
         assert_eq!(done.rows[0].task.title, format!("t{}", DONE_VISIBLE + 2));
-        let all = &columns(&rows, &HashMap::new(), false, true, BoardSort::Default, None)[3];
+        let all = &columns(
+            &rows,
+            &HashMap::new(),
+            false,
+            true,
+            BoardSort::Default,
+            None,
+        )[3];
         assert_eq!((all.rows.len(), all.hidden), (DONE_VISIBLE + 3, 0));
     }
 
@@ -1568,14 +1813,28 @@ mod tests {
             done_ago("fourteen", 14),
             done_ago("old", 60),
         ];
-        let done = &columns(&rows, &HashMap::new(), false, false, BoardSort::Default, today)[3];
+        let done = &columns(
+            &rows,
+            &HashMap::new(),
+            false,
+            false,
+            BoardSort::Default,
+            today,
+        )[3];
         // Full cards and small, dimmed ones stay in the column; a week or two folds away.
         assert_eq!(titles(done), ["today", "two", "three", "six"]);
         let earlier: Vec<&str> = done.earlier.iter().map(|r| r.task.title.as_str()).collect();
         assert_eq!(earlier, ["seven", "thirteen"]);
         assert_eq!(done.hidden, 2);
         // "Show older" brings the rest into the folded group, newest first.
-        let all = &columns(&rows, &HashMap::new(), false, true, BoardSort::Default, today)[3];
+        let all = &columns(
+            &rows,
+            &HashMap::new(),
+            false,
+            true,
+            BoardSort::Default,
+            today,
+        )[3];
         let earlier: Vec<&str> = all.earlier.iter().map(|r| r.task.title.as_str()).collect();
         assert_eq!(earlier, ["seven", "thirteen", "fourteen", "old"]);
         assert_eq!(all.hidden, 0);
@@ -1601,9 +1860,16 @@ mod tests {
     fn a_card_just_dropped_on_done_stays_fresh_with_a_clock() {
         let old = done_ago("old", 30);
         let fresh = row("fresh", TaskStatus::InProgress);
-        let pending = HashMap::from([(fresh.task.id, TaskStatus::Done)]);
+        let pending = HashMap::from([(fresh.task.id, Lane::Status(TaskStatus::Done))]);
         let today = Some(date("2027-03-20"));
-        let done = &columns(&[old, fresh], &pending, false, false, BoardSort::Default, today)[3];
+        let done = &columns(
+            &[old, fresh],
+            &pending,
+            false,
+            false,
+            BoardSort::Default,
+            today,
+        )[3];
         assert_eq!(titles(done), ["fresh"]);
         assert_eq!(done.hidden, 1);
     }
@@ -1613,8 +1879,15 @@ mod tests {
         let mut old = row("old", TaskStatus::Done);
         old.task.completed_at = Some(OffsetDateTime::UNIX_EPOCH + Duration::days(9));
         let fresh = row("fresh", TaskStatus::InProgress);
-        let pending = HashMap::from([(fresh.task.id, TaskStatus::Done)]);
-        let done = &columns(&[old, fresh], &pending, false, false, BoardSort::Default, None)[3];
+        let pending = HashMap::from([(fresh.task.id, Lane::Status(TaskStatus::Done))]);
+        let done = &columns(
+            &[old, fresh],
+            &pending,
+            false,
+            false,
+            BoardSort::Default,
+            None,
+        )[3];
         assert_eq!(titles(done), ["fresh", "old"]);
     }
 
@@ -1825,9 +2098,10 @@ mod tests {
 
     #[test]
     fn every_column_has_a_tint_and_a_hint() {
-        for s in TaskStatus::ALL.iter().copied() {
-            assert!(column_tint(task_status_tone(s)).contains("border-"));
-            assert!(!empty_hint(s).is_empty());
+        for lane in lanes(true) {
+            assert!(column_tint(lane.tone()).contains("border-"));
+            assert!(!empty_hint(lane).is_empty());
+            assert!(!lane.label().is_empty());
         }
     }
 }

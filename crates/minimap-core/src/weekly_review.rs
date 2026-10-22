@@ -92,7 +92,7 @@ fn date_moves(
 }
 
 fn is_open(row: &TaskRow) -> bool {
-    !matches!(row.task.status, TaskStatus::Done | TaskStatus::Cancelled)
+    !matches!(row.task.status, TaskStatus::Done | TaskStatus::Cancelled) && !row.task.is_parked()
 }
 
 pub fn build(input: ReviewInput) -> WeeklyReview {
@@ -380,6 +380,7 @@ mod tests {
                 links: Vec::new(),
                 task_type: None,
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 id: id(n),

@@ -234,8 +234,9 @@ mod tests {
             &mut conn,
             minimap_types::CreateTask {
                 links: Vec::new(),
-                task_type: None,
+                task_type: Some("build".into()),
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 title: "Plain".into(),
@@ -348,8 +349,9 @@ mod tests {
                 conn,
                 minimap_types::CreateTask {
                     links: Vec::new(),
-                    task_type: None,
+                    task_type: Some("build".into()),
                     focus: None,
+                    backburner_since: None,
                     start_minute: None,
                     length_minutes: None,
                     title: title.into(),

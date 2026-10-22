@@ -28,12 +28,15 @@ fn project(conn: &mut Connection) -> Project {
 
 fn task(conn: &mut Connection, task_type: Option<&str>, project_id: Option<uuid::Uuid>) -> Task {
     let project_id = Some(project_id.unwrap_or_else(|| minimap_store::fixtures::project(conn)));
-    tasks::create(
+    // A new task has a type; "no type" is what a task from before types were required has, so it
+    // is made with one and then cleared.
+    let made = tasks::create(
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: task_type.map(str::to_owned),
+            task_type: Some(task_type.unwrap_or("build").to_owned()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: "Pick the data store".into(),
@@ -48,7 +51,12 @@ fn task(conn: &mut Connection, task_type: Option<&str>, project_id: Option<uuid:
             recurrence: None,
         },
     )
-    .unwrap()
+    .unwrap();
+    if task_type.is_some() {
+        return made;
+    }
+    set_type(conn, made.id, Patch::Clear);
+    tasks::get(conn, made.id).unwrap()
 }
 
 fn set_type(conn: &mut Connection, id: uuid::Uuid, t: Patch<String>) {
@@ -143,7 +151,10 @@ fn changing_the_type_away_from_decision_removes_the_record_for_good() {
 
     set_type(&mut conn, t.id, Patch::Set("design".into()));
     assert!(decisions::for_task(&conn, t.id).unwrap().is_none());
-    assert!(decisions::get(&conn, d.id).is_err(), "deleted, not just archived");
+    assert!(
+        decisions::get(&conn, d.id).is_err(),
+        "deleted, not just archived"
+    );
     assert!(decisions::list(&conn, true).unwrap().is_empty());
     assert!(views::task_detail(&conn, t.id).unwrap().decision.is_none());
     // Its links went with it; the task and the project are untouched.

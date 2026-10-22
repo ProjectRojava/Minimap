@@ -41,8 +41,9 @@ fn task(conn: &mut Connection, title: &str) -> Task {
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -465,8 +466,9 @@ fn invalid_input_is_rejected_and_writes_nothing() {
     let mut conn = db();
     let bad = |title: &str, priority| CreateTask {
         links: Vec::new(),
-        task_type: None,
+        task_type: Some("build".into()),
         focus: None,
+        backburner_since: None,
         start_minute: None,
         length_minutes: None,
         title: title.into(),
@@ -1395,8 +1397,9 @@ fn task_in(conn: &mut Connection, title: &str, project: Uuid) -> Task {
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -1576,8 +1579,9 @@ fn project_rows_and_detail() {
 fn new_task(title: &str, assignee: AssigneeChoice) -> CreateTask {
     CreateTask {
         links: Vec::new(),
-        task_type: None,
+        task_type: Some("build".into()),
         focus: None,
+        backburner_since: None,
         start_minute: None,
         length_minutes: None,
         title: title.into(),
@@ -2386,7 +2390,7 @@ fn checklist_lines_convert_to_tasks_atomically() {
     let n = make_note(&mut conn, "1:1", &body);
 
     // Person mentioned: assigned to them.
-    let t = notes::convert_checklist_item(&mut conn, n.id, 1, "Send budget to Priya").unwrap();
+    let t = notes::convert_checklist_item(&mut conn, n.id, 1, "Send budget to Priya", Some("build".into())).unwrap();
     assert_eq!(t.title, "Send budget to Priya");
     assert_eq!(assignee_of(&conn, t.id), Some(priya.id));
     let after = notes::get(&conn, n.id).unwrap().body;
@@ -2398,7 +2402,7 @@ fn checklist_lines_convert_to_tasks_atomically() {
     assert!(mention_targets(&conn, n.id).contains(&t.id));
 
     // Project mentioned: the task is filed there, and (no person) goes to me.
-    let t2 = notes::convert_checklist_item(&mut conn, n.id, 2, "Plan API Launch").unwrap();
+    let t2 = notes::convert_checklist_item(&mut conn, n.id, 2, "Plan API Launch", Some("build".into())).unwrap();
     assert_eq!(t2.project_id, Some(project.id));
     assert_eq!(assignee_of(&conn, t2.id), Some(me.id));
 
@@ -2406,7 +2410,7 @@ fn checklist_lines_convert_to_tasks_atomically() {
     // task needs a project, so nothing is made.
     let before = tasks::list(&conn, true).unwrap().len();
     assert!(matches!(
-        notes::convert_checklist_item(&mut conn, n.id, 3, "Plain item"),
+        notes::convert_checklist_item(&mut conn, n.id, 3, "Plain item", Some("build".into())),
         Err(StoreError::Invalid(m)) if m.contains("needs a project")
     ));
     assert_eq!(tasks::list(&conn, true).unwrap().len(), before);
@@ -2415,7 +2419,7 @@ fn checklist_lines_convert_to_tasks_atomically() {
     for line in [1usize, 4, 99] {
         let before = tasks::list(&conn, true).unwrap().len();
         assert!(matches!(
-            notes::convert_checklist_item(&mut conn, n.id, line, "anything"),
+            notes::convert_checklist_item(&mut conn, n.id, line, "anything", Some("build".into())),
             Err(StoreError::Invalid(_))
         ));
         assert_eq!(
@@ -2433,7 +2437,7 @@ fn converting_a_missing_note_changes_nothing() {
     let n = make_note(&mut conn, "n", &format!("[ ] Ask {}", token("Raj", raj.id)));
     // The conversion is one transaction; an unknown note fails before touching anything.
     assert!(matches!(
-        notes::convert_checklist_item(&mut conn, Uuid::now_v7(), 0, "x"),
+        notes::convert_checklist_item(&mut conn, Uuid::now_v7(), 0, "x", Some("build".into())),
         Err(StoreError::NotFound { .. })
     ));
     assert!(tasks::list(&conn, true).unwrap().is_empty());
@@ -2471,7 +2475,11 @@ fn a_changed_line_is_not_converted_by_a_stale_request() {
     // (A task needs a project, so the note mentions one.)
     let project = project_with(&mut conn, "API Launch", None).unwrap();
     let tag = token("API Launch", project.id);
-    let n = make_note(&mut conn, "n", &format!("{tag}\n[ ] Send budget\n[ ] Book room"));
+    let n = make_note(
+        &mut conn,
+        "n",
+        &format!("{tag}\n[ ] Send budget\n[ ] Book room"),
+    );
     // The user inserted a line above after the checklist was loaded: line 2 is now different.
     notes::update(
         &mut conn,
@@ -2482,11 +2490,11 @@ fn a_changed_line_is_not_converted_by_a_stale_request() {
         },
     )
     .unwrap();
-    let stale = notes::convert_checklist_item(&mut conn, n.id, 2, "Book room");
+    let stale = notes::convert_checklist_item(&mut conn, n.id, 2, "Book room", Some("build".into()));
     assert!(matches!(stale, Err(StoreError::Invalid(m)) if m.contains("changed")));
     assert!(tasks::list(&conn, true).unwrap().is_empty());
     // With the current text it works.
-    let ok = notes::convert_checklist_item(&mut conn, n.id, 3, "Book room").unwrap();
+    let ok = notes::convert_checklist_item(&mut conn, n.id, 3, "Book room", Some("build".into())).unwrap();
     assert_eq!(ok.title, "Book room");
     assert_eq!(ok.project_id, Some(project.id));
 }

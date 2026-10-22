@@ -54,9 +54,16 @@ impl TaskTypes {
         self.list.with(|list| TaskType::find(list, id).cloned())
     }
 
-    /// The options for a task that has no type yet: no type and every type not archived (tracks).
-    pub fn all_active_options(&self) -> Vec<(String, String)> {
-        self.list.with(|list| active_options(list))
+    /// What the type box of a new task offers: a prompt and the types that can be chosen (tracks).
+    pub fn new_task_options(&self) -> Vec<(String, String)> {
+        self.list.with(|list| new_task_options(list))
+    }
+
+    /// The type a new task starts with: the one the screen is filtered to, else the one last
+    /// used, else none (tracks).
+    pub fn starting_type(&self, filter: &str) -> String {
+        self.list
+            .with(|list| starting_type(filter, &last_new_type(), list))
     }
 
     /// The dropdown options for a task whose type is `current` (tracks).
@@ -94,13 +101,56 @@ pub fn active_options(list: &[TaskType]) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The type a task made while the type filter says `filter` gets: the filtered type, except that
-/// a meeting can't be made without a time.
-pub fn type_for_new_task(filter: &str) -> Option<String> {
-    Some(filter)
-        .filter(|t| !t.is_empty() && *t != minimap_types::MEETING_TYPE)
-        .map(str::to_owned)
+/// What the type box of a new task offers: a prompt, then the types that can be chosen (not the
+/// archived ones, not Meeting). A new task has to have one.
+pub fn new_task_options(list: &[TaskType]) -> Vec<(String, String)> {
+    std::iter::once((String::new(), "Choose a type…".to_owned()))
+        .chain(
+            active_options(list)
+                .into_iter()
+                .filter(|(id, _)| !id.is_empty()),
+        )
+        .collect()
 }
+
+/// The type a new task starts with: the one the screen is filtered to, else the one last used on
+/// this computer, as long as it can still be chosen; otherwise none, and the person picks.
+pub fn starting_type(filter: &str, last: &str, list: &[TaskType]) -> String {
+    let offered = |id: &str| {
+        !id.is_empty()
+            && new_task_options(list)
+                .iter()
+                .any(|(offered, _)| offered == id)
+    };
+    [filter, last]
+        .into_iter()
+        .find(|id| offered(id))
+        .unwrap_or_default()
+        .to_owned()
+}
+
+const LAST_NEW_TYPE_KEY: &str = "minimap.new-task-type";
+
+fn local_storage() -> Option<web_sys::Storage> {
+    web_sys::window().and_then(|w| w.local_storage().ok().flatten())
+}
+
+/// The type chosen for the last new task on this computer (a convenience: empty without it).
+pub fn last_new_type() -> String {
+    local_storage()
+        .and_then(|s| s.get_item(LAST_NEW_TYPE_KEY).ok().flatten())
+        .unwrap_or_default()
+}
+
+/// Remember the type chosen for a new task, so the next one starts with it.
+pub fn remember_new_type(id: &str) {
+    if let Some(storage) = local_storage() {
+        let _ = storage.set_item(LAST_NEW_TYPE_KEY, id);
+    }
+}
+
+/// What a person who hasn't chosen a type for a new task is told.
+pub const CHOOSE_TYPE: &str = "Choose a type for the new task first.";
 
 /// The inline style that draws a board card's border for its type: the line style and width of
 /// `TypeBorder::of` (see `article.card-frame` in `input.css`). Nothing when the setting is off or
@@ -270,6 +320,7 @@ mod tests {
             links: Vec::new(),
             task_type: Some("decision".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             created_at: parse_ts("2027-01-01T00:00:00.000Z").unwrap(),
@@ -289,11 +340,35 @@ mod tests {
         let own = type_options(&list, Some("build"));
         assert!(own.contains(&("build".to_owned(), "Build (archived)".to_owned())));
         assert_eq!(own.len(), 9);
-        // A new task made under the Meeting filter is a plain task.
-        assert_eq!(type_for_new_task(""), None);
-        assert_eq!(type_for_new_task("meeting"), None);
-        assert_eq!(type_for_new_task("bug").as_deref(), Some("bug"));
         assert!(none.iter().all(|(id, _)| id != "meeting"));
+    }
+
+    #[test]
+    fn a_new_task_picks_from_the_types_that_can_be_chosen() {
+        let mut types = default_task_types();
+        let options = new_task_options(&types);
+        assert_eq!(options[0], (String::new(), "Choose a type…".to_owned()));
+        assert!(options.iter().skip(1).any(|(id, _)| id == "build"));
+        // There is no "no type", no Meeting and no archived type.
+        assert!(options
+            .iter()
+            .skip(1)
+            .all(|(id, _)| !id.is_empty() && id != "meeting"));
+        types.iter_mut().find(|t| t.id == "bug").unwrap().archived = true;
+        assert!(new_task_options(&types).iter().all(|(id, _)| id != "bug"));
+    }
+
+    #[test]
+    fn a_new_task_starts_with_the_filtered_type_then_the_last_used_one_then_none() {
+        let mut types = default_task_types();
+        assert_eq!(starting_type("design", "bug", &types), "design");
+        assert_eq!(starting_type("", "bug", &types), "bug");
+        // A filter that can't be chosen (Meeting) or a last type since archived is passed over.
+        assert_eq!(starting_type("meeting", "bug", &types), "bug");
+        types.iter_mut().find(|t| t.id == "bug").unwrap().archived = true;
+        assert_eq!(starting_type("", "bug", &types), "");
+        assert_eq!(starting_type("", "", &types), "");
+        assert_eq!(starting_type("nonsense", "build", &types), "build");
     }
 
     #[test]

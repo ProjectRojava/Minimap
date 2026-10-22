@@ -22,20 +22,39 @@ fn outcome(conn: &Connection, text: &str, choices: &[QuickChoice]) -> Result<Out
             task_types: &settings.task_types,
         },
     );
-    // A task needs a project, so there is nothing to go ahead with until one is named. (A task
-    // that mentions a new project to be made has one, and so does a ping or a note.)
-    if matches!(
-        &out.plan,
-        Some(QuickPlan {
-            main: QuickMain::Task { project: None, .. },
-            ..
-        })
-    ) {
-        out.preview
-            .problems
-            .push("A task needs a project: add #handle (type # to pick one)".into());
-        out.preview.ready = false;
-        out.plan = None;
+    // A task needs a project and a type, so there is nothing to go ahead with until both are
+    // named. (A task that mentions a new project to be made has one, and so does a ping or a note.)
+    if let Some(QuickPlan {
+        main: QuickMain::Task {
+            project, task_type, ..
+        },
+        ..
+    }) = &out.plan
+    {
+        let mut problems = Vec::new();
+        if project.is_none() {
+            problems.push("A task needs a project: add #handle (type # to pick one)".to_owned());
+        }
+        if task_type.is_none() {
+            let names: Vec<String> = settings
+                .task_types
+                .iter()
+                .filter(|t| !t.archived && t.id != minimap_types::MEETING_TYPE)
+                .map(|t| t.name.to_lowercase())
+                .collect();
+            problems.push(format!(
+                "A task needs a type: add type:{}",
+                names.first().map_or("name".to_owned(), |n| format!(
+                    "{n} (or one of {})",
+                    names.join(", ")
+                ))
+            ));
+        }
+        if !problems.is_empty() {
+            out.preview.problems.extend(problems);
+            out.preview.ready = false;
+            out.plan = None;
+        }
     }
     Ok(out)
 }
@@ -133,8 +152,9 @@ mod tests {
             conn,
             CreateTask {
                 links: Vec::new(),
-                task_type: None,
+                task_type: Some("build".into()),
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 title: title.into(),
@@ -189,7 +209,7 @@ mod tests {
         let (mut conn, _, _, _, _) = seeded();
         let r = commit_impl(
             &mut conn,
-            r#"task Fix login timeout @priya #api-launch !2 due:2027-03-05 est:3d blocks:"Release 1.2""#,
+            r#"task Fix login timeout @priya #api-launch !2 due:2027-03-05 est:3d type:build blocks:"Release 1.2""#,
             &[],
         )
         .unwrap();
@@ -222,14 +242,44 @@ mod tests {
         assert!(err.message.contains("needs a project"), "{}", err.message);
         let preview = outcome(&conn, "Write the plan", &[]).unwrap().preview;
         assert!(!preview.ready && preview.problems[0].contains("#handle"));
-        assert_eq!(minimap_store::tasks::list(&conn, true).unwrap().len(), before);
+        assert_eq!(
+            minimap_store::tasks::list(&conn, true).unwrap().len(),
+            before
+        );
 
-        let r = commit_impl(&mut conn, "Write the plan #api-launch", &[]).unwrap();
+        let r = commit_impl(&mut conn, "Write the plan #api-launch type:build", &[]).unwrap();
         let t = minimap_store::tasks::get(&conn, r.node.node.id).unwrap();
         assert_eq!(t.project_id, Some(api));
         let assigned = minimap_store::edges::links_for_node(&conn, t.id).unwrap();
         assert_eq!(assigned.len(), 1);
         assert_eq!(assigned[0].other.node.id, me);
+    }
+
+    #[test]
+    fn a_task_needs_a_type_and_the_preview_names_the_ones_to_choose_from() {
+        let (mut conn, ..) = seeded();
+        let before = minimap_store::tasks::list(&conn, true).unwrap().len();
+        let preview = outcome(&conn, "task x #api-launch", &[]).unwrap().preview;
+        assert!(!preview.ready);
+        assert!(
+            preview.problems.iter().any(|p| p.contains("needs a type")
+                && p.contains("type:design")
+                && !p.contains("meeting")),
+            "{:?}",
+            preview.problems
+        );
+        let err = commit_impl(&mut conn, "task x #api-launch", &[]).unwrap_err();
+        assert!(err.message.contains("needs a type"), "{}", err.message);
+        assert_eq!(
+            minimap_store::tasks::list(&conn, true).unwrap().len(),
+            before
+        );
+        assert!(
+            outcome(&conn, "task x #api-launch type:bug", &[])
+                .unwrap()
+                .preview
+                .ready
+        );
     }
 
     #[test]
@@ -329,7 +379,7 @@ mod tests {
                 pick: QuickPick::Create,
             },
         ];
-        let r = commit_impl(&mut conn, "task Ship @pri #moonshot", &choices).unwrap();
+        let r = commit_impl(&mut conn, "task Ship @pri #moonshot type:build", &choices).unwrap();
         assert_eq!(r.created.len(), 1);
         assert_eq!(
             (r.created[0].node.node_type, r.created[0].label.as_str()),
@@ -375,7 +425,7 @@ mod tests {
     #[test]
     fn previews_follow_the_settings_and_the_directory() {
         let (conn, ..) = seeded();
-        let out = outcome(&conn, "task x @priya #api-launch est:4h", &[]).unwrap();
+        let out = outcome(&conn, "task x @priya #api-launch est:4h type:build", &[]).unwrap();
         assert!(out.preview.ready);
         let hours = out
             .preview

@@ -125,6 +125,7 @@ fn demo_meeting(
             links: Vec::new(),
             task_type: Some(MEETING_TYPE.to_owned()),
             focus: None,
+            backburner_since: None,
             start_minute: Some(minute),
             length_minutes: Some(60),
             title: title.into(),
@@ -197,6 +198,18 @@ fn demo_focus(key: &str, today: Date) -> Option<Focus> {
         "p6" => Some(Focus {
             until: Some(today + Duration::days(14)),
         }),
+        _ => None,
+    }
+}
+
+/// Two tasks on the backburner (spec 59): a cost task set aside three weeks ago, and a one-day
+/// planning chore set aside last week. Neither is on a person's load or on This week, and
+/// neither blocks anything, so the story the rest of the data tells is the same with or without
+/// them.
+fn demo_backburner(key: &str, today: Date) -> Option<Date> {
+    match key {
+        "p3" => Some(today - Duration::days(20)),
+        "i2" => Some(today - Duration::days(6)),
         _ => None,
     }
 }
@@ -684,6 +697,10 @@ const PARTS: &[(&str, &str)] = &[
     ("s10", "s9"),
 ];
 
+/// Tasks that belong together without either waiting for the other (`relates_to`): the
+/// Dependencies screen draws them as dotted lines, and they change no date.
+const RELATED: &[(&str, &str)] = &[("e12", "e7"), ("e11", "e14"), ("p8", "p12")];
+
 /// Done tasks and when they were finished (calendar days from today; `None` = the Monday of
 /// this week). The ones still open at the start of the week are finished in [`this_week`].
 const FINISHED: &[(&str, Option<i64>)] = &[
@@ -987,6 +1004,7 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
                 links: demo_links(spec.key),
                 task_type: demo_type(spec.key).map(str::to_owned),
                 focus: demo_focus(spec.key, today),
+                backburner_since: demo_backburner(spec.key, today),
                 start_minute: None,
                 length_minutes: None,
                 recurrence: spec
@@ -1032,6 +1050,14 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             EdgeType::SubtaskOf,
             s.task_ref(child),
             s.task_ref(parent),
+            serde_json::json!({}),
+        )?;
+    }
+    for (a, b) in RELATED {
+        s.link(
+            EdgeType::RelatesTo,
+            s.task_ref(a),
+            s.task_ref(b),
             serde_json::json!({}),
         )?;
     }

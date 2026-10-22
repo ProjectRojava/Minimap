@@ -1,5 +1,5 @@
-//! Google Drive on screen (spec 22): the status the whole app polls, the status bar along the
-//! bottom, and the banner that says, in plain words, when data lives on this computer only or
+//! Google Drive on screen (spec 22): the status the whole app polls, the words for it (the status
+//! bar along the bottom is `status_bar.rs`), and the banner that says, in plain words, when data lives on this computer only or
 //! when Drive needs attention. The Settings card is in `drive_settings.rs`.
 
 use std::time::Duration;
@@ -8,12 +8,7 @@ use leptos::{prelude::*, task::spawn_local};
 use leptos_router::components::A;
 use minimap_types::{SyncState, SyncStatus, UpdateSyncSettings};
 
-use crate::{
-    api,
-    components::page::{Icon, Tone},
-    settings_tab::Tab,
-    state::DataVersion,
-};
+use crate::{api, components::page::Tone, settings_tab::Tab, state::DataVersion};
 
 /// How often the status is read from the backend (a cheap, in-memory read).
 const POLL: Duration = Duration::from_secs(4);
@@ -87,44 +82,6 @@ pub fn state_hint(status: &SyncStatus) -> String {
             .last_error
             .clone()
             .unwrap_or_else(|| "Google Drive needs you: open Settings → Google Drive.".to_owned()),
-    }
-}
-
-#[component]
-pub fn StatusBar() -> impl IntoView {
-    let ctx = expect_context::<SyncCtx>();
-    view! {
-        <footer class="flex h-6 shrink-0 items-center gap-3 border-t border-line bg-panel px-3 text-[11px] text-muted"
-                aria-label="Google Drive status">
-            {move || ctx.status.get().map(|s| {
-                let tone = state_tone(s.state);
-                let hint = state_hint(&s);
-                let local_only = s.state == SyncState::LocalOnly;
-                let warning = s.warning.clone();
-                view! {
-                    <A href=Tab::Data.path() attr:class="flex items-center gap-1.5 hover:text-fg" attr:title=hint>
-                        <Icon name="cloud" size="h-3.5 w-3.5" />
-                        <span class=tone.chip()>{s.summary.clone()}</span>
-                    </A>
-                    {local_only.then(|| view! {
-                        <span class="hidden sm:inline">
-                            "Your data is stored on this device only. "
-                            <A href=Tab::Data.path() attr:class="text-accent hover:underline">"Connect Google Drive"</A>
-                        </span>
-                    })}
-                    {warning.map(|w| {
-                        let tip = w.clone();
-                        view! { <span class="truncate text-warning" title=tip>{w}</span> }
-                    })}
-                }
-            })}
-            // Outside the closure above, which redraws with every status poll: this one asks the
-            // backend itself and must keep its state.
-            <crate::components::save_points::SaveStatus />
-            <span class="ml-auto shrink-0">
-                {move || ctx.status.get().map(|s| s.device_name)}
-            </span>
-        </footer>
     }
 }
 

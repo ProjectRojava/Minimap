@@ -9,6 +9,7 @@ use wasm_bindgen::JsCast;
 use crate::{
     api,
     components::form::{BUTTON, BUTTON_ON, BUTTON_PRIMARY, COMPACT_INPUT, INPUT},
+    components::status_bar::{StatusWords, Words},
     components::{
         backup_settings::BackupSettings,
         data_settings::DataLocation,
@@ -543,6 +544,7 @@ fn Appearance() -> impl IntoView {
     let toasts = expect_context::<Toasts>();
     let theme = expect_context::<ThemeCtx>();
     let types = crate::components::task_type::use_task_types();
+    let status_words = expect_context::<StatusWords>();
 
     // Applies at once; saving to the database follows.
     let choose = move |id: &'static str| {
@@ -588,6 +590,19 @@ fn Appearance() -> impl IntoView {
                     <span class="block font-medium">"Frame task cards by type"</span>
                     <span class="block text-[11px] text-muted">
                         "On the Tasks board a card's border takes its type's colour and line: double for decisions, dashed for design, bugs and meetings, dotted for research and admin, heavy for reviews, plain for build and your own types. Off: the type is only the label. This device only."
+                    </span>
+                </span>
+            </label>
+            <label class="flex items-start gap-2">
+                <input type="checkbox" class="mt-0.5"
+                    prop:checked=move || status_words.always()
+                    on:change=move |ev| {
+                        status_words.set(if event_target_checked(&ev) { Words::Always } else { Words::WhenNeeded });
+                    } />
+                <span>
+                    <span class="block font-medium">"Words in the status bar"</span>
+                    <span class="block text-[11px] text-muted">
+                        "The bar along the bottom shows Google Drive, your last save point, encryption and due pings as icons. Words appear beside an icon only when something needs you. Turn this on to always see them. This device only."
                     </span>
                 </span>
             </label>

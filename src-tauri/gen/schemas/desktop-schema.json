@@ -1053,6 +1053,12 @@
           "markdownDescription": "Enables the set_recurrence command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_task_backburner command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-task-backburner",
+          "markdownDescription": "Enables the set_task_backburner command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_task_estimate command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-task-estimate",
@@ -2053,6 +2059,12 @@
           "type": "string",
           "const": "deny-set-recurrence",
           "markdownDescription": "Denies the set_recurrence command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_task_backburner command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-task-backburner",
+          "markdownDescription": "Denies the set_task_backburner command without any pre-configured scope."
         },
         {
           "description": "Denies the set_task_estimate command without any pre-configured scope.",

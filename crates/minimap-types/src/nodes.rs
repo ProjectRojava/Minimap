@@ -235,6 +235,11 @@ pub struct Task {
     /// In focus: shown on This week every day while it lasts, whatever the due date (spec 37).
     #[serde(default)]
     pub focus: Option<Focus>,
+    /// The day the task was put on the backburner (spec 59), or none. Set aside for now: it keeps
+    /// its status, dates and links, and is left out of This week, capacity, health counts and
+    /// the fog. Finishing or cancelling the task clears it.
+    #[serde(default)]
+    pub backburner_since: Option<Date>,
     /// A meeting's start, as a minute of the day on the clock where the user is (spec 38). A
     /// meeting always has one; it is the time that goes with the due date. None on other tasks.
     #[serde(default)]
@@ -291,6 +296,9 @@ pub struct CreateTask {
     pub task_type: Option<String>,
     #[serde(default)]
     pub focus: Option<Focus>,
+    /// Born on the backburner (a card added in that column).
+    #[serde(default)]
+    pub backburner_since: Option<Date>,
     #[serde(default)]
     pub start_minute: Option<u16>,
     #[serde(default)]
@@ -313,6 +321,7 @@ pub struct UpdateTask {
     pub links: Option<Vec<RefLink>>,
     pub task_type: Patch<String>,
     pub focus: Patch<Focus>,
+    pub backburner_since: Patch<Date>,
     pub start_minute: Patch<u16>,
     pub length_minutes: Patch<u32>,
     pub confirmed_on: Patch<Date>,
@@ -332,6 +341,7 @@ impl UpdateTask {
         set(&mut t.links, self.links);
         self.task_type.apply(&mut t.task_type);
         self.focus.apply(&mut t.focus);
+        self.backburner_since.apply(&mut t.backburner_since);
         self.start_minute.apply(&mut t.start_minute);
         self.length_minutes.apply(&mut t.length_minutes);
         self.confirmed_on.apply(&mut t.confirmed_on);

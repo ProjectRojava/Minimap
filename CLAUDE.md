@@ -27,7 +27,7 @@ Trunk↔Tauri: `beforeDevCommand: trunk serve --config ui/Trunk.toml`, `beforeBu
 Every node: `id` (uuid v7), `created_at`, `updated_at`, `archived_at` (soft delete).
 - **Objective**: title, description, target_date, status (on_track/at_risk/off_track/done), priority 1–5, ongoing (no end: no target_date, never done, ADR-0014), review_every_days, last_reviewed_on, confirmed_on (fog of war: the day someone said "still accurate", spec 43, ADR-0019)
 - **Project**: title, slug (unique handle among active projects, e.g. `api-launch`), description, owner_person_id, start_date, target_date, status (planned/active/paused/done/cancelled), priority, confirmed_on (spec 43)
-- **Task**: title, description, project_id (nullable), status (todo/in_progress/blocked/done/cancelled), estimate_days (decimal), start_date, due_date, completed_at, priority, task_type (optional id of an entry in the user's task-type list in Settings: design, decision, bug... spec 32; the built-in `meeting` type makes it a meeting: `due_date` is the day, `start_minute` the start on the user's clock and `length_minutes` the length, all required for a meeting; it starts and ends itself, spec 38, ADR-0018), confirmed_on (spec 43: a date set by "still accurate"; not an edit, `updated_at` stays)
+- **Task**: title, description, project_id (nullable), status (todo/in_progress/blocked/done/cancelled), estimate_days (decimal), start_date, due_date, completed_at, priority, task_type (id of an entry in the user's task-type list in Settings: design, decision, bug... spec 32; required when a task is created, a task from before may have none; the built-in `meeting` type makes it a meeting: `due_date` is the day, `start_minute` the start on the user's clock and `length_minutes` the length, all required for a meeting; it starts and ends itself, spec 38, ADR-0018), confirmed_on (spec 43: a date set by "still accurate"; not an edit, `updated_at` stays), backburner_since (spec 59, ADR-0023: the day it was set aside; a flag, the status stays; left out of This week, capacity, health counts and the fog, still in the schedule)
 - **Person**: name, role_title, email?, weekly_capacity_hours (default 40), is_self (exactly one), notes
 - **Team**: name, description, parent_team_id (nestable)
 - **Note**: title, body (Markdown), note_date, kind (one_on_one/meeting/general)
@@ -86,6 +86,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - orientation (spec 50): get_my_scope() (everything that touches you, and why); get_portfolio_overview(view?) and get_capacity(.., view?) compute in My view; get_dependency_graph(filter.mine)
 - people frames (spec 49): get_people_frames() (you and your direct reports at a glance: load this week, waiting-ons, blocked/overdue, 1:1 due)
 - pings (spec 48, ADR-0020): list_pings, ping_item(target, note, on), update_ping, clear_ping, reopen_ping, archive_ping, get_ping_for
+- backburner (spec 59, ADR-0023): set_task_backburner(id, on) (sets today or clears; refuses a finished task; returns the task and how many open tasks still wait on it; undoable)
 - radar (spec 53, ADR-0021): get_radar(view), get_data_revision, open_radar, close_radar, toggle_radar, set_radar_on_top, open_in_main(node); a second, read-only window (`radar`) with its own capability file
 - undo: undo_last, redo_last (spec 25: Ctrl/Cmd+Z; built from the activity log, session only)
 - recurring: set_recurrence(node, text, template?) (spec 27: tasks make the next one when finished; notes on their date; quick-add `every:`)
@@ -99,14 +100,14 @@ Screens: (1) Overview: objectives w/ computed health, projects under them, top-5
 
 ### Quick-add grammar (full doc in `docs/quick-add-grammar.md`; parsing is pure, in core; UI always previews before commit)
 ```
-task Fix login timeout @priya #api-launch !2 due:fri est:3d blocks:"Release 1.2"
+task Fix login timeout @priya #api-launch !2 due:fri est:3d type:bug blocks:"Release 1.2"
 project Q1 EU region owner:@me target:2027-03-31 for:"Launch EU"
 wait @raj on "Security review sign-off" by:next-wed
 note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
 ping #eu-region check data residency by:fri
 ```
-`@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO; `fri` is today on a Friday, `next-wed` is that day in the next Mon-Sun week); `ping` leaves a marker on one item (spec 48) · no leading keyword = task · `est:` (3d, 4h) · `type:` a task type by name or id · `blocks:`/`for:`/`affects:` edges to a named node.
+`@name` fuzzy person (ask if ambiguous; `@me` = self) · `#project` · `!1`–`!5` priority · `due:`/`by:`/`target:` natural dates (today, fri, next-wed, +3d, ISO; `fri` is today on a Friday, `next-wed` is that day in the next Mon-Sun week); `ping` leaves a marker on one item (spec 48) · no leading keyword = task · `est:` (3d, 4h) · `type:` a task type by name or id (a task needs one) · `blocks:`/`for:`/`affects:` edges to a named node.
 
 ## 8. Storage, encryption, backup
 DB at `<app_data_dir>/minimap.db`; `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`. Encryption off by default for M1–M3, added in M4: random key in the OS keychain via `keyring`, or a user passphrase (never a stored key); re-keying is a verified export-and-swap because SQLCipher can't encrypt in place (ADR-0010). `backup_now` uses SQLite online backup API → timestamped copy; optional daily auto-backup (keep 14). **Google Drive storage** (ADR-0011, spec 22): optional; once connected, every change autosaves an encrypted snapshot of the local DB to Drive (one file per device, 5 s idle, at most 30 s) and devices merge each other's snapshots automatically (row-level, newest `updated_at` wins, hard deletes via tombstones, invariants repaired and reported); no locks, no conflict dialogs. Hourly/daily checkpoints; attachments are encrypted content-addressed blobs on Drive with a local LRU cache. Everything uploaded is encrypted with a vault key (recovery key shown once). Without Drive the user is warned that data is on this device only. Desktop OAuth: loopback redirect + PKCE, `drive.file` scope only, refresh token in the OS keychain via `keyring` (local DB fallback); network calls happen in the Rust backend (`minimap-sync`), never the webview. The live DB never sits in a synced folder. Migrations run on startup in a transaction after a pre-migration backup.

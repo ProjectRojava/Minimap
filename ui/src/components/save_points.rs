@@ -7,7 +7,6 @@
 use std::time::Duration;
 
 use leptos::{ev, html, prelude::*, task::spawn_local};
-use leptos_router::components::A;
 use minimap_types::{
     BackupKind, CheckpointCadence, CheckpointInfo, SaveDay, SavePoint, SaveSource, SaveSummary,
     SaveTimeline, StaleReason,
@@ -424,10 +423,9 @@ fn Row(
 
 // ------------------------------------------------------------------ the status bar
 
-/// "Last save point 2 h ago" beside the Drive state; amber, with the reason, when the newest is
-/// over a day old. Click it for the timeline. Asks again when data changes and every 5 minutes.
-#[component]
-pub fn SaveStatus() -> impl IntoView {
+/// The newest save point, for the status bar: asked again whenever data changes and every five
+/// minutes, and the last answer stays up meanwhile. Call inside a component (it owns a timer).
+pub fn use_save_summary() -> RwSignal<Option<SaveSummary>> {
     let version = expect_context::<DataVersion>();
     let summary = RwSignal::new(None::<SaveSummary>);
     let tick = RwSignal::new(0u32);
@@ -447,28 +445,7 @@ pub fn SaveStatus() -> impl IntoView {
             h.clear();
         }
     });
-    view! {
-        {move || summary.get().map(|s| {
-            let stale = s.stale;
-            let text = status_text(&s);
-            let title = match stale {
-                Some(reason) => format!("{}. Click to see your save points", stale_text(reason)),
-                None => "Click to see your save points".to_owned(),
-            };
-            let class = if stale.is_some() {
-                "flex items-center gap-1.5 text-warning hover:text-fg"
-            } else {
-                "flex items-center gap-1.5 hover:text-fg"
-            };
-            view! {
-                <A href="/settings?tab=data#save-points" attr:class=class attr:title=title>
-                    <Icon name="save" size="h-3.5 w-3.5" />
-                    <span>{text}</span>
-                    {stale.map(|r| view! { <span>{format!("· {}", stale_text(r))}</span> })}
-                </A>
-            }
-        })}
-    }
+    summary
 }
 
 #[cfg(test)]

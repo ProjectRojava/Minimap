@@ -264,6 +264,7 @@ pub fn convert_checklist_item(
     note: Uuid,
     line: usize,
     expected_text: &str,
+    task_type: Option<String>,
 ) -> Result<Task> {
     let tx = conn.transaction()?;
     let body = get(&tx, note)?.body;
@@ -301,9 +302,7 @@ pub fn convert_checklist_item(
             let Some(target) = nodes::find(&tx, id)? else {
                 continue;
             };
-            if target.node_type == NodeType::Project
-                && nodes::archived_at(&tx, target)?.is_none()
-            {
+            if target.node_type == NodeType::Project && nodes::archived_at(&tx, target)?.is_none() {
                 project_id = Some(id);
                 break;
             }
@@ -311,15 +310,17 @@ pub fn convert_checklist_item(
     }
     if project_id.is_none() {
         return Err(StoreError::Invalid(
-            "A task needs a project. Mention one on the line or elsewhere in the note (type @).".into(),
+            "A task needs a project. Mention one on the line or elsewhere in the note (type @)."
+                .into(),
         ));
     }
     let task = tasks::create_in_tx(
         &tx,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type,
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: item.text,

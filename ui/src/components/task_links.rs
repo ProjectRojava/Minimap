@@ -421,6 +421,7 @@ mod tests {
             links: Vec::new(),
             task_type: Some("meeting".into()),
             focus: None,
+            backburner_since: None,
             start_minute: Some(10 * 60 + 30),
             length_minutes: None,
             id: Uuid::nil(),

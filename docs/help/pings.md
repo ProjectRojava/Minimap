@@ -48,6 +48,7 @@ Name the item with `#project`, `@person`, or `task:"…"`, `objective:"…"` or 
 - **The Pings card on This week**, after *Focus*: every ping whose day has come, oldest first (a ping on a task that is already a row under *Needs attention* or *Focus* is shown on that row instead, with its note and a ✕ to clear it). Each row has the pin, what kind of item it is, its name, your note, and when you made it (*pinged Mon*, or *pinged Mon · due 3 days ago* once its day has passed). Click the row to open the item. Under it, **Coming up (N)** lists the pings still to come, closed until you open it. The card is hidden when there are none, and when you look back at a past day.
 - **The detail pane**: a strip under the item's name says *Ping due* or *Ping*, with its day and note, and has **Clear** and **Change…**.
 - The palette's *Show pings* takes you to the card.
+- **The status bar**: while at least one ping's day has come, a blue pin with the number due shows along the bottom. Click it to open This week. It is gone when none is due.
 
 ## Finishing a task clears its ping
 

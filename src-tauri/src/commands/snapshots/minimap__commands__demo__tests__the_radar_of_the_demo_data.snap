@@ -47,7 +47,7 @@ blip [Launch in the EU] Task r 0.76 S Green fog Clear: Security training roll-ou
 blip [Other] Ping r 0.11 S None fog Clear pinged: Raj Patel · ping since 2 Mar: ask about the auditor
 blip [Other] Task r 0.34 M Green fog Clear: Review the Q2 headcount plan · due Tue
 blip [Other] Task r 0.55 S Green fog Clear: Book the leadership offsite · due 15 Mar
-footer: 1 overdue · 2 pings today · visibility 66%
+footer: 1 overdue · 2 pings today · visibility 64%
 
 == mine (rings [5, 10, 60])
 sector Cut platform costs by 20%    from    0.0 deg, 270.0 deg wide, colour rank Some(1)
@@ -70,4 +70,4 @@ blip [Other] Task r 0.34 M Green fog Clear: Review the Q2 headcount plan · due 
 blip [Other] Task r 0.55 S Green fog Clear: Book the leadership offsite · due 15 Mar
 blip [Other] Task r 0.67 M Green fog Clear: Regional auth and tenancy · EU Region · due 22 Mar
 blip [Other] Task r 0.70 M Green fog Clear: Load test the EU stack · EU Region · due 29 Mar
-footer: 2 pings today · visibility 66%
+footer: 2 pings today · visibility 64%

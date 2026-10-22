@@ -1,6 +1,6 @@
 # Google Drive: backup, sync and attachments
 
-Connecting Google Drive is **optional**. Without it Minimap works fully, but your data exists only on this computer, and the app says so (a *Local only* label in the status bar, a banner on [This week](help:this-week)). With it, **every change is saved to your own Drive automatically** and your other computers stay in step.
+Connecting Google Drive is **optional**. Without it Minimap works fully, but your data exists only on this computer, and the app says so (a laptop icon and a *Local only* label in the status bar, a banner on [This week](help:this-week)). With it, **every change is saved to your own Drive automatically** and your other computers stay in step.
 
 ## Connect
 
@@ -37,7 +37,7 @@ If, instead of asking for a key, Minimap shows you a **new** recovery key, it fo
 
 ## The Settings card when connected
 
-Status and *last saved*; **Sync now**; the list of **computers** using this Drive; the last merge; how much space Minimap uses; **checkpoints**; **Rename this computer**; **Disconnect…**. The status bar along the bottom shows the same state at a glance; click it to open the card.
+Status and *last saved*; **Sync now**; the list of **computers** using this Drive; the last merge; how much space Minimap uses; **checkpoints**; **Rename this computer**; **Disconnect…**. The status bar along the bottom shows the same state at a glance, as an icon with its own shape for each state: a **cloud with a check** (everything is saved), **an up arrow** (saving), **a down arrow** (taking in changes from another computer), **a slash** (offline; changes are kept and saved when the connection is back), **an exclamation mark** (an error, or Drive needs you), and **a laptop** (not connected, so your data is on this computer only). The icon pulses while it works. A small amber dot on it means there is a warning to read. Words (*Local only*, *Offline · changes waiting*, *Drive error*) appear beside the icon only when something needs you; to see them always, tick *Words in the status bar* in [Settings](help:settings), Appearance. Hover the icon for what it means. **Click it** for a small panel with the state, the account, this computer's name, any attachments still to upload, **Sync now** and **Google Drive settings** (or **Connect Google Drive** when not connected).
 
 ## Checkpoints and recovery
 

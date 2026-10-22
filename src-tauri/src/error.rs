@@ -14,6 +14,7 @@ pub fn store_error(e: StoreError) -> AppError {
         StoreError::NotFound { .. } | StoreError::EdgeNotFound(_) => "not_found",
         StoreError::Invalid(_) => "invalid",
         StoreError::DecisionIncomplete(_) => "decision_incomplete",
+        StoreError::StartDateNeeded(_) => "start_date_needed",
         StoreError::Constraint(_) => "constraint",
         StoreError::DuplicateEdge => "duplicate",
         StoreError::WrongKey => "wrong_key",

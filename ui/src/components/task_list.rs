@@ -5,8 +5,8 @@ use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local, web_sys};
 use minimap_types::{
-    timefmt::parse_date, AppError, AssigneeChoice, CreateTask, NodeRef, NodeType, Patch, TaskFilter, TaskRow,
-    TaskStatus, UpdateTask, Uuid,
+    timefmt::parse_date, AppError, AssigneeChoice, CreateTask, NodeRef, NodeType, Patch,
+    TaskFilter, TaskRow, TaskStatus, UpdateTask, Uuid,
 };
 use wasm_bindgen::JsCast;
 
@@ -14,6 +14,7 @@ use crate::{
     api,
     components::{
         approaching::FilteredApproach,
+        backburner::{set_backburner, since_title},
         focus::{is_on, set_focus, toggle_choice, FocusStar},
         fog::confirm_row,
         form::{
@@ -25,11 +26,11 @@ use crate::{
         orientation::{Kind, MineBanner, Orientation, WhyChip},
         page::{column_head, EmptyState, Hints, PageHeader, Tone, FILTER_BAR},
         task_board::today,
-        task_type::{type_for_new_task, use_task_types, TypeChip},
+        task_type::{remember_new_type, use_task_types, TypeChip, CHOOSE_TYPE},
         waiting_badge::WaitingChip,
     },
     labels::{deadline_heat, priority_option, task_status_label, task_status_tone},
-    state::{finish, finish_task, DataVersion, FinishDecision, ListNav, Toasts},
+    state::{finish, finish_task, DataVersion, FinishDecision, ListNav, Selection, Toasts},
 };
 
 const COLS: &str =
@@ -169,6 +170,8 @@ struct Remembered {
     due_to: String,
     #[serde(default)]
     show_closed: bool,
+    #[serde(default)]
+    show_parked: bool,
 }
 
 fn local_storage() -> Option<web_sys::Storage> {
@@ -189,6 +192,8 @@ pub struct TaskFilters {
     pub task_type: RwSignal<String>,
     /// List: show done tasks. Board: show the Cancelled column.
     pub show_closed: RwSignal<bool>,
+    /// List: show tasks on the backburner (spec 59). The board has them in a column.
+    pub show_parked: RwSignal<bool>,
     /// The board's card order (every column).
     pub board_sort: RwSignal<BoardSort>,
 }
@@ -204,6 +209,7 @@ impl TaskFilters {
             due_to: RwSignal::new(String::new()),
             task_type: RwSignal::new(String::new()),
             show_closed: RwSignal::new(false),
+            show_parked: RwSignal::new(false),
             board_sort: RwSignal::new(load_board_sort()),
         }
     }
@@ -224,6 +230,7 @@ impl TaskFilters {
         filters.due_from.set(saved.due_from);
         filters.due_to.set(saved.due_to);
         filters.show_closed.set(saved.show_closed);
+        filters.show_parked.set(saved.show_parked);
         Effect::new(move |_| {
             let now = Remembered {
                 status: filters.status.get(),
@@ -233,6 +240,7 @@ impl TaskFilters {
                 due_from: filters.due_from.get(),
                 due_to: filters.due_to.get(),
                 show_closed: filters.show_closed.get(),
+                show_parked: filters.show_parked.get(),
             };
             if let (Some(storage), Ok(json)) = (local_storage(), serde_json::to_string(&now)) {
                 let _ = storage.set_item(FILTERS_KEY, &json);
@@ -260,6 +268,7 @@ impl TaskFilters {
             no_project: inbox,
             include_closed: board || self.show_closed.get(),
             task_type: Some(self.task_type.get()).filter(|t| !t.is_empty()),
+            hide_parked: !board && !self.show_parked.get(),
         }
     }
 }
@@ -292,6 +301,7 @@ pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl In
         due_to,
         task_type,
         show_closed,
+        show_parked,
         board_sort,
     } = filters;
     let types = use_task_types();
@@ -329,6 +339,7 @@ pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl In
             due_from: due_from.get(),
             due_to: due_to.get(),
             show_closed: show_closed.get(),
+            show_parked: show_parked.get(),
             sort: board_sort.get(),
             board,
         })
@@ -343,6 +354,7 @@ pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl In
         due_from.set(String::new());
         due_to.set(String::new());
         show_closed.set(false);
+        show_parked.set(false);
         board_sort.set(BoardSort::Default);
         save_board_sort(BoardSort::Default);
         epoch.update(|e| *e += 1);
@@ -441,6 +453,15 @@ pub fn FilterControls(filters: TaskFilters, inbox: bool, board: bool) -> impl In
                        on:change=move |ev| show_closed.set(event_target_checked(&ev)) />
                 {if board { "Show cancelled" } else { "Show done" }}
             </label>
+            // On the board the Backburner is a column; the list leaves those tasks out until asked.
+            {(!board).then(|| view! {
+                <label class=move || format!("flex items-center gap-1 text-[11px] {}",
+                        if show_parked.get() { "text-accent" } else { "text-muted" })>
+                    <input type="checkbox" prop:checked=move || show_parked.get()
+                           on:change=move |ev| show_parked.set(event_target_checked(&ev)) />
+                    "Show backburner"
+                </label>
+            })}
             <Show when=any_changed>
                 <button class=BUTTON_SOFT
                         title="Put every filter and the sort back to their defaults"
@@ -465,6 +486,7 @@ struct Changed {
     due_from: String,
     due_to: String,
     show_closed: bool,
+    show_parked: bool,
     sort: BoardSort,
     /// The board has no status filter (its columns are the statuses) but has the sort.
     board: bool,
@@ -480,6 +502,7 @@ fn changed_count(f: &Changed) -> usize {
         !f.task_type.is_empty(),
         !f.due_from.is_empty() || !f.due_to.is_empty(),
         f.show_closed,
+        !f.board && f.show_parked,
         f.board && f.sort != BoardSort::Default,
     ]
     .into_iter()
@@ -591,6 +614,10 @@ pub fn TaskList(
                 confirm_row(node);
                 None
             }
+            "b" if !row.task.is_meeting() => {
+                set_backburner(id, !row.task.is_parked(), toasts, version);
+                None
+            }
             "d" => {
                 focus_element(&format!("task-due-{id}"));
                 None
@@ -629,18 +656,36 @@ pub fn TaskList(
             message: "Choose a project for the new task first.".into(),
         });
     };
+    // A task has a type: the one being filtered on, else the one used last, else asked.
+    let new_types = use_task_types();
+    let new_type = RwSignal::new(new_types.starting_type(&filters.task_type.get_untracked()));
+    let chosen_type = move || {
+        let kind = new_type.get_untracked();
+        if kind.is_empty() {
+            toasts.error(&AppError {
+                code: "invalid".into(),
+                message: CHOOSE_TYPE.into(),
+            });
+            return None;
+        }
+        Some(kind)
+    };
 
+    let selection = expect_context::<Selection>();
     let create_one = move |title: String| {
         let Some(project_id) = target_project() else {
             return needs_project();
         };
+        let Some(kind) = chosen_type() else {
+            return;
+        };
         let input = CreateTask {
             links: Vec::new(),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
-            // New tasks take the type being filtered on, like the project.
-            task_type: type_for_new_task(&filters.task_type.get_untracked()),
+            task_type: Some(kind.clone()),
             title,
             assignee: AssigneeChoice::Me,
             description: String::new(),
@@ -653,8 +698,11 @@ pub fn TaskList(
             recurrence: None,
         };
         spawn_local(async move {
-            if finish(api::create_task(input).await, toasts, version).is_some() {
+            // The new task opens on the right, ready to be filled in.
+            if let Some(task) = finish(api::create_task(input).await, toasts, version) {
+                remember_new_type(&kind);
                 draft.set(String::new());
+                selection.open(NodeRef::new(NodeType::Task, task.id));
             }
         });
     };
@@ -685,14 +733,24 @@ pub fn TaskList(
         let Some(project_id) = target_project() else {
             return needs_project();
         };
+        let Some(kind) = chosen_type() else {
+            return;
+        };
         spawn_local(async move {
             if finish(
-                api::create_tasks_bulk(titles, Some(project_id), AssigneeChoice::Me).await,
+                api::create_tasks_bulk(
+                    titles,
+                    Some(project_id),
+                    AssigneeChoice::Me,
+                    Some(kind.clone()),
+                )
+                .await,
                 toasts,
                 version,
             )
             .is_some()
             {
+                remember_new_type(&kind);
                 preview.set(None);
                 draft.set(String::new());
             }
@@ -732,6 +790,11 @@ pub fn TaskList(
                                              on_change=move |v: String| new_project.set(v) />
                             }
                         })
+                    }}
+                    {move || view! {
+                        <SelectField label="Type (required)" options=new_types.new_task_options()
+                                     current=new_type.get_untracked()
+                                     on_change=move |v: String| new_type.set(v) />
                     }}
                     <textarea class=INPUT rows="1" autofocus
                         placeholder="New task (paste a list for several)"
@@ -825,7 +888,7 @@ fn TaskRowView(
     let heat = deadline_heat(
         t.due_date,
         crate::components::task_board::today(),
-        open && !t.is_meeting(),
+        open && !t.is_meeting() && !t.is_parked(),
     );
     let is_meeting = t.is_meeting();
     let meeting_time = t
@@ -839,6 +902,7 @@ fn TaskRowView(
         .map(|r| format!("Repeats {}", r.describe()));
     let closed = matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled);
     let focus = t.focus;
+    let parked = t.is_parked();
     // A project can be changed but not taken away; "No project" is only there for a meeting or a
     // task from before projects were required, which have none.
     let project_options: Vec<(String, String)> = if t.project_id.is_some() && !is_meeting {
@@ -936,7 +1000,10 @@ fn TaskRowView(
                     {meeting_time.map(|range| view! {
                         <span class=Tone::Accent.chip() title="When the meeting is">{range}</span>
                     })}
-                    {(!closed && !is_meeting).then(|| view! { <FocusStar task=id focus=focus /> })}
+                    {t.backburner_since.map(|since| view! {
+                        <span class=Tone::Neutral.chip() title=since_title(since)>"Backburner"</span>
+                    })}
+                    {(!closed && !is_meeting && !parked).then(|| view! { <FocusStar task=id focus=focus /> })}
                 </span>
                 <span on:click=|ev| ev.stop_propagation()>
                     <SelectField compact=true options=project_options current=project_now on_change=on_project />
@@ -967,6 +1034,7 @@ mod tests {
             due_from: String::new(),
             due_to: String::new(),
             show_closed: false,
+            show_parked: false,
             sort: BoardSort::Default,
             board,
         }

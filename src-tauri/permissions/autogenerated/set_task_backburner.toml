@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-task-backburner"
+description = "Enables the set_task_backburner command without any pre-configured scope."
+commands.allow = ["set_task_backburner"]
+
+[[permission]]
+identifier = "deny-set-task-backburner"
+description = "Denies the set_task_backburner command without any pre-configured scope."
+commands.deny = ["set_task_backburner"]

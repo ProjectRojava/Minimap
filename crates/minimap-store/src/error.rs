@@ -25,6 +25,10 @@ pub enum StoreError {
     /// (spec 42). The message names the task.
     #[error("{0}")]
     DecisionIncomplete(String),
+    /// A task can't be moved to In progress without a start date: the person is asked for one
+    /// (spec 06). The message names the task.
+    #[error("{0}")]
+    StartDateNeeded(String),
     /// A database constraint (foreign key, unique, check) rejected the write.
     #[error("constraint violated: {0}")]
     Constraint(String),

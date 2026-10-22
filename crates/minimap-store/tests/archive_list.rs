@@ -11,8 +11,9 @@ fn task(conn: &mut Connection, title: &str, assignee: AssigneeChoice) -> Task {
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -104,7 +105,10 @@ fn archived_done_tasks_still_count_for_the_week_they_were_finished_in() {
     let done = task(&mut conn, "Shipped", AssigneeChoice::Person(me.id));
     let other = task(&mut conn, "Last month", AssigneeChoice::Nobody);
     let open = task(&mut conn, "Still open", AssigneeChoice::Nobody);
-    for (id, day) in [(done.id, date!(2027 - 03 - 02)), (other.id, date!(2027 - 02 - 02))] {
+    for (id, day) in [
+        (done.id, date!(2027 - 03 - 02)),
+        (other.id, date!(2027 - 02 - 02)),
+    ] {
         tasks::update(
             &mut conn,
             id,
@@ -123,7 +127,8 @@ fn archived_done_tasks_still_count_for_the_week_they_were_finished_in() {
     }
     nodes::archive(&mut conn, NodeRef::new(NodeType::Task, open.id)).unwrap();
 
-    let week = archive::done_rows_between(&conn, date!(2027 - 03 - 01), date!(2027 - 03 - 07)).unwrap();
+    let week =
+        archive::done_rows_between(&conn, date!(2027 - 03 - 01), date!(2027 - 03 - 07)).unwrap();
     assert_eq!(week.len(), 1, "only the finished one, only in its week");
     assert_eq!(week[0].task.title, "Shipped");
     assert_eq!(week[0].assignee.as_ref().unwrap().label, "Me");
