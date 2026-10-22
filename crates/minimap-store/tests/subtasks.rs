@@ -11,8 +11,9 @@ fn task(conn: &mut Connection, title: &str) -> Task {
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -128,7 +129,7 @@ fn a_new_parent_or_sub_task_is_made_and_linked_in_one_step() {
         source.id,
         LinkRelation::Subtask,
         "Step".into(),
-        None,
+        Some("build".into()),
     )
     .unwrap();
     assert_eq!(row(&conn, sub.id).parent.unwrap().label, "Source");
@@ -140,7 +141,7 @@ fn a_new_parent_or_sub_task_is_made_and_linked_in_one_step() {
         source.id,
         LinkRelation::Parent,
         "Epic".into(),
-        None
+        Some("build".into())
     )
     .is_err());
     // A sub-task cannot have sub-tasks.
@@ -149,7 +150,7 @@ fn a_new_parent_or_sub_task_is_made_and_linked_in_one_step() {
         sub.id,
         LinkRelation::Subtask,
         "Deeper".into(),
-        None
+        Some("build".into())
     )
     .is_err());
     assert_eq!(views::task_rows(&conn).unwrap().len(), before);
@@ -160,7 +161,7 @@ fn a_new_parent_or_sub_task_is_made_and_linked_in_one_step() {
         lone.id,
         LinkRelation::Parent,
         "Epic".into(),
-        None,
+        Some("build".into()),
     )
     .unwrap();
     assert_eq!(row(&conn, lone.id).parent.unwrap().label, "Epic");

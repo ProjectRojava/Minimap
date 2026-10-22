@@ -24,7 +24,7 @@ The **Save points** card lists every copy you can go back to on **one timeline**
 
 **Make one with `Ctrl/Cmd+S`** (from any screen, even inside a text box), *Make a save point…* here or in the command palette, or *Back up now*. A small box asks for a name (optional, up to 80 characters), for example *before the Q2 replan*. Press `Enter`: a toast says *Save point made: before the Q2 replan.* The name is kept in the file's name as plain lower-case words (`minimap-20270303-140200--before-the-q2-replan.db`); a name with no English letters or digits is saved as *save*. Only files Minimap made appear; nothing else in the folder is touched.
 
-**The status bar** shows *Last save point 2 h ago* at the bottom. If there has been none for over a day it turns amber and says why: *Automatic backups are off*, *Automatic backups haven't run in a day*, or *Google Drive hasn't saved a checkpoint in a day*. Click it to open the timeline.
+**The status bar** along the bottom shows your newest save point as a small disk inside a ring. The ring is full when the save point is new and empties over two days; hover the disk to read *Last save point 2 h ago*. If there has been none for over a day, the disk turns amber and words appear next to it that say why: *Automatic backups are off*, *Automatic backups haven't run in a day*, or *Google Drive hasn't saved a checkpoint in a day*. The same words show when there has never been a save point (*No save point yet*). Click the disk for a small panel with the details, **Make a save point…** and **See save points**, which opens the timeline. To see the words all the time, tick *Words in the status bar* in [Settings](help:settings), Appearance.
 
 ## Restoring
 

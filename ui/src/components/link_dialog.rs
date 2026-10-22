@@ -7,13 +7,15 @@
 //! `SelectField`s (placed in viewport pixels) in the wrong place.
 
 use leptos::{ev, html, prelude::*, task::spawn_local};
-use minimap_types::{EdgeType, LinkRelation, NewEdge, NodeRef, NodeSummary, NodeType, Uuid};
+use minimap_types::{
+    EdgeType, LinkRelation, NewEdge, NodeRef, NodeType, TaskFilter, TaskRow, Uuid,
+};
 
 use crate::{
     api,
     components::{
         form::{SelectField, BUTTON, BUTTON_ON, BUTTON_PRIMARY, INPUT},
-        task_type::use_task_types,
+        task_type::{remember_new_type, use_task_types, CHOOSE_TYPE},
     },
     state::{finish, DataVersion, LinkDialog, LinkRequest, Selection, Toasts},
 };
@@ -110,25 +112,74 @@ pub fn relation_edge(relation: LinkRelation, source: Uuid, other: Uuid) -> NewEd
     }
 }
 
+/// A task the "Existing task" tab can offer: its title and the project it belongs to.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Candidate {
+    pub id: Uuid,
+    pub title: String,
+    pub project: Option<(Uuid, String)>,
+}
+
+/// The candidates for a list of task rows.
+pub fn candidates(rows: &[TaskRow]) -> Vec<Candidate> {
+    rows.iter()
+        .map(|r| Candidate {
+            id: r.task.id,
+            title: r.task.title.clone(),
+            project: r.project.as_ref().map(|p| (p.node.id, p.label.clone())),
+        })
+        .collect()
+}
+
+/// What the "Existing task" tab lists: the tasks of this task's project first, then the rest.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PickList {
+    /// The name of this task's project, when it has one.
+    pub project: Option<String>,
+    /// Tasks of that project, in title order.
+    pub same_project: Vec<Candidate>,
+    /// Every other task, in title order.
+    pub others: Vec<Candidate>,
+}
+
+impl PickList {
+    pub fn is_empty(&self) -> bool {
+        self.same_project.is_empty() && self.others.is_empty()
+    }
+}
+
 /// The tasks the "Existing task" tab offers: every task but this one and the ones already linked
-/// to it, whose title has every word typed in the search box. Title order.
-pub fn pick_list(
-    all: &[NodeSummary],
-    source: Uuid,
-    linked: &[Uuid],
-    query: &str,
-) -> Vec<(Uuid, String)> {
+/// to it, whose title has every word typed in the search box. The ones in the same project as
+/// `source` come first, so they are the easiest to reach; each group is in title order.
+pub fn pick_list(all: &[Candidate], source: Uuid, linked: &[Uuid], query: &str) -> PickList {
     let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
-    let mut list: Vec<(Uuid, String)> = all
+    let home = all
         .iter()
-        .filter(|n| n.node.id != source && !linked.contains(&n.node.id))
-        .filter(|n| {
-            let title = n.label.to_lowercase();
+        .find(|c| c.id == source)
+        .and_then(|c| c.project.clone());
+    let mut list = PickList {
+        project: home.as_ref().map(|(_, name)| name.clone()),
+        ..PickList::default()
+    };
+    for c in all
+        .iter()
+        .filter(|c| c.id != source && !linked.contains(&c.id))
+        .filter(|c| {
+            let title = c.title.to_lowercase();
             words.iter().all(|w| title.contains(w))
         })
-        .map(|n| (n.node.id, n.label.clone()))
-        .collect();
-    list.sort_by_key(|(_, label)| label.to_lowercase());
+    {
+        let same = home
+            .as_ref()
+            .is_some_and(|(id, _)| c.project.as_ref().is_some_and(|(p, _)| p == id));
+        if same {
+            list.same_project.push(c.clone());
+        } else {
+            list.others.push(c.clone());
+        }
+    }
+    list.same_project.sort_by_key(|c| c.title.to_lowercase());
+    list.others.sort_by_key(|c| c.title.to_lowercase());
     list
 }
 
@@ -187,13 +238,19 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
     let title = RwSignal::new(String::new());
     let picked = RwSignal::new(Vec::<Uuid>::new());
     let query = RwSignal::new(String::new());
-    let task_type = RwSignal::new(String::new());
     let types = use_task_types();
+    // A task has a type: the one used last, else asked.
+    let task_type = RwSignal::new(types.starting_type(""));
     let busy = RwSignal::new(false);
     let input = leptos::prelude::NodeRef::<html::Input>::new();
 
     // The tasks that can be picked (all but this one).
-    let tasks = LocalResource::new(move || api::list_node_summaries(NodeType::Task));
+    let tasks = LocalResource::new(move || {
+        api::list_tasks(TaskFilter {
+            include_closed: true,
+            ..TaskFilter::default()
+        })
+    });
     // Tasks already linked to this one are not offered again.
     let current = LocalResource::new(move || api::list_edges_for(source));
     Effect::new(move |_| {
@@ -238,12 +295,22 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
             if text.trim().is_empty() {
                 return;
             }
+            if task_type.get_untracked().is_empty() {
+                toasts.error(&minimap_types::AppError {
+                    code: "invalid".into(),
+                    message: CHOOSE_TYPE.into(),
+                });
+                return;
+            }
             busy.set(true);
             spawn_local(async move {
                 let kind = Some(task_type.get_untracked()).filter(|t| !t.is_empty());
-                let result = api::create_linked_task(source, relation, text, kind).await;
+                let result = api::create_linked_task(source, relation, text, kind.clone()).await;
                 busy.set(false);
                 if let Some(task) = finish(result, toasts, version) {
+                    if let Some(kind) = kind {
+                        remember_new_type(&kind);
+                    }
                     dialog.close();
                     selection.open(NodeRef::new(NodeType::Task, task.id));
                 }
@@ -332,7 +399,7 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
                     </label>
                     <div class="mt-2">
                         {move || view! {
-                            <SelectField label="Type" options=types.all_active_options()
+                            <SelectField label="Type (required)" options=types.new_task_options()
                                 current=task_type.get_untracked()
                                 on_change=move |v: String| task_type.set(v) />
                         }}
@@ -342,7 +409,7 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
             <div class="mt-4 flex items-center justify-end gap-2">
                 <button type="button" class=BUTTON on:click=move |_| dialog.close()>"Cancel"</button>
                 <button type="button" class=BUTTON_PRIMARY
-                    disabled=move || busy.get() || if existing.get() { picked.get().is_empty() } else { title.get().trim().is_empty() }
+                    disabled=move || busy.get() || if existing.get() { picked.get().is_empty() } else { title.get().trim().is_empty() || task_type.get().is_empty() }
                     on:click=move |_| submit()>
                     {move || if existing.get() { link_button_text(picked.get().len()) } else { "Create and open".to_owned() }}
                 </button>
@@ -356,7 +423,7 @@ fn Dialog(request: LinkRequest) -> impl IntoView {
 #[component]
 fn TaskPicker(
     source: Uuid,
-    tasks: LocalResource<Result<Vec<NodeSummary>, minimap_types::AppError>>,
+    tasks: LocalResource<Result<Vec<TaskRow>, minimap_types::AppError>>,
     current: LocalResource<Result<Vec<minimap_types::EdgeLink>, minimap_types::AppError>>,
     picked: RwSignal<Vec<Uuid>>,
     query: RwSignal<String>,
@@ -371,7 +438,7 @@ fn TaskPicker(
             .filter(|l| l.other.node.node_type == NodeType::Task)
             .map(|l| l.other.node.id)
             .collect();
-        Some(pick_list(&all, source, &linked, &query.get()))
+        Some(pick_list(&candidates(&all), source, &linked, &query.get()))
     };
     view! {
         <p class="mb-0.5 text-[11px] text-muted">"Tasks to link"</p>
@@ -385,16 +452,44 @@ fn TaskPicker(
                 Some(list) if list.is_empty() => view! {
                     <li class="px-2 py-1.5 text-muted">"No tasks to link."</li>
                 }.into_any(),
-                Some(list) => list.into_iter().map(|(id, label)| view! {
-                    <li role="option" aria-selected=move || picked.get().contains(&id).to_string()>
-                        <label class="flex cursor-pointer items-center gap-2 px-2 py-1 hover:bg-hover">
-                            <input type="checkbox"
-                                prop:checked=move || picked.get().contains(&id)
-                                on:change=move |_| picked.update(|p| *p = pick(p, id, picks_one(relation.get_untracked()))) />
-                            <span class="min-w-0 truncate">{label}</span>
-                        </label>
-                    </li>
-                }).collect_view().into_any(),
+                Some(list) => {
+                    let heading = |text: String| view! {
+                        <li role="presentation"
+                            class="sticky top-0 z-10 truncate border-b border-line bg-panel px-2 py-0.5 \
+                                   text-[11px] font-medium text-accent">{text}</li>
+                    };
+                    let row = move |c: Candidate, show_project: bool| view! {
+                        <li role="option" aria-selected=move || picked.get().contains(&c.id).to_string()>
+                            <label class="flex cursor-pointer items-center gap-2 px-2 py-1 hover:bg-hover">
+                                <input type="checkbox"
+                                    prop:checked=move || picked.get().contains(&c.id)
+                                    on:change=move |_| picked.update(|p| *p = pick(p, c.id, picks_one(relation.get_untracked()))) />
+                                <span class="min-w-0 flex-1 truncate">{c.title.clone()}</span>
+                                {show_project.then(|| c.project.clone().map(|(_, name)| view! {
+                                    <span class="max-w-[10rem] shrink-0 truncate text-[11px] text-faint">{name}</span>
+                                }))}
+                            </label>
+                        </li>
+                    };
+                    let home = list.project.clone().filter(|_| !list.same_project.is_empty()).map(|name| {
+                        view! {
+                            {heading(format!("In {name} · {}", list.same_project.len()))}
+                            {list.same_project.iter().cloned().map(|c| row(c, false)).collect_view()}
+                        }
+                    });
+                    let others = (!list.others.is_empty()).then(|| {
+                        let title = if home.is_some() {
+                            format!("Other tasks · {}", list.others.len())
+                        } else {
+                            format!("Tasks · {}", list.others.len())
+                        };
+                        view! {
+                            {heading(title)}
+                            {list.others.iter().cloned().map(|c| row(c, true)).collect_view()}
+                        }
+                    });
+                    view! { {home} {others} }.into_any()
+                }
             }}
         </ul>
         <p class="mt-1 text-[11px] text-muted">
@@ -412,33 +507,69 @@ fn TaskPicker(
 mod tests {
     use super::*;
 
-    fn summary(n: u128, label: &str) -> NodeSummary {
-        NodeSummary {
-            node: NodeRef::new(NodeType::Task, Uuid::from_u128(n)),
-            label: label.into(),
-            archived: false,
+    fn cand(n: u128, title: &str, project: Option<(u128, &str)>) -> Candidate {
+        Candidate {
+            id: Uuid::from_u128(n),
+            title: title.into(),
+            project: project.map(|(p, name)| (Uuid::from_u128(p), name.to_owned())),
         }
+    }
+
+    fn ids(list: &[Candidate]) -> Vec<u128> {
+        list.iter().map(|c| c.id.as_u128()).collect()
     }
 
     #[test]
     fn the_list_leaves_out_this_task_and_the_ones_already_linked_and_follows_the_search() {
         let all = vec![
-            summary(1, "Ship it"),
-            summary(2, "write docs"),
-            summary(3, "Fix the build"),
-            summary(4, "Docs review"),
+            cand(1, "Ship it", None),
+            cand(2, "write docs", None),
+            cand(3, "Fix the build", None),
+            cand(4, "Docs review", None),
         ];
-        let ids = |q: &str| -> Vec<u128> {
-            pick_list(&all, Uuid::from_u128(1), &[Uuid::from_u128(3)], q)
-                .iter()
-                .map(|(id, _)| id.as_u128())
-                .collect()
+        let found = |q: &str| -> Vec<u128> {
+            ids(&pick_list(&all, Uuid::from_u128(1), &[Uuid::from_u128(3)], q).others)
         };
         // Title order, ignoring case; no 1 (this task) and no 3 (already linked).
-        assert_eq!(ids(""), [4, 2]);
-        assert_eq!(ids("DOCS"), [4, 2]);
-        assert_eq!(ids("docs write"), [2]);
-        assert!(ids("zzz").is_empty());
+        assert_eq!(found(""), [4, 2]);
+        assert_eq!(found("DOCS"), [4, 2]);
+        assert_eq!(found("docs write"), [2]);
+        assert!(found("zzz").is_empty());
+    }
+
+    #[test]
+    fn tasks_of_the_same_project_come_first_and_are_kept_apart() {
+        let all = vec![
+            cand(1, "This one", Some((10, "Tender API"))),
+            cand(2, "Zeta", Some((10, "Tender API"))),
+            cand(3, "Alpha", Some((11, "Other"))),
+            cand(4, "Beta", Some((10, "Tender API"))),
+            cand(5, "Gamma", None),
+        ];
+        let list = pick_list(&all, Uuid::from_u128(1), &[], "");
+        assert_eq!(list.project.as_deref(), Some("Tender API"));
+        assert_eq!(ids(&list.same_project), [4, 2]);
+        assert_eq!(ids(&list.others), [3, 5]);
+        // The search narrows both groups.
+        let list = pick_list(&all, Uuid::from_u128(1), &[], "a");
+        assert_eq!(ids(&list.same_project), [4, 2]);
+        assert_eq!(ids(&list.others), [3, 5]);
+        let list = pick_list(&all, Uuid::from_u128(1), &[Uuid::from_u128(4)], "zeta");
+        assert_eq!(ids(&list.same_project), [2]);
+        assert!(list.others.is_empty());
+    }
+
+    #[test]
+    fn a_task_without_a_project_has_no_same_project_group() {
+        let all = vec![
+            cand(1, "Loose", None),
+            cand(2, "Also loose", None),
+            cand(3, "In a project", Some((10, "P"))),
+        ];
+        let list = pick_list(&all, Uuid::from_u128(1), &[], "");
+        assert_eq!(list.project, None);
+        assert!(list.same_project.is_empty());
+        assert_eq!(ids(&list.others), [2, 3]);
     }
 
     #[test]

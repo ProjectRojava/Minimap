@@ -68,7 +68,7 @@ pub fn monday_of(d: Date) -> Date {
 }
 
 fn is_open(row: &TaskRow) -> bool {
-    !matches!(row.task.status, TaskStatus::Done | TaskStatus::Cancelled)
+    !matches!(row.task.status, TaskStatus::Done | TaskStatus::Cancelled) && !row.task.is_parked()
 }
 
 /// In focus on `today`: set, and not past its last day.
@@ -493,6 +493,7 @@ mod tests {
                 links: Vec::new(),
                 task_type: None,
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 id: id(n),
@@ -839,6 +840,48 @@ mod tests {
         assert!(w.attention.iter().all(|f| f.task.row.task.focus.is_some()));
         // Still counted for the "too many in focus" nudge.
         assert_eq!(w.focus_count, 2);
+    }
+
+    #[test]
+    fn a_task_on_the_backburner_is_nowhere_on_this_week() {
+        use minimap_types::Focus;
+        let parked = |mut r: TaskRow| {
+            r.task.backburner_since = Some(TODAY - Duration::days(9));
+            r
+        };
+        let tasks = vec![
+            parked(row(
+                1,
+                "Overdue",
+                TaskStatus::Todo,
+                Some(TODAY - Duration::days(3)),
+                1,
+            )),
+            parked(row(2, "Due today", TaskStatus::Todo, Some(TODAY), 1)),
+            parked(row(3, "Blocked", TaskStatus::Blocked, None, 3)),
+            focused(
+                parked(row(4, "Focused", TaskStatus::Todo, None, 3)),
+                Focus::PINNED,
+            ),
+            parked(row(
+                5,
+                "Later this week",
+                TaskStatus::Todo,
+                Some(TODAY + Duration::days(1)),
+                2,
+            )),
+            row(6, "Real", TaskStatus::Todo, Some(TODAY), 3),
+        ];
+        let w = week(tasks);
+        let attention: Vec<&str> = w
+            .attention
+            .iter()
+            .map(|t| t.task.row.task.title.as_str())
+            .collect();
+        assert_eq!(attention, ["Real"]);
+        assert!(w.focus.is_empty());
+        assert_eq!(w.focus_count, 0);
+        assert!(w.priorities.is_empty());
     }
 
     #[test]

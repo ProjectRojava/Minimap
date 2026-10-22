@@ -222,6 +222,18 @@ pub struct TaskFilter {
     pub include_closed: bool,
     /// Only tasks of this type (an id from Settings' task types).
     pub task_type: Option<String>,
+    /// Leave out tasks on the backburner (spec 59). The Tasks list does until asked; every other
+    /// caller sees them.
+    pub hide_parked: bool,
+}
+
+/// What putting a task on the backburner, or bringing it back, did (spec 59).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BackburnerResult {
+    pub task: Task,
+    /// Open tasks that still wait on it (it blocks them). They keep their place in the schedule,
+    /// so the person is told. Zero when the task came back.
+    pub held_up: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

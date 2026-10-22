@@ -104,11 +104,18 @@ pub async fn convert_checklist_item(
     note_id: Uuid,
     line: u32,
     text: String,
+    task_type: Option<String>,
 ) -> Result<Task, AppError> {
     state
         .run(move |conn| {
-            minimap_store::notes::convert_checklist_item(conn, note_id, line as usize, &text)
-                .map_err(store_error)
+            minimap_store::notes::convert_checklist_item(
+                conn,
+                note_id,
+                line as usize,
+                &text,
+                task_type,
+            )
+            .map_err(store_error)
         })
         .await
 }

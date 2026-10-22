@@ -54,6 +54,7 @@ Type `@` and a picker lists **people, projects and tasks** (type to filter; `↑
 Any line like `- [ ] Send the plan to @raj` is an open item. The **Checklist** section lists them with **Convert to task**:
 
 - the new task's assignee is the first **person** mentioned on that line (otherwise you), and its project is the first **project** mentioned;
+- its **type** is the one in the *Type of the tasks made from it* box at the top of the Checklist section (it starts on the type you used last); with none chosen nothing is converted and a message asks for one;
 - the line becomes `- [x] @[the task](...)` so it is ticked and linked to the new task;
 - if you changed the line in the meantime, Minimap refuses rather than converting something different.
 

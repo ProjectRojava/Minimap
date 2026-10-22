@@ -19,6 +19,8 @@ With the keychain method, Minimap shows a **recovery key** exactly **once**, whe
 
 ## Turning it on, changing and off
 
+While the database is encrypted, a small **padlock** shows in the status bar along the bottom (with the word *Encrypted* when you have turned on *Words in the status bar*). Click it to open Security.
+
 Under *Security → Encryption*, the buttons depend on the current state: **turn on** (with keychain or passphrase), **new recovery key**, **change passphrase**, **switch method**, **turn off**.
 
 Every change is a **verified swap**, never an in-place edit: first a *before encryption* backup is made, then an encrypted (or decrypted) copy is built and checked against the original (every table and row, integrity, version), then it replaces the database. If anything fails, nothing changes and your original is kept. Turning it off asks for confirmation (and the passphrase, if that is your method). Your data is identical afterwards.

@@ -16,7 +16,7 @@ use crate::{
 };
 
 const TABLE: &str = "tasks";
-const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type, focus, start_minute, length_minutes, confirmed_on";
+const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type, focus, start_minute, length_minutes, confirmed_on, backburner_since";
 
 fn from_row(r: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
@@ -26,6 +26,7 @@ fn from_row(r: &Row) -> rusqlite::Result<Task> {
         start_minute: r.get(17)?,
         length_minutes: r.get(18)?,
         confirmed_on: col_date_opt(r, 19)?,
+        backburner_since: col_date_opt(r, 20)?,
         id: col_uuid(r, 0)?,
         title: r.get(1)?,
         description: r.get(2)?,
@@ -54,6 +55,13 @@ fn validate(t: &Task) -> Result<()> {
     }?;
     if let Some(rule) = &t.recurrence {
         minimap_core::recurrence::validate(rule).map_err(StoreError::Invalid)?;
+    }
+    // A meeting has a day and cannot be set aside (spec 59).
+    if t.backburner_since.is_some() && t.is_meeting() {
+        return Err(StoreError::Invalid(
+            "A meeting has a day. Move it or cancel it instead of putting it on the backburner."
+                .into(),
+        ));
     }
     // A meeting needs a day and a time (spec 38).
     minimap_core::meeting::validate(t.is_meeting(), t.due_date, t.start_minute, t.length_minutes)
@@ -109,10 +117,31 @@ fn ensure_project(project_id: Option<Uuid>, start_minute: Option<u16>) -> Result
     Ok(())
 }
 
+/// What a task without a type is told.
+pub const NEEDS_TYPE: &str = "A task needs a type. Choose one before creating it.";
+
+/// A new task has a type, chosen by whoever makes it. A task from before types were required keeps
+/// none until it is given one.
+pub(crate) fn ensure_type(task_type: Option<&str>) -> Result<()> {
+    if task_type.is_none_or(str::is_empty) {
+        return Err(StoreError::Invalid(NEEDS_TYPE.into()));
+    }
+    Ok(())
+}
+
 /// The task, its assignee link (`Me` = the self person, if there is one) and their activity rows.
-/// Refused without a project, unless it is a meeting.
-pub(crate) fn create_in_tx(tx: &Transaction, input: CreateTask) -> Result<Task> {
+/// Refused without a project, unless it is a meeting, and without a type.
+pub(crate) fn create_in_tx(tx: &Transaction, mut input: CreateTask) -> Result<Task> {
     ensure_project(input.project_id, input.start_minute)?;
+    ensure_type(input.task_type.as_deref())?;
+    // A task made in progress starts today unless it says otherwise: a task in progress always
+    // has a start date.
+    if input.status == Some(TaskStatus::InProgress)
+        && input.start_date.is_none()
+        && input.start_minute.is_none()
+    {
+        input.start_date = Some(today());
+    }
     create_unchecked_in_tx(tx, input)
 }
 
@@ -134,6 +163,7 @@ pub(crate) fn create_unchecked_in_tx(tx: &Transaction, input: CreateTask) -> Res
         start_minute: input.start_minute,
         length_minutes: input.length_minutes,
         confirmed_on: None,
+        backburner_since: input.backburner_since,
         id: Uuid::now_v7(),
         title: input.title,
         description: input.description,
@@ -153,7 +183,7 @@ pub(crate) fn create_unchecked_in_tx(tx: &Transaction, input: CreateTask) -> Res
     check_type(tx, None, t.task_type.as_deref())?;
     tx.execute(
         &format!(
-            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)"
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)"
         ),
         params![
             id_s(t.id),
@@ -176,6 +206,7 @@ pub(crate) fn create_unchecked_in_tx(tx: &Transaction, input: CreateTask) -> Res
             t.start_minute,
             t.length_minutes,
             date_s(t.confirmed_on),
+            date_s(t.backburner_since),
         ],
     )?;
     activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
@@ -280,6 +311,7 @@ pub fn create_linked(
     title: String,
     task_type: Option<String>,
 ) -> Result<Task> {
+    ensure_type(task_type.as_deref())?;
     let tx = conn.transaction()?;
     let from = get(&tx, source)?;
     if from.archived_at.is_some() {
@@ -293,6 +325,7 @@ pub fn create_linked(
             links: Vec::new(),
             task_type,
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title,
@@ -384,15 +417,31 @@ fn update_core(
     patch.apply(&mut new);
     // Starting work starts the task: moving it from To do to In progress makes today its start
     // date, whatever date was planned. A start date set in the same change is the person's own
-    // word and stays, and it can be changed by hand at any time after. (Undo and redo put things
-    // back as they were; a meeting starts at its time, not when it is opened.)
+    // word and stays, and it can be changed by hand at any time after. A task in progress always
+    // has a start date, so a move to In progress that would leave it without one is refused, and
+    // the person is asked for the date (`StartDateNeeded`). (Undo and redo put things back as
+    // they were; a meeting starts at its time, not when it is opened.)
     if make_record
         && start_untouched
         && old.status == TaskStatus::Todo
+        && old.start_date.is_some()
         && new.status == TaskStatus::InProgress
         && !new.is_meeting()
     {
         new.start_date = Some(today());
+    }
+    // A task already in progress keeps its date: clearing it is refused too. (One that has had
+    // none since before this rule can still be edited otherwise.)
+    if make_record
+        && new.status == TaskStatus::InProgress
+        && !new.is_meeting()
+        && new.start_date.is_none()
+        && (old.status != TaskStatus::InProgress || old.start_date.is_some())
+    {
+        return Err(StoreError::StartDateNeeded(format!(
+            "“{}” needs a start date before it can be in progress",
+            new.title
+        )));
     }
     new.links = minimap_core::links::clean(new.links).map_err(StoreError::Invalid)?;
     // The time of a meeting goes when the task stops being one.
@@ -411,6 +460,11 @@ fn update_core(
         new.completed_at = Some(finished_at.unwrap_or(at));
     } else if old.status == TaskStatus::Done && new.status != TaskStatus::Done {
         new.completed_at = None;
+    }
+    // Finishing or cancelling a task takes it off the backburner: it is not set aside, it is
+    // over. (Undo and redo put things back as they were.)
+    if make_record && minimap_core::tasks::is_closed(new.status) {
+        new.backburner_since = None;
     }
     validate(&new)?;
     check_type(tx, old.task_type.as_deref(), new.task_type.as_deref())?;
@@ -436,7 +490,7 @@ fn update_core(
     }
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, focus=?15, start_minute=?16, length_minutes=?17, confirmed_on=?18, updated_at=?13 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, focus=?15, start_minute=?16, length_minutes=?17, confirmed_on=?18, backburner_since=?19, updated_at=?13 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -457,6 +511,7 @@ fn update_core(
             new.start_minute,
             new.length_minutes,
             date_s(new.confirmed_on),
+            date_s(new.backburner_since),
         ],
     )?;
     activity::record(
@@ -526,6 +581,8 @@ fn make_next(tx: &Transaction, done: &Task, rule: Recurrence) -> Result<Task> {
             task_type: done.task_type.clone(),
             // A pin carries on to the next one; a focus with an end belonged to this one.
             focus: done.focus.filter(|f| f.until.is_none()),
+            // The next one starts fresh: a task that is finished is off the backburner anyway.
+            backburner_since: None,
             // A repeating meeting is at the same time of day, for as long.
             start_minute: done.start_minute,
             length_minutes: done.length_minutes,

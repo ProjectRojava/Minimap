@@ -40,6 +40,8 @@ A project's health is its **worst signal** of three:
 | **Overdue or blocked** share of open tasks | 15% | 35% |
 | **Unestimated** share of open tasks | 50% | 80% |
 
+Tasks on the [backburner](help:tasks) are not counted in these shares or in the risks; the projected finish still includes them, because the [schedule](help:schedule) does.
+
 These are the defaults; change them under *Settings → Thresholds*. A score from 0 to 100 sits behind the colour (above 60 green, 26–60 amber, 25 and below red). Projects that are **done, cancelled, paused**, or have **no open tasks** are *not scored*.
 
 ## How an objective's health is decided

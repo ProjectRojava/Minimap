@@ -62,6 +62,7 @@
     "allow-update-task",
     "allow-set-task-estimate",
     "allow-set-task-focus",
+    "allow-set-task-backburner",
     "allow-create-meeting",
     "allow-set-meeting",
     "allow-schedule-follow-up",

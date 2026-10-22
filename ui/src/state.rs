@@ -395,13 +395,16 @@ pub fn finish<T>(result: Result<T, AppError>, toasts: Toasts, version: DataVersi
     }
 }
 
-/// The two dialogs that can follow finishing a task: *Finish decision* (spec 42), the Decision
-/// task that was being finished, and *Resolve waiting-ons* (spec 56), the task that was just
-/// finished while something was still being waited for. Each holds the task while it is open.
+/// The dialogs that can follow a change to a task: *Finish decision* (spec 42), the Decision
+/// task that was being finished, *Resolve waiting-ons* (spec 56), the task that was just
+/// finished while something was still being waited for, and *Start date* (spec 06), the task
+/// being moved to In progress with no start date. Each holds the task while it is open.
 #[derive(Clone, Copy)]
 pub struct FinishDecision {
     pub decision: RwSignal<Option<Uuid>>,
     pub waiting: RwSignal<Option<Uuid>>,
+    /// *Start date* (spec 06): the task being moved to In progress that has no start date.
+    pub start: RwSignal<Option<Uuid>>,
 }
 
 impl FinishDecision {
@@ -409,6 +412,7 @@ impl FinishDecision {
         Self {
             decision: RwSignal::new(None),
             waiting: RwSignal::new(None),
+            start: RwSignal::new(None),
         }
     }
 
@@ -427,6 +431,14 @@ impl FinishDecision {
     pub fn close_waiting(&self) {
         self.waiting.set(None);
     }
+
+    pub fn open_start(&self, task: Uuid) {
+        self.start.set(Some(task));
+    }
+
+    pub fn close_start(&self) {
+        self.start.set(None);
+    }
 }
 
 impl Default for FinishDecision {
@@ -437,6 +449,9 @@ impl Default for FinishDecision {
 
 /// The error code of a Decision task that can't be finished yet.
 pub const DECISION_INCOMPLETE: &str = "decision_incomplete";
+
+/// The error code of a task that can't be moved to In progress without a start date.
+pub const START_DATE_NEEDED: &str = "start_date_needed";
 
 /// How long after a task's completion time a change still counts as "just finished it".
 const JUST_FINISHED_SECONDS: i64 = 15;
@@ -464,6 +479,7 @@ fn now_utc() -> Option<time::OffsetDateTime> {
 /// decision and reason written yet, the *Finish decision* dialog opens instead of an error toast
 /// (views still reload, so a dragged card goes back to its column). If the change finished the
 /// task and something is still being waited for on it, the *Resolve waiting-ons* dialog follows.
+/// A move to In progress that was refused for want of a start date opens *Start date* the same way.
 pub fn finish_task(
     result: Result<Task, AppError>,
     task: Uuid,
@@ -475,6 +491,12 @@ pub fn finish_task(
         if e.code == DECISION_INCOMPLETE {
             version.bump();
             gate.open(task);
+            return None;
+        }
+        // Ask for the day the work started; the card goes back to its column meanwhile.
+        if e.code == START_DATE_NEEDED {
+            version.bump();
+            gate.open_start(task);
             return None;
         }
     }

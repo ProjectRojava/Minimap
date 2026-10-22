@@ -156,8 +156,9 @@ fn creating_a_task_with_its_assignee_is_undone_and_redone() {
             c,
             CreateTask {
                 links: Vec::new(),
-                task_type: None,
+                task_type: Some("build".into()),
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 title: "Write the runbook".into(),
@@ -188,8 +189,9 @@ fn creating_many_tasks_is_one_step() {
                 .iter()
                 .map(|t| CreateTask {
                     links: Vec::new(),
-                    task_type: None,
+                    task_type: Some("build".into()),
                     focus: None,
+                    backburner_since: None,
                     start_minute: None,
                     length_minutes: None,
                     title: (*t).into(),
@@ -737,8 +739,9 @@ fn undoing_a_creation_never_deletes_anything() {
             c,
             CreateTask {
                 links: Vec::new(),
-                task_type: None,
+                task_type: Some("build".into()),
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 title: "Temp".into(),
@@ -918,7 +921,7 @@ fn creating_a_linked_task_is_one_step() {
         LinkRelation::RelatesTo,
     ] {
         round_trip(&mut conn, |c| {
-            tasks::create_linked(c, source.id, relation, "Audit old keys".into(), None).unwrap();
+            tasks::create_linked(c, source.id, relation, "Audit old keys".into(), Some("build".into())).unwrap();
         });
     }
 }

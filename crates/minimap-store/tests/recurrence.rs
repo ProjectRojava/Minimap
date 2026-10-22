@@ -37,8 +37,9 @@ fn task_with(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
     let project = minimap_store::fixtures::project(conn);
     let mut input = CreateTask {
         links: Vec::new(),
-        task_type: None,
+        task_type: Some("build".into()),
         focus: None,
+        backburner_since: None,
         start_minute: None,
         length_minutes: None,
         title: "Board update".into(),
@@ -255,6 +256,8 @@ fn only_finishing_makes_the_next_one() {
             UpdateTask {
                 status: Some(status),
                 priority: Some(1),
+                // In progress needs a start date.
+                start_date: Patch::Set(date!(2027 - 03 - 01)),
                 ..Default::default()
             },
         )
@@ -572,7 +575,7 @@ fn quick_add_every_makes_repeating_tasks_and_notes() {
         },
     )
     .unwrap();
-    let made = quick(&mut conn, "task Board update #board every:mon");
+    let made = quick(&mut conn, "task Board update #board every:mon type:build");
     let task = tasks::get(&conn, made.node.node.id).unwrap();
     assert_eq!(task.due_date, Some(date!(2027 - 03 - 08)));
     assert_eq!(task.recurrence, Some(weekly_monday()));

@@ -20,6 +20,27 @@ fn count(conn: &Connection, table: &str) -> u32 {
 }
 
 #[test]
+fn every_demo_task_in_progress_has_a_start_date() {
+    let conn = seeded(TODAY);
+    let open: u32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM tasks WHERE status = 'in_progress' AND start_minute IS NULL",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(open > 0, "the demo has work in progress");
+    let without: u32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM tasks WHERE status = 'in_progress' AND start_minute IS NULL AND start_date IS NULL",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(without, 0);
+}
+
+#[test]
 fn seeding_an_empty_database_produces_the_documented_counts() {
     let mut conn = open_in_memory().unwrap();
     let summary = demo::seed(&mut conn, TODAY).unwrap();
@@ -35,7 +56,7 @@ fn seeding_an_empty_database_produces_the_documented_counts() {
     );
     assert_eq!(summary.waiting_ons, 4);
     assert_eq!(summary.pings, 3);
-    assert_eq!(summary.links, 120);
+    assert_eq!(summary.links, 123);
     // The summary is the truth.
     assert_eq!(count(&conn, "tasks"), 45);
     assert_eq!(count(&conn, "people"), 8);
@@ -170,8 +191,9 @@ fn it_only_fills_an_empty_database_and_a_refusal_changes_nothing() {
         &mut other,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: "Mine".into(),
@@ -443,6 +465,39 @@ fn two_far_off_tasks_are_in_focus_and_so_are_on_this_week() {
         .collect();
     assert_eq!(names.len(), 2, "{names:?}");
     assert_eq!(week.focus_count, 2);
+}
+
+#[test]
+fn two_tasks_are_on_the_backburner_and_block_nothing() {
+    let conn = seeded(TODAY);
+    let all = tasks::list(&conn, false).unwrap();
+    let mut parked: Vec<(String, Date)> = all
+        .iter()
+        .filter_map(|t| t.backburner_since.map(|d| (t.title.clone(), d)))
+        .collect();
+    parked.sort();
+    assert_eq!(
+        parked,
+        [
+            (
+                "Move cold storage to a cheaper tier".to_owned(),
+                TODAY - time::Duration::days(20)
+            ),
+            (
+                "Review the Q2 headcount plan".to_owned(),
+                TODAY - time::Duration::days(6)
+            ),
+        ]
+    );
+    // They keep their status and nothing waits on them.
+    assert!(all
+        .iter()
+        .filter(|t| t.is_parked())
+        .all(|t| t.status == TaskStatus::Todo));
+    let edges = edges::list_active(&conn).unwrap();
+    for t in all.iter().filter(|t| t.is_parked()) {
+        assert!(minimap_core::tasks::held_up_by(t.id, &all, &edges).is_empty());
+    }
 }
 
 #[test]

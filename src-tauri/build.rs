@@ -57,6 +57,7 @@ const COMMANDS: &[&str] = &[
     "update_task",
     "set_task_estimate",
     "set_task_focus",
+    "set_task_backburner",
     "create_meeting",
     "set_meeting",
     "schedule_follow_up",

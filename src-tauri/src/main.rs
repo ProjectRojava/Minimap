@@ -219,6 +219,7 @@ fn main() {
             commands::tasks::update_task,
             commands::tasks::set_task_estimate,
             commands::tasks::set_task_focus,
+            commands::tasks::set_task_backburner,
             commands::meetings::create_meeting,
             commands::meetings::set_meeting,
             commands::meetings::schedule_follow_up,

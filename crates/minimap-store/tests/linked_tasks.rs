@@ -9,8 +9,9 @@ fn task(conn: &mut Connection, title: &str, project: Option<uuid::Uuid>) -> Task
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -44,7 +45,7 @@ fn the_new_task_blocks_follows_or_relates_to_the_one_it_came_from() {
         source.id,
         LinkRelation::Blocks,
         "First".into(),
-        None,
+        Some("build".into()),
     )
     .unwrap();
     let after = tasks::create_linked(
@@ -52,7 +53,7 @@ fn the_new_task_blocks_follows_or_relates_to_the_one_it_came_from() {
         source.id,
         LinkRelation::BlockedBy,
         "Later".into(),
-        None,
+        Some("build".into()),
     )
     .unwrap();
     let near = tasks::create_linked(
@@ -60,7 +61,7 @@ fn the_new_task_blocks_follows_or_relates_to_the_one_it_came_from() {
         source.id,
         LinkRelation::RelatesTo,
         "Near".into(),
-        None,
+        Some("build".into()),
     )
     .unwrap();
     assert!(edge_between(&conn, EdgeType::Blocks, before.id, source.id));
@@ -91,12 +92,12 @@ fn it_joins_the_project_and_priority_and_an_archived_task_is_refused() {
         source.id,
         LinkRelation::Blocks,
         "New".into(),
-        None,
+        Some("build".into()),
     )
     .unwrap();
     assert_eq!((made.project_id, made.priority), (Some(project.id), 1));
     nodes::archive(&mut conn, NodeRef::new(NodeType::Task, source.id)).unwrap();
     assert!(
-        tasks::create_linked(&mut conn, source.id, LinkRelation::Blocks, "x".into(), None).is_err()
+        tasks::create_linked(&mut conn, source.id, LinkRelation::Blocks, "x".into(), Some("build".into())).is_err()
     );
 }

@@ -10,7 +10,7 @@ note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
 task Board update every:mon
 note 1:1 @priya every:wed
-task Pick the data store type:decision due:fri
+task Pick the data store #api-launch type:decision due:fri
 ping #eu-region check data residency by:fri
 ping @raj ask about the SOC 2 auditor by:tomorrow
 ping task:"Release 1.2" chase the owner
@@ -37,7 +37,7 @@ ping task:"Release 1.2" chase the owner
 | `owner:` | the owner (same as `@name`) | project |
 | `about:` | the task or project a wait is about (`#project` also works) | wait |
 | `affects:` | a project, task or objective (repeatable; `#x` means a project) | decision |
-| `type:` | the task's type by name or id (`type:decision`, `type:"Legal review"`); an archived or unknown type is an error that lists the available ones | task |
+| `type:` | the task's type by name or id (`type:decision`, `type:"Legal review"`); an archived or unknown type is an error that lists the available ones. **A task needs one**: a `task` line without `type:` is not ready and the preview says so (the check is in the `parse_quick_add`/`commit_quick_add` commands, like the project) | task |
 | `every:` | repeats: `day`, `mon`..`sun` (weekly on that day), `week`, `2w` / `2w:fri` (every N weeks), `month` / `month:15` (a day of the month). A weekday or day not given comes from the due date (or today). Without a due date (a note: date) it starts on the rule's first date | task, note |
 | `date:` | the note's date / the decision's date | note, decision |
 | `kind:` | `1:1`, `meeting`, `general` | note |

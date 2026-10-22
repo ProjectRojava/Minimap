@@ -11,7 +11,7 @@ use crate::{
 /// What the demo data holds, for the card.
 pub const CONTENTS: [&str; 10] = [
     "3 objectives (one ongoing, with a review overdue) and 3 projects (you own Platform Cost Reduction, so My view has one of its own); \"EU Region\" is at risk (projected two working days late, one task overdue, one blocked)",
-    "40 tasks across the projects and the inbox, with blocks links between projects",
+    "40 tasks across the projects and the inbox, with blocks links between projects, and a few related and part-of links",
     "8 people (you and 7 others) in 2 nested teams, with reporting lines (four report to you); one person, who reports to you, is overloaded",
     "3 notes (a 1:1 with mentions and a checklist), 7 decisions (three are the records of Decision tasks; one replaced by another)",
     "4 waiting-ons: one stale, one resolved this week; three are about tasks, so those tasks show who they wait on",

@@ -2,13 +2,14 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, UpdateTask, Uuid,
+    NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask, Uuid,
     DECISION_TYPE, MEETING_TYPE,
 };
 
 use crate::{
     api,
     components::{
+        backburner::BackburnerField,
         confirm_archive::{ArchiveChoice, ArchiveRequest, ConfirmArchive},
         detail_pane::{Section, FIELD_GROUP},
         files_links::FilesAndLinks,
@@ -75,8 +76,7 @@ mod tests {
 
     #[test]
     fn leaving_meeting_names_the_time_that_goes() {
-        let (title, message, _) =
-            type_change_question(None, true, Some("10:30 – 11:30")).unwrap();
+        let (title, message, _) = type_change_question(None, true, Some("10:30 – 11:30")).unwrap();
         assert_eq!(title, "Change this meeting into a task?");
         assert!(message.contains("(10:30 – 11:30)") && message.contains("due date"));
         let (_, plain, _) = type_change_question(None, true, None).unwrap();
@@ -287,9 +287,7 @@ fn TaskFields(
     let project_options: Vec<(String, String)> = can_clear_project
         .then(|| (String::new(), "No project (inbox)".to_owned()))
         .into_iter()
-        .chain(
-            projects.iter().map(|p| colours.project_choice(p)),
-        )
+        .chain(projects.iter().map(|p| colours.project_choice(p)))
         .collect();
     let assignee_options: Vec<(String, String)> =
         std::iter::once((String::new(), "Unassigned".to_owned()))
@@ -354,6 +352,8 @@ fn TaskFields(
         }}
         <RepeatField node=NodeRef::new(NodeType::Task, id) current=task.recurrence.clone() />
         {(!is_meeting).then(|| view! { <FocusField task=id focus=task.focus /> })}
+        {(!is_meeting && !matches!(task.status, TaskStatus::Done | TaskStatus::Cancelled))
+            .then(|| view! { <BackburnerField task=id since=task.backburner_since /> })}
         <TaskTiming id=id />
         </div>
     }

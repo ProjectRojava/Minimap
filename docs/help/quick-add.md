@@ -12,13 +12,13 @@ Press `Ctrl/Cmd+K` anywhere (even in a text box) to open the **command palette**
 ## The shape of a line
 
 ```text
-task Fix login timeout @priya #api-launch !2 due:fri est:3d blocks:"Release 1.2"
+task Fix login timeout @priya #api-launch !2 due:fri est:3d type:bug blocks:"Release 1.2"
 project Q1 EU region owner:@me target:2027-03-31 for:"Launch EU"
 wait @raj on "Security review sign-off" by:next-wed
 note 1:1 @priya
 decision "Postgres over Mongo" affects:#api-launch
-task Board update every:mon
-task Pick the data store type:decision due:fri
+task Board update #board every:mon type:admin
+task Pick the data store #api-launch type:decision due:fri
 ping #eu-region check data residency by:fri
 ```
 
@@ -46,7 +46,7 @@ ping #eu-region check data residency by:fri
 | `kind:` | `1:1`, `meeting`, `general` | note |
 | `status:` | `proposed` or `decided` | decision |
 | `every:` | repeats: `day`, `mon`, `2w`, `month` (see [Recurring items](help:recurring)) | task, note |
-| `type:` | the task's type, by name or id: `type:decision`, `type:"Legal review"` (see [Tasks](help:tasks)); `type:decision` also creates the task's record in the [Decisions](help:decisions) log. Not `type:meeting`: a meeting needs a time, so use *New meeting* (see [Meetings](help:meetings)) | task |
+| `type:` | the task's type, by name or id: `type:decision`, `type:"Legal review"` (see [Tasks](help:tasks)); `type:decision` also creates the task's record in the [Decisions](help:decisions) log. **A task needs one**: without `type:` the preview says so and lists the types to choose from, and nothing is added until you add it. Not `type:meeting`: a meeting needs a time, so use *New meeting* (see [Meetings](help:meetings)) | task |
 | `task:` / `objective:` / `decision:` | the item a ping is on, by name: `task:"Release 1.2"` | ping |
 | `1:1` | a bare word: makes the note a 1:1 | note |
 

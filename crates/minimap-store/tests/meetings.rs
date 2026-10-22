@@ -40,8 +40,9 @@ fn plain_task(conn: &mut Connection, title: &str) -> Task {
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -148,6 +149,7 @@ fn a_meeting_needs_a_day_and_a_time_however_it_is_made_or_changed() {
             links: Vec::new(),
             task_type: Some(MEETING_TYPE.into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: "No time".into(),

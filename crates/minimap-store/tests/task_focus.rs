@@ -14,8 +14,9 @@ fn task(conn: &mut Connection, f: impl FnOnce(&mut CreateTask)) -> Task {
     let project = fixtures::project(conn);
     let mut input = CreateTask {
         links: Vec::new(),
-        task_type: None,
+        task_type: Some("build".into()),
         focus: None,
+        backburner_since: None,
         start_minute: None,
         length_minutes: None,
         title: "Renew the licence".into(),

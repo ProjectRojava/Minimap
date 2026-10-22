@@ -5,7 +5,7 @@ use minimap_store::*;
 use minimap_types::*;
 use time::{macros::date, Duration};
 
-const TODAY: time::Date = date!(2027-03-31);
+const TODAY: time::Date = date!(2027 - 03 - 31);
 
 fn task(conn: &mut Connection, title: &str) -> Task {
     let project = fixtures::project(conn);
@@ -13,8 +13,9 @@ fn task(conn: &mut Connection, title: &str) -> Task {
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -82,7 +83,9 @@ fn a_task_finished_a_month_ago_is_archived_and_a_newer_one_is_not() {
     assert!(archived(&conn, old.id));
     assert!(!archived(&conn, nearly.id) && !archived(&conn, open.id));
     // Nothing more to do the second time.
-    assert!(done_sweep::archive_old_done(&mut conn, TODAY).unwrap().is_empty());
+    assert!(done_sweep::archive_old_done(&mut conn, TODAY)
+        .unwrap()
+        .is_empty());
     // Tomorrow the next one is old enough.
     let next = done_sweep::archive_old_done(&mut conn, TODAY + Duration::days(1)).unwrap();
     assert_eq!(next, vec![nearly.id]);
@@ -95,6 +98,7 @@ fn meetings_go_sooner_and_zero_means_never() {
         links: Vec::new(),
         task_type: Some(MEETING_TYPE.into()),
         focus: None,
+        backburner_since: None,
         start_minute: Some(600),
         length_minutes: None,
         title: "Sync".into(),
@@ -119,7 +123,11 @@ fn meetings_go_sooner_and_zero_means_never() {
     let plain = finished(&mut conn, "Plain", 2);
 
     let gone = done_sweep::archive_old_done(&mut conn, TODAY).unwrap();
-    assert_eq!(gone, vec![m.id], "two days for a meeting, a month for the rest");
+    assert_eq!(
+        gone,
+        vec![m.id],
+        "two days for a meeting, a month for the rest"
+    );
     assert!(!archived(&conn, plain.id));
 
     // Never: nothing is archived however old.
@@ -133,7 +141,9 @@ fn meetings_go_sooner_and_zero_means_never() {
     )
     .unwrap();
     finished(&mut conn, "Ancient", 400);
-    assert!(done_sweep::archive_old_done(&mut conn, TODAY).unwrap().is_empty());
+    assert!(done_sweep::archive_old_done(&mut conn, TODAY)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -171,7 +181,9 @@ fn a_sub_task_of_an_open_parent_and_a_parent_of_an_open_sub_task_stay() {
     let parent = task(&mut conn, "Parent");
     let done_child = finished(&mut conn, "Done child", 60);
     link(&mut conn, EdgeType::SubtaskOf, done_child.id, parent.id);
-    assert!(done_sweep::archive_old_done(&mut conn, TODAY).unwrap().is_empty());
+    assert!(done_sweep::archive_old_done(&mut conn, TODAY)
+        .unwrap()
+        .is_empty());
 
     // Once the parent is finished too, both can go.
     tasks::update(
@@ -198,7 +210,9 @@ fn a_sub_task_of_an_open_parent_and_a_parent_of_an_open_sub_task_stay() {
     let p2 = finished(&mut conn, "Done parent", 60);
     let open_child = task(&mut conn, "Open child");
     link(&mut conn, EdgeType::SubtaskOf, open_child.id, p2.id);
-    assert!(done_sweep::archive_old_done(&mut conn, TODAY).unwrap().is_empty());
+    assert!(done_sweep::archive_old_done(&mut conn, TODAY)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]

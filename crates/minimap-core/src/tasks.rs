@@ -2,10 +2,26 @@
 
 use std::cmp::Ordering;
 
-use minimap_types::{TaskFilter, TaskRow, TaskStatus};
+use minimap_types::{Edge, EdgeType, Task, TaskFilter, TaskRow, TaskStatus, Uuid};
 
 pub fn is_closed(s: TaskStatus) -> bool {
     matches!(s, TaskStatus::Done | TaskStatus::Cancelled)
+}
+
+/// The open tasks that wait on `task` (it blocks them) and are not on the backburner themselves:
+/// what stays held up while `task` is set aside (spec 59). The schedule still counts a task on the
+/// backburner, so these keep their place behind it; this is what the person is told.
+pub fn held_up_by(task: Uuid, tasks: &[Task], edges: &[Edge]) -> Vec<Uuid> {
+    let mut held: Vec<Uuid> = edges
+        .iter()
+        .filter(|e| e.edge_type == EdgeType::Blocks && e.from_id == task && e.archived_at.is_none())
+        .filter_map(|e| tasks.iter().find(|t| t.id == e.to_id))
+        .filter(|t| t.archived_at.is_none() && !is_closed(t.status) && !t.is_parked())
+        .map(|t| t.id)
+        .collect();
+    held.sort();
+    held.dedup();
+    held
 }
 
 pub fn filter(rows: Vec<TaskRow>, f: &TaskFilter) -> Vec<TaskRow> {
@@ -21,6 +37,7 @@ pub fn filter(rows: Vec<TaskRow>, f: &TaskFilter) -> Vec<TaskRow> {
             Some(s) => r.task.status == s,
             None => f.include_closed || !is_closed(r.task.status),
         })
+        .filter(|r| !f.hide_parked || !r.task.is_parked())
         .filter(|r| !f.no_project || r.task.project_id.is_none())
         .filter(|r| {
             f.task_type
@@ -137,6 +154,63 @@ mod tests {
     use proptest::prelude::*;
     use time::{macros::date, Date, OffsetDateTime};
 
+    fn blocks(from: u128, to: u128) -> Edge {
+        Edge {
+            id: Uuid::from_u128(1000 + from * 10 + to),
+            edge_type: EdgeType::Blocks,
+            from_type: NodeType::Task,
+            from_id: Uuid::from_u128(from),
+            to_type: NodeType::Task,
+            to_id: Uuid::from_u128(to),
+            attrs: serde_json::json!({}),
+            created_at: OffsetDateTime::UNIX_EPOCH,
+            archived_at: None,
+        }
+    }
+
+    #[test]
+    fn tasks_on_the_backburner_are_hidden_only_when_the_filter_says_so() {
+        let mut parked = row(2, "Parked", TaskStatus::Todo, 3, None);
+        parked.task.backburner_since = Some(date!(2027 - 03 - 01));
+        let rows = vec![row(1, "Live", TaskStatus::Todo, 3, None), parked];
+        let ids = |hide| -> Vec<u128> {
+            filter(
+                rows.clone(),
+                &TaskFilter {
+                    hide_parked: hide,
+                    ..Default::default()
+                },
+            )
+            .iter()
+            .map(|r| r.task.id.as_u128())
+            .collect()
+        };
+        assert_eq!(ids(true), vec![1]);
+        // Everything else that asks for tasks (pickers, search, links) still sees them.
+        assert_eq!(ids(false), vec![1, 2]);
+    }
+
+    #[test]
+    fn what_waits_on_a_task_is_the_open_unparked_tasks_it_blocks() {
+        let mut parked = row(4, "Parked", TaskStatus::Todo, 3, None).task;
+        parked.backburner_since = Some(date!(2027 - 03 - 01));
+        let tasks = vec![
+            row(1, "Blocker", TaskStatus::Todo, 3, None).task,
+            row(2, "Waits", TaskStatus::Todo, 3, None).task,
+            row(3, "Finished", TaskStatus::Done, 3, None).task,
+            parked,
+            row(5, "Unrelated", TaskStatus::Todo, 3, None).task,
+        ];
+        let mut gone = blocks(1, 5);
+        gone.archived_at = Some(OffsetDateTime::UNIX_EPOCH);
+        let edges = vec![blocks(1, 2), blocks(1, 3), blocks(1, 4), gone, blocks(2, 5)];
+        assert_eq!(
+            held_up_by(Uuid::from_u128(1), &tasks, &edges),
+            [Uuid::from_u128(2)]
+        );
+        assert!(held_up_by(Uuid::from_u128(5), &tasks, &edges).is_empty());
+    }
+
     fn summary(t: NodeType, n: u128, label: &str) -> NodeSummary {
         NodeSummary {
             node: NodeRef::new(t, Uuid::from_u128(n)),
@@ -154,6 +228,7 @@ mod tests {
                 links: Vec::new(),
                 task_type: None,
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 id: Uuid::from_u128(n),
