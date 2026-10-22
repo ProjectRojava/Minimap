@@ -20,6 +20,7 @@ use crate::{
         page::Icon,
         people_panel::{error_line, NodeButtons},
         repeat_field::RepeatField,
+        task_type::{remember_new_type, use_task_types, CHOOSE_TYPE},
     },
     state::{finish, DataVersion, Selection, Toasts},
 };
@@ -147,8 +148,19 @@ fn NoteEditor(note: Note) -> impl IntoView {
         .map(|k| (k.as_str().to_owned(), kind_label(*k).to_owned()))
         .collect();
 
+    // A converted line becomes a task, and a task has a type: the one used last, else asked.
+    let types = use_task_types();
+    let new_type = RwSignal::new(types.starting_type(""));
     // Converting reads the stored body, so flush edits first; the body then changes on the server.
     let convert = move |item: ChecklistItem| {
+        let kind = new_type.get_untracked();
+        if kind.is_empty() {
+            toasts.error(&AppError {
+                code: "invalid".into(),
+                message: CHOOSE_TYPE.into(),
+            });
+            return;
+        }
         spawn_local(async move {
             let body = text.get_untracked();
             if body != saved.get_untracked() {
@@ -162,8 +174,9 @@ fn NoteEditor(note: Note) -> impl IntoView {
                 }
                 saved.set(body);
             }
-            match api::convert_checklist_item(id, item.line, item.text).await {
+            match api::convert_checklist_item(id, item.line, item.text, Some(kind.clone())).await {
                 Ok(task) => {
+                    remember_new_type(&kind);
                     if let Ok(n) = api::get_note(id).await {
                         text.set(n.body.clone());
                         saved.set(n.body);
@@ -225,7 +238,7 @@ fn NoteEditor(note: Note) -> impl IntoView {
             }}
         </Section>
         {move || match detail.get() {
-            Some(Ok(d)) => view! { <NoteDetails detail=d on_convert=convert /> }.into_any(),
+            Some(Ok(d)) => view! { <NoteDetails detail=d on_convert=convert new_type=new_type /> }.into_any(),
             Some(Err(e)) => view! { <Section title="Checklist">{error_line(e)}</Section> }.into_any(),
             None => ().into_any(),
         }}
@@ -236,12 +249,19 @@ fn NoteEditor(note: Note) -> impl IntoView {
 fn NoteDetails(
     detail: NoteDetail,
     #[prop(into)] on_convert: Callback<ChecklistItem>,
+    new_type: RwSignal<String>,
 ) -> impl IntoView {
+    let types = use_task_types();
     let mentions = detail.mentions.clone();
     let items = detail.checklist.clone();
     view! {
         {(!items.is_empty()).then(|| view! {
             <Section title="Checklist">
+                {move || view! {
+                    <SelectField label="Type of the tasks made from it" options=types.new_task_options()
+                                 current=new_type.get_untracked()
+                                 on_change=move |v: String| new_type.set(v) />
+                }}
                 <ul class="space-y-1">
                     {items.into_iter().map(|item| {
                         let label = item.text.clone();

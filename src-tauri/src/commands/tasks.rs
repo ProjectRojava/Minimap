@@ -4,8 +4,9 @@ use minimap_core::{
 };
 use minimap_store::Connection;
 use minimap_types::{
-    AppError, AssigneeChoice, CreateTask, Date, Decision, FocusChoice, LinkRelation, NodeRef,
-    NodeType, Patch, Task, TaskDetail, TaskFilter, TaskRow, UpdateTask, Uuid,
+    AppError, AssigneeChoice, BackburnerResult, CreateTask, Date, Decision, FocusChoice,
+    LinkRelation, NodeRef, NodeType, Patch, Task, TaskDetail, TaskFilter, TaskRow, UpdateTask,
+    Uuid,
 };
 use tauri::State;
 
@@ -145,6 +146,53 @@ pub(crate) fn set_task_focus_impl(
     minimap_store::tasks::update(conn, id, patch).map_err(store_error)
 }
 
+/// Puts a task on the backburner (`on`), or brings it back (spec 59). It keeps its status, dates
+/// and links; it leaves This week, capacity, the health counts and the fog until it is back. The
+/// schedule still counts it, so open tasks that wait on it are counted and returned. A finished,
+/// cancelled or meeting task is refused.
+#[tauri::command]
+pub async fn set_task_backburner(
+    state: State<'_, AppState>,
+    id: Uuid,
+    on: bool,
+) -> Result<BackburnerResult, AppError> {
+    state
+        .run(move |conn| set_task_backburner_impl(conn, id, on, minimap_store::today()))
+        .await
+}
+
+pub(crate) fn set_task_backburner_impl(
+    conn: &mut Connection,
+    id: Uuid,
+    on: bool,
+    today: Date,
+) -> Result<BackburnerResult, AppError> {
+    let before = minimap_store::tasks::get(conn, id).map_err(store_error)?;
+    if on && minimap_core::tasks::is_closed(before.status) {
+        return Err(app_error(
+            "invalid",
+            "A finished or cancelled task is not set aside. Reopen it first.",
+        ));
+    }
+    let task = if on == before.is_parked() {
+        before
+    } else {
+        let patch = UpdateTask {
+            backburner_since: if on { Patch::Set(today) } else { Patch::Clear },
+            ..Default::default()
+        };
+        minimap_store::tasks::update(conn, id, patch).map_err(store_error)?
+    };
+    let held_up = if on {
+        let tasks = minimap_store::tasks::list(conn, false).map_err(store_error)?;
+        let edges = minimap_store::edges::list_active(conn).map_err(store_error)?;
+        minimap_core::tasks::held_up_by(id, &tasks, &edges).len() as u32
+    } else {
+        0
+    };
+    Ok(BackburnerResult { task, held_up })
+}
+
 /// Makes `person_id` the only assignee; `None` unassigns.
 #[tauri::command]
 pub async fn set_assignee(
@@ -244,9 +292,10 @@ pub async fn create_tasks_bulk(
     titles: Vec<String>,
     project_id: Option<Uuid>,
     assignee: AssigneeChoice,
+    task_type: Option<String>,
 ) -> Result<Vec<Task>, AppError> {
     state
-        .run(move |conn| create_tasks_bulk_impl(conn, titles, project_id, assignee))
+        .run(move |conn| create_tasks_bulk_impl(conn, titles, project_id, assignee, task_type))
         .await
 }
 
@@ -255,6 +304,7 @@ pub(crate) fn create_tasks_bulk_impl(
     titles: Vec<String>,
     project_id: Option<Uuid>,
     assignee: AssigneeChoice,
+    task_type: Option<String>,
 ) -> Result<Vec<Task>, AppError> {
     if titles.iter().all(|t| t.trim().is_empty()) {
         return Err(app_error("invalid", "there are no tasks to create"));
@@ -267,8 +317,9 @@ pub(crate) fn create_tasks_bulk_impl(
         .filter(|t| !t.trim().is_empty())
         .map(|title| CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: task_type.clone(),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title,
@@ -298,9 +349,64 @@ mod tests {
 
     fn task(conn: &mut Connection, title: &str) -> Task {
         let project = minimap_store::fixtures::project(conn);
-        create_tasks_bulk_impl(conn, vec![title.into()], Some(project), AssigneeChoice::Nobody)
-            .unwrap()
-            .remove(0)
+        create_tasks_bulk_impl(
+            conn,
+            vec![title.into()],
+            Some(project),
+            AssigneeChoice::Nobody,
+            Some("build".into()),
+        )
+        .unwrap()
+        .remove(0)
+    }
+
+    #[test]
+    fn the_backburner_command_parks_tells_what_waits_and_refuses_closed_tasks() {
+        use time::macros::date;
+        let today = date!(2027 - 03 - 03);
+        let mut conn = conn();
+        let blocker = task(&mut conn, "Blocker");
+        let waits = task(&mut conn, "Waits");
+        let done = task(&mut conn, "Done");
+        minimap_store::edges::add(
+            &mut conn,
+            minimap_types::NewEdge {
+                edge_type: minimap_types::EdgeType::Blocks,
+                from: NodeRef::new(NodeType::Task, blocker.id),
+                to: NodeRef::new(NodeType::Task, waits.id),
+                attrs: serde_json::json!({}),
+            },
+        )
+        .unwrap();
+        let parked = set_task_backburner_impl(&mut conn, blocker.id, true, today).unwrap();
+        assert_eq!(parked.task.backburner_since, Some(today));
+        assert_eq!(parked.held_up, 1);
+        // Asking again changes nothing, not even the day.
+        let later =
+            set_task_backburner_impl(&mut conn, blocker.id, true, date!(2027 - 03 - 09)).unwrap();
+        assert_eq!(later.task.backburner_since, Some(today));
+        // A task that waits on nothing says so; bringing one back clears it.
+        assert_eq!(
+            set_task_backburner_impl(&mut conn, waits.id, true, today)
+                .unwrap()
+                .held_up,
+            0
+        );
+        let back = set_task_backburner_impl(&mut conn, blocker.id, false, today).unwrap();
+        assert_eq!(back.task.backburner_since, None);
+        assert_eq!(back.held_up, 0);
+        // A finished task is not set aside.
+        minimap_store::tasks::update(
+            &mut conn,
+            done.id,
+            UpdateTask {
+                status: Some(minimap_types::TaskStatus::Done),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let err = set_task_backburner_impl(&mut conn, done.id, true, today).unwrap_err();
+        assert_eq!(err.code, "invalid");
     }
 
     #[test]
@@ -469,6 +575,7 @@ mod tests {
             vec!["one".into(), "  ".into(), "two".into()],
             Some(project.id),
             AssigneeChoice::Me,
+            Some("build".into()),
         )
         .unwrap();
         assert_eq!(made.len(), 2, "blank lines are skipped");
@@ -479,7 +586,13 @@ mod tests {
         assert_eq!(assigned.len(), 2);
         assert!(assigned.iter().all(|e| e.to_id == me.id));
 
-        let none = create_tasks_bulk_impl(&mut conn, vec![" ".into()], None, AssigneeChoice::Me);
+        let none = create_tasks_bulk_impl(
+            &mut conn,
+            vec![" ".into()],
+            None,
+            AssigneeChoice::Me,
+            Some("build".into()),
+        );
         assert_eq!(none.unwrap_err().code, "invalid");
     }
 
@@ -507,6 +620,7 @@ mod tests {
             vec!["x".into()],
             Some(project.id),
             AssigneeChoice::Nobody,
+            Some("build".into()),
         )
         .unwrap_err();
         assert_eq!(err.code, "invalid");

@@ -5,8 +5,8 @@
 use std::collections::{HashMap, HashSet};
 
 use minimap_types::{
-    Date, DependencyGraph, EdgeType, GraphEdge, GraphLevel, GraphNode, GraphUnlinked, HealthLevel,
-    NewEdge, NodeRef, NodeType, TaskStatus, Uuid,
+    Date, DependencyGraph, EdgeType, GraphEdge, GraphEdgeKind, GraphLevel, GraphNode,
+    GraphUnlinked, HealthLevel, NewEdge, NodeRef, NodeType, TaskStatus, Uuid,
 };
 
 use crate::{
@@ -123,6 +123,19 @@ pub fn legend(lens: Lens) -> Vec<(Tone, &'static str)> {
         (Tone::Neutral, "dim = context"),
     ]);
     key
+}
+
+/// What the lines of the task graph mean, beside the key for the marks: the dependency is the
+/// arrow; the links that only relate tasks have no arrow and no effect on the dates.
+pub fn link_key(level: GraphLevel) -> Vec<(Tone, &'static str)> {
+    match level {
+        GraphLevel::Tasks => vec![
+            (Tone::Neutral, "arrow = waits on"),
+            (Tone::Neutral, "thin line = part of"),
+            (Tone::Neutral, "dotted = related"),
+        ],
+        GraphLevel::Projects => Vec::new(),
+    }
 }
 
 /// How much a box says at a zoom: everything, the title and its marks, or only the shape.
@@ -308,9 +321,11 @@ fn walk(start: Uuid, next: &HashMap<Uuid, Vec<Uuid>>) -> HashSet<Uuid> {
 /// Everything a node waits on and everything it holds up, through any number of links, and the
 /// links along those chains.
 pub fn trace_node(g: &DependencyGraph, id: Uuid) -> Trace {
+    // The chain is the dependencies only; related and part-of links just add the box's own
+    // neighbours (one step), which wait for nothing and hold nothing up.
     let mut forward: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
     let mut backward: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-    for e in &g.edges {
+    for e in g.edges.iter().filter(|e| e.kind.orders_work()) {
         forward.entry(e.from).or_default().push(e.to);
         backward.entry(e.to).or_default().push(e.from);
     }
@@ -318,9 +333,10 @@ pub fn trace_node(g: &DependencyGraph, id: Uuid) -> Trace {
     let up = walk(id, &backward);
     let mut nodes: HashSet<Uuid> = up.union(&down).copied().collect();
     nodes.insert(id);
-    let edges = g
+    let mut edges: HashSet<Uuid> = g
         .edges
         .iter()
+        .filter(|e| e.kind.orders_work())
         .filter(|e| {
             let upstream = up.contains(&e.from) && (up.contains(&e.to) || e.to == id);
             let downstream = down.contains(&e.to) && (down.contains(&e.from) || e.from == id);
@@ -328,6 +344,15 @@ pub fn trace_node(g: &DependencyGraph, id: Uuid) -> Trace {
         })
         .map(|e| e.id)
         .collect();
+    for e in g
+        .edges
+        .iter()
+        .filter(|e| !e.kind.orders_work() && (e.from == id || e.to == id))
+    {
+        edges.insert(e.id);
+        nodes.insert(e.from);
+        nodes.insert(e.to);
+    }
     Trace {
         nodes,
         edges,
@@ -402,6 +427,11 @@ pub fn edge_class(
     }
     if e.cross_project {
         c.push_str(" cross");
+    }
+    match e.kind {
+        GraphEdgeKind::Blocks => {}
+        GraphEdgeKind::RelatesTo => c.push_str(" related"),
+        GraphEdgeKind::Subtask => c.push_str(" part"),
     }
     if selected == Some(e.id) {
         c.push_str(" selected");
@@ -508,6 +538,13 @@ pub fn edge_sentence(g: &DependencyGraph, edge: Uuid) -> String {
     };
     let (from, to) = (label_of(g, e.from), label_of(g, e.to));
     match g.level {
+        GraphLevel::Tasks if e.kind == GraphEdgeKind::RelatesTo => {
+            format!("{from} is related to {to}. Neither task waits for the other.")
+        }
+        GraphLevel::Tasks if e.kind == GraphEdgeKind::Subtask => {
+            let (parent, sub) = if e.reversed { (to, from) } else { (from, to) };
+            format!("{sub} is part of {parent}. Nothing waits and no date moves.")
+        }
         GraphLevel::Tasks => {
             let lag = e
                 .lag_days
@@ -587,6 +624,9 @@ pub struct Neighbour {
     pub status: String,
     /// Blocked, late or held up: worth a glance.
     pub stuck: bool,
+    /// How it is linked, when the link doesn't order the work ("Related", "Part of",
+    /// "Sub-task"); empty for a box waited on or held up.
+    pub how: &'static str,
 }
 
 /// A box's status in words: a task's or a project's.
@@ -598,41 +638,81 @@ pub fn status_word(n: &GraphNode) -> String {
     }
 }
 
-/// What a box waits on and what it holds up, directly, by name.
+/// The box on the other end of a link, by name.
+fn neighbour(
+    g: &DependencyGraph,
+    e: &GraphEdge,
+    other: Uuid,
+    how: &'static str,
+) -> Option<Neighbour> {
+    g.nodes
+        .iter()
+        .find(|n| n.node.id == other)
+        .map(|n| Neighbour {
+            edge: e.id,
+            node: other,
+            label: n.label.clone(),
+            status: status_word(n),
+            stuck: n.blocked || n.late || n.held_up,
+            how,
+        })
+}
+
+fn by_label(list: &mut [Neighbour]) {
+    list.sort_by(|a, b| {
+        a.label
+            .to_lowercase()
+            .cmp(&b.label.to_lowercase())
+            .then(a.node.cmp(&b.node))
+    });
+}
+
+/// What a box waits on and what it holds up, directly, by name (the dependencies only).
 pub fn neighbours(g: &DependencyGraph, id: Uuid) -> (Vec<Neighbour>, Vec<Neighbour>) {
-    let make = |e: &GraphEdge, other: Uuid| {
-        g.nodes
-            .iter()
-            .find(|n| n.node.id == other)
-            .map(|n| Neighbour {
-                edge: e.id,
-                node: other,
-                label: n.label.clone(),
-                status: status_word(n),
-                stuck: n.blocked || n.late || n.held_up,
-            })
-    };
     let mut waits: Vec<Neighbour> = g
         .edges
         .iter()
-        .filter(|e| e.to == id)
-        .filter_map(|e| make(e, e.from))
+        .filter(|e| e.kind.orders_work() && e.to == id)
+        .filter_map(|e| neighbour(g, e, e.from, ""))
         .collect();
     let mut holds: Vec<Neighbour> = g
         .edges
         .iter()
-        .filter(|e| e.from == id)
-        .filter_map(|e| make(e, e.to))
+        .filter(|e| e.kind.orders_work() && e.from == id)
+        .filter_map(|e| neighbour(g, e, e.to, ""))
         .collect();
-    for list in [&mut waits, &mut holds] {
-        list.sort_by(|a, b| {
-            a.label
-                .to_lowercase()
-                .cmp(&b.label.to_lowercase())
-                .then(a.node.cmp(&b.node))
-        });
-    }
+    by_label(&mut waits);
+    by_label(&mut holds);
     (waits, holds)
+}
+
+/// The tasks linked to a box without ordering the work: related ones, its parent and its
+/// sub-tasks, by name.
+pub fn also_linked(g: &DependencyGraph, id: Uuid) -> Vec<Neighbour> {
+    let mut list: Vec<Neighbour> = g
+        .edges
+        .iter()
+        .filter(|e| !e.kind.orders_work() && (e.from == id || e.to == id))
+        .filter_map(|e| {
+            let other = if e.from == id { e.to } else { e.from };
+            let how = match e.kind {
+                GraphEdgeKind::RelatesTo => "Related",
+                GraphEdgeKind::Subtask => {
+                    // The parent end: `from`, unless the link is drawn the other way round.
+                    let parent = if e.reversed { e.to } else { e.from };
+                    if parent == id {
+                        "Sub-task"
+                    } else {
+                        "Part of"
+                    }
+                }
+                GraphEdgeKind::Blocks => return None,
+            };
+            neighbour(g, e, other, how)
+        })
+        .collect();
+    by_label(&mut list);
+    list
 }
 
 /// "“A”", "“A” and “B”", "“A”, “B” and 2 more".
@@ -1012,6 +1092,15 @@ mod tests {
             points: Vec::new(),
             cross_project: false,
             room_days: None,
+            kind: GraphEdgeKind::Blocks,
+            reversed: false,
+        }
+    }
+
+    fn linked(n: u128, from: u128, to: u128, kind: GraphEdgeKind) -> GraphEdge {
+        GraphEdge {
+            kind,
+            ..edge(n, from, to)
         }
     }
 
@@ -1382,6 +1471,100 @@ mod tests {
         // Nothing around it, nothing listed.
         let (w, h) = neighbours(&g, id(99));
         assert!(w.is_empty() && h.is_empty());
+    }
+
+    /// The diamond (A -> B, A -> C, B -> D, C -> D, D -> E, see `diamond`) with E related to A
+    /// and C part of B.
+    fn with_relations() -> DependencyGraph {
+        let mut g = diamond();
+        g.edges.push(linked(7, 1, 5, GraphEdgeKind::RelatesTo));
+        g.edges.push(linked(8, 2, 3, GraphEdgeKind::Subtask));
+        g
+    }
+
+    #[test]
+    fn related_and_part_of_links_are_listed_apart_from_what_a_box_waits_on_and_holds_up() {
+        let g = with_relations();
+        // B waits on A, holds up D; the sub-task C is not "held up" by it.
+        let (waits, holds) = neighbours(&g, id(2));
+        assert_eq!(waits.iter().map(|n| n.node).collect::<Vec<_>>(), [id(1)]);
+        assert_eq!(holds.iter().map(|n| n.node).collect::<Vec<_>>(), [id(4)]);
+        let also = |of: u128| -> Vec<(u128, &'static str)> {
+            also_linked(&g, id(of))
+                .into_iter()
+                .map(|n| (n.node.as_u128(), n.how))
+                .collect()
+        };
+        assert_eq!(also(2), [(3, "Sub-task")]);
+        assert_eq!(also(3), [(2, "Part of")]);
+        assert_eq!(also(1), [(5, "Related")]);
+        assert_eq!(also(5), [(1, "Related")]);
+        assert!(also(4).is_empty());
+        // A part-of link drawn the other way round still says who is the parent.
+        let mut flipped = with_relations();
+        flipped.edges[7].from = id(3);
+        flipped.edges[7].to = id(2);
+        flipped.edges[7].reversed = true;
+        let names: Vec<(u128, &str)> = also_linked(&flipped, id(2))
+            .into_iter()
+            .map(|n| (n.node.as_u128(), n.how))
+            .collect();
+        assert_eq!(names, [(3, "Sub-task")]);
+    }
+
+    #[test]
+    fn a_trace_follows_the_dependencies_and_adds_only_the_boxes_own_other_links() {
+        let g = with_relations();
+        let t = trace_node(&g, id(2));
+        // The chain B is in: A before it, D and E after. The related E-A link is not on it.
+        assert_eq!(t.up, HashSet::from([id(1)]));
+        assert_eq!(t.down, HashSet::from([id(4), id(5)]));
+        assert!(!t.edges.contains(&id(1007)));
+        // B's own part-of link is lit, with its other end.
+        assert!(t.edges.contains(&id(1008)) && t.nodes.contains(&id(3)));
+        // The sub-task C is not "up" or "down" of B because of it.
+        assert!(!t.up.contains(&id(3)) && !t.down.contains(&id(3)));
+        // A box with only a related link lights the link and the box on its other end.
+        let e = trace_node(
+            &graph(
+                vec![node(1, "A"), node(2, "B")],
+                vec![linked(1, 1, 2, GraphEdgeKind::RelatesTo)],
+                GraphLevel::Tasks,
+            ),
+            id(1),
+        );
+        assert_eq!(e.nodes, HashSet::from([id(1), id(2)]));
+        assert_eq!(e.edges, HashSet::from([id(1001)]));
+        assert!(e.up.is_empty() && e.down.is_empty());
+    }
+
+    #[test]
+    fn links_that_only_relate_tasks_have_their_own_classes_and_sentences() {
+        let g = with_relations();
+        let class = |n: u128| edge_class(&g.edges[(n - 1) as usize], Lens::Route, None, None, None);
+        assert_eq!(class(1), "edge");
+        assert_eq!(class(7), "edge related");
+        assert_eq!(class(8), "edge part");
+        assert_eq!(
+            edge_sentence(&g, id(1007)),
+            "A is related to E. Neither task waits for the other."
+        );
+        assert_eq!(
+            edge_sentence(&g, id(1008)),
+            "C is part of B. Nothing waits and no date moves."
+        );
+        // A link drawn the other way round says the same.
+        let mut flipped = with_relations();
+        flipped.edges[7].from = id(3);
+        flipped.edges[7].to = id(2);
+        flipped.edges[7].reversed = true;
+        assert_eq!(
+            edge_sentence(&flipped, id(1008)),
+            "C is part of B. Nothing waits and no date moves."
+        );
+        // The key explains the lines on the task graph and has none for projects.
+        assert_eq!(link_key(GraphLevel::Tasks).len(), 3);
+        assert!(link_key(GraphLevel::Projects).is_empty());
     }
 
     #[test]

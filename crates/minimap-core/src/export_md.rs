@@ -555,6 +555,7 @@ mod tests {
             links: Vec::new(),
             task_type: None,
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             id: id(n),

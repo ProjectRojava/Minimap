@@ -18,6 +18,28 @@ pub enum GraphLevel {
     Projects,
 }
 
+/// What a link on the graph says. `Blocks` is the dependency (a task's `blocks`, a project's
+/// `depends_on`): it orders the work and drives the schedule. The other two join tasks without
+/// ordering them: they only say that the tasks belong together.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphEdgeKind {
+    #[default]
+    Blocks,
+    /// `relates_to` between two tasks.
+    RelatesTo,
+    /// `subtask_of`, drawn from the parent to the sub-task.
+    Subtask,
+}
+
+impl GraphEdgeKind {
+    /// Whether the link orders the work (and so counts for the schedule, the critical path and
+    /// what a task waits on or holds up).
+    pub fn orders_work(self) -> bool {
+        self == GraphEdgeKind::Blocks
+    }
+}
+
 /// What to show. Filters combine (all must hold); with none, everything linked is shown.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -146,6 +168,13 @@ pub struct GraphEdge {
     /// the one that depends on it.
     #[serde(default)]
     pub room_days: Option<u32>,
+    /// What the link says (spec 47: only `Blocks` before the other task relations were drawn).
+    #[serde(default)]
+    pub kind: GraphEdgeKind,
+    /// A `Subtask` link drawn the wrong way round (`from` is the sub-task) because the layout
+    /// puts the sub-task first: a chain of `blocks` runs from it to its parent.
+    #[serde(default)]
+    pub reversed: bool,
 }
 
 /// A node left out of the drawing because nothing links to it (spec 47): listed in a panel.

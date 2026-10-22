@@ -1,6 +1,9 @@
 //! Line icons for the sidebar: 16x16, stroked in `currentColor`, so they follow the theme.
 //! Pure data (SVG path strings), tested for completeness against the nav table.
 
+/// The outline of the cloud icons.
+const CLOUD: &str = "M4.6 12.6a3.1 3.1 0 0 1-.5-6.15 4.1 4.1 0 0 1 7.8-.7A3.4 3.4 0 0 1 11.4 12.6z";
+
 /// The path data of an icon, drawn with `fill="none"` and a round 1.4px stroke.
 pub fn paths(name: &str) -> Option<&'static [&'static str]> {
     Some(match name {
@@ -57,7 +60,16 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z",
             "M8 5v3.2l2 1.3",
         ],
-        "cloud" => &["M4.6 12.6a3.1 3.1 0 0 1-.5-6.15 4.1 4.1 0 0 1 7.8-.7A3.4 3.4 0 0 1 11.4 12.6z"],
+        "cloud" => &[CLOUD],
+        // Google Drive in the status bar (spec 22): one shape per state, so it never rests on
+        // colour alone. Check = saved, up = saving, down = taking in another computer's changes,
+        // slash = offline, `!` = needs you; the laptop is "this computer only".
+        "cloud-check" => &[CLOUD, "M6.2 9.4l1.3 1.3 2.4-2.6"],
+        "cloud-up" => &[CLOUD, "M8 11V7.4", "M6.4 8.9 8 7.3l1.6 1.6"],
+        "cloud-down" => &[CLOUD, "M8 7.2v3.6", "M6.4 9.3 8 10.9l1.6-1.6"],
+        "cloud-off" => &[CLOUD, "M2.5 2.5l11 11"],
+        "cloud-alert" => &[CLOUD, "M8 6.8v2.4", "M8 10.8v.1"],
+        "laptop" => &["M4 4h8v6H4z", "M2 12.5h12"],
         "chain" => &[
             "M6.5 9.5l3-3",
             "M7.2 5.3l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1",
@@ -212,6 +224,14 @@ mod tests {
             "radar",
             "pin-top",
             "save",
+            "cloud",
+            "cloud-check",
+            "cloud-up",
+            "cloud-down",
+            "cloud-off",
+            "cloud-alert",
+            "laptop",
+            "lock",
             "north",
             "me",
             "about",

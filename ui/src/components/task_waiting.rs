@@ -198,9 +198,11 @@ fn OfferLine(task: Uuid, offer: Offer) -> impl IntoView {
             TaskStatus::InProgress,
         ),
     };
+    let gate = expect_context::<crate::state::FinishDecision>();
     let apply = move |_| {
         spawn_local(async move {
-            finish(
+            // A move to In progress may ask for a start date first.
+            crate::state::finish_task(
                 api::update_task(
                     task,
                     minimap_types::UpdateTask {
@@ -209,8 +211,10 @@ fn OfferLine(task: Uuid, offer: Offer) -> impl IntoView {
                     },
                 )
                 .await,
+                task,
                 toasts,
                 version,
+                gate,
             );
         });
     };

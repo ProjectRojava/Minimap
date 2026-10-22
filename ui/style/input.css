@@ -370,6 +370,9 @@ article.fog-fog > :not(button):not(input):not(.fog-keep) { opacity: 0.6; }
 .dep .port { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; opacity: 0; cursor: crosshair; }
 .dep .node:hover .port, .dep .node.selected .port { opacity: 1; }
 .dep .edge.cross { stroke-dasharray: 6 3; }
+/* Links that do not order the work: related (dotted) and part of (thin, no arrow). */
+.dep .edge.related { stroke: var(--muted); stroke-dasharray: 2 4; }
+.dep .edge.part { stroke: var(--muted); stroke-width: 1.2; }
 .dep .edge.risk { stroke: var(--danger); stroke-width: 1.8; }
 .dep .edge.selected { stroke: var(--fg); stroke-width: 2.4; }
 .dep .edge.dim { opacity: 0.2; }

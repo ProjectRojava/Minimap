@@ -23,8 +23,9 @@ fn task_for(conn: &mut Connection, title: &str, assignee: AssigneeChoice) -> Uui
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -582,10 +583,7 @@ fn two_devices_that_each_made_a_me_end_up_with_the_oldest_one() {
     let on_b = task_for(&mut b, "B's task", AssigneeChoice::Me);
 
     let summary = m(&mut a, &b);
-    assert!(summary
-        .repairs
-        .iter()
-        .any(|r| r.contains("second \"me\"")));
+    assert!(summary.repairs.iter().any(|r| r.contains("second \"me\"")));
     sync(&mut a, &mut b);
 
     for device in [&a, &b] {
@@ -750,7 +748,10 @@ fn merging_a_person_into_another_moves_everything_that_pointed_at_them() {
     assert_eq!(merged.id, keep);
     assert!(people::get(&a, dupe).is_err());
     assert_eq!(assignee_of(&a, assigned), Some(keep));
-    assert_eq!(projects::get(&a, owned).unwrap().owner_person_id, Some(keep));
+    assert_eq!(
+        projects::get(&a, owned).unwrap().owner_person_id,
+        Some(keep)
+    );
     let reports: Vec<_> = edges::list_active_of_type(&a, EdgeType::ReportsTo).unwrap();
     assert_eq!(reports.len(), 1);
     assert_eq!(reports[0].from_id, keep);
@@ -882,7 +883,10 @@ fn things_pointing_at_a_deleted_item_are_repaired() {
     // (A task can't lose its project any more, so this goes round the rule.)
     b.execute(
         "UPDATE tasks SET project_id = NULL, updated_at = ?2 WHERE id = ?1",
-        rusqlite::params![child.to_string(), crate::convert::ts_s(crate::convert::now())],
+        rusqlite::params![
+            child.to_string(),
+            crate::convert::ts_s(crate::convert::now())
+        ],
     )
     .unwrap();
     projects::update(

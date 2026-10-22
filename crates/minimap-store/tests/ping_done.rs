@@ -12,8 +12,9 @@ fn task(conn: &mut Connection, title: &str) -> Task {
         conn,
         CreateTask {
             links: Vec::new(),
-            task_type: None,
+            task_type: Some("build".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: title.into(),
@@ -50,6 +51,8 @@ fn status(conn: &mut Connection, id: uuid::Uuid, s: TaskStatus) {
         id,
         UpdateTask {
             status: Some(s),
+            // In progress needs a start date.
+            start_date: Patch::Set(today()),
             ..Default::default()
         },
     )
@@ -69,13 +72,19 @@ fn moving_a_task_to_done_clears_its_ping() {
     assert!(pings::live_for(&conn, t.id).unwrap().is_none());
     let cleared = pings::get(&conn, p.id).unwrap();
     assert_eq!(cleared.cleared_on, Some(today()));
-    assert!(cleared.archived_at.is_none(), "cleared, not erased: it stays in the history");
+    assert!(
+        cleared.archived_at.is_none(),
+        "cleared, not erased: it stays in the history"
+    );
     assert!(pings::list_live(&conn)
         .unwrap()
         .iter()
         .all(|r| r.ping.id != p.id));
     // Another task's ping is left alone.
-    assert_eq!(pings::live_for(&conn, other.id).unwrap().unwrap().id, kept.id);
+    assert_eq!(
+        pings::live_for(&conn, other.id).unwrap().unwrap().id,
+        kept.id
+    );
     // Both are still in the full export.
     assert_eq!(pings::list_all(&conn).unwrap().len(), 2);
 }
@@ -85,7 +94,11 @@ fn other_changes_of_status_keep_the_ping() {
     let mut conn = open_in_memory().unwrap();
     let t = task(&mut conn, "Chase the vendor");
     let p = ping(&mut conn, &t);
-    for s in [TaskStatus::InProgress, TaskStatus::Blocked, TaskStatus::Cancelled] {
+    for s in [
+        TaskStatus::InProgress,
+        TaskStatus::Blocked,
+        TaskStatus::Cancelled,
+    ] {
         status(&mut conn, t.id, s);
         assert_eq!(
             pings::live_for(&conn, t.id).unwrap().map(|x| x.id),
@@ -100,7 +113,10 @@ fn a_task_with_no_ping_finishes_as_before_and_a_cleared_ping_keeps_its_first_day
     let mut conn = open_in_memory().unwrap();
     let plain = task(&mut conn, "Plain");
     status(&mut conn, plain.id, TaskStatus::Done);
-    assert_eq!(tasks::get(&conn, plain.id).unwrap().status, TaskStatus::Done);
+    assert_eq!(
+        tasks::get(&conn, plain.id).unwrap().status,
+        TaskStatus::Done
+    );
 
     let t = task(&mut conn, "Chase");
     let p = ping(&mut conn, &t);
@@ -125,7 +141,10 @@ fn undoing_the_finish_brings_the_ping_back_and_redo_clears_it_again() {
 
     let undone = undo::apply(&mut conn, &steps).unwrap();
     assert_eq!(tasks::get(&conn, t.id).unwrap().status, TaskStatus::Todo);
-    assert_eq!(pings::live_for(&conn, t.id).unwrap().map(|x| x.id), Some(p.id));
+    assert_eq!(
+        pings::live_for(&conn, t.id).unwrap().map(|x| x.id),
+        Some(p.id)
+    );
 
     let Plan::Steps(redo) = plan(&undone) else {
         panic!("expected steps");

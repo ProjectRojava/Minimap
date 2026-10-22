@@ -47,7 +47,9 @@ pub fn overlap_days(es: f64, ef: f64, lo: f64, hi: f64) -> f64 {
 }
 
 fn is_open(t: &Task) -> bool {
-    t.archived_at.is_none() && !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled)
+    t.archived_at.is_none()
+        && !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled)
+        && !t.is_parked()
 }
 
 fn allocation_of(e: &Edge) -> f64 {
@@ -276,6 +278,7 @@ mod tests {
             links: Vec::new(),
             task_type: None,
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             id: id(n),
@@ -561,6 +564,21 @@ mod tests {
         let c = f.capacity(MON, Some(1));
         assert_eq!(c.people.len(), 1, "archived people aren't listed");
         let p = of(&c, "Priya");
+        assert_eq!(p.weeks[0].load_days, 2.0);
+        assert_eq!(p.active_tasks, 1);
+    }
+
+    #[test]
+    fn a_task_on_the_backburner_adds_no_load() {
+        let mut parked = task(2, "Parked", Some(5.0));
+        parked.backburner_since = Some(date!(2027 - 02 - 20));
+        let f = Fixture {
+            tasks: vec![task(1, "Real", Some(2.0)), parked],
+            people: vec![person(30, "Priya", 40.0)],
+            edges: vec![assigned(1, 30, None), assigned(2, 30, None)],
+            ..Default::default()
+        };
+        let p = of(&f.capacity(MON, Some(1)), "Priya").clone();
         assert_eq!(p.weeks[0].load_days, 2.0);
         assert_eq!(p.active_tasks, 1);
     }

@@ -12,7 +12,8 @@ use crate::{
         link_dialog::LinkDialogHost,
         palette::PaletteHost,
         sidebar::Sidebar,
-        sync_status::{use_sync_status, StatusBar},
+        status_bar::{StatusBar, StatusWords},
+        sync_status::use_sync_status,
         titlebar::TitleBar,
         toasts::ToastHost,
         unlock::UnlockScreen,
@@ -120,6 +121,8 @@ fn Shell() -> impl IntoView {
     // Google Drive status, polled for the status bar, banners and Settings; a merge from another
     // computer reloads every screen.
     use_sync_status();
+    // Icons only in the status bar, or words beside them too (Settings -> Appearance).
+    StatusWords::provide();
     // One hue per objective, worn by its projects and tasks (ADR-0012).
     crate::components::objective_colour::ObjectiveColours::provide();
     // One colour and shape per person, for avatars next to a name (dropdowns, lists, panes).
@@ -176,6 +179,7 @@ fn Shell() -> impl IntoView {
             <LinkDialogHost />
             <crate::components::finish_decision::FinishDecisionHost />
             <crate::components::finish_waiting::FinishWaitingHost />
+            <crate::components::start_date::StartDateHost />
             <crate::components::confirm_archive::ConfirmArchiveHost />
             <crate::components::meeting::MeetingDialogHost />
             <crate::components::meeting::MeetingClock />

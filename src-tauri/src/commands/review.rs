@@ -49,9 +49,7 @@ pub(crate) fn review_at(
         tasks: minimap_store::views::task_rows(conn)
             .map_err(store_error)?
             .into_iter()
-            .chain(
-                minimap_store::archive::done_rows_between(conn, from, to).map_err(store_error)?,
-            )
+            .chain(minimap_store::archive::done_rows_between(conn, from, to).map_err(store_error)?)
             .filter(|r| !r.task.is_meeting())
             .collect(),
         blockers: minimap_store::views::open_blockers(conn).map_err(store_error)?,
@@ -191,8 +189,9 @@ mod tests {
             conn,
             CreateTask {
                 links: Vec::new(),
-                task_type: None,
+                task_type: Some("build".into()),
                 focus: None,
+                backburner_since: None,
                 start_minute: None,
                 length_minutes: None,
                 title: title.into(),

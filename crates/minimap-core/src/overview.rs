@@ -48,7 +48,9 @@ pub struct OverviewWorld<'a> {
 }
 
 fn is_open(t: &Task) -> bool {
-    t.archived_at.is_none() && !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled)
+    t.archived_at.is_none()
+        && !matches!(t.status, TaskStatus::Done | TaskStatus::Cancelled)
+        && !t.is_parked()
 }
 
 fn weight_of(e: &Edge) -> f64 {
@@ -488,6 +490,7 @@ mod tests {
             links: Vec::new(),
             task_type: None,
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             id: id(n),

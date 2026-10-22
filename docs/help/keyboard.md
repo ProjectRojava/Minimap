@@ -68,6 +68,7 @@ Click the chart first. `↑` `↓` move between rows (`Home`, `End`, `PageUp`, `
 | `x` | Mark done; again to reopen |
 | `s` | Move to the next status |
 | `f` | Put in focus, or take out of focus ([Tasks](help:tasks), *Focus*) |
+| `b` | Put on the backburner, or bring it back ([Tasks](help:tasks), *The backburner*). Tasks, board and list |
 | `m` | Leave a [ping](help:pings) on it: a box asks for a day and a note. Works on any list, the board and This week. On a row of This week's Pings card, `x` clears the ping |
 | `c` | Say it is still accurate: clears its fog without changing it ([Fog](help:fog)). Also on projects, objectives, This week and the weekly review's Fog step |
 | `1`–`5` | Set the priority |

@@ -257,13 +257,13 @@ pub fn move_cursor(cursor: Option<usize>, len: usize, delta: isize) -> Option<us
 }
 
 /// Keys that act on the row under the list cursor: `x` toggle done, `s` next status,
-/// `f` focus, `c` still accurate (clears fog, spec 43), `m` ping it (ADR-0020; handled for every
+/// `f` focus, `b` backburner (spec 59), `c` still accurate (clears fog, spec 43), `m` ping it (ADR-0020; handled for every
 /// screen by `keyboard.rs`), `d` due date, `a` assignee, `1`-`5` priority. Screens that don't use
 /// them ignore them.
 pub fn is_row_key(key: &str) -> bool {
     matches!(
         key,
-        "x" | "s" | "f" | "c" | "m" | "d" | "a" | "1" | "2" | "3" | "4" | "5"
+        "x" | "s" | "f" | "b" | "c" | "m" | "d" | "a" | "1" | "2" | "3" | "4" | "5"
     )
 }
 
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn row_keys() {
-        for k in ["x", "s", "f", "c", "m", "d", "a", "1", "5"] {
+        for k in ["x", "s", "f", "b", "c", "m", "d", "a", "1", "5"] {
             assert!(is_row_key(k), "{k}");
         }
         for k in ["g", "j", "k", "n", "0", "6", "Enter", "xx", ""] {

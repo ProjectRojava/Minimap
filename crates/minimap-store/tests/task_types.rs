@@ -16,6 +16,7 @@ fn task(conn: &mut Connection, task_type: Option<&str>) -> Result<Task> {
             links: Vec::new(),
             task_type: task_type.map(str::to_owned),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: "Pick the data store".into(),
@@ -30,6 +31,12 @@ fn task(conn: &mut Connection, task_type: Option<&str>) -> Result<Task> {
             recurrence: None,
         },
     )
+}
+
+/// A task with no type, as one from before types were required has: made with one, then cleared.
+fn untyped(conn: &mut Connection) -> Task {
+    let t = task(conn, Some("build")).unwrap();
+    set_type(conn, t.id, Patch::Clear).unwrap()
 }
 
 fn set_types(conn: &mut Connection, list: Vec<TaskType>) -> Result<Settings> {
@@ -63,7 +70,7 @@ fn a_new_installation_has_the_default_types() {
 #[test]
 fn a_task_has_a_type_or_none() {
     let mut conn = db();
-    assert_eq!(task(&mut conn, None).unwrap().task_type, None);
+    assert_eq!(untyped(&mut conn).task_type, None);
     let t = task(&mut conn, Some("decision")).unwrap();
     assert_eq!(t.task_type.as_deref(), Some("decision"));
     assert_eq!(
@@ -77,12 +84,35 @@ fn a_task_has_a_type_or_none() {
 }
 
 #[test]
+fn a_new_task_needs_a_type_and_nothing_is_written_without_one() {
+    let mut conn = db();
+    for none in [None, Some("")] {
+        let err = task(&mut conn, none).unwrap_err();
+        assert!(err.to_string().contains("needs a type"), "{err}");
+    }
+    assert!(tasks::list(&conn, true).unwrap().is_empty());
+    // A task made from another does not escape the rule.
+    let source = untyped(&mut conn);
+    let before = tasks::list(&conn, true).unwrap().len();
+    let err = tasks::create_linked(
+        &mut conn,
+        source.id,
+        LinkRelation::Blocks,
+        "Next".into(),
+        None,
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("needs a type"), "{err}");
+    assert_eq!(tasks::list(&conn, true).unwrap().len(), before);
+}
+
+#[test]
 fn a_type_that_is_not_in_the_list_is_refused_and_nothing_is_written() {
     let mut conn = db();
     let err = task(&mut conn, Some("nonsense")).unwrap_err();
     assert!(err.to_string().contains("not in the list"), "{err}");
     assert!(tasks::list(&conn, true).unwrap().is_empty());
-    let t = task(&mut conn, None).unwrap();
+    let t = untyped(&mut conn);
     assert!(set_type(&mut conn, t.id, Patch::Set("nonsense".into())).is_err());
     assert_eq!(tasks::get(&conn, t.id).unwrap().task_type, None);
 }
@@ -108,7 +138,7 @@ fn an_archived_type_stays_on_its_tasks_but_cannot_be_given_again() {
     // Nobody else can get it.
     let err = task(&mut conn, Some("bug")).unwrap_err();
     assert!(err.to_string().contains("archived"), "{err}");
-    let other = task(&mut conn, None).unwrap();
+    let other = untyped(&mut conn);
     assert!(set_type(&mut conn, other.id, Patch::Set("bug".into())).is_err());
 }
 
@@ -182,6 +212,7 @@ fn a_repeating_task_hands_its_type_on() {
             links: Vec::new(),
             task_type: Some("admin".into()),
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             title: "Access review".into(),
@@ -214,7 +245,7 @@ fn a_repeating_task_hands_its_type_on() {
 #[test]
 fn a_linked_task_can_be_given_a_type() {
     let mut conn = db();
-    let source = task(&mut conn, None).unwrap();
+    let source = untyped(&mut conn);
     let made = tasks::create_linked(
         &mut conn,
         source.id,

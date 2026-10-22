@@ -30,12 +30,13 @@ use crate::{
         what_if_button::DEFAULT_SLIP_DAYS,
     },
     graph_view::{
-        detail_level, drop_beside_banner, drop_pair, edge_class, edge_label, edge_sentence,
-        filter_unlinked, insights, inspector_lines, keep_in_place, lag_attrs, legend, line_three,
-        line_two, link_message, midpoint, neighbours, new_link, node_class, owner_choices_of,
-        project_choices_of, status_choices, status_choices_of, status_word, trace_edge, trace_node,
-        tray_pair, unlinked_count_text, why_lines, Detail, Lens, Neighbour, Trace, UnlinkedFilter,
-        CARD_HINT, LEGEND_HINT, NODE_HINT, UNLINKED_CARD_HINT, WAITING_LINE,
+        also_linked, detail_level, drop_beside_banner, drop_pair, edge_class, edge_label,
+        edge_sentence, filter_unlinked, insights, inspector_lines, keep_in_place, lag_attrs,
+        legend, line_three, line_two, link_key, link_message, midpoint, neighbours, new_link,
+        node_class, owner_choices_of, project_choices_of, status_choices, status_choices_of,
+        status_word, trace_edge, trace_node, tray_pair, unlinked_count_text, why_lines, Detail,
+        Lens, Neighbour, Trace, UnlinkedFilter, CARD_HINT, LEGEND_HINT, NODE_HINT,
+        UNLINKED_CARD_HINT, WAITING_LINE,
     },
     state::{finish, finish_task, DataVersion, FinishDecision, Scenario, Selection, Toasts},
 };
@@ -295,6 +296,61 @@ impl Expander {
     }
 }
 
+const FILTERS_KEY: &str = "minimap.dependency-filters";
+
+/// The filters as left on this computer (a convenience: nothing breaks without it), like the
+/// Tasks screen's. The level and the lens are ways of looking, not filters, and start afresh.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct Remembered {
+    #[serde(default)]
+    project: String,
+    #[serde(default)]
+    team: String,
+    #[serde(default)]
+    objective: String,
+    #[serde(default)]
+    done: bool,
+    #[serde(default)]
+    isolated: bool,
+}
+
+impl Remembered {
+    fn load() -> Self {
+        web_sys::window()
+            .and_then(|w| w.local_storage().ok().flatten())
+            .and_then(|s| s.get_item(FILTERS_KEY).ok().flatten())
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default()
+    }
+
+    fn save(&self) {
+        if let (Some(storage), Ok(json)) = (
+            web_sys::window().and_then(|w| w.local_storage().ok().flatten()),
+            serde_json::to_string(self),
+        ) {
+            let _ = storage.set_item(FILTERS_KEY, &json);
+        }
+    }
+
+    /// How many controls are set to something other than their default. The team box only
+    /// exists for tasks, so it counts only there.
+    fn changed(&self, level: GraphLevel) -> usize {
+        [
+            !self.project.is_empty(),
+            level == GraphLevel::Tasks && !self.team.is_empty(),
+            !self.objective.is_empty(),
+            self.done,
+            self.isolated,
+        ]
+        .into_iter()
+        .filter(|on| *on)
+        .count()
+    }
+}
+
+/// The ring round a filter that has been changed from its default (as on the Tasks screen).
+const MARKED: &str = "rounded-sm ring-1 ring-accent";
+
 #[component]
 pub fn Graph() -> impl IntoView {
     let version = expect_context::<DataVersion>();
@@ -302,11 +358,33 @@ pub fn Graph() -> impl IntoView {
 
     let level = RwSignal::new(GraphLevel::Tasks);
     let lens = RwSignal::new(Lens::Route);
-    let project = RwSignal::new(String::new());
-    let team = RwSignal::new(String::new());
-    let objective = RwSignal::new(String::new());
-    let include_done = RwSignal::new(false);
-    let include_isolated = RwSignal::new(false);
+    let saved = Remembered::load();
+    let project = RwSignal::new(saved.project);
+    let team = RwSignal::new(saved.team);
+    let objective = RwSignal::new(saved.objective);
+    let include_done = RwSignal::new(saved.done);
+    let include_isolated = RwSignal::new(saved.isolated);
+    // Bumped by "Reset" (and when a remembered choice no longer exists) so the dropdowns, which
+    // keep their own value, start over.
+    let epoch = RwSignal::new(0u32);
+    let remembered = move || Remembered {
+        project: project.get(),
+        team: team.get(),
+        objective: objective.get(),
+        done: include_done.get(),
+        isolated: include_isolated.get(),
+    };
+    Effect::new(move |_| remembered().save());
+    let changed = move || remembered().changed(level.get());
+    let any_changed = move || changed() > 0;
+    let reset = move |_| {
+        project.set(String::new());
+        team.set(String::new());
+        objective.set(String::new());
+        include_done.set(false);
+        include_isolated.set(false);
+        epoch.update(|e| *e += 1);
+    };
     let picked = RwSignal::new(Option::<Picked>::None);
     let linking = RwSignal::new(Option::<Linking>::None);
     // The list of unlinked work beside the graph: closed to start with, a small button opens it.
@@ -746,6 +824,19 @@ pub fn Graph() -> impl IntoView {
             }
         })
         .collect_view();
+    // A remembered project, team or objective that is gone (archived since) would filter on
+    // something the box cannot show, so it is dropped.
+    for (wanted, list) in [(project, projects), (team, teams), (objective, objectives)] {
+        Effect::new(move |_| {
+            if let Some(Ok(list)) = list.get() {
+                let id = wanted.get_untracked();
+                if !id.is_empty() && !list.iter().any(|n| n.node.id.to_string() == id) {
+                    wanted.set(String::new());
+                    epoch.update(|e| *e += 1);
+                }
+            }
+        });
+    }
     let option_list =
         move |any: &'static str,
               res: Option<Result<Vec<minimap_types::NodeSummary>, minimap_types::AppError>>|
@@ -767,7 +858,7 @@ pub fn Graph() -> impl IntoView {
         (None, _) => view! { <p class="p-6 text-muted">"Laying it out…"</p> }.into_any(),
         (Some(g), _) if g.nodes.is_empty() => view! {
             <EmptyState icon="graph" title="No dependencies to draw"
-                hint="Link tasks with Links → Blocks (or projects with Depends on), then they appear here. Tasks and projects with no links are listed on the right (the Unlinked button), and you can link one from there." />
+                hint="Link tasks (one blocks another, they are related, or one is part of another), or projects with Depends on, and they appear here. Tasks and projects with no links are listed on the right (the Unlinked button), and you can link one from there." />
         }
         .into_any(),
         (Some(g), _) => view! {
@@ -800,6 +891,7 @@ pub fn Graph() -> impl IntoView {
     let key = move || {
         legend(lens.get())
             .into_iter()
+            .chain(link_key(level.get()))
             .map(|(tone, text)| view! { <span class=tone.chip()>{text}</span> })
             .collect_view()
     };
@@ -823,17 +915,27 @@ pub fn Graph() -> impl IntoView {
             </PageHeader>
             <crate::components::orientation::MineBanner />
             <div class=FILTER_BAR>
-                {move || view! { <SelectField compact=true current=project.get_untracked()
-                    options=option_list(if level.get() == GraphLevel::Tasks { "Any project" } else { "Any project (focus)" }, projects.get())
-                    on_change=move |v: String| project.set(v) /> }}
-                {move || (level.get() == GraphLevel::Tasks).then(|| view! {
-                    <SelectField compact=true current=team.get_untracked()
-                        options=option_list("Any team", teams.get())
-                        on_change=move |v: String| team.set(v) />
-                })}
-                {move || view! { <SelectField compact=true current=objective.get_untracked()
-                    options=option_list("Any objective", objectives.get())
-                    on_change=move |v: String| objective.set(v) /> }}
+                {move || { epoch.track(); view! {
+                    <span class=move || if project.get().is_empty() { "" } else { MARKED }>
+                        <SelectField compact=true current=project.get_untracked()
+                            options=option_list(if level.get() == GraphLevel::Tasks { "Any project" } else { "Any project (focus)" }, projects.get())
+                            on_change=move |v: String| project.set(v) />
+                    </span>
+                } }}
+                {move || (level.get() == GraphLevel::Tasks).then(|| { epoch.track(); view! {
+                    <span class=move || if team.get().is_empty() { "" } else { MARKED }>
+                        <SelectField compact=true current=team.get_untracked()
+                            options=option_list("Any team", teams.get())
+                            on_change=move |v: String| team.set(v) />
+                    </span>
+                } })}
+                {move || { epoch.track(); view! {
+                    <span class=move || if objective.get().is_empty() { "" } else { MARKED }>
+                        <SelectField compact=true current=objective.get_untracked()
+                            options=option_list("Any objective", objectives.get())
+                            on_change=move |v: String| objective.set(v) />
+                    </span>
+                } }}
                 <label class="flex items-center gap-1 text-[11px] text-muted">
                     <input type="checkbox" prop:checked=move || include_done.get()
                            on:change=move |ev| include_done.set(event_target_checked(&ev)) />
@@ -844,6 +946,13 @@ pub fn Graph() -> impl IntoView {
                            on:change=move |ev| include_isolated.set(event_target_checked(&ev)) />
                     "Draw unlinked"
                 </label>
+                <Show when=any_changed>
+                    <button class=BUTTON_SOFT
+                            title="Put every filter back to its default"
+                            on:click=reset>
+                        {move || format!("Reset ({} changed)", changed())}
+                    </button>
+                </Show>
                 <span class="ml-auto text-[11px] text-muted">{summary}</span>
             </div>
             <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-1 empty:hidden">{chips}</div>
@@ -990,7 +1099,8 @@ fn EdgeCard(
         let z = zoom.get();
         let (left, top) = (px + mx * z, py + my * z);
         let sentence = edge_sentence(&g, id);
-        let tasks = g.level == GraphLevel::Tasks;
+        // Only a dependency has a lag.
+        let tasks = g.level == GraphLevel::Tasks && e.kind.orders_work();
         let lag = e.lag_days.unwrap_or(0);
         let on_lag = move |ev| {
             let text: String = event_target_value(&ev);
@@ -1307,10 +1417,13 @@ fn Drawing(
                 let from = by_id.with_value(|m| m.get(&e2.from).cloned());
                 edge_class(&e2, lens.get(), from.as_ref(), trace.get().as_ref(), selected_edge())
             };
+            // Only a dependency has an arrow: related and part-of links order nothing.
             let marker = {
-                let critical = e.critical;
+                let (critical, orders) = (e.critical, e.kind.orders_work());
                 move || {
-                    if critical && lens.get() == Lens::Route {
+                    if !orders {
+                        "none"
+                    } else if critical && lens.get() == Lens::Route {
                         "url(#dep-arrow-hot)"
                     } else {
                         "url(#dep-arrow)"
@@ -1575,6 +1688,7 @@ fn NodeCard(
         }
     });
     let (waits, holds) = neighbours(&graph, id);
+    let also = also_linked(&graph, id);
     let lines = inspector_lines(&graph, id)
         .into_iter()
         .map(|l| view! { <li>{l}</li> })
@@ -1595,7 +1709,9 @@ fn NodeCard(
                     <li class="flex items-center gap-1.5">
                         <button class="min-w-0 truncate text-left hover:underline" title="Go to it"
                                 on:click=move |_| expander.set(Some(node_id))>{n.label}</button>
-                        <span class=if n.stuck { "shrink-0 text-warning" } else { "shrink-0 text-muted" }>{n.status}</span>
+                        <span class=if n.stuck { "shrink-0 text-warning" } else { "shrink-0 text-muted" }>
+                            {if n.how.is_empty() { n.status } else { format!("{} · {}", n.how, n.status) }}
+                        </span>
                         <button class="ml-auto shrink-0 rounded px-1 text-muted hover:bg-hover hover:text-danger"
                                 title="Remove this link" aria-label="Remove this link"
                                 on:click=move |_| remove_link(edge, picked_none, toasts, version)>"✕"</button>
@@ -1687,6 +1803,7 @@ fn NodeCard(
             <ul class="space-y-0.5">{why}</ul>
             {list(waits_title, waits)}
             {list(holds_title, holds)}
+            {list("Also linked", also)}
             {move || match description.get() {
                 Some(Ok(text)) if !text.trim().is_empty() => Some(view! {
                     <p class="max-h-[3.9em] overflow-hidden whitespace-pre-line text-muted">{text}</p>
@@ -1728,6 +1845,40 @@ fn on_control(ev: &ev::MouseEvent) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_reset_button_counts_the_filters_that_are_not_at_their_defaults() {
+        let none = Remembered::default();
+        assert_eq!(none.changed(GraphLevel::Tasks), 0);
+        assert_eq!(none.changed(GraphLevel::Projects), 0);
+        let all = Remembered {
+            project: "p".into(),
+            team: "t".into(),
+            objective: "o".into(),
+            done: true,
+            isolated: true,
+        };
+        assert_eq!(all.changed(GraphLevel::Tasks), 5);
+        // There is no team box on the Projects level.
+        assert_eq!(all.changed(GraphLevel::Projects), 4);
+    }
+
+    #[test]
+    fn remembered_filters_round_trip_and_an_older_or_broken_copy_reads_as_the_defaults() {
+        let saved = Remembered {
+            project: "p".into(),
+            objective: "o".into(),
+            done: true,
+            ..Remembered::default()
+        };
+        let json = serde_json::to_string(&saved).unwrap();
+        assert_eq!(serde_json::from_str::<Remembered>(&json).unwrap(), saved);
+        assert_eq!(
+            serde_json::from_str::<Remembered>("{}").unwrap(),
+            Remembered::default()
+        );
+        assert!(serde_json::from_str::<Remembered>("nonsense").is_err());
+    }
     use minimap_types::{NodeRef, Uuid, Zone};
 
     fn node(label: &str, f: impl Fn(&mut GraphNode)) -> GraphNode {

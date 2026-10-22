@@ -9,8 +9,9 @@ use time::macros::date;
 fn input(title: &str, project: Option<uuid::Uuid>) -> CreateTask {
     CreateTask {
         links: Vec::new(),
-        task_type: None,
+        task_type: Some("build".into()),
         focus: None,
+        backburner_since: None,
         start_minute: None,
         length_minutes: None,
         title: title.into(),
@@ -145,8 +146,14 @@ fn a_task_from_before_the_rule_can_still_be_worked_on() {
     .unwrap();
     assert_eq!(renamed.project_id, None);
     // A task linked to it takes what it has, none.
-    let linked = tasks::create_linked(&mut conn, old.id, LinkRelation::RelatesTo, "Next".into(), None)
-        .unwrap();
+    let linked = tasks::create_linked(
+        &mut conn,
+        old.id,
+        LinkRelation::RelatesTo,
+        "Next".into(),
+        Some("build".into()),
+    )
+    .unwrap();
     assert_eq!(linked.project_id, None);
 }
 

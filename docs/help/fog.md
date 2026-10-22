@@ -10,7 +10,7 @@ Only work whose state matters now can be fogged. Finished, far-off and paused th
 
 | Kind | In play when |
 |---|---|
-| Task | Open, not a meeting, and at least one of: in progress or blocked; due within 14 days (or already late); in [focus](help:this-week) today |
+| Task | Open, not a meeting, not on the [backburner](help:tasks), and at least one of: in progress or blocked; due within 14 days (or already late); in [focus](help:this-week) today |
 | Project | Its status is *Active* (planned, paused, done and cancelled are not) |
 | Objective | Not done, and not *ongoing*: an [ongoing objective](help:objectives) has its own review rhythm instead |
 

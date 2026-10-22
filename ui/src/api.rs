@@ -420,6 +420,7 @@ struct BulkArg {
     titles: Vec<String>,
     project_id: Option<Uuid>,
     assignee: AssigneeChoice,
+    task_type: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -455,6 +456,20 @@ pub async fn set_task_estimate(id: Uuid, text: String) -> Result<Task, AppError>
 
 pub async fn set_task_focus(id: Uuid, choice: FocusChoice) -> Result<Task, AppError> {
     invoke("set_task_focus", &FocusArg { id, choice }).await
+}
+
+#[derive(Serialize)]
+struct BackburnerArg {
+    id: Uuid,
+    on: bool,
+}
+
+/// Puts a task on the backburner or brings it back (spec 59).
+pub async fn set_task_backburner(
+    id: Uuid,
+    on: bool,
+) -> Result<minimap_types::BackburnerResult, AppError> {
+    invoke("set_task_backburner", &BackburnerArg { id, on }).await
 }
 
 #[derive(Serialize)]
@@ -574,6 +589,7 @@ pub async fn create_tasks_bulk(
     titles: Vec<String>,
     project_id: Option<Uuid>,
     assignee: AssigneeChoice,
+    task_type: Option<String>,
 ) -> Result<Vec<Task>, AppError> {
     invoke(
         "create_tasks_bulk",
@@ -581,6 +597,7 @@ pub async fn create_tasks_bulk(
             titles,
             project_id,
             assignee,
+            task_type,
         },
     )
     .await
@@ -766,6 +783,7 @@ struct ConvertArg {
     note_id: Uuid,
     line: u32,
     text: String,
+    task_type: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1403,6 +1421,7 @@ pub async fn convert_checklist_item(
     note_id: Uuid,
     line: u32,
     text: String,
+    task_type: Option<String>,
 ) -> Result<Task, AppError> {
     invoke(
         "convert_checklist_item",
@@ -1410,6 +1429,7 @@ pub async fn convert_checklist_item(
             note_id,
             line,
             text,
+            task_type,
         },
     )
     .await

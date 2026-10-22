@@ -2,7 +2,7 @@
 source: src-tauri/src/commands/demo.rs
 expression: out
 ---
-Tasks: 18 boxes, 20 links (4 cross projects), 16 unlinked (16 listed)
+Tasks: 26 boxes, 27 links (4 cross projects), 8 unlinked (8 listed)
   Provision EU network and clusters | owner Tomás Alvarez | holds up 9 waits on 0 | finish 2027-03-10 due 2027-03-10 | None health None
   Gateway: design rate limiting | owner Maya Chen | holds up 8 waits on 0 | finish 2027-03-05 due 2027-03-08 | None health None
   Gateway: build the routing layer | owner Maya Chen | holds up 7 waits on 1 | finish 2027-03-15 due 2027-03-22 | None health None

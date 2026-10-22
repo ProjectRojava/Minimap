@@ -1,6 +1,9 @@
 //! The dependency graph (spec 18): which work blocks which, laid out left to right. Pure.
 //!
-//! Two levels: **tasks** joined by `blocks`, and **projects** joined by `depends_on`. Filters
+//! Two levels: **tasks** joined by `blocks`, and **projects** joined by `depends_on`. The task level
+//! also draws the links that do not order the work (`relates_to`, `subtask_of`), so every relation
+//! between two tasks is on the graph; they take part in the layout (to be placed near each other)
+//! but never in the schedule, the critical path or what a task waits on or holds up. Filters
 //! (project, team, objective) choose the work of interest; the nodes it is linked to (one hop)
 //! are shown dimmed as *context* so no link dangles. Unlinked nodes are left out unless asked
 //! for. The critical path comes from the schedule (spec 13): critical tasks and the links that
@@ -9,10 +12,10 @@
 use std::collections::{HashMap, HashSet};
 
 use minimap_types::{
-    Date, DependencyGraph, Edge, EdgeType, GraphEdge, GraphFilter, GraphLevel, GraphNode,
-    GraphUnlinked, HealthLevel, NodeRef, NodeSummary, NodeType, Person, Project, ProjectStatus,
-    ScheduleScope, ScheduledTask, Task, TaskStatus, Team, Uuid, WorkWeek, Zone, EXPANDED_PROJECT_H,
-    EXPANDED_TASK_H, EXPANDED_W, MAX_UNLINKED_LISTED,
+    Date, DependencyGraph, Edge, EdgeType, GraphEdge, GraphEdgeKind, GraphFilter, GraphLevel,
+    GraphNode, GraphUnlinked, HealthLevel, NodeRef, NodeSummary, NodeType, Person, Project,
+    ProjectStatus, ScheduleScope, ScheduledTask, Task, TaskStatus, Team, Uuid, WorkWeek, Zone,
+    EXPANDED_PROJECT_H, EXPANDED_TASK_H, EXPANDED_W, MAX_UNLINKED_LISTED,
 };
 
 use crate::{
@@ -105,6 +108,8 @@ struct DraftEdge {
     critical: bool,
     cross_project: bool,
     room_days: Option<u32>,
+    kind: GraphEdgeKind,
+    reversed: bool,
 }
 
 fn person_summary(people: &[Person], id: Uuid) -> Option<NodeSummary> {
@@ -117,6 +122,23 @@ fn person_summary(people: &[Person], id: Uuid) -> Option<NodeSummary> {
 
 fn active(e: &Edge, kind: EdgeType) -> bool {
     e.edge_type == kind && e.archived_at.is_none()
+}
+
+/// Whether `from` can already reach `to` along `next`.
+fn reaches(next: &HashMap<Uuid, Vec<Uuid>>, from: Uuid, to: Uuid) -> bool {
+    let mut seen: HashSet<Uuid> = HashSet::from([from]);
+    let mut stack = vec![from];
+    while let Some(id) = stack.pop() {
+        if id == to {
+            return true;
+        }
+        for &n in next.get(&id).into_iter().flatten() {
+            if seen.insert(n) {
+                stack.push(n);
+            }
+        }
+    }
+    false
 }
 
 fn lag_of(e: &Edge) -> Option<u32> {
@@ -204,11 +226,23 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
         .filter(|t| filter.include_done || t.status != TaskStatus::Done)
         .map(|t| (t.id, t))
         .collect();
-    let links: Vec<&Edge> = input
+    // Every link between two of these tasks: the dependency and the ones that only relate them.
+    let links: Vec<(&Edge, GraphEdgeKind)> = input
         .edges
         .iter()
-        .filter(|e| active(e, EdgeType::Blocks))
-        .filter(|e| candidates.contains_key(&e.from_id) && candidates.contains_key(&e.to_id))
+        .filter_map(|e| {
+            let kind = if active(e, EdgeType::Blocks) {
+                GraphEdgeKind::Blocks
+            } else if active(e, EdgeType::RelatesTo) {
+                GraphEdgeKind::RelatesTo
+            } else if active(e, EdgeType::SubtaskOf) {
+                GraphEdgeKind::Subtask
+            } else {
+                return None;
+            };
+            Some((e, kind))
+        })
+        .filter(|(e, _)| candidates.contains_key(&e.from_id) && candidates.contains_key(&e.to_id))
         .collect();
 
     // Which tasks the filters select.
@@ -257,7 +291,7 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
     // Seeds, plus (when filtering) what they are linked to as context.
     let mut visible: HashSet<Uuid> = seeds.clone();
     if filtered {
-        for e in &links {
+        for (e, _) in &links {
             if seeds.contains(&e.from_id) {
                 visible.insert(e.to_id);
             }
@@ -266,14 +300,23 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
             }
         }
     }
-    let edges: Vec<&Edge> = links
+    let mut edges: Vec<(&Edge, GraphEdgeKind)> = links
         .iter()
         .copied()
-        .filter(|e| visible.contains(&e.from_id) && visible.contains(&e.to_id))
+        .filter(|(e, _)| visible.contains(&e.from_id) && visible.contains(&e.to_id))
         // Two pieces of context aren't worth drawing a link between.
-        .filter(|e| seeds.contains(&e.from_id) || seeds.contains(&e.to_id))
+        .filter(|(e, _)| seeds.contains(&e.from_id) || seeds.contains(&e.to_id))
         .collect();
-    let linked: HashSet<Uuid> = edges.iter().flat_map(|e| [e.from_id, e.to_id]).collect();
+    // The dependencies first: they are acyclic, so the others are placed around them.
+    edges.sort_by_key(|(_, kind)| match kind {
+        GraphEdgeKind::Blocks => 0,
+        GraphEdgeKind::Subtask => 1,
+        GraphEdgeKind::RelatesTo => 2,
+    });
+    let linked: HashSet<Uuid> = edges
+        .iter()
+        .flat_map(|(e, _)| [e.from_id, e.to_id])
+        .collect();
     let mut hidden: Vec<Uuid> = Vec::new();
     // The item dropped onto the graph is drawn whether or not anything links to it.
     let waiting = filter.waiting.filter(|w| candidates.contains_key(w));
@@ -355,9 +398,24 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
         }
     };
     let drafts: Vec<Draft> = ids.iter().map(make_draft).collect();
-    let draft_edges: Vec<DraftEdge> = edges
-        .iter()
-        .map(|e| {
+    // Which way each link is drawn (left to right). The layout needs no loop, so a link that
+    // doesn't order the work, and would close one with the links before it, is drawn the other
+    // way round.
+    let mut next: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    let mut draft_edges: Vec<DraftEdge> = Vec::new();
+    for (e, kind) in &edges {
+        let (mut from, mut to) = match kind {
+            GraphEdgeKind::Blocks | GraphEdgeKind::RelatesTo => (e.from_id, e.to_id),
+            // Stored sub-task -> parent; drawn parent -> sub-task.
+            GraphEdgeKind::Subtask => (e.to_id, e.from_id),
+        };
+        let mut reversed = false;
+        if !kind.orders_work() && reaches(&next, to, from) {
+            std::mem::swap(&mut from, &mut to);
+            reversed = *kind == GraphEdgeKind::Subtask;
+        }
+        next.entry(from).or_default().push(to);
+        let (lag, critical) = if kind.orders_work() {
             let lag = lag_of(e).unwrap_or(0);
             let critical = match (scheduled.get(&e.from_id), scheduled.get(&e.to_id)) {
                 (Some(a), Some(b)) => {
@@ -365,17 +423,22 @@ fn build_tasks(input: &GraphInput, filter: &GraphFilter) -> Result<DependencyGra
                 }
                 _ => false,
             };
-            DraftEdge {
-                id: e.id,
-                from: e.from_id,
-                to: e.to_id,
-                lag_days: lag_of(e),
-                critical,
-                cross_project: candidates[&e.from_id].project_id != candidates[&e.to_id].project_id,
-                room_days: None,
-            }
-        })
-        .collect();
+            (lag_of(e), critical)
+        } else {
+            (None, false)
+        };
+        draft_edges.push(DraftEdge {
+            id: e.id,
+            from,
+            to,
+            lag_days: lag,
+            critical,
+            cross_project: candidates[&from].project_id != candidates[&to].project_id,
+            room_days: None,
+            kind: *kind,
+            reversed,
+        });
+    }
     hidden.sort_by(by_title);
     let unlinked: Vec<GraphUnlinked> = hidden
         .iter()
@@ -582,6 +645,8 @@ fn build_projects(input: &GraphInput, filter: &GraphFilter) -> Result<Dependency
                 critical: false,
                 cross_project: false,
                 room_days,
+                kind: GraphEdgeKind::Blocks,
+                reversed: false,
             }
         })
         .collect();
@@ -718,6 +783,13 @@ fn finish(
         .iter()
         .map(|e| (index[&e.from], index[&e.to]))
         .collect();
+    // What a box waits on and holds up counts the dependencies only.
+    let ordering: Vec<(usize, usize)> = edges
+        .iter()
+        .zip(&pairs)
+        .filter(|(e, _)| e.kind.orders_work())
+        .map(|(_, p)| *p)
+        .collect();
     // The expanded box is laid out large, so the others make room for it.
     let sizes: Vec<(f64, f64)> = drafts
         .iter()
@@ -734,7 +806,7 @@ fn finish(
         })
         .collect();
     let placed = layout(&sizes, &pairs, &Params::default())?;
-    let reach = reach_counts(drafts.len(), &pairs);
+    let reach = reach_counts(drafts.len(), &ordering);
     let nodes: Vec<GraphNode> = drafts
         .into_iter()
         .zip(&placed.nodes)
@@ -787,6 +859,8 @@ fn finish(
             points,
             cross_project: e.cross_project,
             room_days: e.room_days,
+            kind: e.kind,
+            reversed: e.reversed,
         })
         .collect();
     Ok(DependencyGraph {
@@ -821,6 +895,7 @@ mod tests {
             links: Vec::new(),
             task_type: None,
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             id: id(n),
@@ -2006,5 +2081,145 @@ mod tests {
         })
         .unwrap();
         assert!(none.nodes.is_empty());
+    }
+
+    fn relates(a: u128, b: u128) -> Edge {
+        edge(EdgeType::RelatesTo, NodeType::Task, a, NodeType::Task, b)
+    }
+
+    /// Stored sub-task -> parent.
+    fn subtask(sub: u128, parent: u128) -> Edge {
+        edge(
+            EdgeType::SubtaskOf,
+            NodeType::Task,
+            sub,
+            NodeType::Task,
+            parent,
+        )
+    }
+
+    fn world(edges: Vec<Edge>) -> World {
+        World {
+            tasks: vec![
+                task(1, "A", 2.0, Some(10)),
+                task(2, "B", 3.0, Some(10)),
+                task(3, "C", 1.0, Some(10)),
+                task(4, "D", 1.0, Some(10)),
+            ],
+            edges,
+            projects: vec![project(10, "P", None)],
+            ..Default::default()
+        }
+    }
+
+    fn kind_of(g: &DependencyGraph, a: &str, b: &str) -> Option<GraphEdgeKind> {
+        let (a, b) = (by(g, a).node.id, by(g, b).node.id);
+        g.edges
+            .iter()
+            .find(|e| (e.from, e.to) == (a, b) || (e.from, e.to) == (b, a))
+            .map(|e| e.kind)
+    }
+
+    #[test]
+    fn related_and_part_of_links_are_drawn_and_make_their_tasks_linked() {
+        let g = world(vec![blocks(1, 2), relates(2, 3), subtask(4, 1)])
+            .graph(GraphFilter::default())
+            .unwrap();
+        // All four tasks are linked now (C only by "related", D only by "part of").
+        assert_eq!(labels(&g), ["A", "B", "C", "D"]);
+        assert_eq!(g.hidden_unlinked, 0);
+        assert_eq!(g.edges.len(), 3);
+        assert_eq!(kind_of(&g, "A", "B"), Some(GraphEdgeKind::Blocks));
+        assert_eq!(kind_of(&g, "B", "C"), Some(GraphEdgeKind::RelatesTo));
+        assert_eq!(kind_of(&g, "A", "D"), Some(GraphEdgeKind::Subtask));
+        // A part-of link is drawn from the parent to the sub-task, left to right.
+        let part = g
+            .edges
+            .iter()
+            .find(|e| e.kind == GraphEdgeKind::Subtask)
+            .unwrap();
+        assert_eq!((part.from, part.to), (id(1), id(4)));
+        assert!(!part.reversed);
+        assert!(by(&g, "A").x < by(&g, "D").x);
+        // Without them C and D would have been left out.
+        let only_blocks = world(vec![blocks(1, 2)])
+            .graph(GraphFilter::default())
+            .unwrap();
+        assert_eq!(only_blocks.hidden_unlinked, 2);
+    }
+
+    #[test]
+    fn only_the_dependencies_count_for_waiting_holding_up_lag_and_the_critical_path() {
+        let g = world(vec![blocks(1, 2), relates(2, 3), subtask(3, 4)])
+            .graph(GraphFilter::default())
+            .unwrap();
+        // C is next to B and D next to C, but nothing waits on anything because of them.
+        assert_eq!((by(&g, "C").upstream, by(&g, "C").downstream), (0, 0));
+        assert_eq!((by(&g, "D").upstream, by(&g, "D").downstream), (0, 0));
+        assert_eq!((by(&g, "B").upstream, by(&g, "A").downstream), (1, 1));
+        assert!(g
+            .edges
+            .iter()
+            .filter(|e| !e.kind.orders_work())
+            .all(|e| !e.critical && e.lag_days.is_none()));
+    }
+
+    #[test]
+    fn a_link_that_would_close_a_loop_is_drawn_the_other_way_round() {
+        // C blocks D, and C is a sub-task of D. A parent is drawn before its sub-task, but D
+        // can't come before C, so the part-of link is drawn C -> D and says it is reversed.
+        let g = world(vec![blocks(3, 4), subtask(3, 4)])
+            .graph(GraphFilter::default())
+            .unwrap();
+        let part = g
+            .edges
+            .iter()
+            .find(|e| e.kind == GraphEdgeKind::Subtask)
+            .unwrap();
+        assert!(by(&g, "C").x < by(&g, "D").x);
+        assert_eq!((part.from, part.to), (id(3), id(4)));
+        assert!(part.reversed);
+        // A related link between the same two tasks is just placed with them.
+        let g = world(vec![blocks(3, 4), relates(4, 3)])
+            .graph(GraphFilter::default())
+            .unwrap();
+        let rel = g
+            .edges
+            .iter()
+            .find(|e| e.kind == GraphEdgeKind::RelatesTo)
+            .unwrap();
+        assert_eq!((rel.from, rel.to), (id(3), id(4)));
+    }
+
+    #[test]
+    fn two_links_between_the_same_tasks_are_both_drawn() {
+        let g = world(vec![
+            blocks(1, 2),
+            relates(1, 2),
+            relates(2, 1),
+            subtask(2, 1),
+        ])
+        .graph(GraphFilter::default())
+        .unwrap();
+        assert_eq!(g.edges.len(), 4);
+        assert!(g.edges.iter().all(|e| e.points.len() >= 2));
+        assert!(by(&g, "A").x < by(&g, "B").x);
+    }
+
+    #[test]
+    fn filters_pull_in_related_tasks_as_context() {
+        let mut w = world(vec![relates(1, 2), subtask(3, 1)]);
+        w.tasks[1].project_id = Some(id(11));
+        w.tasks[2].project_id = Some(id(11));
+        w.projects.push(project(11, "Q", None));
+        let g = w
+            .graph(GraphFilter {
+                project_id: Some(id(10)),
+                ..Default::default()
+            })
+            .unwrap();
+        // A is in P; B and C (in Q) are shown dimmed because they are linked to A.
+        assert!(!by(&g, "A").context && by(&g, "B").context && by(&g, "C").context);
+        assert!(g.edges.iter().all(|e| e.cross_project));
     }
 }

@@ -1,6 +1,6 @@
 # Weekly review
 
-The **Weekly review** (`g r`) is a guided look back at the week, in nine short steps, with the fixes at hand, ending in a **status report** you can send. Weeks run Monday to Sunday; the arrows next to the dates move to another week.
+The **Weekly review** (`g r`) is a guided look back at the week, in nine short steps, with the fixes at hand, ending in a **status report** you can send. Weeks run Monday to Sunday; the arrows next to the dates move to another week. Tasks on the [backburner](help:tasks) are left out of every step.
 
 ## The nine steps
 

@@ -19,8 +19,8 @@ Give a task or a note a **rule**:
 Set it in the **Repeats** box in the task or note's detail pane (empty or `none` stops it), or in [quick-add](help:quick-add) with `every:`:
 
 ```text
-task Board update every:mon
-task Pay invoices due:2027-03-31 every:month
+task Board update #board type:admin every:mon
+task Pay invoices #finance type:admin due:2027-03-31 every:month
 note 1:1 @priya every:wed
 ```
 

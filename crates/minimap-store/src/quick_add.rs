@@ -122,6 +122,7 @@ pub fn commit(conn: &mut Connection, plan: QuickPlan) -> Result<QuickResult> {
                     links: Vec::new(),
                     task_type,
                     focus: None,
+                    backburner_since: None,
                     start_minute: None,
                     length_minutes: None,
                     title,
@@ -330,8 +331,9 @@ fn create_new(tx: &Transaction, node_type: NodeType, name: String) -> Result<Nod
                 tx,
                 CreateTask {
                     links: Vec::new(),
-                    task_type: None,
+                    task_type: Some("build".into()),
                     focus: None,
+                    backburner_since: None,
                     start_minute: None,
                     length_minutes: None,
                     title: name,

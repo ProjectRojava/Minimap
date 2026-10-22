@@ -18,6 +18,11 @@ pub const DEFAULT_MEETING_MINUTES: u32 = 60;
 pub const MAX_MEETING_MINUTES: u32 = 24 * 60;
 
 impl Task {
+    /// The task is on the backburner (spec 59): set aside for now.
+    pub fn is_parked(&self) -> bool {
+        self.backburner_since.is_some()
+    }
+
     /// The task is a meeting (its type is the built-in one).
     pub fn is_meeting(&self) -> bool {
         self.task_type.as_deref() == Some(MEETING_TYPE)

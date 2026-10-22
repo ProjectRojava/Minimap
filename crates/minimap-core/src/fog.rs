@@ -34,11 +34,12 @@ pub struct FogInput<'a> {
     pub last_mention: &'a HashMap<Uuid, Date>,
 }
 
-/// Should this task be looked at now? Open, not a meeting, and under way, blocked, due soon (or
-/// late) or in focus.
+/// Should this task be looked at now? Open, not a meeting, not on the backburner (spec 59), and
+/// under way, blocked, due soon (or late) or in focus.
 pub fn task_in_play(task: &Task, today: Date) -> bool {
     if task.archived_at.is_some()
         || task.is_meeting()
+        || task.is_parked()
         || !matches!(
             task.status,
             TaskStatus::Todo | TaskStatus::InProgress | TaskStatus::Blocked
@@ -279,6 +280,7 @@ mod tests {
             links: Vec::new(),
             task_type: None,
             focus: None,
+            backburner_since: None,
             start_minute: None,
             length_minutes: None,
             confirmed_on: None,
@@ -359,6 +361,16 @@ mod tests {
         assert_eq!(level(14, 7, 14), FogLevel::Haze);
         assert_eq!(level(15, 7, 14), FogLevel::Fog);
         assert_eq!(level(0, 7, 14), FogLevel::Clear);
+    }
+
+    #[test]
+    fn a_task_on_the_backburner_is_never_in_play() {
+        let mut parked = task(1, TaskStatus::InProgress, Some(ago(5)), ago(0));
+        assert!(task_in_play(&parked, TODAY));
+        parked.backburner_since = Some(ago(10));
+        assert!(!task_in_play(&parked, TODAY));
+        parked.focus = Some(Focus::PINNED);
+        assert!(!task_in_play(&parked, TODAY));
     }
 
     #[test]
