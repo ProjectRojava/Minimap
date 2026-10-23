@@ -9,9 +9,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use minimap_types::{
-    Edge, EdgeType, NodeRef, NodeSummary, NodeType, OrderCard, OrderStep, Project, Schedule, Task,
-    TaskStatus, Uuid, WorkOrder,
+    Edge, EdgeType, NodeRef, NodeSummary, NodeType, OrderCard, OrderStep, Project, Schedule,
+    ScheduleScope, Task, TaskStatus, Uuid, WorkOrder, WorkWeek,
 };
+use time::Date;
 
 /// Whether a task can be in an order: open, not archived, not a meeting, not on the backburner.
 pub fn counts(t: &Task) -> bool {
@@ -332,6 +333,71 @@ pub fn view(
     }
 }
 
+/// What the order writes on one task: a `Some` field is a date to set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OrderDates {
+    pub id: Uuid,
+    pub start_date: Option<Date>,
+    pub due_date: Option<Date>,
+}
+
+/// The dates the order writes (spec 60, ADR-0024 as amended).
+///
+/// **Start**: for each task that comes after another in someone's order, the day the schedule
+/// starts it, when that is later than the start date it has (or it has none). A task above
+/// finishes, and its follower starts on the next working day; when the work above slips, every
+/// date below moves down with it. A date is never moved earlier, so a start date the person typed
+/// (or dragged to) that is later stays. Tasks in step 1, started tasks and tasks outside any
+/// order get no start.
+///
+/// **Due**: an open task in an order that has an estimate and no due date gets the last day the
+/// schedule works on it (start and estimate). A due date that is set is a promise and is never
+/// touched.
+pub fn dates(
+    tasks: &[Task],
+    edges: &[Edge],
+    projects: &[Project],
+    today: Date,
+    week: WorkWeek,
+) -> Result<Vec<OrderDates>, crate::schedule::ScheduleError> {
+    let after: HashSet<Uuid> = links(tasks, edges).into_iter().map(|(_, b)| b).collect();
+    let ordered: HashSet<Uuid> = steps_by_person(tasks, edges)
+        .into_values()
+        .flatten()
+        .flatten()
+        .collect();
+    if ordered.is_empty() {
+        return Ok(Vec::new());
+    }
+    let schedule = crate::schedule::compute(
+        tasks,
+        edges,
+        projects,
+        today,
+        week,
+        ScheduleScope::Portfolio,
+    )?;
+    let by_id: HashMap<Uuid, &Task> = tasks.iter().map(|t| (t.id, t)).collect();
+    let mut out: Vec<OrderDates> = schedule
+        .tasks
+        .iter()
+        .filter(|s| ordered.contains(&s.id) && !s.done)
+        .filter_map(|s| {
+            let t = by_id.get(&s.id)?;
+            let start_date = (after.contains(&s.id) && t.start_date.is_none_or(|d| d < s.start))
+                .then_some(s.start);
+            let due_date = (t.due_date.is_none() && t.estimate_days.is_some()).then_some(s.finish);
+            (start_date.is_some() || due_date.is_some()).then_some(OrderDates {
+                id: s.id,
+                start_date,
+                due_date,
+            })
+        })
+        .collect();
+    out.sort();
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -489,5 +555,85 @@ mod tests {
     fn empty_steps_and_repeats_are_dropped() {
         let steps = normalise(vec![vec![], vec![id(1), id(2)], vec![id(2)], vec![id(3)]]);
         assert_eq!(steps, [vec![id(1), id(2)], vec![id(3)]]);
+    }
+
+    type Written = Vec<(Uuid, Date)>;
+
+    fn written(got: &[OrderDates]) -> (Written, Written) {
+        let pick = |f: fn(&OrderDates) -> Option<Date>| {
+            got.iter().filter_map(|d| f(d).map(|x| (d.id, x))).collect()
+        };
+        (pick(|d| d.start_date), pick(|d| d.due_date))
+    }
+
+    fn apply(tasks: &mut [Task], got: &[OrderDates]) {
+        for d in got {
+            let t = tasks.iter_mut().find(|t| t.id == d.id).unwrap();
+            t.start_date = d.start_date.or(t.start_date);
+            t.due_date = d.due_date.or(t.due_date);
+        }
+    }
+
+    #[test]
+    fn a_task_below_starts_the_working_day_after_the_one_above_and_a_slip_moves_it() {
+        use time::macros::date;
+        // A Wednesday; A takes 2 days (Wed, Thu), so B starts on Friday, and C (3 days) after B.
+        let today = date!(2027 - 03 - 03);
+        let mut tasks = vec![
+            task(1, "A", Some(1)),
+            task(2, "B", Some(2)),
+            task(3, "C", Some(3)),
+        ];
+        tasks[2].estimate_days = Some(3.0);
+        let edges: Vec<Edge> = (1..=3).map(|n| assign(n, P)).collect();
+        let week = WorkWeek::MON_FRI;
+        let got = dates(&tasks, &edges, &[], today, week).unwrap();
+        let (starts, dues) = written(&got);
+        // B works Fri and Mon, so C starts on Tuesday. Step 1 gets no start date.
+        assert_eq!(
+            starts,
+            [
+                (id(2), date!(2027 - 03 - 05)),
+                (id(3), date!(2027 - 03 - 09))
+            ]
+        );
+        // No due dates were set, so each gets its last working day from start and estimate.
+        assert_eq!(
+            dues,
+            [
+                (id(1), date!(2027 - 03 - 04)),
+                (id(2), date!(2027 - 03 - 08)),
+                (id(3), date!(2027 - 03 - 11))
+            ]
+        );
+        // Written, nothing more to write.
+        apply(&mut tasks, &got);
+        assert!(dates(&tasks, &edges, &[], today, week).unwrap().is_empty());
+        // A slips a day (3 days): B and C start one working day later. Their due dates are
+        // promises and stay.
+        tasks[0].estimate_days = Some(3.0);
+        let got = dates(&tasks, &edges, &[], today, week).unwrap();
+        let (starts, dues) = written(&got);
+        assert_eq!(
+            starts,
+            [
+                (id(2), date!(2027 - 03 - 08)),
+                (id(3), date!(2027 - 03 - 10))
+            ]
+        );
+        assert!(dues.is_empty(), "{dues:?}");
+        // A later date the person chose stays; an earlier-finishing A never pulls B up.
+        apply(&mut tasks, &got);
+        tasks[1].start_date = Some(date!(2027 - 03 - 15));
+        tasks[0].estimate_days = Some(1.0);
+        let got = dates(&tasks, &edges, &[], today, week).unwrap();
+        assert!(got.iter().all(|d| d.id != id(2)), "{got:?}");
+        // No estimate: no due date to work out. A started task is not given a start.
+        tasks[1].start_date = None;
+        tasks[1].status = TaskStatus::InProgress;
+        tasks[1].due_date = None;
+        tasks[1].estimate_days = None;
+        let got = dates(&tasks, &edges, &[], today, week).unwrap();
+        assert!(got.iter().all(|d| d.id != id(2)), "{got:?}");
     }
 }

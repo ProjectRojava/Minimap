@@ -404,6 +404,15 @@ fn StepRow(index: usize, step: OrderStep, last: bool, ctx: Ctx) -> impl IntoView
     }
 }
 
+/// Whether a click landed on a button of the card (which does its own thing) rather than on the
+/// card itself.
+fn on_control(ev: &ev::MouseEvent) -> bool {
+    ev.target()
+        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+        .and_then(|el| el.closest("button").ok().flatten())
+        .is_some()
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Place {
     Step,
@@ -458,6 +467,11 @@ fn Card(card: OrderCard, place: Place, ctx: Ctx) -> impl IntoView {
                 ctx.dragging.set(Some(id));
             }
             on:dragend=move |_| { ctx.dragging.set(None); ctx.over.set(None); }
+            on:click=move |e: ev::MouseEvent| {
+                if !on_control(&e) {
+                    selection.open(node);
+                }
+            }
             on:keydown=on_key>
             <div class="flex items-start gap-1">
                 <button class="min-w-0 flex-1 text-left font-medium hover:underline"

@@ -45,6 +45,7 @@ pub(crate) fn set_order_impl(
     today: Date,
 ) -> Result<WorkOrder, AppError> {
     minimap_store::order::set(conn, person_id, steps).map_err(store_error)?;
+    minimap_store::order::sync_dates(conn, today).map_err(store_error)?;
     order_at(conn, today, Some(person_id))
 }
 
@@ -171,6 +172,47 @@ mod tests {
         let start = |id| s.tasks.iter().find(|t| t.id == id).unwrap().start;
         assert_eq!(start(c), date!(2027 - 03 - 08));
         assert_eq!(start(d), TODAY);
+    }
+
+    #[test]
+    fn the_task_below_gets_a_start_date_and_a_slip_moves_it_down() {
+        let mut conn = minimap_store::open_in_memory().unwrap();
+        let me = person(&mut conn, "Me", true);
+        let a = task(&mut conn, "A", me, 2.0);
+        let b = task(&mut conn, "B", me, 2.0);
+        let c = task(&mut conn, "C", me, 1.0);
+        let free = task(&mut conn, "Free", me, 1.0);
+        let start = |conn: &Connection, id| minimap_store::tasks::get(conn, id).unwrap().start_date;
+        set_order_impl(&mut conn, me, vec![vec![a], vec![b], vec![c]], TODAY).unwrap();
+        // A is Wed-Thu, B Fri-Mon, C Tue. Step 1 and a task outside the order keep no date.
+        assert_eq!(start(&conn, a), None);
+        assert_eq!(start(&conn, free), None);
+        assert_eq!(start(&conn, b), Some(date!(2027 - 03 - 05)));
+        assert_eq!(start(&conn, c), Some(date!(2027 - 03 - 09)));
+        // Nothing changed: nothing is written again.
+        assert_eq!(
+            minimap_store::order::sync_dates(&mut conn, TODAY).unwrap(),
+            0
+        );
+        // A needs a day longer: B and C move down, one working day each.
+        minimap_store::tasks::update(
+            &mut conn,
+            a,
+            UpdateTask {
+                estimate_days: Patch::Set(3.0),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            minimap_store::order::sync_dates(&mut conn, TODAY).unwrap(),
+            2
+        );
+        assert_eq!(start(&conn, b), Some(date!(2027 - 03 - 08)));
+        assert_eq!(start(&conn, c), Some(date!(2027 - 03 - 10)));
+        // The dates are real: the Order screen shows them and nothing is held back any more.
+        let o = order_at(&conn, TODAY, Some(me)).unwrap();
+        assert_eq!(o.steps[1].start, Some(date!(2027 - 03 - 08)));
     }
 
     #[test]

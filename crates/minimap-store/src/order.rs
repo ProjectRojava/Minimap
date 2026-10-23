@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 
-use minimap_types::{Patch, UpdateTask, Uuid};
+use minimap_types::{Date, Patch, UpdateTask, Uuid};
 use rusqlite::Connection;
 
-use crate::{edges, people, tasks, Result, StoreError};
+use crate::{edges, people, projects, settings, tasks, Result, StoreError};
 
 /// Makes `steps` (top to bottom; tasks in one step side by side) `person`'s order: their tasks
 /// are renumbered 1..n, and their other open tasks leave the order. One transaction, so one undo
@@ -39,4 +39,34 @@ pub fn set(conn: &mut Connection, person: Uuid, steps: Vec<Vec<Uuid>>) -> Result
     }
     tx.commit()?;
     Ok(())
+}
+
+/// Writes the dates the order gives (`minimap_core::order::dates`): each task that comes after
+/// another in someone's order starts the working day after the one above finishes (a slip moves
+/// the dates below), and an ordered task with an estimate and no due date gets its last working
+/// day as the due date. Returns how many tasks it changed. One transaction; the caller's undo
+/// step takes in what it wrote. A schedule that can't be made (a loop in `blocks`) writes
+/// nothing.
+pub fn sync_dates(conn: &mut Connection, today: Date) -> Result<usize> {
+    let tx = conn.transaction()?;
+    let all = tasks::list_planned(&tx)?;
+    let links = edges::list_active(&tx)?;
+    let projects = projects::list(&tx, false)?;
+    let week = settings::get(&tx)?.work_week;
+    let Ok(dates) = minimap_core::order::dates(&all, &links, &projects, today, week) else {
+        return Ok(0);
+    };
+    for d in &dates {
+        tasks::update_in_tx(
+            &tx,
+            d.id,
+            UpdateTask {
+                start_date: d.start_date.map_or(Patch::Keep, Patch::Set),
+                due_date: d.due_date.map_or(Patch::Keep, Patch::Set),
+                ..Default::default()
+            },
+        )?;
+    }
+    tx.commit()?;
+    Ok(dates.len())
 }
