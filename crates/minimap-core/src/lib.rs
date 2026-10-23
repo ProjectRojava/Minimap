@@ -19,6 +19,7 @@ pub mod links;
 pub mod meeting;
 pub mod notes;
 pub mod objectives;
+pub mod order;
 pub mod orientation;
 pub mod overview;
 pub mod people_frames;

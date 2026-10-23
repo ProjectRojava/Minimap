@@ -158,6 +158,12 @@ pub const PAGES: &[Page] = &[
         "Who is loaded when, as a heatmap"
     ),
     page!(
+        "order",
+        "Planning and insight",
+        "Order of work",
+        "What each person does first, and what they do at the same time"
+    ),
+    page!(
         "overview",
         "Planning and insight",
         "Overview and health",
@@ -425,7 +431,7 @@ mod tests {
             assert!(!p.summary.is_empty() && p.summary.len() < 100, "{}", p.id);
         }
         assert!(find(FIRST).is_some());
-        assert_eq!(PAGES.len(), 38);
+        assert_eq!(PAGES.len(), 39);
     }
 
     #[test]

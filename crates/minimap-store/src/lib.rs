@@ -21,6 +21,7 @@ pub mod meta;
 pub mod nodes;
 pub mod notes;
 pub mod objectives;
+pub mod order;
 pub mod people;
 pub mod pings;
 pub mod projects;
@@ -79,6 +80,7 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!("../migrations/0017_fog.sql")),
         M::up(include_str!("../migrations/0018_pings.sql")),
         M::up(include_str!("../migrations/0019_backburner.sql")),
+        M::up(include_str!("../migrations/0020_order_of_work.sql")),
     ])
 }
 
@@ -103,7 +105,7 @@ fn backfill_project_slugs(tx: &rusqlite::Transaction) -> rusqlite_migration::Hoo
 
 /// The schema version after the last migration (`PRAGMA user_version`); a test keeps it equal
 /// to the migration list.
-pub const LATEST_SCHEMA: u32 = 19;
+pub const LATEST_SCHEMA: u32 = 20;
 
 /// Opens (creating if needed) the unencrypted database at `path`, applies pragmas and migrations.
 /// An existing database that needs upgrading is first copied to `backups/` next to it (spec 20);

@@ -1676,6 +1676,7 @@ mod tests {
             row: minimap_types::TaskRow {
                 waiting: None,
                 task: minimap_types::Task {
+                    order_step: None,
                     confirmed_on: None,
 
                     id: Uuid::from_u128(n),

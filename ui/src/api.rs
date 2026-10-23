@@ -464,6 +464,32 @@ struct BackburnerArg {
     on: bool,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OrderArg {
+    person_id: Option<Uuid>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SetOrderArg {
+    person_id: Uuid,
+    steps: Vec<Vec<Uuid>>,
+}
+
+/// A person's order of work (spec 60); `None` = you.
+pub async fn get_order(person_id: Option<Uuid>) -> Result<minimap_types::WorkOrder, AppError> {
+    invoke("get_order", &OrderArg { person_id }).await
+}
+
+/// Makes `steps` (top to bottom; side by side within a step) the person's order.
+pub async fn set_order(
+    person_id: Uuid,
+    steps: Vec<Vec<Uuid>>,
+) -> Result<minimap_types::WorkOrder, AppError> {
+    invoke("set_order", &SetOrderArg { person_id, steps }).await
+}
+
 /// Puts a task on the backburner or brings it back (spec 59).
 pub async fn set_task_backburner(
     id: Uuid,

@@ -15,7 +15,7 @@ The [Gantt](help:gantt) screen draws every project's schedule on one calendar, o
 ## How it is worked out
 
 1. **Working days only.** Monday to Friday by default (change it in [Settings](help:settings)). A weekend start moves to the next working day. Time is counted from today.
-2. **Forward pass.** Each open task starts as soon as everything that **blocks** it has finished (plus any *lag*), but not before its **start date** or its **project's start date**, and runs for its **estimate**. Links across projects count: a task in another project can hold this one up whichever project you are looking at.
+2. **Forward pass.** Each open task starts as soon as everything that **blocks** it has finished (plus any *lag*), and, when it is in someone's [order of work](help:order), the step above it, but not before its **start date** or its **project's start date**, and runs for its **estimate**. Links across projects count: a task in another project can hold this one up whichever project you are looking at.
 3. **Finished work is fixed** at the date it was actually completed; **cancelled** and archived tasks are ignored.
 4. **Backward pass.** Working back from the project's **target date** (or, if it has none, from its own projected finish) gives each task the *latest* it could start without making the project late.
 5. **Slack** = latest start minus earliest start: how many working days a task can slip without moving the finish. **Critical** tasks are the ones with the least slack in their project.

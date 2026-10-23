@@ -1,0 +1,18 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+Me
+  step 1 Some(2027-03-03) -> Some(2027-03-03) load 100%
+    Book the leadership offsite Some(2027-03-03) -> Some(2027-03-03) due Some(2027-03-15)
+  step 2 Some(2027-03-25) -> Some(2027-03-25) load 100%
+    Savings review with finance Some(2027-03-25) -> Some(2027-03-25) due Some(2027-04-19)
+Priya Nair
+  step 1 Some(2027-03-03) -> Some(2027-03-04) load 100%
+    Monthly access review Some(2027-03-03) -> Some(2027-03-04) due Some(2027-03-17)
+  step 2 Some(2027-03-10) -> Some(2027-03-15) load 100%
+    GDPR impact assessment Some(2027-03-10) -> Some(2027-03-15) due Some(2027-03-23)
+  step 3 Some(2027-03-16) -> Some(2027-03-17) load 200%
+    Incident response drill Some(2027-03-16) -> Some(2027-03-17) due Some(2027-04-02)
+    Reserved-instance purchase plan Some(2027-03-16) -> Some(2027-03-17) due Some(2027-04-02)
+  not in order: Go-live checklist Some(2027-03-31)

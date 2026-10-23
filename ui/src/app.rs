@@ -29,6 +29,7 @@ use crate::{
         help::Help,
         notes::Notes,
         objectives::Objectives,
+        order::Order,
         overview::Overview,
         people::People,
         projects::Projects,
@@ -156,6 +157,7 @@ fn Shell() -> impl IntoView {
                     <Route path=path!("/tasks") view=Tasks />
                     <Route path=path!("/people") view=People />
                     <Route path=path!("/capacity") view=Capacity />
+                    <Route path=path!("/order") view=Order />
                     <Route path=path!("/graph") view=Graph />
                     <Route path=path!("/gantt") view=Gantt />
                     <Route path=path!("/teams") view=Teams />

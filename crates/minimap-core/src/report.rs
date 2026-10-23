@@ -630,6 +630,7 @@ mod tests {
             row: TaskRow {
                 waiting: None,
                 task: Task {
+                    order_step: None,
                     confirmed_on: None,
 
                     links: Vec::new(),
