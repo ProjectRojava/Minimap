@@ -693,6 +693,48 @@ mod tests {
     }
 
     #[test]
+    fn the_order_of_work_of_the_demo_data() {
+        let conn = demo();
+        let priya = minimap_store::people::list(&conn, false)
+            .unwrap()
+            .into_iter()
+            .find(|p| p.name == "Priya Nair")
+            .unwrap()
+            .id;
+        let mut out = String::new();
+        for who in [None, Some(priya)] {
+            let o = crate::commands::order::order_at(&conn, TODAY, who).unwrap();
+            let _ = writeln!(out, "{}", o.person.label);
+            for s in &o.steps {
+                let _ = writeln!(
+                    out,
+                    "  step {} {:?} -> {:?} load {}%",
+                    s.step, s.start, s.finish, s.load_pct
+                );
+                for c in &s.cards {
+                    let _ = writeln!(
+                        out,
+                        "    {} {:?} -> {:?} due {:?}{}{}",
+                        c.title,
+                        c.start,
+                        c.finish,
+                        c.due,
+                        if c.past_due { " PAST DUE" } else { "" },
+                        if c.started { " started" } else { "" }
+                    );
+                }
+            }
+            for c in &o.unordered {
+                let _ = writeln!(out, "  not in order: {} {:?}", c.title, c.start);
+            }
+            for c in &o.conflicts {
+                let _ = writeln!(out, "  conflict: {c}");
+            }
+        }
+        insta::assert_snapshot!("the_order_of_work_of_the_demo_data", out);
+    }
+
+    #[test]
     fn the_people_frames_of_the_demo_data() {
         use minimap_types::FrameFlag;
         let conn = demo();

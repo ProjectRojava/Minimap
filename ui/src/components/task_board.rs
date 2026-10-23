@@ -1506,6 +1506,7 @@ mod tests {
         TaskRow {
             waiting: None,
             task: minimap_types::Task {
+                order_step: None,
                 confirmed_on: None,
 
                 links: Vec::new(),

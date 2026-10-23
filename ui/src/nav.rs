@@ -113,6 +113,14 @@ pub const NAV: &[NavItem] = &[
         enabled: true,
     },
     NavItem {
+        label: "Order",
+        icon: "order",
+        group: "People",
+        path: "/order",
+        chord: 'q',
+        enabled: true,
+    },
+    NavItem {
         label: "Notes",
         icon: "notes",
         group: "Log",

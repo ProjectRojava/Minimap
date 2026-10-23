@@ -143,6 +143,15 @@ impl AppState {
             // What the command writes becomes one undo step (spec 25).
             let marker = minimap_store::activity::latest_rowid(conn).unwrap_or(i64::MAX);
             let result = f(conn);
+            // A change to the work can move what comes after it in someone's order (spec 60):
+            // write those dates now, so they are part of the same undo step.
+            if result.is_ok()
+                && minimap_store::activity::latest_rowid(conn).is_ok_and(|n| n > marker)
+            {
+                if let Err(e) = minimap_store::order::sync_dates(conn, minimap_store::today()) {
+                    tracing::warn!("could not update the dates of the order of work: {e}");
+                }
+            }
             record_since(conn, &undo, marker);
             result
         })

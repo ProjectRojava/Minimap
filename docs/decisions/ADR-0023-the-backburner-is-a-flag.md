@@ -10,3 +10,4 @@
 - **Consequences**: the full export carries the field with the task; the demo data parks two tasks; the undo planner needs no new shape (`backburner_since` is in `store::undo::nullable_fields`); sync merges it with the row.
 - **Deviation**: `CLAUDE.md` §4 lists `backburner_since` on Task and §6 the `set_task_backburner` command.
 - **Related ADRs**: extends [ADR-0019](ADR-0019-fog-as-a-view.md) (a task on the backburner is never in play) and sits beside focus (spec 37). It is an ordinary field diff, so [ADR-0003](ADR-0003-activity-actions-and-patch.md) is unchanged.
+- **Amended by [ADR-0024](ADR-0024-order-of-work-is-a-schedule-rule.md)** (order of work, spec 60): a task on the backburner still counts in the schedule, but not in a person's order of work: it neither waits for the step above it nor holds up the step below.

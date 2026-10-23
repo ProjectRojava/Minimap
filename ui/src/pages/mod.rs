@@ -8,6 +8,7 @@ pub mod graph;
 pub mod help;
 pub mod notes;
 pub mod objectives;
+pub mod order;
 pub mod overview;
 pub mod people;
 pub mod projects;

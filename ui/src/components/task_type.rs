@@ -300,6 +300,7 @@ mod tests {
 
     fn task(due: Option<&str>, done: Option<&str>) -> Task {
         Task {
+            order_step: None,
             confirmed_on: None,
 
             id: Uuid::nil(),

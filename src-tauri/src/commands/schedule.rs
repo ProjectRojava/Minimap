@@ -44,8 +44,14 @@ pub(crate) fn schedule_at(
         minimap_store::projects::get(conn, id).map_err(store_error)?;
     }
     let tasks = minimap_store::tasks::list_planned(conn).map_err(store_error)?;
-    let edges = minimap_store::edges::list_active_of_type(conn, minimap_types::EdgeType::Blocks)
-        .map_err(store_error)?;
+    // `blocks`, and the assignments: each person's order of work is read through them (spec 60).
+    let mut edges =
+        minimap_store::edges::list_active_of_type(conn, minimap_types::EdgeType::Blocks)
+            .map_err(store_error)?;
+    edges.extend(
+        minimap_store::edges::list_active_of_type(conn, minimap_types::EdgeType::AssignedTo)
+            .map_err(store_error)?,
+    );
     let projects = minimap_store::projects::list(conn, false).map_err(store_error)?;
     let work_week = minimap_store::settings::get(conn)
         .map_err(store_error)?

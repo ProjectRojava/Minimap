@@ -250,6 +250,11 @@ pub struct Task {
     /// The day someone said "still accurate" without changing anything (spec 43, fog of war).
     #[serde(default)]
     pub confirmed_on: Option<Date>,
+    /// Its step in its assignee's order of work (spec 60, ADR-0024): step 1 is done first, tasks
+    /// on the same step at the same time. None = not in an order. Changing the assignee,
+    /// finishing or cancelling the task clears it.
+    #[serde(default)]
+    pub order_step: Option<u32>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -325,6 +330,7 @@ pub struct UpdateTask {
     pub start_minute: Patch<u16>,
     pub length_minutes: Patch<u32>,
     pub confirmed_on: Patch<Date>,
+    pub order_step: Patch<u32>,
 }
 
 impl UpdateTask {
@@ -345,6 +351,7 @@ impl UpdateTask {
         self.start_minute.apply(&mut t.start_minute);
         self.length_minutes.apply(&mut t.length_minutes);
         self.confirmed_on.apply(&mut t.confirmed_on);
+        self.order_step.apply(&mut t.order_step);
     }
 }
 

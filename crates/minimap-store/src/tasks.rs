@@ -16,7 +16,7 @@ use crate::{
 };
 
 const TABLE: &str = "tasks";
-const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type, focus, start_minute, length_minutes, confirmed_on, backburner_since";
+const COLS: &str = "id, title, description, project_id, status, estimate_days, start_date, due_date, completed_at, priority, created_at, updated_at, archived_at, recurrence, links, task_type, focus, start_minute, length_minutes, confirmed_on, backburner_since, order_step";
 
 fn from_row(r: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
@@ -27,6 +27,7 @@ fn from_row(r: &Row) -> rusqlite::Result<Task> {
         length_minutes: r.get(18)?,
         confirmed_on: col_date_opt(r, 19)?,
         backburner_since: col_date_opt(r, 20)?,
+        order_step: r.get(21)?,
         id: col_uuid(r, 0)?,
         title: r.get(1)?,
         description: r.get(2)?,
@@ -163,6 +164,7 @@ pub(crate) fn create_unchecked_in_tx(tx: &Transaction, input: CreateTask) -> Res
         start_minute: input.start_minute,
         length_minutes: input.length_minutes,
         confirmed_on: None,
+        order_step: None,
         backburner_since: input.backburner_since,
         id: Uuid::now_v7(),
         title: input.title,
@@ -183,7 +185,7 @@ pub(crate) fn create_unchecked_in_tx(tx: &Transaction, input: CreateTask) -> Res
     check_type(tx, None, t.task_type.as_deref())?;
     tx.execute(
         &format!(
-            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)"
+            "INSERT INTO {TABLE} ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22)"
         ),
         params![
             id_s(t.id),
@@ -207,6 +209,7 @@ pub(crate) fn create_unchecked_in_tx(tx: &Transaction, input: CreateTask) -> Res
             t.length_minutes,
             date_s(t.confirmed_on),
             date_s(t.backburner_since),
+            t.order_step,
         ],
     )?;
     activity::record_created(tx, at, NodeType::Task, t.id, &t)?;
@@ -268,6 +271,17 @@ pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> 
     }
     if let Some(p) = person {
         edges::add_in_tx(&tx, assigned_to(task, p))?;
+    }
+    // Its place in the old assignee's order means nothing to the new one (spec 60).
+    if get(&tx, task)?.order_step.is_some() {
+        update_in_tx(
+            &tx,
+            task,
+            UpdateTask {
+                order_step: minimap_types::Patch::Clear,
+                ..Default::default()
+            },
+        )?;
     }
     tx.commit()?;
     Ok(())
@@ -465,6 +479,8 @@ fn update_core(
     // over. (Undo and redo put things back as they were.)
     if make_record && minimap_core::tasks::is_closed(new.status) {
         new.backburner_since = None;
+        // Nor is it in anyone's order of work any more (spec 60).
+        new.order_step = None;
     }
     validate(&new)?;
     check_type(tx, old.task_type.as_deref(), new.task_type.as_deref())?;
@@ -490,7 +506,7 @@ fn update_core(
     }
     tx.execute(
         &format!(
-            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, focus=?15, start_minute=?16, length_minutes=?17, confirmed_on=?18, backburner_since=?19, updated_at=?13 WHERE id=?1"
+            "UPDATE {TABLE} SET title=?2, description=?3, project_id=?4, status=?5, estimate_days=?6, start_date=?7, due_date=?8, completed_at=?9, priority=?10, recurrence=?11, links=?12, task_type=?14, focus=?15, start_minute=?16, length_minutes=?17, confirmed_on=?18, backburner_since=?19, order_step=?20, updated_at=?13 WHERE id=?1"
         ),
         params![
             id_s(id),
@@ -512,6 +528,7 @@ fn update_core(
             new.length_minutes,
             date_s(new.confirmed_on),
             date_s(new.backburner_since),
+            new.order_step,
         ],
     )?;
     activity::record(

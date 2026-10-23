@@ -921,7 +921,14 @@ fn creating_a_linked_task_is_one_step() {
         LinkRelation::RelatesTo,
     ] {
         round_trip(&mut conn, |c| {
-            tasks::create_linked(c, source.id, relation, "Audit old keys".into(), Some("build".into())).unwrap();
+            tasks::create_linked(
+                c,
+                source.id,
+                relation,
+                "Audit old keys".into(),
+                Some("build".into()),
+            )
+            .unwrap();
         });
     }
 }
@@ -977,5 +984,23 @@ fn resolving_a_tasks_waiting_ons_is_one_undo_step() {
     round_trip(&mut conn, |c| {
         let done = waiting_on::resolve_for_task(c, t.id, TODAY).unwrap();
         assert_eq!(done.len(), 2);
+    });
+}
+
+#[test]
+fn setting_an_order_of_work_is_one_step() {
+    let mut conn = demo();
+    let priya = person(&conn, "Priya Nair").id;
+    let all = tasks::list(&conn, false).unwrap();
+    let edges = edges::list_active(&conn).unwrap();
+    let mut mine: Vec<Uuid> = minimap_core::order::tasks_of(&all, &edges, priya)
+        .iter()
+        .map(|t| t.id)
+        .collect();
+    assert!(mine.len() >= 2, "Priya has open tasks");
+    mine.sort();
+    // All of them side by side: never against a blocks link.
+    round_trip(&mut conn, |c| {
+        order::set(c, priya, vec![mine.clone()]).unwrap()
     });
 }

@@ -1,4 +1,5 @@
-//! Critical-path scheduling over `blocks` links (CLAUDE.md section 5.3). Pure.
+//! Critical-path scheduling over `blocks` links and each person's order of work (CLAUDE.md
+//! section 5.3, spec 60). Pure.
 //!
 //! Time is counted in **working days** (the Settings work week, Mon-Fri by default) from today's working day; see
 //! `minimap_types::schedule`. The forward pass runs over every open task, so cross-project
@@ -15,7 +16,12 @@ use minimap_types::{
     Edge, EdgeType, Project, ProjectForecast, Schedule, ScheduleScope, ScheduledTask, Task,
     TaskStatus, Uuid, WorkWeek,
 };
-use petgraph::{algo::toposort, graph::DiGraph, visit::EdgeRef, Direction};
+use petgraph::{
+    algo::{has_path_connecting, toposort},
+    graph::DiGraph,
+    visit::EdgeRef,
+    Direction,
+};
 use time::Date;
 
 const EPS: f64 = 1e-9;
@@ -131,6 +137,17 @@ pub fn compute_with(
         }
         if let (Some(&from), Some(&to)) = (index.get(&e.from_id), index.get(&e.to_id)) {
             graph.add_edge(ids[from], ids[to], lag_of(e));
+        }
+    }
+    toposort(&graph, None).map_err(|_| ScheduleError::Cycle)?;
+    // Each person's order of work (spec 60, ADR-0024): a step starts when the step before it is
+    // done. Added after every `blocks` link, each pair only if it closes no loop, so a `blocks`
+    // link that says otherwise wins and the order can never make the work unschedulable.
+    for (a, b) in crate::order::links(tasks, edges) {
+        if let (Some(&from), Some(&to)) = (index.get(&a), index.get(&b)) {
+            if !has_path_connecting(&graph, ids[to], ids[from], None) {
+                graph.add_edge(ids[from], ids[to], 0.0);
+            }
         }
     }
     let order = toposort(&graph, None).map_err(|_| ScheduleError::Cycle)?;
@@ -474,6 +491,7 @@ mod tests {
 
     fn task(n: u128, title: &str, estimate: Option<f64>) -> Task {
         Task {
+            order_step: None,
             confirmed_on: None,
 
             links: Vec::new(),
@@ -1202,6 +1220,76 @@ mod tests {
         assert_eq!(get(&s, "A").finish, date!(2027 - 03 - 09));
     }
 
+    fn assigned(task: u128, person: u128) -> Edge {
+        Edge {
+            id: Uuid::from_u128(500_000 + task * 100 + person),
+            edge_type: EdgeType::AssignedTo,
+            from_type: NodeType::Task,
+            from_id: id(task),
+            to_type: NodeType::Person,
+            to_id: id(person),
+            attrs: serde_json::json!({}),
+            created_at: OffsetDateTime::UNIX_EPOCH,
+            archived_at: None,
+        }
+    }
+
+    fn at_step(mut t: Task, step: u32) -> Task {
+        t.order_step = Some(step);
+        t
+    }
+
+    #[test]
+    fn a_persons_order_puts_each_step_after_the_one_before() {
+        // A (2d) and B (3d) side by side, then C (1d); D is not in the order.
+        let tasks = vec![
+            at_step(task(1, "A", Some(2.0)), 1),
+            at_step(task(2, "B", Some(3.0)), 1),
+            at_step(task(3, "C", Some(1.0)), 2),
+            task(4, "D", Some(1.0)),
+        ];
+        let edges: Vec<Edge> = (1..=4).map(|n| assigned(n, 90)).collect();
+        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
+        let es = |n: u128| s.tasks.iter().find(|t| t.id == id(n)).unwrap().es;
+        assert_eq!((es(1), es(2), es(4)), (0.0, 0.0, 0.0));
+        // C waits for the whole first step: B, the longer one.
+        assert_eq!(es(3), 3.0);
+        let c = s.tasks.iter().find(|t| t.id == id(3)).unwrap();
+        assert_eq!(c.driver, Some(id(2)));
+        // Without the assignments there is no order.
+        let free = compute(&tasks, &[], &[], MON, ScheduleScope::Portfolio).unwrap();
+        assert!(free.tasks.iter().all(|t| t.es == 0.0));
+    }
+
+    #[test]
+    fn a_typed_start_date_still_wins_and_a_started_task_keeps_its_start() {
+        let mut later = at_step(task(2, "B", Some(1.0)), 2);
+        later.start_date = Some(date!(2027 - 03 - 10));
+        let tasks = vec![at_step(task(1, "A", Some(2.0)), 1), later];
+        let edges = vec![assigned(1, 90), assigned(2, 90)];
+        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
+        // The order says Wed; the start date says next Wed.
+        assert_eq!(s.tasks.iter().find(|t| t.id == id(2)).unwrap().es, 7.0);
+        let mut started = tasks.clone();
+        started[1].start_date = Some(MON);
+        started[1].status = TaskStatus::InProgress;
+        let s = compute(&started, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
+        assert_eq!(s.tasks.iter().find(|t| t.id == id(2)).unwrap().es, 0.0);
+    }
+
+    #[test]
+    fn an_order_against_a_blocks_link_gives_way_instead_of_breaking_the_schedule() {
+        // The order puts B first, but A blocks B: the blocks link wins.
+        let tasks = vec![
+            at_step(task(1, "A", Some(2.0)), 2),
+            at_step(task(2, "B", Some(1.0)), 1),
+        ];
+        let edges = vec![assigned(1, 90), assigned(2, 90), blocks(1, 2, None)];
+        let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
+        let es = |n: u128| s.tasks.iter().find(|t| t.id == id(n)).unwrap().es;
+        assert_eq!((es(1), es(2)), (0.0, 2.0));
+    }
+
     proptest! {
         /// Without a target the deadline is the projected finish: nothing has negative slack,
         /// every task fits between its earliest and latest dates, and something is critical.
@@ -1259,6 +1347,35 @@ mod tests {
             for t in s.tasks.iter().filter(|t| t.critical) {
                 prop_assert!((t.slack_days - f64::from(extra)).abs() < 1e-9, "{}", t.slack_days);
                 prop_assert!(t.late_by_days.is_none());
+            }
+        }
+
+        /// An order never breaks the schedule and never moves a task earlier; when it agrees with
+        /// the blocks links, every task starts after the whole step before it.
+        #[test]
+        fn an_order_is_honoured_and_never_moves_work_earlier(spec in arb_spec(), steps in proptest::collection::vec(proptest::option::of(1u32..4), 9)) {
+            let (plain, mut edges) = build(&spec);
+            let base = compute(&plain, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
+            let tasks: Vec<Task> = plain
+                .iter()
+                .zip(&steps)
+                .map(|(t, s)| Task { order_step: *s, ..t.clone() })
+                .collect();
+            for t in &tasks {
+                edges.push(assigned(t.id.as_u128(), 90));
+            }
+            let s = compute(&tasks, &edges, &[], MON, ScheduleScope::Portfolio).unwrap();
+            let es = |sch: &Schedule, id: Uuid| sch.tasks.iter().find(|t| t.id == id).unwrap().es;
+            for t in &tasks {
+                prop_assert!(es(&s, t.id) >= es(&base, t.id) - 1e-9);
+            }
+            let by_person = crate::order::steps_by_person(&tasks, &edges);
+            let ordered = by_person.get(&id(90)).cloned().unwrap_or_default();
+            if crate::order::check(&tasks, &edges, id(90), "P", &ordered).is_ok() {
+                for (a, b) in crate::order::links(&tasks, &edges) {
+                    let fa = s.tasks.iter().find(|t| t.id == a).unwrap().ef;
+                    prop_assert!(es(&s, b) >= fa - 1e-9, "{b} starts before {a} ends");
+                }
             }
         }
 

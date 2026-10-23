@@ -43,4 +43,4 @@ Estimates can be missing, so there is a second signal: a person with **more open
 
 - It doesn't count **meetings**: they are left out of the load, like the rest of the plan. (See [Meetings](help:meetings).)
 
-It doesn't level the load for you or look at holidays. It tells you where the problem is; moving a due date, reassigning or adding a *blocks* link is up to you. Use [What if](help:what-if) to see the effect.
+It doesn't level the load for you or look at holidays. It tells you where the problem is; moving a due date, reassigning, adding a *blocks* link or putting the person's tasks in [order](help:order) (so they are done one after another) is up to you. Use [What if](help:what-if) to see the effect.

@@ -139,6 +139,8 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
             "M8 5.3v.1",
         ],
         "capacity" => &["M3 13V9", "M8 13V3", "M13 13V6", "M1.8 14h12.4"],
+        // Steps top to bottom, two side by side in the middle (the Order screen, spec 60).
+        "order" => &["M2 3h6", "M2 8h5", "M9 8h5", "M2 13h6", "M11.5 2v3.5", "M10 4.2l1.5 1.5 1.5-1.5"],
         "graph" => &[
             "M2.5 6.5h3v3h-3z",
             "M10.5 2.5h3v3h-3z",
@@ -210,6 +212,7 @@ mod tests {
             "step-more",
             "search",
             "capacity",
+            "order",
             "archive",
             "graph",
             "gantt",

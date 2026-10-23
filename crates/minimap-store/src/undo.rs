@@ -199,6 +199,7 @@ pub(crate) fn nullable_fields(node_type: NodeType) -> &'static [&'static str] {
             "task_type",
             "focus",
             "backburner_since",
+            "order_step",
             "start_minute",
             "length_minutes",
             "confirmed_on",

@@ -890,6 +890,7 @@ mod tests {
 
     fn task(n: u128, title: &str, days: f64, project: Option<u128>) -> Task {
         Task {
+            order_step: None,
             confirmed_on: None,
 
             links: Vec::new(),

@@ -567,6 +567,12 @@
           "markdownDescription": "Enables the get_objective_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_order command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-order",
+          "markdownDescription": "Enables the get_order command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_people_frames command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-people-frames",
@@ -1039,6 +1045,12 @@
           "type": "string",
           "const": "allow-set-meeting",
           "markdownDescription": "Enables the set_meeting command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_order command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-order",
+          "markdownDescription": "Enables the set_order command without any pre-configured scope."
         },
         {
           "description": "Enables the set_radar_on_top command without any pre-configured scope.",
@@ -1575,6 +1587,12 @@
           "markdownDescription": "Denies the get_objective_detail command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_order command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-order",
+          "markdownDescription": "Denies the get_order command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_people_frames command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-people-frames",
@@ -2047,6 +2065,12 @@
           "type": "string",
           "const": "deny-set-meeting",
           "markdownDescription": "Denies the set_meeting command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_order command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-order",
+          "markdownDescription": "Denies the set_order command without any pre-configured scope."
         },
         {
           "description": "Denies the set_radar_on_top command without any pre-configured scope.",

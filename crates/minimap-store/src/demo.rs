@@ -701,6 +701,19 @@ const PARTS: &[(&str, &str)] = &[
 /// Dependencies screen draws them as dotted lines, and they change no date.
 const RELATED: &[(&str, &str)] = &[("e12", "e7"), ("e11", "e14"), ("p8", "p12")];
 
+/// Orders of work (spec 60): (task, step). Priya does the access review first, then the GDPR
+/// assessment, then the reserved-instance plan and the incident drill side by side; you book the
+/// offsite before the savings review. Chosen so the EU story holds: none of these hold up EU
+/// Region's work any later than its start dates already do.
+const ORDER: &[(&str, u32)] = &[
+    ("s7", 1),
+    ("s5", 2),
+    ("p8", 3),
+    ("s10", 3),
+    ("i1", 1),
+    ("p12", 2),
+];
+
 /// Done tasks and when they were finished (calendar days from today; `None` = the Monday of
 /// this week). The ones still open at the start of the week are finished in [`this_week`].
 const FINISHED: &[(&str, Option<i64>)] = &[
@@ -1059,6 +1072,16 @@ pub fn seed(conn: &mut Connection, today: Date) -> Result<DemoSummary> {
             s.task_ref(a),
             s.task_ref(b),
             serde_json::json!({}),
+        )?;
+    }
+    for (key, step) in ORDER {
+        tasks::update_in_tx(
+            &tx,
+            s.tasks[key],
+            UpdateTask {
+                order_step: Patch::Set(*step),
+                ..Default::default()
+            },
         )?;
     }
     for key in ["s7", "s8"] {
