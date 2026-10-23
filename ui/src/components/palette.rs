@@ -128,7 +128,7 @@ pub fn is_ping_check(query: &str) -> bool {
     query.trim() == "ping"
 }
 
-/// "pong · Minimap 0.5.0 · schema v18".
+/// "pong · Minimap 0.6.0 · schema v18".
 pub fn pong_text(answer: &PingResponse) -> String {
     format!(
         "{} \u{b7} Minimap {} \u{b7} schema v{}",
