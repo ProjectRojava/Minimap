@@ -34,8 +34,8 @@ use crate::{
         stop_reason, strip_box, strip_scroll, strip_x, task_candidate, task_hits,
         task_step_refusal, task_tip, tasks_shown, today_scroll, tree, unfold_for,
         with_all_projects, working_day_on_or_after, zoom, zoom_scroll, BandPart, Count, Density,
-        Dims, Geo, LinkMode, LinkTone, Marks, Row, RowKind, Scale, SortKey, TasksShown, ViewFilter,
-        CLICK_SLOP, HEAD_H, HIT, LABEL_W, MIN_BAR_W, NO_OBJECTIVE, UNASSIGNED,
+        Dims, Geo, LinkMode, LinkTone, Marks, Remembered, Row, RowKind, Scale, SortKey, TasksShown,
+        ViewFilter, CLICK_SLOP, HEAD_H, HIT, LABEL_W, MIN_BAR_W, NO_OBJECTIVE, UNASSIGNED,
     },
     state::{DataVersion, PaletteOpen, PaletteText, Selection, Toasts},
 };
@@ -44,6 +44,24 @@ use crate::{
 const LABEL_W_KEY: &str = "minimap.gantt.label-width";
 /// Where the row height (compact or comfortable) is remembered on this device (spec 58).
 const DENSITY_KEY: &str = "minimap.gantt.density";
+/// Where the toolbar's choices (view, scale, rows, arrows, *Show*) are remembered on this device.
+const TOOLBAR_KEY: &str = "minimap.gantt.toolbar";
+
+fn load_toolbar() -> Remembered {
+    let json = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(TOOLBAR_KEY).ok().flatten());
+    Remembered::from_json(json.as_deref())
+}
+
+fn save_toolbar(r: &Remembered) {
+    if let (Some(storage), Some(json)) = (
+        web_sys::window().and_then(|w| w.local_storage().ok().flatten()),
+        r.to_json(),
+    ) {
+        let _ = storage.set_item(TOOLBAR_KEY, &json);
+    }
+}
 
 fn load_density() -> Density {
     web_sys::window()
@@ -424,16 +442,17 @@ pub fn Gantt() -> impl IntoView {
     let orientation = expect_context::<crate::components::orientation::Orientation>();
 
     let scroller = leptos::prelude::NodeRef::<leptos::html::Div>::new();
+    let saved = load_toolbar();
     let ctx = Ctx {
-        scale: RwSignal::new(Scale::Days),
+        scale: RwSignal::new(saved.scale),
         scroller_w: RwSignal::new(0.0),
         label_w: RwSignal::new(load_label_w()),
         hover_row: RwSignal::new(None),
         hover_day: RwSignal::new(None),
         pan: RwSignal::new(None),
         resizing: RwSignal::new(None),
-        show_done: RwSignal::new(false),
-        mode: RwSignal::new(LinkMode::Focus),
+        show_done: RwSignal::new(saved.show_done),
+        mode: RwSignal::new(saved.arrows),
         toggled: RwSignal::new(HashSet::new()),
         hover: RwSignal::new(None),
         drag: RwSignal::new(None),
@@ -450,13 +469,17 @@ pub fn Gantt() -> impl IntoView {
         focused: RwSignal::new(false),
         said: RwSignal::new(String::new()),
         dates: RwSignal::new(None),
-        view: RwSignal::new(ViewMode::Chart),
+        view: RwSignal::new(if saved.table {
+            ViewMode::Table
+        } else {
+            ViewMode::Chart
+        }),
         sort: RwSignal::new(None),
         scroller,
         body: leptos::prelude::NodeRef::new(),
         raw: RwSignal::new(None),
-        filter: RwSignal::new(ViewFilter::default()),
-        by_person: RwSignal::new(false),
+        filter: RwSignal::new(saved.view_filter()),
+        by_person: RwSignal::new(saved.by_person),
         overload: RwSignal::new(Default::default()),
         find: RwSignal::new(None),
         found: RwSignal::new(Vec::new()),
@@ -472,6 +495,58 @@ pub fn Gantt() -> impl IntoView {
         })
     });
     let error = RwSignal::new(None::<AppError>);
+    // What the toolbar holds now, kept on this device (the find box is typed for one look).
+    let toolbar = Memo::new(move |_| Remembered {
+        table: ctx.view.get() == ViewMode::Table,
+        scale: ctx.scale.get(),
+        show_done: ctx.show_done.get(),
+        by_person: ctx.by_person.get(),
+        arrows: ctx.mode.get(),
+        filter: ctx.filter.with(|f| crate::gantt::RememberedFilter {
+            person: f.person,
+            objective: f.objective,
+            needs_a_look: f.needs_a_look,
+        }),
+    });
+    Effect::new(move |_| save_toolbar(&toolbar.get()));
+    // A remembered person or objective that is gone (archived or deleted since) would narrow the
+    // plan to something the dropdown cannot show, so it is dropped once the plan has loaded.
+    Effect::new(move |_| {
+        let Some((people, objectives)) = ctx.raw.with(|d| {
+            d.as_ref().map(|d| {
+                (
+                    d.people.iter().map(|p| p.id).collect::<HashSet<_>>(),
+                    d.groups
+                        .iter()
+                        .map(crate::gantt::group_key)
+                        .collect::<HashSet<_>>(),
+                )
+            })
+        }) else {
+            return;
+        };
+        ctx.filter.update(|f| {
+            if f.person.is_some_and(|p| !people.contains(&p)) {
+                f.person = None;
+            }
+            if f.objective.is_some_and(|o| !objectives.contains(&o)) {
+                f.objective = None;
+            }
+        });
+    });
+    // *Reset*: every toolbar choice back to its default.
+    let reset_toolbar = move |_| {
+        let d = Remembered::default();
+        ctx.view.set(ViewMode::Chart);
+        ctx.scale.set(d.scale);
+        ctx.show_done.set(d.show_done);
+        if ctx.by_person.get_untracked() {
+            ctx.by_person.set(false);
+            ctx.dates.set(None);
+        }
+        ctx.mode.set(d.arrows);
+        ctx.filter.set(ViewFilter::default());
+    };
     let scrolled = StoredValue::new(false);
     // The last answer stays on screen while the next one is worked out.
     Effect::new(move |_| match loaded.get() {
@@ -966,6 +1041,13 @@ pub fn Gantt() -> impl IntoView {
                 }}
                 <span class="ml-auto flex items-center gap-3">
                     <span class="text-[11px] text-muted">{summary}</span>
+                    <Show when=move || toolbar.with(|t| t.changed() > 0)>
+                        <button class=BUTTON
+                                title="Put the view, scale, rows, arrows and filters back to their defaults"
+                                on:click=reset_toolbar>
+                            {move || format!("Reset ({} changed)", toolbar.with(Remembered::changed))}
+                        </button>
+                    </Show>
                     <button class=move || format!("{BUTTON} {}", if legend_open.get() { BUTTON_ON } else { "" })
                             title="What the bars and marks mean"
                             aria-expanded=move || legend_open.get().to_string()

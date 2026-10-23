@@ -8,6 +8,8 @@ All notable changes to Minimap are documented here, organized by release. Format
 
 ### Added
 
+- The Gantt remembers its toolbar (view, scale, rows, arrows, *Show* filters) between visits, and a *Reset* button puts it all back to the defaults.
+
 ### Changed
 
 ### Fixed
