@@ -1,6 +1,6 @@
 # Progress
 
-> **Version:** 0.5.0 · **Versioning:** See [VERSIONING.md](../VERSIONING.md) for how releases are tagged and versions bumped.
+> **Version:** 0.6.0 · **Versioning:** See [VERSIONING.md](../VERSIONING.md) for how releases are tagged and versions bumped.
 
 ## Current milestone: M0 (Scaffold) — in progress
 
