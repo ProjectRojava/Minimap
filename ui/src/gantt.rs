@@ -325,7 +325,7 @@ impl Geo {
 
 /// How wide a working day is drawn (spec 58): *Fit* the whole axis into the chart's width, or
 /// the fixed *Days* and *Weeks*.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Scale {
     Fit,
     Days,
@@ -943,7 +943,7 @@ pub fn band_dropped_text(title: &str, start: Option<Date>, target: Option<Date>)
 
 // ---------------------------------------------------------------------------- the arrows
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum LinkMode {
     /// Every arrow quietly, and the chain of the task in focus lit.
     Focus,
@@ -1616,6 +1616,81 @@ impl ViewFilter {
     }
 }
 
+/// What the Gantt toolbar keeps on this device between visits: chart or table, scale, rows,
+/// arrows and the *Show* filters. Not the find box (typed for one look), the folds or the row
+/// height (which has its own key). A value that cannot be read leaves the default.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Remembered {
+    /// *Table* instead of *Chart*.
+    pub table: bool,
+    pub scale: Scale,
+    pub show_done: bool,
+    pub by_person: bool,
+    pub arrows: LinkMode,
+    pub filter: RememberedFilter,
+}
+
+/// [`ViewFilter`] as stored.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct RememberedFilter {
+    pub person: Option<Uuid>,
+    pub objective: Option<Uuid>,
+    pub needs_a_look: bool,
+}
+
+impl Default for Remembered {
+    fn default() -> Self {
+        Self {
+            table: false,
+            scale: Scale::Days,
+            show_done: false,
+            by_person: false,
+            arrows: LinkMode::Focus,
+            filter: RememberedFilter::default(),
+        }
+    }
+}
+
+impl Remembered {
+    /// The stored text, or the defaults when there is none or it cannot be read.
+    pub fn from_json(json: Option<&str>) -> Self {
+        json.and_then(|j| serde_json::from_str(j).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn to_json(&self) -> Option<String> {
+        serde_json::to_string(self).ok()
+    }
+
+    pub fn view_filter(&self) -> ViewFilter {
+        ViewFilter {
+            person: self.filter.person,
+            objective: self.filter.objective,
+            needs_a_look: self.filter.needs_a_look,
+        }
+    }
+
+    /// How many of the choices differ from the defaults (what *Reset* would put back).
+    pub fn changed(&self) -> usize {
+        let d = Remembered::default();
+        [
+            self.table != d.table,
+            self.scale != d.scale,
+            self.show_done != d.show_done,
+            self.by_person != d.by_person,
+            self.arrows != d.arrows,
+            self.filter.person.is_some(),
+            self.filter.objective.is_some(),
+            self.filter.needs_a_look,
+        ]
+        .into_iter()
+        .filter(|c| *c)
+        .count()
+    }
+}
+
 /// The plan narrowed by `f`: a person keeps the tasks assigned to them (and the projects and
 /// objectives those sit under, counts recounted); an objective keeps its group; *needs a look*
 /// keeps those projects. Links stay only between what is left.
@@ -1828,6 +1903,39 @@ pub fn over_weeks(data: &GanttData, cap: &Capacity) -> OverWeeks {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remembered_toolbar_round_trips_and_counts_changes() {
+        assert_eq!(Remembered::default().changed(), 0);
+        let now = Remembered {
+            table: true,
+            scale: Scale::Step(2),
+            by_person: true,
+            arrows: LinkMode::Critical,
+            filter: RememberedFilter {
+                person: Some(Uuid::from_u128(7)),
+                objective: None,
+                needs_a_look: true,
+            },
+            ..Remembered::default()
+        };
+        assert_eq!(now.changed(), 6);
+        let back = Remembered::from_json(now.to_json().as_deref());
+        assert_eq!(back, now);
+        let f = back.view_filter();
+        assert_eq!(f.person, Some(Uuid::from_u128(7)));
+        assert!(f.needs_a_look);
+    }
+
+    #[test]
+    fn remembered_toolbar_ignores_what_it_cannot_read() {
+        assert_eq!(Remembered::from_json(None), Remembered::default());
+        assert_eq!(Remembered::from_json(Some("{nope")), Remembered::default());
+        // A missing field keeps its default.
+        let partial = Remembered::from_json(Some(r#"{"show_done":true}"#));
+        assert!(partial.show_done);
+        assert_eq!(partial.scale, Scale::Days);
+    }
     use minimap_types::{GanttObjective, ObjectiveStatus, ScheduledTask};
     use time::macros::date;
 

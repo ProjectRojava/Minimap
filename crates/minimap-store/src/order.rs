@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use minimap_types::{Date, Patch, UpdateTask, Uuid};
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 
 use crate::{edges, people, projects, settings, tasks, Result, StoreError};
 
@@ -13,10 +13,28 @@ use crate::{edges, people, projects, settings, tasks, Result, StoreError};
 /// against a `blocks` link.
 pub fn set(conn: &mut Connection, person: Uuid, steps: Vec<Vec<Uuid>>) -> Result<()> {
     let tx = conn.transaction()?;
-    let who = people::get(&tx, person)?;
+    set_in_tx(&tx, person, steps)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Gives `task` to `person` (their only assignee) and makes `steps` their order, which may hold
+/// the task or not (spec 61: dragged to someone's column on *My team*). One transaction: a
+/// refused order leaves the task with the person it had.
+pub fn give(conn: &mut Connection, task: Uuid, person: Uuid, steps: Vec<Vec<Uuid>>) -> Result<()> {
+    let tx = conn.transaction()?;
+    people::get(&tx, person)?;
+    tasks::set_assignee_in_tx(&tx, task, Some(person))?;
+    set_in_tx(&tx, person, steps)?;
+    tx.commit()?;
+    Ok(())
+}
+
+fn set_in_tx(tx: &Transaction, person: Uuid, steps: Vec<Vec<Uuid>>) -> Result<()> {
+    let who = people::get(tx, person)?;
     let steps = minimap_core::order::normalise(steps);
-    let all = tasks::list(&tx, false)?;
-    let links = edges::list_active(&tx)?;
+    let all = tasks::list(tx, false)?;
+    let links = edges::list_active(tx)?;
     minimap_core::order::check(&all, &links, person, &who.name, &steps)
         .map_err(StoreError::Invalid)?;
     let want: HashMap<Uuid, u32> = steps
@@ -28,7 +46,7 @@ pub fn set(conn: &mut Connection, person: Uuid, steps: Vec<Vec<Uuid>>) -> Result
         let step = want.get(&t.id).copied();
         if t.order_step != step {
             tasks::update_in_tx(
-                &tx,
+                tx,
                 t.id,
                 UpdateTask {
                     order_step: step.map_or(Patch::Clear, Patch::Set),
@@ -37,7 +55,6 @@ pub fn set(conn: &mut Connection, person: Uuid, steps: Vec<Vec<Uuid>>) -> Result
             )?;
         }
     }
-    tx.commit()?;
     Ok(())
 }
 

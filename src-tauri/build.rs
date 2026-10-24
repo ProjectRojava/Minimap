@@ -60,6 +60,8 @@ const COMMANDS: &[&str] = &[
     "set_task_backburner",
     "get_order",
     "set_order",
+    "get_team_orders",
+    "give_task",
     "create_meeting",
     "set_meeting",
     "schedule_follow_up",

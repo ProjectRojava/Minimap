@@ -143,6 +143,23 @@ pub(crate) fn create_in_tx(tx: &Transaction, mut input: CreateTask) -> Result<Ta
     {
         input.start_date = Some(today());
     }
+    // The start and the estimate give the due date, the start and the due date the estimate
+    // (as in `update`).
+    if input.start_minute.is_none()
+        && input.task_type.as_deref() != Some(minimap_types::MEETING_TYPE)
+    {
+        let week = crate::settings::get(tx)?.work_week;
+        match minimap_core::tasks::third(
+            input.start_date,
+            input.due_date,
+            input.estimate_days,
+            week,
+        ) {
+            Some(minimap_core::tasks::Third::Due(d)) => input.due_date = Some(d),
+            Some(minimap_core::tasks::Third::Estimate(e)) => input.estimate_days = Some(e),
+            None => {}
+        }
+    }
     create_unchecked_in_tx(tx, input)
 }
 
@@ -255,8 +272,15 @@ fn assigned_to(task: Uuid, person: Uuid) -> NewEdge {
 /// assignment in one transaction; assigning the current assignee again changes nothing.
 pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> Result<()> {
     let tx = conn.transaction()?;
-    get(&tx, task)?; // NotFound for unknown tasks
-    let current: Vec<_> = edges::list_for_node(&tx, task, false)?
+    set_assignee_in_tx(&tx, task, person)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// [`set_assignee`] inside the caller's transaction (spec 61 gives a task and orders it in one).
+pub(crate) fn set_assignee_in_tx(tx: &Transaction, task: Uuid, person: Option<Uuid>) -> Result<()> {
+    get(tx, task)?; // NotFound for unknown tasks
+    let current: Vec<_> = edges::list_for_node(tx, task, false)?
         .into_iter()
         .filter(|e| e.edge_type == EdgeType::AssignedTo && e.from_id == task)
         .collect();
@@ -267,15 +291,15 @@ pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> 
     }
     let at = now();
     for edge in &current {
-        edges::archive_in_tx(&tx, edge, at)?;
+        edges::archive_in_tx(tx, edge, at)?;
     }
     if let Some(p) = person {
-        edges::add_in_tx(&tx, assigned_to(task, p))?;
+        edges::add_in_tx(tx, assigned_to(task, p))?;
     }
     // Its place in the old assignee's order means nothing to the new one (spec 60).
-    if get(&tx, task)?.order_step.is_some() {
+    if get(tx, task)?.order_step.is_some() {
         update_in_tx(
-            &tx,
+            tx,
             task,
             UpdateTask {
                 order_step: minimap_types::Patch::Clear,
@@ -283,7 +307,6 @@ pub fn set_assignee(conn: &mut Connection, task: Uuid, person: Option<Uuid>) -> 
             },
         )?;
     }
-    tx.commit()?;
     Ok(())
 }
 
@@ -377,11 +400,41 @@ pub fn create_linked(
     Ok(created)
 }
 
-pub fn update(conn: &mut Connection, id: Uuid, patch: UpdateTask) -> Result<Task> {
+pub fn update(conn: &mut Connection, id: Uuid, mut patch: UpdateTask) -> Result<Task> {
     let tx = conn.transaction()?;
+    fill_third_in_patch(&tx, id, &mut patch)?;
     let task = update_in_tx(&tx, id, patch)?;
     tx.commit()?;
     Ok(task)
+}
+
+/// A person's change to the start date, the due date or the estimate fills in the due date (from
+/// the start and the estimate) or the estimate (from the start and the due date) when that one is
+/// empty (`core::tasks::third`; the start is never filled in), as part of the same change (one
+/// activity row, one undo step). Not for a meeting, and not for a field the change
+/// itself clears. Writes Minimap makes itself (the order's dates, undo, merges) go through
+/// [`update_in_tx`] and are left as they are.
+fn fill_third_in_patch(tx: &Transaction, id: Uuid, patch: &mut UpdateTask) -> Result<()> {
+    use minimap_core::tasks::Third;
+    use minimap_types::Patch::{Clear, Set};
+    let sets = matches!(patch.start_date, Set(_))
+        || matches!(patch.due_date, Set(_))
+        || matches!(patch.estimate_days, Set(_));
+    if !sets {
+        return Ok(());
+    }
+    let mut new = get(tx, id)?;
+    patch.clone().apply(&mut new);
+    if new.is_meeting() {
+        return Ok(());
+    }
+    let week = crate::settings::get(tx)?.work_week;
+    match minimap_core::tasks::third(new.start_date, new.due_date, new.estimate_days, week) {
+        Some(Third::Due(d)) if patch.due_date != Clear => patch.due_date = Set(d),
+        Some(Third::Estimate(e)) if patch.estimate_days != Clear => patch.estimate_days = Set(e),
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Applies several updates or none (one transaction); one activity row per changed task.

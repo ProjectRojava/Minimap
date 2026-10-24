@@ -1,0 +1,12 @@
+---
+source: src-tauri/src/commands/demo.rs
+expression: out
+---
+Me (you) load Some(20): 2 steps, 0 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
+Elena Rossi load Some(60): 0 steps, 3 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
+Jin Park load Some(0): 0 steps, 3 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
+Maya Chen load Some(60): 0 steps, 5 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
+Priya Nair load Some(40): 3 steps, 1 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
+Raj Patel load Some(60): 0 steps, 3 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
+Sam Okafor load Some(60): 0 steps, 4 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
+Tomás Alvarez load Some(220): 0 steps, 7 not in order, ruler Some(2027-03-03) .. Some(2027-03-23)
