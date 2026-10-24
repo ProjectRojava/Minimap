@@ -14,7 +14,7 @@ A game's minimap scrolls out to the world map and back in to where you stand, an
 - `Alt+↑` **zooms out** one level from what you are looking at: from a task to its project, from the project to its objective, from the objective to the Overview.
 - `Alt+↓` **zooms back in** to exactly where you came from: the same screen, the same open item and the same highlighted row. Press it as many times as you pressed `Alt+↑`.
 
-Both also work from the command palette (*Zoom out*, *Zoom in*). In a text box the arrow keys keep their usual meaning and nothing zooms.
+Both also work from the command palette (*Zoom out*, *Zoom in*). In a text box the arrow keys keep their usual meaning and nothing zooms. On a row of the [Order](help:order) screen they move the task instead.
 
 An example. You have *Gateway auth* open on the Tasks screen. `Alt+↑`: the board is filtered to *EU Region* and the project opens in the pane. `Alt+↑` again: Objectives, with *Launch in the EU* open. Again: the Overview. Now `Alt+↓` three times takes you back to *Gateway auth*.
 

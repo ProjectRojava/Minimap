@@ -60,6 +60,7 @@ Numbers give a suggested build order; `Depends on` lists hard prerequisites.
 | 47 | [Dependencies, richer: see why, trace a chain, edit the links](../product-design/12-dependency-graph.md) | — | Should | 07, 13, 18, 33, 43, 44, 45 |
 | 59 | [Backburner: set a task aside without losing it](59-backburner.md) | — | Should | 06, 16, 17, 25, 37, 43 |
 | 60 | [Order of work: each person's tasks in the order they will be done](60-order-of-work.md) | — | Should | 06, 13, 17, 57 |
+| 61 | [Order as a queue, and My team](61-order-queue-and-team.md) | — | Should | 49, 60 |
 | 57 | [Gantt: the plan on a calendar, with arrows between tasks and bars you drag](57-gantt.md) | — | Should | 05, 06, 13, 14, 17, 25, 30, 33, 44, 46, 50 |
 | 58 | [Gantt, easier to read and use: quick wins, accessibility, bigger ideas](58-gantt-usability.md) | — | Should | 44, 50, 52, 57 |
 | 56 | [Waiting on, from the task: who a task is stuck on, shown on the task](56-task-waiting-on.md) | — | Should | 06, 08, 24, 25, 41, 42 |

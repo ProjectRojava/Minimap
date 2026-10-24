@@ -735,6 +735,28 @@ mod tests {
     }
 
     #[test]
+    fn the_team_orders_of_the_demo_data() {
+        let conn = demo();
+        let team = crate::commands::order::team_at(&conn, TODAY).unwrap();
+        let mut out = String::new();
+        for m in &team.members {
+            let o = &m.order;
+            let _ = writeln!(
+                out,
+                "{}{} load {:?}: {} steps, {} not in order, ruler {:?} .. {:?}",
+                o.person.label,
+                if m.is_self { " (you)" } else { "" },
+                m.load_pct,
+                o.steps.len(),
+                o.unordered.len(),
+                o.ruler.first(),
+                o.ruler.last()
+            );
+        }
+        insta::assert_snapshot!("the_team_orders_of_the_demo_data", out);
+    }
+
+    #[test]
     fn the_people_frames_of_the_demo_data() {
         use minimap_types::FrameFlag;
         let conn = demo();

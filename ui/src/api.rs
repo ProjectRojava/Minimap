@@ -490,6 +490,36 @@ pub async fn set_order(
     invoke("set_order", &SetOrderArg { person_id, steps }).await
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GiveTaskArg {
+    task_id: Uuid,
+    person_id: Uuid,
+    steps: Vec<Vec<Uuid>>,
+}
+
+/// Everyone, you first, each with their order (spec 61, *My team*).
+pub async fn get_team_orders() -> Result<minimap_types::TeamOrders, AppError> {
+    invoke("get_team_orders", &NoArgs {}).await
+}
+
+/// Gives a task to `person_id` and makes `steps` their order (spec 61). One undo step.
+pub async fn give_task(
+    task_id: Uuid,
+    person_id: Uuid,
+    steps: Vec<Vec<Uuid>>,
+) -> Result<minimap_types::TeamOrders, AppError> {
+    invoke(
+        "give_task",
+        &GiveTaskArg {
+            task_id,
+            person_id,
+            steps,
+        },
+    )
+    .await
+}
+
 /// Puts a task on the backburner or brings it back (spec 59).
 pub async fn set_task_backburner(
     id: Uuid,

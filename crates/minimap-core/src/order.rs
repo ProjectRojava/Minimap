@@ -330,7 +330,57 @@ pub fn view(
         steps,
         unordered,
         conflicts,
+        ruler: Vec::new(),
+        today: None,
     }
+}
+
+/// How many working days the Order screen's ruler shows (spec 61).
+pub const RULER_DAYS: usize = 15;
+/// How far back the ruler may start, in working days, to show a task already under way.
+pub const RULER_BACK: usize = 5;
+
+/// The working days the Order screen draws `order`'s bars on: [`RULER_DAYS`] of them, starting
+/// at the earlier of today and the first start in the order, but never more than [`RULER_BACK`]
+/// working days before today. A day off at either end moves to the next working day.
+pub fn ruler(order: &WorkOrder, today: Date, week: WorkWeek) -> Vec<Date> {
+    if week.days_per_week() == 0 {
+        return Vec::new();
+    }
+    let working = |d: Date| week.contains_weekday(d.weekday());
+    let mut earliest = today;
+    for _ in 0..RULER_BACK {
+        let mut d = earliest;
+        while let Some(p) = d.previous_day() {
+            d = p;
+            if working(d) {
+                break;
+            }
+        }
+        earliest = d;
+    }
+    let first = order
+        .steps
+        .iter()
+        .flat_map(|s| s.cards.iter().filter_map(|c| c.start))
+        .min()
+        .unwrap_or(today);
+    let mut day = first.clamp(earliest, today);
+    let mut out = Vec::with_capacity(RULER_DAYS);
+    // A week with no working day would never fill the ruler.
+    for _ in 0..RULER_DAYS * 7 {
+        if out.len() == RULER_DAYS {
+            break;
+        }
+        if working(day) {
+            out.push(day);
+        }
+        match day.next_day() {
+            Some(n) => day = n,
+            None => break,
+        }
+    }
+    out
 }
 
 /// What the order writes on one task: a `Some` field is a date to set.
@@ -635,5 +685,67 @@ mod tests {
         tasks[1].estimate_days = None;
         let got = dates(&tasks, &edges, &[], today, week).unwrap();
         assert!(got.iter().all(|d| d.id != id(2)), "{got:?}");
+    }
+
+    fn ordered(starts: &[Date]) -> WorkOrder {
+        let card = |n: usize, start: Date| OrderCard {
+            id: id(n as u128),
+            title: format!("T{n}"),
+            project: None,
+            status: TaskStatus::Todo,
+            priority: 3,
+            task_type: None,
+            estimate_days: Some(1.0),
+            start: Some(start),
+            finish: Some(start),
+            due: None,
+            past_due: false,
+            started: false,
+            allocation_pct: 100,
+        };
+        WorkOrder {
+            person: NodeSummary {
+                node: NodeRef::new(NodeType::Person, id(P)),
+                label: "P".into(),
+                archived: false,
+            },
+            steps: starts
+                .iter()
+                .enumerate()
+                .map(|(i, d)| OrderStep {
+                    step: i as u32 + 1,
+                    start: Some(*d),
+                    finish: Some(*d),
+                    load_pct: 100,
+                    cards: vec![card(i, *d)],
+                })
+                .collect(),
+            unordered: Vec::new(),
+            conflicts: Vec::new(),
+            ruler: Vec::new(),
+            today: None,
+        }
+    }
+
+    #[test]
+    fn the_ruler_shows_fifteen_working_days_from_today_or_a_little_before() {
+        use time::macros::date;
+        let wed = date!(2027 - 03 - 03);
+        let week = WorkWeek::MON_FRI;
+        // Nothing started earlier: from today, weekends left out.
+        let r = ruler(&ordered(&[date!(2027 - 03 - 10)]), wed, week);
+        assert_eq!(r.len(), RULER_DAYS);
+        assert_eq!(r[0], wed);
+        assert!(r.iter().all(|d| week.contains_weekday(d.weekday())));
+        assert_eq!(r[RULER_DAYS - 1], date!(2027 - 03 - 23));
+        // A task under way since last Friday: the ruler starts there.
+        let r = ruler(&ordered(&[date!(2027 - 02 - 26)]), wed, week);
+        assert_eq!(r[0], date!(2027 - 02 - 26));
+        // Started a month ago: no more than five working days back.
+        let r = ruler(&ordered(&[date!(2027 - 02 - 01)]), wed, week);
+        assert_eq!(r[0], date!(2027 - 02 - 24));
+        // Today a Saturday: the next working day.
+        let r = ruler(&ordered(&[]), date!(2027 - 03 - 06), week);
+        assert_eq!(r[0], date!(2027 - 03 - 08));
     }
 }

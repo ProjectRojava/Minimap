@@ -86,7 +86,7 @@ Thin: load, call core, persist, return. Take/return `minimap-types`; return `Res
 - orientation (spec 50): get_my_scope() (everything that touches you, and why); get_portfolio_overview(view?) and get_capacity(.., view?) compute in My view; get_dependency_graph(filter.mine)
 - people frames (spec 49): get_people_frames() (you and your direct reports at a glance: load this week, waiting-ons, blocked/overdue, 1:1 due)
 - pings (spec 48, ADR-0020): list_pings, ping_item(target, note, on), update_ping, clear_ping, reopen_ping, archive_ping, get_ping_for
-- order of work (spec 60, ADR-0024): get_order(person_id?) (a person's steps with schedule dates, their other open tasks, conflicts), set_order(person_id, steps) (renumbers in one undo step; refuses an order against `blocks`)
+- order of work (spec 60, ADR-0024): get_order(person_id?) (a person's steps with schedule dates, their other open tasks, conflicts), set_order(person_id, steps) (renumbers in one undo step; refuses an order against `blocks`); get_team_orders() (everyone, you first, each with their order and load; spec 61), give_task(task_id, person_id, steps) (reassigns and orders in one undo step; spec 61)
 - backburner (spec 59, ADR-0023): set_task_backburner(id, on) (sets today or clears; refuses a finished task; returns the task and how many open tasks still wait on it; undoable)
 - radar (spec 53, ADR-0021): get_radar(view), get_data_revision, open_radar, close_radar, toggle_radar, set_radar_on_top, open_in_main(node); a second, read-only window (`radar`) with its own capability file
 - undo: undo_last, redo_last (spec 25: Ctrl/Cmd+Z; built from the activity log, session only)

@@ -9,8 +9,12 @@ All notable changes to Minimap are documented here, organized by release. Format
 ### Added
 
 - The Gantt remembers its toolbar (view, scale, rows, arrows, *Show* filters) between visits, and a *Reset* button puts it all back to the defaults.
+- *My team* on the Order screen: everyone in Minimap side by side, and dragging a task to someone's column gives it to them at that place in their order (Spec 61).
 
 ### Changed
+
+- A task with a start date and an estimate gets its due date filled in, and one with a start date and a due date gets its estimate, in working days, when you create it or type one of them.
+- The Order screen is a queue: one row per task with a bar on a two-week ruler, a summary of when the last step ends and what runs late, people as tabs, the tasks not in the order on the right, estimates edited in place and more keys (`t`, `1`-`9`, `x`, `e`). Moves show at once (Spec 61).
 
 ### Fixed
 

@@ -18,7 +18,7 @@ Minimap is built to be used without the mouse. Shortcuts that are single keys wo
 | `Alt+↑` | Zoom out one level: from a task to its project, objective and the Overview ([Zoom](help:zoom)) |
 | `Alt+↓` | Zoom back in to where you came from, or into the highlighted row |
 
-Inside a text box `Ctrl/Cmd+Z` undoes the typing, as usual, and `Alt+↑` / `Alt+↓` do not zoom.
+Inside a text box `Ctrl/Cmd+Z` undoes the typing, as usual, and `Alt+↑` / `Alt+↓` do not zoom. On a row of the Order screen they move the task instead.
 
 ## Go to a screen: press `g`, then a letter
 
@@ -53,6 +53,10 @@ Hover over a sidebar entry to see its keys.
 ## On the Gantt screen
 
 Click the chart first. `↑` `↓` move between rows (`Home`, `End`, `PageUp`, `PageDown` jump), `→` `←` open and fold them, `*` opens every project, `t` brings today into view, `Enter` opens the row's date box, `Alt+←` `Alt+→` move the open task (or a project's or objective's target) one working day and `Alt+Shift+←` `Alt+Shift+→` move only a task's end or a project's start. `Esc` closes the date box or cancels a drag. `Ctrl/Cmd+F` finds a row by name (then `Enter` and `Shift+Enter` step through the matches) and `Ctrl` with the mouse wheel zooms. The same keys work in the Table view. See [Gantt](help:gantt).
+
+## On the Order screen
+
+On a row of the queue: `j` / `k` (or `↓` / `↑`) the next or previous row, `Alt+↑` / `Alt+↓` move it one place, `t` at the same time as the step above, `Shift+T` a step of its own, `1` to `9` into that step, `x` out of the order, `e` edit the estimate, `Enter` open it. On a task under *Not in the order*: `a` adds it as a new last step. `[` and `]` go to the previous or next person. See [Order of work](help:order).
 
 ## In lists
 

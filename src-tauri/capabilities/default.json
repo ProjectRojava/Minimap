@@ -65,6 +65,8 @@
     "allow-set-task-backburner",
     "allow-get-order",
     "allow-set-order",
+    "allow-get-team-orders",
+    "allow-give-task",
     "allow-create-meeting",
     "allow-set-meeting",
     "allow-schedule-follow-up",

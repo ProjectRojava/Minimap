@@ -222,6 +222,8 @@ fn main() {
             commands::tasks::set_task_backburner,
             commands::order::get_order,
             commands::order::set_order,
+            commands::order::get_team_orders,
+            commands::order::give_task,
             commands::meetings::create_meeting,
             commands::meetings::set_meeting,
             commands::meetings::schedule_follow_up,
