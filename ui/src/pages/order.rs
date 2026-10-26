@@ -816,10 +816,14 @@ fn PersonQueue(
     }
 }
 
+/// Width of one working day on the ruler, in pixels. The ruler can be longer than the window, and
+/// the queue then scrolls sideways; `--lane` (set on the queue) is the ruler's smallest width.
+pub const DAY_PX: usize = 28;
+
 /// The grid of a queue row: grip, step, task, estimate, ruler (wide windows), dates.
 const ROW_COLS: &str = "grid items-center gap-x-2 \
     grid-cols-[14px_26px_minmax(0,1fr)_48px_minmax(9rem,13rem)] \
-    xl:grid-cols-[14px_26px_minmax(0,1fr)_48px_minmax(12rem,20rem)_minmax(9rem,13rem)]";
+    xl:grid-cols-[14px_26px_minmax(14rem,1fr)_48px_minmax(var(--lane),2fr)_minmax(9rem,13rem)]";
 
 #[component]
 fn Queue(order: WorkOrder, filter: RwSignal<String>, ctx: Ctx) -> impl IntoView {
@@ -898,9 +902,11 @@ fn Queue(order: WorkOrder, filter: RwSignal<String>, ctx: Ctx) -> impl IntoView 
     let end_here = Target::NewBefore(count);
     view! {
         <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div class="min-h-0 min-w-0 flex-1 overflow-y-auto pb-6">
+            <div class="min-h-0 min-w-0 flex-1 overflow-auto pb-6">
                 {started}
                 {conflicts}
+                // A ruler longer than the window scrolls sideways, so every bar can be reached.
+                <div class="xl:min-w-[calc(var(--lane)_+_40rem)]" style=format!("--lane: {}px", ruler.len() * DAY_PX)>
                 <div class=format!("{} {}", column_head(ROW_COLS), "mt-3")>
                     <span></span>
                     <span class="text-right">"#"</span>
@@ -923,6 +929,7 @@ fn Queue(order: WorkOrder, filter: RwSignal<String>, ctx: Ctx) -> impl IntoView 
                     on:dragleave=move |_| ctx.over.set(None)
                     on:drop=move |e: ev::DragEvent| drop_on(e, end_here, ctx)>
                     "Drop a task here, or press a on a task on the right, to add a last step."
+                </div>
                 </div>
             </div>
             <Tray cards=tray count=tray_count filter=filter ctx=ctx />

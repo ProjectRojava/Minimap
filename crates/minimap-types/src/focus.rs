@@ -98,3 +98,13 @@ mod tests {
         assert_eq!(f.describe(), "until 2027-03-31");
     }
 }
+
+/// Which of a task's start date, due date and estimate to work out from the other two (the
+/// small calculator buttons beside them in the task pane).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskFigure {
+    Start,
+    Due,
+    Estimate,
+}

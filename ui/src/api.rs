@@ -16,7 +16,7 @@ use minimap_types::{
     RecoverCheckpoint, RecoverResult, Recurrence, ReportKind, ReportParams, RestorePreview,
     RestoreResult, Schedule, ScheduleScope, ScheduledTask, SearchFilter, SearchHit, Secret,
     SecurityStatus, SetEncryption, Settings, Slip, SyncStatus, Task, TaskDetail, TaskDisposition,
-    TaskDrag, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UndoOutcome,
+    TaskDrag, TaskFigure, TaskFilter, TaskRow, Team, TeamDetail, TeamRow, ThisWeek, UndoOutcome,
     UpdateDecision, UpdateNote, UpdateObjective, UpdatePerson, UpdateProject, UpdateSettings,
     UpdateSyncSettings, UpdateTask, UpdateTeam, UpdateWaitingOn, Uuid, WaitingOn, WaitingOnFilter,
     WaitingOnRow, WeeklyReview, ATTACHMENT_EXTENSIONS,
@@ -391,6 +391,12 @@ struct TaskListArg {
 }
 
 #[derive(Serialize)]
+struct FigureArg {
+    id: Uuid,
+    figure: TaskFigure,
+}
+
+#[derive(Serialize)]
 struct FocusArg {
     id: Uuid,
     choice: FocusChoice,
@@ -452,6 +458,11 @@ pub async fn update_task(id: Uuid, patch: UpdateTask) -> Result<Task, AppError> 
 
 pub async fn set_task_estimate(id: Uuid, text: String) -> Result<Task, AppError> {
     invoke("set_task_estimate", &EstimateArg { id, text }).await
+}
+
+/// Works out one of a task's start date, due date and estimate from the other two.
+pub async fn compute_task_figure(id: Uuid, figure: TaskFigure) -> Result<Task, AppError> {
+    invoke("compute_task_figure", &FigureArg { id, figure }).await
 }
 
 pub async fn set_task_focus(id: Uuid, choice: FocusChoice) -> Result<Task, AppError> {

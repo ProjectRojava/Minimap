@@ -321,6 +321,12 @@
           "markdownDescription": "Enables the commit_quick_add command without any pre-configured scope."
         },
         {
+          "description": "Enables the compute_task_figure command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-compute-task-figure",
+          "markdownDescription": "Enables the compute_task_figure command without any pre-configured scope."
+        },
+        {
           "description": "Enables the confirm_item command without any pre-configured scope.",
           "type": "string",
           "const": "allow-confirm-item",
@@ -1351,6 +1357,12 @@
           "type": "string",
           "const": "deny-commit-quick-add",
           "markdownDescription": "Denies the commit_quick_add command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the compute_task_figure command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-compute-task-figure",
+          "markdownDescription": "Denies the compute_task_figure command without any pre-configured scope."
         },
         {
           "description": "Denies the confirm_item command without any pre-configured scope.",

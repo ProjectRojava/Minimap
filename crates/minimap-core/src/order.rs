@@ -337,12 +337,16 @@ pub fn view(
 
 /// How many working days the Order screen's ruler shows (spec 61).
 pub const RULER_DAYS: usize = 15;
+/// The most working days the ruler grows to, to reach the last step's end (about half a year).
+pub const RULER_MAX: usize = 130;
 /// How far back the ruler may start, in working days, to show a task already under way.
 pub const RULER_BACK: usize = 5;
 
-/// The working days the Order screen draws `order`'s bars on: [`RULER_DAYS`] of them, starting
-/// at the earlier of today and the first start in the order, but never more than [`RULER_BACK`]
-/// working days before today. A day off at either end moves to the next working day.
+/// The working days the Order screen draws `order`'s bars on: at least [`RULER_DAYS`] of them,
+/// starting at the earlier of today and the first start in the order, but never more than
+/// [`RULER_BACK`] working days before today, and growing (up to [`RULER_MAX`]) until the last
+/// step's end is on it, so every bar can be reached by scrolling. A day off at either end moves
+/// to the next working day.
 pub fn ruler(order: &WorkOrder, today: Date, week: WorkWeek) -> Vec<Date> {
     if week.days_per_week() == 0 {
         return Vec::new();
@@ -365,11 +369,17 @@ pub fn ruler(order: &WorkOrder, today: Date, week: WorkWeek) -> Vec<Date> {
         .flat_map(|s| s.cards.iter().filter_map(|c| c.start))
         .min()
         .unwrap_or(today);
+    let last = order
+        .steps
+        .iter()
+        .flat_map(|s| s.cards.iter().filter_map(|c| c.finish))
+        .max();
     let mut day = first.clamp(earliest, today);
     let mut out = Vec::with_capacity(RULER_DAYS);
     // A week with no working day would never fill the ruler.
-    for _ in 0..RULER_DAYS * 7 {
-        if out.len() == RULER_DAYS {
+    for _ in 0..RULER_MAX * 7 {
+        let reaches_last = last.is_none_or(|l| out.last().is_some_and(|d| *d >= l));
+        if out.len() >= RULER_MAX || (out.len() >= RULER_DAYS && reaches_last) {
             break;
         }
         if working(day) {
@@ -747,5 +757,23 @@ mod tests {
         // Today a Saturday: the next working day.
         let r = ruler(&ordered(&[]), date!(2027 - 03 - 06), week);
         assert_eq!(r[0], date!(2027 - 03 - 08));
+    }
+
+    #[test]
+    fn the_ruler_grows_to_reach_the_last_end_but_not_without_limit() {
+        use time::macros::date;
+        let wed = date!(2027 - 03 - 03);
+        let week = WorkWeek::MON_FRI;
+        // A step ending in the week of 2027-05-03 (a Monday): the ruler ends on that day.
+        let r = ruler(
+            &ordered(&[date!(2027 - 03 - 10), date!(2027 - 05 - 03)]),
+            wed,
+            week,
+        );
+        assert!(r.len() > RULER_DAYS);
+        assert_eq!(r.last(), Some(&date!(2027 - 05 - 03)));
+        // Years away: stopped at the limit.
+        let r = ruler(&ordered(&[date!(2030 - 01 - 07)]), wed, week);
+        assert_eq!(r.len(), RULER_MAX);
     }
 }

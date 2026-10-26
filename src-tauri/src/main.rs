@@ -218,6 +218,7 @@ fn main() {
             commands::tasks::create_task,
             commands::tasks::update_task,
             commands::tasks::set_task_estimate,
+            commands::tasks::compute_task_figure,
             commands::tasks::set_task_focus,
             commands::tasks::set_task_backburner,
             commands::order::get_order,

@@ -2,8 +2,8 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use minimap_types::{
-    NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskStatus, UpdateTask, Uuid,
-    DECISION_TYPE, MEETING_TYPE,
+    NodeRef, NodeType, Patch, PersonRow, Task, TaskDetail, TaskFigure, TaskStatus, UpdateTask,
+    Uuid, DECISION_TYPE, MEETING_TYPE,
 };
 
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
         item_notes::ItemNotes,
         markdown_box::{saver, MarkdownField},
         meeting::{MakeMeeting, MeetingFields},
+        page::Icon,
         pane_reveal::Reveal,
         people_panel::error_line,
         repeat_field::RepeatField,
@@ -167,6 +168,23 @@ fn TaskFields(
             version.bump();
         }
     };
+    // The estimate can change under the open pane: moving either date re-counts it (in the store),
+    // and the dates are saved from here and from the pinned header. The box is drawn again only
+    // when the saved estimate is different from what it shows.
+    let saved = LocalResource::new(move || {
+        version.track();
+        api::get_task(id)
+    });
+    let estimate_shown = RwSignal::new(estimate_text(task.estimate_days));
+    let start_shown = RwSignal::new(task.start_date.map(|d| d.to_string()).unwrap_or_default());
+    Effect::new(move |_| {
+        if let Some(Ok(t)) = saved.get() {
+            estimate_shown.set(estimate_text(t.estimate_days));
+            start_shown.set(t.start_date.map(|d| d.to_string()).unwrap_or_default());
+        }
+    });
+    let estimate_shown = Memo::new(move |_| estimate_shown.get());
+    let start_shown = Memo::new(move |_| start_shown.get());
     let save_estimate = move |text: String| {
         spawn_local(async move {
             finish(api::set_task_estimate(id, text).await, toasts, version);
@@ -342,11 +360,22 @@ fn TaskFields(
         } else {
             view! {
                 <div class="grid grid-cols-2 gap-3">
-                    <TextField label="Estimate (3d, 4h)" placeholder="3d" value=estimate_text(task.estimate_days)
-                        on_commit=save_estimate />
-                    <TextField label="Start date" kind="date"
-                        value=task.start_date.map(|d| d.to_string()).unwrap_or_default()
-                        on_commit=move |v: String| save_date(v, false) />
+                    <div class="relative">
+                        <FigureButton id=id figure=TaskFigure::Estimate
+                            title="Work out the estimate from the start date and the due date" />
+                        {move || view! {
+                            <TextField label="Estimate (3d, 4h)" placeholder="3d" value=estimate_shown.get()
+                                on_commit=save_estimate />
+                        }}
+                    </div>
+                    <div class="relative">
+                        <FigureButton id=id figure=TaskFigure::Start
+                            title="Work out the start date from the due date and the estimate" />
+                        {move || view! {
+                            <TextField label="Start date" kind="date" value=start_shown.get()
+                                on_commit=move |v: String| save_date(v, false) />
+                        }}
+                    </div>
                 </div>
             }.into_any()
         }}
@@ -356,6 +385,23 @@ fn TaskFields(
             .then(|| view! { <BackburnerField task=id since=task.backburner_since /> })}
         <TaskTiming id=id />
         </div>
+    }
+}
+
+/// A small calculator beside the start date, the due date or the estimate: works that one out
+/// from the other two (working days) in one change, or says what is missing.
+#[component]
+pub fn FigureButton(id: Uuid, figure: TaskFigure, title: &'static str) -> impl IntoView {
+    let version = expect_context::<DataVersion>();
+    let toasts = expect_context::<Toasts>();
+    view! {
+        <button type="button" title=title aria-label=title
+            class="absolute right-0 top-0 rounded-sm border border-accent/40 bg-accent/10 p-px text-accent hover:border-accent hover:bg-accent/25"
+            on:click=move |_| spawn_local(async move {
+                finish(api::compute_task_figure(id, figure).await, toasts, version);
+            })>
+            <Icon name="calc" size="h-3.5 w-3.5" />
+        </button>
     }
 }
 

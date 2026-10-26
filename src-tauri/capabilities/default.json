@@ -61,6 +61,7 @@
     "allow-create-task",
     "allow-update-task",
     "allow-set-task-estimate",
+    "allow-compute-task-figure",
     "allow-set-task-focus",
     "allow-set-task-backburner",
     "allow-get-order",
