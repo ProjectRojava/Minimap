@@ -11,7 +11,7 @@ Their open tasks are a **queue**, one row per task, top to bottom:
 - **Step 1 is done first.** The number on the left is the step. Each step starts when the whole step above it is finished.
 - **Tasks in the same step are done at the same time.** They share a number and a bracket, under a line such as *Step 3 · 2 at the same time · 150% of Uditt's time*. The share is in amber when it is more than 100%.
 - Each row shows the task's type, project, estimate and the dates it now gets (*Mon 3 Mar → Fri 7 Mar*), with its due date under them. When the finish is after the due date, that line is red and says by how many working days.
-- On a wide window, each row also has a **bar** on a ruler of 15 working days. The blue line is today and a dashed tick marks the due date. A started task's bar is solid. A bar with no estimate is dashed amber. A late bar is red.
+- On a wide window, each row also has a **bar** on a ruler of at least 15 working days. When the last step ends later, the ruler grows to reach it (up to about half a year) and the queue **scrolls sideways**, so every bar can be reached. The blue line is today and a dashed tick marks the due date. A started task's bar is solid. A bar with no estimate is dashed amber. A late bar is red.
 - A task already **in progress** is marked *started*. It keeps the start it has; the order only holds up the steps below it. A note above the queue says so when the order has started tasks.
 
 The line under the tabs sums it up: *6 tasks in 5 steps · Last step ends Wed 4 Nov · 1 finishes after its due date · 2 have no estimate, counted as 1 day*. A task with no estimate counts as one day, which is the most common reason dates look wrong. **Open the Gantt** goes to the [Gantt](help:gantt).

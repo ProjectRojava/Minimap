@@ -5,8 +5,8 @@ use minimap_core::{
 use minimap_store::Connection;
 use minimap_types::{
     AppError, AssigneeChoice, BackburnerResult, CreateTask, Date, Decision, FocusChoice,
-    LinkRelation, NodeRef, NodeType, Patch, Task, TaskDetail, TaskFilter, TaskRow, UpdateTask,
-    Uuid,
+    LinkRelation, NodeRef, NodeType, Patch, Task, TaskDetail, TaskFigure, TaskFilter, TaskRow,
+    UpdateTask, Uuid,
 };
 use tauri::State;
 
@@ -114,6 +114,46 @@ pub(crate) fn set_task_estimate_impl(
         estimate_days: estimate,
         ..Default::default()
     };
+    minimap_store::tasks::update(conn, id, patch).map_err(store_error)
+}
+
+/// Works out one of a task's start date, due date and estimate from the other two (the calculator
+/// buttons in the task pane): one change, so one undo. Says in words what is missing. A meeting
+/// has no such figures.
+#[tauri::command]
+pub async fn compute_task_figure(
+    state: State<'_, AppState>,
+    id: Uuid,
+    figure: TaskFigure,
+) -> Result<Task, AppError> {
+    state
+        .run(move |conn| compute_task_figure_impl(conn, id, figure))
+        .await
+}
+
+pub(crate) fn compute_task_figure_impl(
+    conn: &mut Connection,
+    id: Uuid,
+    figure: TaskFigure,
+) -> Result<Task, AppError> {
+    let task = minimap_store::tasks::get(conn, id).map_err(store_error)?;
+    if task.is_meeting() {
+        return Err(app_error(
+            "invalid",
+            "A meeting has a day and a time, not a start, a due date and an estimate.",
+        ));
+    }
+    let week = minimap_store::settings::get(conn)
+        .map_err(store_error)?
+        .work_week;
+    let patch = minimap_core::tasks::work_out(
+        figure,
+        task.start_date,
+        task.due_date,
+        task.estimate_days,
+        week,
+    )
+    .map_err(|e| app_error("invalid", e))?;
     minimap_store::tasks::update(conn, id, patch).map_err(store_error)
 }
 
@@ -358,6 +398,65 @@ mod tests {
         )
         .unwrap()
         .remove(0)
+    }
+
+    #[test]
+    fn the_calculator_buttons_work_one_figure_out_from_the_other_two() {
+        use time::macros::date;
+        let mut conn = conn();
+        let t = task(&mut conn, "Build it");
+        let set = |conn: &mut Connection, patch: UpdateTask| {
+            minimap_store::tasks::update(conn, t.id, patch).unwrap()
+        };
+        // Nothing to go on: the answer says what is missing.
+        let err = compute_task_figure_impl(&mut conn, t.id, TaskFigure::Estimate).unwrap_err();
+        assert!(
+            err.message.contains("start date and a due date"),
+            "{}",
+            err.message
+        );
+        // Start and due give the estimate, even after it was cleared.
+        set(
+            &mut conn,
+            UpdateTask {
+                start_date: Patch::Set(date!(2027 - 03 - 01)),
+                due_date: Patch::Set(date!(2027 - 03 - 05)),
+                estimate_days: Patch::Clear,
+                ..Default::default()
+            },
+        );
+        let t1 = compute_task_figure_impl(&mut conn, t.id, TaskFigure::Estimate).unwrap();
+        assert_eq!(t1.estimate_days, Some(5.0));
+        // Due and estimate give the start (the latest day that still ends on the due date).
+        set(
+            &mut conn,
+            UpdateTask {
+                estimate_days: Patch::Set(2.0),
+                ..Default::default()
+            },
+        );
+        let t2 = compute_task_figure_impl(&mut conn, t.id, TaskFigure::Start).unwrap();
+        assert_eq!(
+            (t2.start_date, t2.due_date, t2.estimate_days),
+            (
+                Some(date!(2027 - 03 - 04)),
+                Some(date!(2027 - 03 - 05)),
+                Some(2.0)
+            )
+        );
+        // Start and estimate give the due date; a part day keeps its estimate.
+        set(
+            &mut conn,
+            UpdateTask {
+                estimate_days: Patch::Set(1.5),
+                ..Default::default()
+            },
+        );
+        let t3 = compute_task_figure_impl(&mut conn, t.id, TaskFigure::Due).unwrap();
+        assert_eq!(
+            (t3.due_date, t3.estimate_days),
+            (Some(date!(2027 - 03 - 05)), Some(1.5))
+        );
     }
 
     #[test]

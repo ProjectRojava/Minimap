@@ -18,7 +18,7 @@ use crate::{
     calendar::{format_ymd, parse_ymd},
     components::date_field::DateField,
     components::{
-        avatar::PersonLabel,
+        avatar::{PersonAvatar, PersonLabel},
         form::{BUTTON, BUTTON_ON},
         objective_colour::use_objective_colours,
         page::{Hints, PageHeader, Tone, FILTER_BAR},
@@ -46,6 +46,21 @@ const LABEL_W_KEY: &str = "minimap.gantt.label-width";
 const DENSITY_KEY: &str = "minimap.gantt.density";
 /// Where the toolbar's choices (view, scale, rows, arrows, *Show*) are remembered on this device.
 const TOOLBAR_KEY: &str = "minimap.gantt.toolbar";
+/// Whether the legend under the chart is shown (on by default), remembered on this device.
+const LEGEND_KEY: &str = "minimap.gantt.legend";
+
+fn load_legend() -> bool {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(LEGEND_KEY).ok().flatten())
+        .is_none_or(|v| v != "off")
+}
+
+fn save_legend(on: bool) {
+    if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = storage.set_item(LEGEND_KEY, if on { "on" } else { "off" });
+    }
+}
 
 fn load_toolbar() -> Remembered {
     let json = web_sys::window()
@@ -505,6 +520,7 @@ pub fn Gantt() -> impl IntoView {
         filter: ctx.filter.with(|f| crate::gantt::RememberedFilter {
             person: f.person,
             objective: f.objective,
+            project: f.project,
             needs_a_look: f.needs_a_look,
         }),
     });
@@ -512,13 +528,17 @@ pub fn Gantt() -> impl IntoView {
     // A remembered person or objective that is gone (archived or deleted since) would narrow the
     // plan to something the dropdown cannot show, so it is dropped once the plan has loaded.
     Effect::new(move |_| {
-        let Some((people, objectives)) = ctx.raw.with(|d| {
+        let Some((people, objectives, projects)) = ctx.raw.with(|d| {
             d.as_ref().map(|d| {
                 (
                     d.people.iter().map(|p| p.id).collect::<HashSet<_>>(),
                     d.groups
                         .iter()
                         .map(crate::gantt::group_key)
+                        .collect::<HashSet<_>>(),
+                    d.groups
+                        .iter()
+                        .flat_map(|g| g.projects.iter().map(|p| p.id))
                         .collect::<HashSet<_>>(),
                 )
             })
@@ -531,6 +551,9 @@ pub fn Gantt() -> impl IntoView {
             }
             if f.objective.is_some_and(|o| !objectives.contains(&o)) {
                 f.objective = None;
+            }
+            if f.project.is_some_and(|p| !projects.contains(&p)) {
+                f.project = None;
             }
         });
     });
@@ -740,7 +763,8 @@ pub fn Gantt() -> impl IntoView {
         drop_it(ctx, cur);
     });
     on_cleanup(move || mouse_up.remove());
-    let legend_open = RwSignal::new(false);
+    let legend_open = RwSignal::new(load_legend());
+    Effect::new(move |_| save_legend(legend_open.get()));
     let keys = window_event_listener(ev::keydown, move |e: ev::KeyboardEvent| {
         // Ctrl/Cmd+F finds on the chart (spec 58); `/` stays the global search.
         if (e.ctrl_key() || e.meta_key()) && !e.alt_key() && e.key().eq_ignore_ascii_case("f") {
@@ -765,8 +789,6 @@ pub fn Gantt() -> impl IntoView {
             ctx.adding.set(None);
         } else if e.key() == "Escape" && ctx.drag.get_untracked().is_some() {
             ctx.drag.set(None);
-        } else if e.key() == "Escape" && legend_open.get_untracked() {
-            legend_open.set(false);
         } else if e.key() == "Escape" && ctx.dates.get_untracked().is_some() {
             ctx.dates.set(None);
             if let Some(el) = scroller.get_untracked() {
@@ -873,6 +895,15 @@ pub fn Gantt() -> impl IntoView {
                         .map(|g| (crate::gantt::group_key(g), group_title(g)))
                         .collect::<Vec<_>>()
                 })
+                .unwrap_or_default()
+        })
+    };
+    // Only the chosen objective's projects, or all of them when no objective is chosen.
+    let project_options = move || {
+        let objective = ctx.filter.with(|f| f.objective);
+        ctx.raw.with(|d| {
+            d.as_ref()
+                .map(|d| crate::gantt::project_choices(d, objective))
                 .unwrap_or_default()
         })
     };
@@ -989,10 +1020,29 @@ pub fn Gantt() -> impl IntoView {
                         }).collect_view()}
                     </select>
                     <select class=FILTER_SELECT aria-label="Only one objective"
-                            on:change=move |e| { let v = pick(event_target_value(&e)); ctx.filter.update(|f| f.objective = v); }>
+                            on:change=move |e| {
+                                let v = pick(event_target_value(&e));
+                                // A project that is not under the new objective is let go.
+                                let keep = ctx.raw.with(|d| d.as_ref().map(|d| {
+                                    crate::gantt::project_choices(d, v).into_iter().map(|c| c.0).collect::<Vec<_>>()
+                                })).unwrap_or_default();
+                                ctx.filter.update(|f| {
+                                    f.objective = v;
+                                    if f.project.is_some_and(|p| !keep.contains(&p)) {
+                                        f.project = None;
+                                    }
+                                });
+                            }>
                         <option value="" selected=move || ctx.filter.with(|f| f.objective.is_none())>"Every objective"</option>
                         {move || objective_options().into_iter().map(|(id, name)| view! {
                             <option value=id.to_string() selected=move || ctx.filter.with(|f| f.objective == Some(id))>{name}</option>
+                        }).collect_view()}
+                    </select>
+                    <select class=FILTER_SELECT aria-label="Only one project"
+                            on:change=move |e| { let v = pick(event_target_value(&e)); ctx.filter.update(|f| f.project = v); }>
+                        <option value="" selected=move || ctx.filter.with(|f| f.project.is_none())>"Every project"</option>
+                        {move || project_options().into_iter().map(|(id, name)| view! {
+                            <option value=id.to_string() selected=move || ctx.filter.with(|f| f.project == Some(id))>{name}</option>
                         }).collect_view()}
                     </select>
                     <button class=move || format!("{BUTTON} {}", if ctx.filter.with(|f| f.needs_a_look) { BUTTON_ON } else { "" })
@@ -1049,13 +1099,12 @@ pub fn Gantt() -> impl IntoView {
                         </button>
                     </Show>
                     <button class=move || format!("{BUTTON} {}", if legend_open.get() { BUTTON_ON } else { "" })
-                            title="What the bars and marks mean"
+                            title="Show or hide the legend: what the bars and marks mean"
                             aria-expanded=move || legend_open.get().to_string()
                             on:click=move |_| legend_open.update(|o| *o = !*o)>
                         "?"
                     </button>
                 </span>
-                {move || legend_open.get().then(|| view! { <Legend close=legend_open /> })}
             </div>
             {move || error.get().map(|e| view! {
                 <p class="px-4 py-2 text-danger">{e.message}</p>
@@ -1116,6 +1165,7 @@ pub fn Gantt() -> impl IntoView {
                     ViewMode::Table => view! { <Table ctx=ctx /> }.into_any(),
                 }}
             </div>
+            {move || (legend_open.get() && ctx.view.get() == ViewMode::Chart).then(|| view! { <Legend close=legend_open /> })}
         </div>
     }
 }
@@ -1191,100 +1241,98 @@ fn Strip(ctx: Ctx) -> impl IntoView {
     }
 }
 
-/// What the colours and marks mean: a popover from the toolbar's **?** (spec 58).
+/// What the colours and marks mean: a strip under the chart (spec 58); the toolbar's **?** hides
+/// and shows it.
 #[component]
 fn Legend(close: RwSignal<bool>) -> impl IntoView {
-    let swatch = |class: &'static str, text: &'static str| {
+    // One key: a small drawing and its words.
+    let key = |drawing: AnyView, text: &'static str| {
         view! {
-            <li class="flex items-center gap-2">
-                <svg class="gc" width="24" height="12" aria-hidden="true">
-                    <rect class=class x="1" y="1" width="22" height="10" rx="2" />
-                </svg>
+            <li class="flex items-center gap-1.5 whitespace-nowrap">
+                <svg class="gc" width="24" height="12" aria-hidden="true">{drawing}</svg>
                 {text}
             </li>
         }
     };
+    let bar = |class: &'static str| {
+        view! { <rect class=class x="1" y="1" width="22" height="10" rx="2" /> }.into_any()
+    };
+    let group = |name: &'static str| {
+        view! { <li class="font-medium text-fg">{name}</li> }
+    };
     view! {
-        <div class="absolute right-4 top-full z-40 mt-1 w-[22rem] rounded-sm border border-line-strong bg-panel p-3 text-[12px] text-fg shadow-lg"
-             role="dialog" aria-label="What the bars and marks mean">
-            <div class="mb-2 flex items-start gap-2">
-                <p class="flex-1 text-muted">
-                    "On a bar, colour says where the work stands: a task's status, or a project's room. "
-                    "An objective's own colour is the dot by its name."
-                </p>
-                <button class="text-faint hover:text-fg" aria-label="Close"
-                        on:click=move |_| close.set(false)>"✕"</button>
-            </div>
-            <ul class="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                {swatch("gb todo", "To do")}
-                {swatch("gb progress", "In progress")}
-                {swatch("gb blocked", "Blocked")}
-                {swatch("gb done", "Done")}
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
+        <div class="shrink-0 border-t border-line bg-panel px-4 py-1.5 text-[11px] text-muted"
+             role="region" aria-label="What the bars and marks mean">
+            <div class="flex items-start gap-2">
+                <ul class="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+                    {group("Task")}
+                    {key(bar("gb todo"), "To do")}
+                    {key(bar("gb progress"), "In progress")}
+                    {key(bar("gb blocked"), "Blocked")}
+                    {key(bar("gb done"), "Done")}
+                    {key(bar("gb todo unestimated"), "No estimate (counted as 1 day)")}
+                    {key(view! {
                         <rect class="gb todo" x="1" y="1" width="22" height="8" rx="2" />
                         <rect class="crit" x="1" y="9" width="22" height="2" />
-                    </svg>
-                    "Critical"
-                </li>
-                {swatch("gb todo unestimated", "No estimate")}
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
+                    }.into_any(), "Critical: a slip moves the finish")}
+                    {key(view! {
                         <rect class="gb todo" x="1" y="1" width="13" height="10" rx="2" />
                         <rect class="late-tail" x="14" y="1" width="9" height="10" />
-                    </svg>
-                    "Past what the target allows"
-                </li>
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
-                        <line class="due" x1="12" x2="12" y1="1" y2="11" />
-                    </svg>
-                    "Due date"
-                </li>
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
-                        <rect class="summary" x="1" y="1" width="16" height="10" rx="2" />
-                        <rect class="progress" x="1" y="1" width="6" height="10" rx="2" />
-                    </svg>
-                    "Project: work, the done part filled"
-                </li>
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
-                        <rect class="room wide" x="1" y="6" width="16" height="5" />
-                        <path class="flag" d="M17 1h6l-2 2.5 2 2.5h-6z" />
-                    </svg>
-                    "Room before the target"
-                </li>
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
+                    }.into_any(), "Past what the target allows")}
+                    {key(view! { <line class="due" x1="12" x2="12" y1="1" y2="11" /> }.into_any(),
+                        "Due date (red when overdue)")}
+                    {key(view! {
+                        <rect class="gb todo" x="1" y="1" width="9" height="10" rx="2" />
+                        <line class="slack" x1="10" x2="23" y1="6" y2="6" />
+                    }.into_any(), "Slack: how far it can slip")}
+                    <li class="flex items-center gap-1.5 whitespace-nowrap">
+                        <span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-line text-[8px] text-fg">"AB"</span>
+                        "Assignee"
+                    </li>
+                    {group("Project and objective")}
+                    {key(view! {
+                        <rect class="summary" x="1" y="1" width="22" height="10" rx="2" />
+                        <rect class="progress" x="1" y="1" width="9" height="10" rx="2" />
+                    }.into_any(), "Open work, filled for what is done")}
+                    {key(view! {
+                        <path class="flag" d="M9 2h7l-2 3 2 3H9z" />
+                    }.into_any(), "Target date (flag)")}
+                    {key(view! {
+                        <rect class="room wide" x="1" y="6" width="22" height="5" />
+                    }.into_any(), "Room before the target")}
+                    {key(view! {
                         <rect class="room-key" x="1" y="6" width="22" height="5" />
                         <path class="hatch-line" d="M3 11l4-5M8 11l4-5M13 11l4-5M18 11l4-5" />
-                    </svg>
-                    "Narrow room (hatched)"
-                </li>
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
+                    }.into_any(), "Narrow room (hatched)")}
+                    {key(view! {
                         <rect class="room-key" x="1" y="6" width="22" height="5" />
                         <circle class="dot" cx="5" cy="8.5" r="1.2" />
                         <circle class="dot" cx="10" cy="8.5" r="1.2" />
                         <circle class="dot" cx="15" cy="8.5" r="1.2" />
                         <circle class="dot" cx="20" cy="8.5" r="1.2" />
-                    </svg>
-                    "Room closing or none (dotted)"
-                </li>
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
-                        <rect class="over" x="1" y="1" width="22" height="10" />
-                    </svg>
-                    "Work past the target"
-                </li>
-                <li class="flex items-center gap-2">
-                    <svg class="gc" width="24" height="12" aria-hidden="true">
-                        <line class="today" x1="12" x2="12" y1="0" y2="12" />
-                    </svg>
-                    "Today"
-                </li>
-            </ul>
+                    }.into_any(), "Room closing or none (dotted)")}
+                    {key(bar("over"), "Work past the target")}
+                    {key(view! { <line class="pin" x1="12" x2="12" y1="1" y2="11" /> }.into_any(),
+                        "Project start date")}
+                    {group("Chart")}
+                    {key(view! { <line class="today" x1="12" x2="12" y1="0" y2="12" /> }.into_any(), "Today")}
+                    {key(view! {
+                        <g class="link normal">
+                            <path class="line" d="M1 6h17" />
+                            <path class="head" d="M17 3l5 3-5 3z" />
+                        </g>
+                    }.into_any(), "Must finish before the next starts")}
+                    {key(view! {
+                        <g class="link normal dashed">
+                            <path class="line" d="M1 6h17" />
+                            <path class="head" d="M17 3l5 3-5 3z" />
+                        </g>
+                    }.into_any(), "Project depends on another")}
+                </ul>
+                <button class="text-faint hover:text-fg" aria-label="Hide the legend"
+                        title="Hide the legend (the ? in the toolbar brings it back)"
+                        on:click=move |_| close.set(false)>"✕"</button>
+            </div>
         </div>
     }
 }
@@ -2219,6 +2267,14 @@ fn label_row(
             if s.status == minimap_types::TaskStatus::Blocked {
                 chips.push(view! { <span class=Tone::Warning.chip()>"blocked"</span> }.into_any());
             }
+            // Who it is assigned to, at the right end of the row (a few, overlapping).
+            let who = (!t.assignees.is_empty()).then(|| {
+                view! {
+                    <span class="flex shrink-0 items-center -space-x-1">
+                        {t.assignees.iter().take(3).map(|id| view! { <PersonAvatar id=*id size=16 /> }).collect_view()}
+                    </span>
+                }
+            });
             view! {
                 <div class=base style=indent
                      id=aria.id.clone() role="row" {..custom_attribute("aria-level", aria.level.to_string())}
@@ -2232,6 +2288,7 @@ fn label_row(
                         {s.title.clone()}
                     </button>
                     {column(chips, false)}
+                    {who}
                     </div>
                 </div>
             }

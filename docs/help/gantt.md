@@ -12,11 +12,12 @@ The **Gantt** screen (`g j`) draws the whole plan on a calendar: **objectives**,
 - **Drag the edge** between the names and the chart to make the names wider or narrower; **double-click** it to fit the longest name. Minimap remembers the width on this computer. When the names are very narrow, the counts move into the names' tooltips.
 - A row with **nothing in it says so**: an objective with no projects says *No projects yet* and offers **Add a project**, and a project with no open tasks says *No open tasks* and offers **Add a task**. Both open [quick-add](help:quick-add) with the objective or project already filled in; type the name and press `Enter`.
 - Under the tasks of an open project there is an **add row**: drag across it on the chart, from the first day to the last, and [quick-add](help:quick-add) opens with the project, the start, the due date and the estimate filled in; type the name and press `Enter`. Nothing is made until you do. A new task can't start before today. **+ Add a task** on that row opens quick-add with just the project.
+- A task's **assignee** shows as their avatar at the right end of its row in the names column (up to three, overlapping, when it has several people). A task with nobody shows none.
 - In **My view** (`v`) only what touches you is drawn.
 
 ## Narrow it down
 
-- **Show** in the toolbar narrows the chart: **one person** (their tasks, under the projects and objectives they belong to, with the counts recounted for them), **one objective**, and **Needs a look** (only the projects that are late, out of room or blocked). They work together, and with My view.
+- **Show** in the toolbar narrows the chart: **one person** (their tasks, under the projects and objectives they belong to, with the counts recounted for them), **one objective**, **one project** (the *Every project* box lists only the projects of the objective you picked, or all of them when none is picked; changing the objective lets go of a project that is not under it), and **Needs a look** (only the projects that are late, out of room or blocked). They work together, and with My view.
 - **Minimap remembers the toolbar** on this computer: Chart or Table, the scale, *Show finished*, *By person*, the arrows and the *Show* choices are still as you left them when you come back, even after you close the app. (A person or objective that has since been archived or deleted is dropped.) Whenever something differs from the defaults, a **Reset** button appears at the right of the toolbar, saying how many choices changed; one click puts them all back (Chart, *Days*, *Focus*, nobody filtered). The Find box, which rows are folded and *Comfortable* are not part of it.
 - **Find** (or `Ctrl/Cmd+F`) opens a box: type part of a name and every objective, project and task that matches lights up; folded rows open to show them, and the first one opens in the detail pane. `Enter` goes to the next match, `Shift+Enter` to the one before, `Esc` closes the box. (`/` is still the search of the whole app.)
 - **By person** (in *Rows*) shows one row per person with their open tasks under it (a task with several people is under the first of them by name; tasks with nobody are under *Not assigned*). The weeks a person has more work than time are hatched red on their row and counted (*over 2 wk*), from the same numbers as [Capacity](help:capacity). Rows by person only read: to move work, switch it off.
@@ -30,7 +31,7 @@ The **Gantt** screen (`g j`) draws the whole plan on a calendar: **objectives**,
 - `Ctrl` with the mouse wheel **zooms** between *Weeks* and *Days* in a few steps, keeping the day under the pointer where it is.
 - To move around, scroll, use `Shift` with the mouse wheel to scroll sideways, or **drag any empty part of the chart**.
 - The thin **strip** above the dates is the whole plan in miniature: each project's work, the targets, today, and a box for what the chart shows. Click or drag on it to move the chart there.
-- **?** at the end of the toolbar explains the bars and marks.
+- The **legend** along the bottom explains every bar, mark and arrow in a line of small drawings (tasks, projects and objectives, and the chart itself). **?** at the end of the toolbar, or the ✕ on the legend, hides it, and **?** brings it back; Minimap remembers the choice on this computer. The legend is shown on the chart, not on the table.
 
 ## What a bar says
 

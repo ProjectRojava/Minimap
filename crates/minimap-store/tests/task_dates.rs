@@ -1,7 +1,8 @@
 //! Two of a task's dates and estimate give the rest: a start date and an estimate give the due
 //! date, a start date and a due date give the estimate, in working days. The start is never
 //! filled in from the due date and the estimate. Only the person's own changes do it, in the
-//! same change, and a field the change clears stays empty.
+//! same change, and a field the change clears stays empty. Moving either date of a task that has
+//! both re-counts its estimate.
 
 use minimap_store::*;
 use minimap_types::*;
@@ -123,7 +124,7 @@ fn clearing_a_field_or_an_unrelated_change_fills_nothing() {
     )
     .unwrap();
     assert_eq!(t.estimate_days, None);
-    // Changing one when all three are set changes only that one.
+    // An estimate typed when all three are set changes only the estimate.
     let t = tasks::update(
         &mut conn,
         t.id,
@@ -133,6 +134,18 @@ fn clearing_a_field_or_an_unrelated_change_fills_nothing() {
         },
     )
     .unwrap();
+    assert_eq!(
+        (t.start_date, t.due_date, t.estimate_days),
+        (Some(MON), Some(FRI), Some(2.0))
+    );
+}
+
+#[test]
+fn moving_either_date_of_a_task_with_both_recounts_the_estimate() {
+    let mut conn = open_in_memory().unwrap();
+    let t = make(&mut conn, Some(MON), Some(FRI), Some(5.0));
+    let before = activity::list_for_node(&conn, t.id).unwrap().len();
+    // A later due date (Friday of the next week): 10 working days.
     let t = tasks::update(
         &mut conn,
         t.id,
@@ -142,8 +155,44 @@ fn clearing_a_field_or_an_unrelated_change_fills_nothing() {
         },
     )
     .unwrap();
+    assert_eq!(t.estimate_days, Some(10.0));
+    // One activity row, so one undo takes the date and the estimate back together.
     assert_eq!(
-        (t.start_date, t.due_date, t.estimate_days),
-        (Some(MON), Some(date!(2027 - 03 - 12)), Some(2.0))
+        activity::list_for_node(&conn, t.id).unwrap().len(),
+        before + 1
     );
+    // A later start (Wednesday): 8 working days to the 12th.
+    let t = tasks::update(
+        &mut conn,
+        t.id,
+        UpdateTask {
+            start_date: Patch::Set(date!(2027 - 03 - 03)),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(t.estimate_days, Some(8.0));
+    // An estimate set in the same change is the person's own word.
+    let t = tasks::update(
+        &mut conn,
+        t.id,
+        UpdateTask {
+            due_date: Patch::Set(FRI),
+            estimate_days: Patch::Set(4.0),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(t.estimate_days, Some(4.0));
+    // A due date before the start gives no estimate, so the old one stays.
+    let t = tasks::update(
+        &mut conn,
+        t.id,
+        UpdateTask {
+            due_date: Patch::Set(MON),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(t.estimate_days, Some(4.0));
 }

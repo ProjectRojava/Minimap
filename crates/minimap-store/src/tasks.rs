@@ -410,13 +410,14 @@ pub fn update(conn: &mut Connection, id: Uuid, mut patch: UpdateTask) -> Result<
 
 /// A person's change to the start date, the due date or the estimate fills in the due date (from
 /// the start and the estimate) or the estimate (from the start and the due date) when that one is
-/// empty (`core::tasks::third`; the start is never filled in), as part of the same change (one
+/// empty (`core::tasks::third`; the start is never filled in), and moving either date of a task
+/// that has both re-counts the estimate (unless the change sets the estimate), as part of the same change (one
 /// activity row, one undo step). Not for a meeting, and not for a field the change
 /// itself clears. Writes Minimap makes itself (the order's dates, undo, merges) go through
 /// [`update_in_tx`] and are left as they are.
 fn fill_third_in_patch(tx: &Transaction, id: Uuid, patch: &mut UpdateTask) -> Result<()> {
     use minimap_core::tasks::Third;
-    use minimap_types::Patch::{Clear, Set};
+    use minimap_types::Patch::{Clear, Keep, Set};
     let sets = matches!(patch.start_date, Set(_))
         || matches!(patch.due_date, Set(_))
         || matches!(patch.estimate_days, Set(_));
@@ -429,6 +430,23 @@ fn fill_third_in_patch(tx: &Transaction, id: Uuid, patch: &mut UpdateTask) -> Re
         return Ok(());
     }
     let week = crate::settings::get(tx)?.work_week;
+    // Moving either date of a task that has both re-counts the estimate, so the three always
+    // agree. (An estimate in the same change is the person's own word and stays.)
+    let moved_a_date = matches!(patch.start_date, Set(_)) || matches!(patch.due_date, Set(_));
+    if moved_a_date
+        && patch.estimate_days == Keep
+        && new.start_date.is_some()
+        && new.due_date.is_some()
+    {
+        if let Some(Third::Estimate(e)) =
+            minimap_core::tasks::third(new.start_date, new.due_date, None, week)
+        {
+            if new.estimate_days != Some(e) {
+                patch.estimate_days = Set(e);
+            }
+        }
+        return Ok(());
+    }
     match minimap_core::tasks::third(new.start_date, new.due_date, new.estimate_days, week) {
         Some(Third::Due(d)) if patch.due_date != Clear => patch.due_date = Set(d),
         Some(Third::Estimate(e)) if patch.estimate_days != Clear => patch.estimate_days = Set(e),

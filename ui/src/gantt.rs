@@ -1607,6 +1607,8 @@ pub struct ViewFilter {
     pub person: Option<Uuid>,
     /// An objective, or [`NO_OBJECTIVE`] for the projects that serve none.
     pub objective: Option<Uuid>,
+    /// One project (the dropdown lists only the chosen objective's projects).
+    pub project: Option<Uuid>,
     pub needs_a_look: bool,
 }
 
@@ -1637,6 +1639,7 @@ pub struct Remembered {
 pub struct RememberedFilter {
     pub person: Option<Uuid>,
     pub objective: Option<Uuid>,
+    pub project: Option<Uuid>,
     pub needs_a_look: bool,
 }
 
@@ -1668,6 +1671,7 @@ impl Remembered {
         ViewFilter {
             person: self.filter.person,
             objective: self.filter.objective,
+            project: self.filter.project,
             needs_a_look: self.filter.needs_a_look,
         }
     }
@@ -1683,6 +1687,7 @@ impl Remembered {
             self.arrows != d.arrows,
             self.filter.person.is_some(),
             self.filter.objective.is_some(),
+            self.filter.project.is_some(),
             self.filter.needs_a_look,
         ]
         .into_iter()
@@ -1691,9 +1696,19 @@ impl Remembered {
     }
 }
 
+/// The projects the *Project* dropdown offers, in plan order: those under the chosen objective, or
+/// every project when no objective is chosen.
+pub fn project_choices(data: &GanttData, objective: Option<Uuid>) -> Vec<(Uuid, String)> {
+    data.groups
+        .iter()
+        .filter(|g| objective.is_none_or(|o| group_key(g) == o))
+        .flat_map(|g| g.projects.iter().map(|p| (p.id, p.title.clone())))
+        .collect()
+}
+
 /// The plan narrowed by `f`: a person keeps the tasks assigned to them (and the projects and
-/// objectives those sit under, counts recounted); an objective keeps its group; *needs a look*
-/// keeps those projects. Links stay only between what is left.
+/// objectives those sit under, counts recounted); an objective keeps its group; a project keeps
+/// that one project; *needs a look* keeps those projects. Links stay only between what is left.
 pub fn filtered(data: &GanttData, f: &ViewFilter) -> GanttData {
     if f.is_empty() {
         return data.clone();
@@ -1702,6 +1717,9 @@ pub fn filtered(data: &GanttData, f: &ViewFilter) -> GanttData {
     out.groups
         .retain(|g| f.objective.is_none_or(|o| group_key(g) == o));
     for g in &mut out.groups {
+        if let Some(project) = f.project {
+            g.projects.retain(|p| p.id == project);
+        }
         if f.needs_a_look {
             g.projects.retain(|p| p.needs_a_look);
         }
@@ -1723,7 +1741,7 @@ pub fn filtered(data: &GanttData, f: &ViewFilter) -> GanttData {
             g.projects.retain(|p| !p.tasks.is_empty());
         }
     }
-    if f.person.is_some() || f.needs_a_look {
+    if f.person.is_some() || f.needs_a_look || f.project.is_some() {
         out.groups.retain(|g| !g.projects.is_empty());
     }
     let present: HashSet<Uuid> = out
@@ -1915,6 +1933,7 @@ mod tests {
             filter: RememberedFilter {
                 person: Some(Uuid::from_u128(7)),
                 objective: None,
+                project: None,
                 needs_a_look: true,
             },
             ..Remembered::default()
@@ -3034,6 +3053,21 @@ mod tests {
         assert_eq!(one.groups.len(), 1);
         assert_eq!(one.groups[0].projects[0].id, id(11));
         assert_eq!(filtered(&d, &ViewFilter::default()), d);
+        // One project keeps only it (and its objective), and the dropdown follows the objective.
+        let only = filtered(
+            &d,
+            &ViewFilter {
+                project: Some(id(10)),
+                ..Default::default()
+            },
+        );
+        assert_eq!(only.groups.len(), 1);
+        assert_eq!(only.groups[0].projects.len(), 1);
+        assert_eq!(only.groups[0].projects[0].id, id(10));
+        let ids = |o| -> Vec<Uuid> { project_choices(&d, o).into_iter().map(|c| c.0).collect() };
+        assert_eq!(ids(None), [id(10), id(11)]);
+        assert_eq!(ids(Some(id(2))), [id(11)]);
+        assert!(ids(Some(id(99))).is_empty());
     }
 
     #[test]
