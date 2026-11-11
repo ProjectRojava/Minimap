@@ -52,4 +52,27 @@ pub struct WorkOrder {
     /// Parts of the order the schedule can't follow because a `blocks` link says otherwise, in
     /// words.
     pub conflicts: Vec<String>,
+    /// The working days the Order screen draws its bars on (spec 61): 15 of them, from the
+    /// earlier of today and the first start, never more than 5 working days back.
+    #[serde(default)]
+    pub ruler: Vec<Date>,
+    /// The day the dates were worked out for.
+    #[serde(default)]
+    pub today: Option<Date>,
+}
+
+/// One column of *My team* on the Order screen (spec 61): a person's order and this week's load.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TeamMember {
+    pub order: WorkOrder,
+    pub is_self: bool,
+    /// This week's load, as the Capacity screen shows it; `None` without capacity to measure.
+    pub load_pct: Option<u32>,
+}
+
+/// Everyone in Minimap who isn't archived, each with their order (spec 61).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TeamOrders {
+    /// You first, then everyone else by name.
+    pub members: Vec<TeamMember>,
 }

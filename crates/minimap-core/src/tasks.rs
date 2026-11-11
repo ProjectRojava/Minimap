@@ -2,7 +2,13 @@
 
 use std::cmp::Ordering;
 
-use minimap_types::{Edge, EdgeType, Task, TaskFilter, TaskRow, TaskStatus, Uuid};
+use minimap_types::{
+    Edge, EdgeType, Patch, Task, TaskFigure, TaskFilter, TaskRow, TaskStatus, UpdateTask, Uuid,
+    WorkWeek,
+};
+use time::Date;
+
+use crate::schedule::{date_of, end_index, working_index};
 
 pub fn is_closed(s: TaskStatus) -> bool {
     matches!(s, TaskStatus::Done | TaskStatus::Cancelled)
@@ -145,6 +151,106 @@ fn clean_line(line: &str) -> Option<String> {
         }
     }
     (!s.is_empty()).then(|| s.to_owned())
+}
+
+/// What a task can work out from two of its start date, due date and estimate.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Third {
+    Due(Date),
+    /// In working days.
+    Estimate(f64),
+}
+
+/// The due date (from the start and the estimate) or the estimate (from the start and the due
+/// date) when that one is missing, in working days of `week`, the way the schedule counts them:
+/// the start day is the first day of the work and the due date its last, so a start on Monday
+/// with 5 days is due on Friday, a part day takes the whole day, and Monday to Friday is 5 days.
+/// A missing start is never worked out from the due date and the estimate: a start date means
+/// "not before", so it would hold the task back to the last moment instead of letting it start
+/// as soon as it can. `None` when there is nothing to work out, or the two that are set give
+/// nothing (a due date before the start, an estimate of 0, a week with no working day).
+pub fn third(
+    start: Option<Date>,
+    due: Option<Date>,
+    estimate: Option<f64>,
+    week: WorkWeek,
+) -> Option<Third> {
+    if week.days_per_week() == 0 {
+        return None;
+    }
+    // Whole working days, at least one.
+    let days = |e: f64| (e > 0.0 && e.is_finite()).then(|| (e.ceil() as i64).max(1));
+    match (start, due, estimate) {
+        (Some(s), Some(d), None) => {
+            let n = end_index(week, d) - working_index(week, s);
+            (n > 0).then_some(Third::Estimate(n as f64))
+        }
+        (Some(s), None, Some(e)) => {
+            let n = days(e)?;
+            Some(Third::Due(date_of(week, working_index(week, s) + n - 1)))
+        }
+        _ => None,
+    }
+}
+
+/// The change that works out one of a task's start date, due date and estimate from the other
+/// two, in working days of `week` (the same counting as [`third`]; the start is the latest day
+/// the work can begin to end on the due date). A person asked for it, so unlike [`third`] it can
+/// give the start. The estimate is set in the same change when a date is, so it is kept as it
+/// is. `Err` says in words what is missing or does not fit.
+pub fn work_out(
+    figure: TaskFigure,
+    start: Option<Date>,
+    due: Option<Date>,
+    estimate: Option<f64>,
+    week: WorkWeek,
+) -> Result<UpdateTask, String> {
+    if week.days_per_week() == 0 {
+        return Err("The working week has no working days. Set one in Settings.".to_owned());
+    }
+    let missing = |what: &str| format!("Needs {what} to work this out. Set them first.");
+    let days = |e: Option<f64>| match e {
+        Some(e) if e > 0.0 && e.is_finite() => Ok((e.ceil() as i64).max(1)),
+        Some(_) => Err("The estimate is 0, so there is nothing to work out from.".to_owned()),
+        None => Err(missing("an estimate and a start date or due date")),
+    };
+    match figure {
+        TaskFigure::Estimate => {
+            let (Some(s), Some(d)) = (start, due) else {
+                return Err(missing("a start date and a due date"));
+            };
+            let n = end_index(week, d) - working_index(week, s);
+            if n <= 0 {
+                return Err("The due date is before the start date. Change one of them.".to_owned());
+            }
+            Ok(UpdateTask {
+                estimate_days: Patch::Set(n as f64),
+                ..Default::default()
+            })
+        }
+        TaskFigure::Due => {
+            let Some(s) = start else {
+                return Err(missing("a start date and an estimate"));
+            };
+            let n = days(estimate)?;
+            Ok(UpdateTask {
+                due_date: Patch::Set(date_of(week, working_index(week, s) + n - 1)),
+                estimate_days: estimate.map_or(Patch::Keep, Patch::Set),
+                ..Default::default()
+            })
+        }
+        TaskFigure::Start => {
+            let Some(d) = due else {
+                return Err(missing("a due date and an estimate"));
+            };
+            let n = days(estimate)?;
+            Ok(UpdateTask {
+                start_date: Patch::Set(date_of(week, end_index(week, d) - n)),
+                estimate_days: estimate.map_or(Patch::Keep, Patch::Set),
+                ..Default::default()
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -459,5 +565,114 @@ mod tests {
                 prop_assert!(!t.trim().is_empty() && !t.contains('\n'));
             }
         }
+    }
+
+    #[test]
+    fn any_two_of_start_due_and_estimate_give_the_third() {
+        let week = WorkWeek::MON_FRI;
+        let mon = date!(2027 - 03 - 01);
+        let fri = date!(2027 - 03 - 05);
+        // Start and due: the working days from the first to the last, both counted.
+        assert_eq!(
+            third(Some(mon), Some(fri), None, week),
+            Some(Third::Estimate(5.0))
+        );
+        assert_eq!(
+            third(Some(mon), Some(mon), None, week),
+            Some(Third::Estimate(1.0))
+        );
+        // Fri 9 Oct to Fri 23 Oct 2026, over two weekends: 11 working days.
+        assert_eq!(
+            third(
+                Some(date!(2026 - 10 - 09)),
+                Some(date!(2026 - 10 - 23)),
+                None,
+                week
+            ),
+            Some(Third::Estimate(11.0))
+        );
+        // Start and estimate: the last working day of the work.
+        assert_eq!(
+            third(Some(mon), None, Some(5.0), week),
+            Some(Third::Due(fri))
+        );
+        assert_eq!(
+            third(Some(fri), None, Some(2.0), week),
+            Some(Third::Due(date!(2027 - 03 - 08)))
+        );
+        // A part day takes the whole day.
+        assert_eq!(
+            third(Some(mon), None, Some(0.5), week),
+            Some(Third::Due(mon))
+        );
+        assert_eq!(
+            third(Some(mon), None, Some(2.5), week),
+            Some(Third::Due(date!(2027 - 03 - 03)))
+        );
+        // Due and estimate leave the start empty: the task starts as soon as it can.
+        assert_eq!(third(None, Some(fri), Some(5.0), week), None);
+        // A start on a Sunday begins on the Monday.
+        assert_eq!(
+            third(Some(date!(2027 - 02 - 28)), None, Some(1.0), week),
+            Some(Third::Due(mon))
+        );
+        // Nothing to work out, or nothing sensible.
+        assert_eq!(third(Some(mon), Some(fri), Some(2.0), week), None);
+        assert_eq!(third(Some(mon), None, None, week), None);
+        assert_eq!(third(Some(fri), Some(mon), None, week), None);
+        assert_eq!(third(Some(mon), None, Some(0.0), week), None);
+        let sat = date!(2027 - 03 - 06);
+        assert_eq!(
+            third(Some(sat), Some(date!(2027 - 03 - 07)), None, week),
+            None
+        );
+    }
+
+    proptest! {
+        #[test]
+        fn the_third_agrees_with_the_other_two(start in 0i64..2000, days in 1i64..60) {
+            let week = WorkWeek::MON_FRI;
+            let s = date!(2026 - 01 - 05) + time::Duration::days(start);
+            let Some(Third::Due(d)) = third(Some(s), None, Some(days as f64), week) else {
+                return Err(TestCaseError::fail("no due date"));
+            };
+            prop_assert!(d >= s);
+            // The two dates give the estimate again.
+            prop_assert_eq!(third(Some(s), Some(d), None, week), Some(Third::Estimate(days as f64)));
+        }
+    }
+
+    #[test]
+    fn work_out_gives_the_missing_figure_in_working_days() {
+        use time::macros::date;
+        let week = WorkWeek::MON_FRI;
+        let (mon, fri) = (date!(2027 - 03 - 01), date!(2027 - 03 - 05));
+        let p = work_out(TaskFigure::Estimate, Some(mon), Some(fri), Some(2.0), week).unwrap();
+        assert_eq!(p.estimate_days, Patch::Set(5.0));
+        let p = work_out(TaskFigure::Due, Some(mon), None, Some(5.0), week).unwrap();
+        assert_eq!(p.due_date, Patch::Set(fri));
+        // The estimate is set again so a date change does not re-count it (1.5 days stay 1.5).
+        let p = work_out(TaskFigure::Due, Some(mon), Some(mon), Some(1.5), week).unwrap();
+        assert_eq!(
+            (p.due_date, p.estimate_days),
+            (Patch::Set(date!(2027 - 03 - 02)), Patch::Set(1.5))
+        );
+        // The latest start that still ends on the due date; over a weekend too.
+        let p = work_out(TaskFigure::Start, None, Some(fri), Some(5.0), week).unwrap();
+        assert_eq!(p.start_date, Patch::Set(mon));
+        let p = work_out(
+            TaskFigure::Start,
+            None,
+            Some(date!(2027 - 03 - 08)),
+            Some(2.0),
+            week,
+        )
+        .unwrap();
+        assert_eq!(p.start_date, Patch::Set(fri));
+        // What is missing or does not fit is said in words.
+        assert!(work_out(TaskFigure::Estimate, Some(fri), Some(mon), None, week).is_err());
+        assert!(work_out(TaskFigure::Estimate, None, Some(fri), None, week).is_err());
+        assert!(work_out(TaskFigure::Due, None, None, Some(2.0), week).is_err());
+        assert!(work_out(TaskFigure::Start, None, Some(fri), Some(0.0), week).is_err());
     }
 }

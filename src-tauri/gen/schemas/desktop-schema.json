@@ -321,6 +321,12 @@
           "markdownDescription": "Enables the commit_quick_add command without any pre-configured scope."
         },
         {
+          "description": "Enables the compute_task_figure command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-compute-task-figure",
+          "markdownDescription": "Enables the compute_task_figure command without any pre-configured scope."
+        },
+        {
           "description": "Enables the confirm_item command without any pre-configured scope.",
           "type": "string",
           "const": "allow-confirm-item",
@@ -687,6 +693,12 @@
           "markdownDescription": "Enables the get_team_detail command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_team_orders command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-team-orders",
+          "markdownDescription": "Enables the get_team_orders command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_this_week command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-this-week",
@@ -715,6 +727,12 @@
           "type": "string",
           "const": "allow-get-zoom-path",
           "markdownDescription": "Enables the get_zoom_path command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the give_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-give-task",
+          "markdownDescription": "Enables the give_task command without any pre-configured scope."
         },
         {
           "description": "Enables the list_activity_for command without any pre-configured scope.",
@@ -1341,6 +1359,12 @@
           "markdownDescription": "Denies the commit_quick_add command without any pre-configured scope."
         },
         {
+          "description": "Denies the compute_task_figure command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-compute-task-figure",
+          "markdownDescription": "Denies the compute_task_figure command without any pre-configured scope."
+        },
+        {
           "description": "Denies the confirm_item command without any pre-configured scope.",
           "type": "string",
           "const": "deny-confirm-item",
@@ -1707,6 +1731,12 @@
           "markdownDescription": "Denies the get_team_detail command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_team_orders command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-team-orders",
+          "markdownDescription": "Denies the get_team_orders command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_this_week command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-this-week",
@@ -1735,6 +1765,12 @@
           "type": "string",
           "const": "deny-get-zoom-path",
           "markdownDescription": "Denies the get_zoom_path command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the give_task command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-give-task",
+          "markdownDescription": "Denies the give_task command without any pre-configured scope."
         },
         {
           "description": "Denies the list_activity_for command without any pre-configured scope.",

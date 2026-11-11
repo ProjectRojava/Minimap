@@ -9,6 +9,7 @@ pub mod help;
 pub mod notes;
 pub mod objectives;
 pub mod order;
+pub mod order_team;
 pub mod overview;
 pub mod people;
 pub mod projects;

@@ -162,6 +162,17 @@ pub fn paths(name: &str) -> Option<&'static [&'static str]> {
         "step-leave" => &["M3 8h10"],
         "step-flag" => &["M4 14V2", "M4 3h8l-2 3 2 3H4"],
         "step-more" => &["M3.5 8h.1", "M8 8h.1", "M12.5 8h.1"],
+        // A small calculator: work a figure out from the others (the task pane's start, due, estimate).
+        "calc" => &[
+            "M4 2h8v12H4z",
+            "M6 4.5h4",
+            "M6 8h.1",
+            "M8 8h.1",
+            "M10 8h.1",
+            "M6 11h.1",
+            "M8 11h.1",
+            "M10 11h.1",
+        ],
         "command" => &[
             "M5.5 5.5h5v5h-5z",
             "M5.5 5.5V4a1.5 1.5 0 1 0-1.5 1.5z",
@@ -238,6 +249,7 @@ mod tests {
             "north",
             "me",
             "about",
+            "calc",
         ] {
             for d in paths(name).unwrap() {
                 assert!(d.starts_with('M'), "{name}: {d}");

@@ -6,7 +6,7 @@
 use std::str::FromStr;
 
 use leptos::{prelude::*, task::spawn_local};
-use minimap_types::{EdgeType, NodeSummary, Task, TaskStatus, UpdateTask, Uuid};
+use minimap_types::{EdgeType, NodeSummary, Task, TaskFigure, TaskStatus, UpdateTask, Uuid};
 
 use crate::{
     api,
@@ -14,6 +14,7 @@ use crate::{
         focus::FocusStar,
         form::{date_patch, DateField, SelectField, BUTTON, BUTTON_SUCCESS},
         page::Tone,
+        task_panel::FigureButton,
         task_board::today,
     },
     labels::{priority_option, task_status_label, PRIORITY_TINT, TASK_STATUS_TINT},
@@ -159,6 +160,10 @@ pub fn TaskPinned(id: Uuid) -> impl IntoView {
                                  current=t.priority.to_string() on_change=on_priority
                                  tint=PRIORITY_TINT />
                     <DateField compact=true current=due.clone() on_commit=on_due placeholder="Due" />
+                    <span class="relative h-[18px] w-[18px] shrink-0">
+                        <FigureButton id=id figure=TaskFigure::Due
+                            title="Work out the due date from the start date and the estimate" />
+                    </span>
                     <FocusStar task=id focus=t.focus />
                 })}
                 <span class="ml-auto">{done_button}</span>
