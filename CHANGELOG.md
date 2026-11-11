@@ -8,6 +8,18 @@ All notable changes to Minimap are documented here, organized by release. Format
 
 ### Added
 
+### Changed
+
+### Fixed
+
+---
+
+## [0.7.0] - 2026-11-11
+
+**Order screen as a queue with My team; Gantt legend, avatars and filters; estimates and dates follow each other.**
+
+### Added
+
 - A legend along the bottom of the Gantt explains the bars, marks and arrows; **?** hides and shows it.
 - The Gantt shows each task's assignee as an avatar at the right end of its row.
 - The Gantt's *Show* filters have a project box next to the objective box; it lists only the projects of the chosen objective.
